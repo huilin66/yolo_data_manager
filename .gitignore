@@ -29,23 +29,23 @@ Thumbs.db
 logs/
 
 # Dataset folders
-data/
-datasets/
-dataset/
-raw/
-processed/
-images/
-labels/
-annotations/
-outputs/
-output/
-runs/
-work_dirs/
-vis/
-visualizations/
-images_vis/
-labels_sta/
-cache/
+/data/
+/datasets/
+/dataset/
+/raw/
+/processed/
+/images/
+/labels/
+/annotations/
+/outputs/
+/output/
+/runs/
+/work_dirs/
+/vis/
+/visualizations/
+/images_vis/
+/labels_sta/
+/cache/
 
 # Model weights and ML artifacts
 *.pt

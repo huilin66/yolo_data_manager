@@ -4,7 +4,7 @@ import shutil
 from pathlib import Path
 
 from yolo_data_manager.core.models import YoloDataset
-from yolo_data_manager.core.schema import write_attribute_schema, write_class_schema
+from yolo_data_manager.core.schema import write_attribute_schema, write_class_schema, write_dataset_yaml
 
 
 def write_yolo_dataset(
@@ -22,6 +22,7 @@ def write_yolo_dataset(
     label_dir.mkdir(parents=True, exist_ok=True)
 
     write_class_schema(dataset.classes, out_path / "class.txt")
+    write_dataset_yaml(dataset.classes, out_path / "dataset.yaml", train="images", val="images")
     write_attribute_schema(dataset.attributes, out_path / "attribute.yaml")
 
     for image in dataset.images:
@@ -40,4 +41,3 @@ def write_split_file(image_names: list[str], path: str | Path) -> None:
     out_path = Path(path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text("\n".join(image_names) + ("\n" if image_names else ""), encoding="utf-8")
-

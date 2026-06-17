@@ -14,12 +14,18 @@ ydm query class --root path/to/yolo --class person --copy-images out/images --co
 ydm ann merge-class --root path/to/yolo --from crack,break --to defect --out path/to/yolo_merged --compact
 ydm dataset select --root path/to/yolo --file val.txt --out path/to/yolo_val
 ydm dataset split --root path/to/yolo --train 0.8 --val 0.2 --seed 233
+ydm dataset filter --root path/to/yolo --min-area 0.001 --out path/to/yolo_filtered
+ydm dataset yaml --root path/to/yolo --out dataset.yaml
 ydm stats --root path/to/yolo --out stats.json
+ydm stats --root path/to/yolo --ann-csv annotations.csv --plots-dir stats_plots
 ydm vis draw --root path/to/yolo --out images_vis
+ydm vis draw --root path/to/yolo --out images_vis --show-conf --conf 0.5
 ydm vis crop --root path/to/yolo --out crops
 ydm export coco --root path/to/yolo --out instances.json
 ydm export xany --root path/to/yolo --out xany_json
 ydm import labelme --json-dir labelme_json --out yolo --task segment
+ydm import coco --json instances.json --images-dir images --out yolo
+ydm import voc --annotations-dir Annotations --images-dir JPEGImages --out yolo
 ```
 
 Install in editable mode from the project root:
@@ -51,8 +57,11 @@ This is the first implementation pass. The foundation is in place:
 - basic COCO export
 - x-anylabeling export
 - simplified LabelMe import
+- COCO and VOC import
 - dataset select/split
+- dataset filtering and dataset.yaml generation
 - query-result image/label copying
+- annotation CSV export and optional statistics plots
 
 ## Repository Ignore Policy
 

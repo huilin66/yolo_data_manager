@@ -5,9 +5,13 @@ from PIL import Image
 
 from yolo_data_manager.annotation.edit import merge_classes
 from yolo_data_manager.annotation.query import copy_query_result, query_by_class
+from yolo_data_manager.converters.coco import import_coco
 from yolo_data_manager.converters.labelme import import_labelme_dir
 from yolo_data_manager.converters.seg_det import segmentation_to_detection
+from yolo_data_manager.converters.voc import import_voc_dir
 from yolo_data_manager.converters.xanylabeling import export_xanylabeling
+from yolo_data_manager.core.schema import write_dataset_yaml
+from yolo_data_manager.dataset.filter import filter_by_geometry
 from yolo_data_manager.io.loader import load_yolo_dataset
 from yolo_data_manager.io.validator import validate_dataset
 from yolo_data_manager.vis.renderer import crop_dataset
@@ -46,6 +50,16 @@ def test_merge_classes_with_compact(tmp_path):
     assert len(report.rows) == 1
     assert edited.classes.names == ["car"]
     assert {ann.class_id for image in edited.images for ann in image.annotations} == {0}
+
+
+def test_filter_by_geometry(tmp_path):
+    root = make_dataset(tmp_path / "yolo")
+    dataset = load_yolo_dataset(root)
+
+    filtered = filter_by_geometry(dataset, min_area=0.05)
+
+    assert filtered.annotation_count() == 1
+    assert filtered.images[0].annotations[0].class_id == 0
 
 
 def test_segmentation_to_detection(tmp_path):
@@ -114,3 +128,53 @@ def test_import_labelme(tmp_path):
     assert dataset.classes.names == ["surface"]
     assert dataset.annotation_count() == 1
     assert (tmp_path / "yolo_out" / "labels" / "img.txt").exists()
+
+
+def test_import_coco(tmp_path):
+    images_dir = tmp_path / "coco_images"
+    images_dir.mkdir()
+    Image.new("RGB", (100, 100), color="white").save(images_dir / "a.jpg")
+    coco = {
+        "images": [{"id": 1, "file_name": "a.jpg", "width": 100, "height": 100}],
+        "categories": [{"id": 7, "name": "sign"}],
+        "annotations": [{"id": 1, "image_id": 1, "category_id": 7, "bbox": [10, 20, 40, 30]}],
+    }
+    json_path = tmp_path / "coco.json"
+    json_path.write_text(json.dumps(coco), encoding="utf-8")
+
+    dataset = import_coco(json_path, images_dir, out_root=tmp_path / "yolo_coco")
+
+    assert dataset.classes.names == ["sign"]
+    assert dataset.annotation_count() == 1
+    assert (tmp_path / "yolo_coco" / "labels" / "a.txt").read_text(encoding="utf-8").strip() == "0 0.3 0.35 0.4 0.3"
+
+
+def test_import_voc_and_dataset_yaml(tmp_path):
+    images_dir = tmp_path / "JPEGImages"
+    ann_dir = tmp_path / "Annotations"
+    images_dir.mkdir()
+    ann_dir.mkdir()
+    Image.new("RGB", (100, 80), color="white").save(images_dir / "a.jpg")
+    (ann_dir / "a.xml").write_text(
+        """
+<annotation>
+  <filename>a.jpg</filename>
+  <size><width>100</width><height>80</height><depth>3</depth></size>
+  <object>
+    <name>car</name>
+    <difficult>0</difficult>
+    <bndbox><xmin>10</xmin><ymin>20</ymin><xmax>50</xmax><ymax>60</ymax></bndbox>
+  </object>
+</annotation>
+""".strip(),
+        encoding="utf-8",
+    )
+
+    dataset = import_voc_dir(ann_dir, images_dir, out_root=tmp_path / "yolo_voc")
+    write_dataset_yaml(dataset.classes, tmp_path / "dataset.yaml", train="images", val="images")
+
+    assert dataset.classes.names == ["car"]
+    assert dataset.annotation_count() == 1
+    yaml_text = (tmp_path / "dataset.yaml").read_text(encoding="utf-8")
+    assert "names:" in yaml_text
+    assert "car" in yaml_text

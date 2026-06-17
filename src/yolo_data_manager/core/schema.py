@@ -44,6 +44,26 @@ def write_attribute_schema(schema: AttributeSchema | None, path: Path | str) -> 
     Path(path).write_text(text, encoding="utf-8")
 
 
+def write_dataset_yaml(
+    class_schema: ClassSchema,
+    path: Path | str,
+    train: str = "images/train",
+    val: str = "images/val",
+    test: str | None = None,
+) -> None:
+    data = {
+        "train": train,
+        "val": val,
+        "nc": len(class_schema.names),
+        "names": class_schema.names,
+    }
+    if test is not None:
+        data["test"] = test
+    out_path = Path(path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
+
+
 def find_class_file(root: Path) -> Path | None:
     for name in ("class.txt", "classes.txt"):
         path = root / name

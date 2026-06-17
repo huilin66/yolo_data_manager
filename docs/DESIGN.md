@@ -28,6 +28,8 @@
 - YOLO segmentation -> YOLO detection
 - YOLO -> x-anylabeling
 - LabelMe -> YOLO 简化导入
+- COCO -> YOLO
+- VOC -> YOLO
 
 迁移阶段：
 
@@ -45,12 +47,16 @@
 - 删除空标注
 - 保留/删除空 label 文件
 - 输出操作 report
+- 按类别、面积、宽高、confidence 过滤标注
+- 生成 `dataset.yaml`
 
 典型命令：
 
 ```bash
 ydm dataset select --root yolo --file val.txt --out yolo_val
 ydm dataset split --root yolo --train 0.8 --val 0.2 --test 0.0 --seed 233
+ydm dataset filter --root yolo --min-area 0.001 --out yolo_filtered
+ydm dataset yaml --root yolo --out dataset.yaml
 ```
 
 ### 4. 标注查询
@@ -97,6 +103,8 @@ ydm ann rename-class --root yolo --from old_name --to new_name --out yolo_rename
 - bbox 宽高、面积、长宽比
 - segmentation polygon 点数、外接框
 - 属性分布、类别-属性交叉分布
+- annotation CSV 明细
+- 可选 PNG 图表输出
 
 ### 7. 可视化
 
@@ -112,6 +120,7 @@ ydm ann rename-class --root yolo --from old_name --to new_name --out yolo_rename
 
 ```bash
 ydm vis draw --root yolo --out images_vis
+ydm vis draw --root yolo --out images_vis --show-conf --conf 0.5 --mask-alpha 80
 ydm vis crop --root yolo --out crops
 ```
 
@@ -209,6 +218,7 @@ YoloAnnotation
 - 支持 `--dry-run`
 - 支持 `--report edit_report.csv`
 - 支持 `--keep-empty-labels`
+- 支持 `--dry-run`
 - class compact/remap 操作必须输出 remap 表
 
 ## Git Ignore 策略

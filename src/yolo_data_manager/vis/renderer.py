@@ -25,12 +25,22 @@ def render_dataset(
     out_dir: str | Path,
     limit: int | None = None,
     show_confidence: bool = False,
+    confidence_threshold: float | None = None,
+    mask_alpha: int = 64,
+    fill_mask: bool = True,
 ) -> None:
     out_path = Path(out_dir)
     out_path.mkdir(parents=True, exist_ok=True)
     images = dataset.images[:limit] if limit is not None else dataset.images
     for image in images:
-        rendered = render_image(dataset, image, show_confidence=show_confidence)
+        rendered = render_image(
+            dataset,
+            image,
+            show_confidence=show_confidence,
+            confidence_threshold=confidence_threshold,
+            mask_alpha=mask_alpha,
+            fill_mask=fill_mask,
+        )
         rendered.save(out_path / image.file_name)
 
 
@@ -39,6 +49,7 @@ def crop_dataset(
     out_dir: str | Path,
     keep_shape: bool = False,
     min_size: int = 1,
+    confidence_threshold: float | None = None,
 ) -> int:
     out_path = Path(out_dir)
     out_path.mkdir(parents=True, exist_ok=True)
@@ -47,6 +58,8 @@ def crop_dataset(
         canvas = Image.open(image.path).convert("RGB")
         width, height = canvas.size
         for idx, annotation in enumerate(image.annotations):
+            if confidence_threshold is not None and annotation.confidence is not None and annotation.confidence < confidence_threshold:
+                continue
             box = annotation.geometry_box()
             if box is None:
                 continue
@@ -71,18 +84,24 @@ def render_image(
     dataset: YoloDataset,
     image: YoloImage,
     show_confidence: bool = False,
+    confidence_threshold: float | None = None,
+    mask_alpha: int = 64,
+    fill_mask: bool = True,
 ) -> Image.Image:
     canvas = Image.open(image.path).convert("RGB")
     draw = ImageDraw.Draw(canvas, "RGBA")
     width, height = canvas.size
     for annotation in image.annotations:
+        if confidence_threshold is not None and annotation.confidence is not None and annotation.confidence < confidence_threshold:
+            continue
         color = COLORS[annotation.class_id % len(COLORS)]
         label = dataset.class_name(annotation.class_id)
         if show_confidence and annotation.confidence is not None:
             label = f"{label} {annotation.confidence:.2f}"
         if annotation.polygon is not None:
             points = normalized_points_to_pixels(annotation.polygon.points, width, height)
-            draw.polygon(points, fill=(*color, 64), outline=(*color, 255))
+            fill = (*color, mask_alpha) if fill_mask else None
+            draw.polygon(points, fill=fill, outline=(*color, 255))
             if points:
                 _draw_label(draw, points[0][0], points[0][1], label, color)
         else:
