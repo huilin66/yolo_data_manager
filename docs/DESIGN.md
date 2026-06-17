@@ -1,0 +1,195 @@
+# YOLO Data Manager 项目设计
+
+## 目标
+
+`YOLO Data Manager` 用来统一管理 YOLO 数据集，避免现有脚本中“读取、转换、统计、可视化、路径配置、临时逻辑”混在一起的问题。
+
+核心原则：
+
+1. 所有格式先读成统一内部模型。
+2. 查询、编辑、统计、可视化都只依赖内部模型。
+3. 导入导出只负责格式边界，不重复实现业务逻辑。
+4. 默认不原地破坏数据，写操作优先输出到新目录，并支持 `dry-run/report/backup`。
+
+## 功能分组
+
+### 1. 加载与校验
+
+- 识别 `images/labels/class.txt/classes.txt/dataset.yaml/attribute.yaml`
+- 按文件 stem 匹配 image 和 label，不依赖目录排序
+- 支持 YOLO detection、YOLO segmentation、带属性多任务标签、预测 confidence
+- 校验缺图、缺标签、孤儿 label、类别越界、坐标越界、负宽高、多边形点数异常
+
+### 2. 导入导出
+
+第一阶段：
+
+- YOLO -> COCO
+- YOLO segmentation -> YOLO detection
+
+迁移阶段：
+
+- COCO/VOC -> YOLO
+- LabelMe -> YOLO
+- YOLO -> x-anylabeling
+- Bosch/GTSDB/TZ 专用数据源
+
+### 3. 数据集管理
+
+- split train/val/test
+- select/copy 子集
+- merge 数据集
+- class id remap
+- 删除空标注
+- 保留/删除空 label 文件
+- 输出操作 report
+
+### 4. 标注查询
+
+查询结果分两层：
+
+- label-level：哪些 `.txt` 包含目标类别
+- instance-level：具体到每一行标注，包括 image、label、line_no、class_id、class_name、bbox/polygon、attributes、confidence
+
+典型命令：
+
+```bash
+ydm query class --root yolo --class surface --out surface.csv
+ydm query class --root yolo --class 3 --out class3.csv
+```
+
+### 5. 标注修改
+
+需要区分两种行为：
+
+- 只改标注行：保留 `class.txt` 编号体系
+- 改类别体系：删除/合并类别后同步更新 `class.txt`，并重排 label class id
+
+典型命令：
+
+```bash
+ydm ann delete-class --root yolo --class ignore --out yolo_clean
+ydm ann drop-class --root yolo --class ignore --out yolo_clean --compact
+ydm ann replace-class --root yolo --from old --to new --out yolo_fixed
+ydm ann merge-class --root yolo --from crack,break,peeling --to defect --out yolo_merged --compact
+ydm ann rename-class --root yolo --from old_name --to new_name --out yolo_renamed
+```
+
+### 6. 统计
+
+统计模块只负责产出结构化结果，绘图模块单独处理：
+
+- 图片数、label 数、标注数
+- 类别分布
+- 每图目标数
+- 空图/空 label
+- bbox 宽高、面积、长宽比
+- segmentation polygon 点数、外接框
+- 属性分布、类别-属性交叉分布
+
+### 7. 可视化
+
+- detection box
+- segmentation polygon
+- class name/confidence
+- crop
+- gallery
+- prediction threshold
+- 后续迁移现有 `data_vis/yolo_vis.py` 中更完整的 OpenCV 风格
+
+## 包结构
+
+```text
+yolo_data_manager/
+  core/
+    models.py
+    geometry.py
+    schema.py
+    errors.py
+  io/
+    loader.py
+    writer.py
+    validator.py
+  annotation/
+    query.py
+    edit.py
+    remap.py
+  dataset/
+    split.py
+    select.py
+    filter.py
+  converters/
+    coco.py
+    seg_det.py
+  stats/
+    compute.py
+    report.py
+  vis/
+    renderer.py
+  cli.py
+```
+
+## 内部模型
+
+```text
+YoloDataset
+  root
+  classes
+  attributes
+  images: list[YoloImage]
+  orphan_labels
+
+YoloImage
+  path
+  label_path
+  width
+  height
+  annotations: list[YoloAnnotation]
+
+YoloAnnotation
+  class_id
+  box
+  polygon
+  attributes
+  confidence
+  line_no
+```
+
+这样 detection、segmentation、multi-attribute、prediction 都能进入同一套查询、编辑、统计、可视化流程。
+
+## 迁移计划
+
+### Phase 1: 核心可用
+
+- core model
+- YOLO loader/writer
+- validator
+- query class
+- delete/replace/merge/rename class
+- stats JSON
+- basic visualization
+- COCO export
+
+### Phase 2: 迁移旧能力
+
+- 迁移 `data_vis/yolo_vis.py` 的多属性可视化、crop、confidence、mask overlay
+- 迁移 `data_vis/yolo_sta.py` 的图表输出
+- 迁移 `dataformat_swift/yolo2xanylabeling.py`
+- 迁移 `dataformat_swift/labelme2yolo.py`
+
+### Phase 3: 数据源适配
+
+- Bosch
+- GTSDB
+- TZ XML
+- 项目内其他定制格式
+
+## 写操作安全策略
+
+- 默认输出到 `--out`
+- 原地修改必须显式 `--in-place`
+- 支持 `--dry-run`
+- 支持 `--report edit_report.csv`
+- 支持 `--keep-empty-labels`
+- class compact/remap 操作必须输出 remap 表
+

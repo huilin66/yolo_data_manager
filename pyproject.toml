@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "yolo-data-manager"
+version = "0.1.0"
+description = "A small toolkit for loading, editing, querying, validating, converting, analyzing, and visualizing YOLO datasets."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "PyYAML>=6.0",
+    "Pillow>=10.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+plot = ["matplotlib>=3.8", "pandas>=2.0", "numpy>=1.24"]
+
+[project.scripts]
+ydm = "yolo_data_manager.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
