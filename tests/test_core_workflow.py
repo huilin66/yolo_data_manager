@@ -7,6 +7,7 @@ from yolo_data_manager.annotation.edit import delete_by_attribute, merge_classes
 from yolo_data_manager.annotation.query import copy_query_result, query_by_attribute, query_by_class
 from yolo_data_manager.converters.coco import import_coco
 from yolo_data_manager.converters.labelme import import_labelme_dir
+from yolo_data_manager.converters.pseudo import predictions_to_pseudo_labels
 from yolo_data_manager.converters.seg_det import segmentation_to_detection
 from yolo_data_manager.converters.voc import import_voc_dir
 from yolo_data_manager.converters.xanylabeling import export_xanylabeling
@@ -14,7 +15,9 @@ from yolo_data_manager.core.schema import write_dataset_yaml
 from yolo_data_manager.dataset.filter import filter_by_geometry
 from yolo_data_manager.dataset.duplicates import find_duplicate_images
 from yolo_data_manager.dataset.merge import merge_datasets
+from yolo_data_manager.dataset.quality import find_bad_images
 from yolo_data_manager.evaluation.compare import compare_datasets
+from yolo_data_manager.evaluation.review_pack import write_review_pack
 from yolo_data_manager.io.loader import load_yolo_dataset
 from yolo_data_manager.io.validator import validate_dataset
 from yolo_data_manager.vis.renderer import crop_dataset
@@ -99,6 +102,20 @@ def test_query_by_attribute_and_duplicate_validation(tmp_path):
     assert report.summary()["warning:duplicate_annotation"] == 1
 
 
+def test_self_intersecting_polygon_validation(tmp_path):
+    root = tmp_path / "poly_bad"
+    (root / "images").mkdir(parents=True)
+    (root / "labels").mkdir(parents=True)
+    Image.new("RGB", (100, 100), color="white").save(root / "images" / "a.jpg")
+    (root / "class.txt").write_text("shape\n", encoding="utf-8")
+    (root / "labels" / "a.txt").write_text("0 0.1 0.1 0.9 0.9 0.1 0.9 0.9 0.1\n", encoding="utf-8")
+    dataset = load_yolo_dataset(root, task="segment")
+
+    report = validate_dataset(dataset)
+
+    assert report.summary()["warning:polygon_self_intersection"] == 1
+
+
 def test_set_and_delete_attribute(tmp_path):
     root = tmp_path / "attr_edit_yolo"
     (root / "images").mkdir(parents=True)
@@ -159,6 +176,21 @@ def test_duplicate_image_hash(tmp_path):
     assert sorted(groups[0].images) == ["a.jpg", "b.jpg"]
 
 
+def test_find_bad_images(tmp_path):
+    root = tmp_path / "bad_images"
+    (root / "images").mkdir(parents=True)
+    (root / "labels").mkdir(parents=True)
+    (root / "images" / "bad.jpg").write_text("not an image", encoding="utf-8")
+    (root / "class.txt").write_text("x\n", encoding="utf-8")
+    (root / "labels" / "bad.txt").write_text("", encoding="utf-8")
+    dataset = load_yolo_dataset(root)
+
+    issues = find_bad_images(dataset)
+
+    assert len(issues) == 1
+    assert issues[0].code == "bad_image"
+
+
 def test_compare_datasets(tmp_path):
     gt_root = make_dataset(tmp_path / "gt")
     pred_root = tmp_path / "pred"
@@ -176,6 +208,29 @@ def test_compare_datasets(tmp_path):
 
     assert summary == {"tp": 1, "fp": 1, "fn": 2}
     assert len(rows) == 4
+
+
+def test_pseudo_labels_and_review_pack(tmp_path):
+    gt_root = make_dataset(tmp_path / "gt_pack")
+    pred_root = tmp_path / "pred_pack"
+    (pred_root / "images").mkdir(parents=True)
+    (pred_root / "labels").mkdir(parents=True)
+    Image.new("RGB", (100, 80), color="white").save(pred_root / "images" / "a.jpg")
+    Image.new("RGB", (100, 80), color="white").save(pred_root / "images" / "b.jpg")
+    (pred_root / "class.txt").write_text("person\ncar\n", encoding="utf-8")
+    (pred_root / "labels" / "a.txt").write_text("0 0.5 0.5 0.2 0.3 0.9\n1 0.9 0.9 0.1 0.1 0.2\n", encoding="utf-8")
+    (pred_root / "labels" / "b.txt").write_text("", encoding="utf-8")
+    gt = load_yolo_dataset(gt_root)
+    pred = load_yolo_dataset(pred_root)
+
+    pseudo = predictions_to_pseudo_labels(pred, confidence_threshold=0.5)
+    rows, _ = compare_datasets(gt, pred, iou_threshold=0.5)
+    counts = write_review_pack(rows, gt, tmp_path / "review", statuses={"fn", "fp"})
+
+    assert pseudo.annotation_count() == 1
+    assert pseudo.images[0].annotations[0].confidence is None
+    assert counts == {"fn": 2, "fp": 1}
+    assert (tmp_path / "review" / "fn" / "review.csv").exists()
 
 
 def test_export_xanylabeling(tmp_path):

@@ -9,11 +9,14 @@ from yolo_data_manager.annotation.query import copy_query_result, query_by_attri
 from yolo_data_manager.annotation.remap import apply_class_map
 from yolo_data_manager.converters.coco import export_coco, import_coco
 from yolo_data_manager.converters.labelme import import_labelme_dir
+from yolo_data_manager.converters.pseudo import predictions_to_pseudo_labels
 from yolo_data_manager.converters.seg_det import segmentation_to_detection
 from yolo_data_manager.converters.voc import import_voc_dir
 from yolo_data_manager.converters.xanylabeling import export_xanylabeling
+from yolo_data_manager.dataset.duplicates import find_duplicate_images, write_duplicate_image_csv
 from yolo_data_manager.dataset.filter import filter_by_geometry
 from yolo_data_manager.dataset.merge import merge_datasets
+from yolo_data_manager.dataset.quality import find_bad_images, write_image_quality_csv
 from yolo_data_manager.dataset.select import select_from_file
 from yolo_data_manager.dataset.split import split_dataset
 from yolo_data_manager.core.schema import write_dataset_yaml
@@ -25,6 +28,7 @@ from yolo_data_manager.stats.export import write_annotation_csv, write_stats_plo
 from yolo_data_manager.stats.report import write_class_counts_csv, write_json_report
 from yolo_data_manager.vis.renderer import crop_dataset, render_dataset
 from yolo_data_manager.evaluation.compare import compare_datasets, write_compare_csv
+from yolo_data_manager.evaluation.review_pack import write_review_pack
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -130,6 +134,11 @@ def build_parser() -> argparse.ArgumentParser:
     dataset_duplicates.add_argument("--out", default=None, help="optional duplicate CSV output")
     dataset_duplicates.add_argument("--algorithm", default="sha256")
     dataset_duplicates.set_defaults(handler=handle_dataset_duplicates)
+
+    dataset_bad_images = dataset_sub.add_parser("bad-images", help="find missing or corrupt images")
+    add_dataset_args(dataset_bad_images)
+    dataset_bad_images.add_argument("--out", default=None, help="optional CSV output")
+    dataset_bad_images.set_defaults(handler=handle_dataset_bad_images)
 
     ann = subparsers.add_parser("ann", help="edit annotations")
     ann_sub = ann.add_subparsers(dest="ann_command", required=True)
@@ -249,6 +258,12 @@ def build_parser() -> argparse.ArgumentParser:
     add_dataset_args(seg2det)
     add_write_args(seg2det)
     seg2det.set_defaults(handler=handle_seg2det)
+    pseudo = convert_sub.add_parser("pseudo", help="convert prediction labels to pseudo labels")
+    add_dataset_args(pseudo)
+    add_write_args(pseudo)
+    pseudo.add_argument("--conf", type=float, default=0.0, help="confidence threshold")
+    pseudo.add_argument("--keep-conf", dest="drop_confidence", action="store_false", help="keep confidence in output labels")
+    pseudo.set_defaults(handler=handle_pseudo, drop_confidence=True)
 
     eval_cmd = subparsers.add_parser("eval", help="evaluate or compare predictions")
     eval_sub = eval_cmd.add_subparsers(dest="eval_command", required=True)
@@ -260,6 +275,16 @@ def build_parser() -> argparse.ArgumentParser:
     compare.add_argument("--conf", type=float, default=None)
     compare.add_argument("--task", choices=["auto", "detect", "segment"], default="auto")
     compare.set_defaults(handler=handle_eval_compare)
+    review = eval_sub.add_parser("review-pack", help="write FP/FN review package from GT and predictions")
+    review.add_argument("--gt-root", required=True)
+    review.add_argument("--pred-root", required=True)
+    review.add_argument("--out", required=True, help="review output directory")
+    review.add_argument("--csv", default=None, help="optional full compare CSV output")
+    review.add_argument("--iou", type=float, default=0.5)
+    review.add_argument("--conf", type=float, default=None)
+    review.add_argument("--status", default="fp,fn", help="statuses to include, comma-separated")
+    review.add_argument("--task", choices=["auto", "detect", "segment"], default="auto")
+    review.set_defaults(handler=handle_eval_review_pack)
 
     return parser
 
@@ -436,6 +461,15 @@ def handle_dataset_duplicates(args: argparse.Namespace) -> int:
     return 0
 
 
+def handle_dataset_bad_images(args: argparse.Namespace) -> int:
+    dataset = load_from_args(args)
+    issues = find_bad_images(dataset)
+    if args.out:
+        write_image_quality_csv(issues, args.out)
+    print(json.dumps({"issues": len(issues), "bad_images": [issue.__dict__ for issue in issues]}, indent=2, ensure_ascii=False))
+    return 0
+
+
 def handle_delete_class(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
     edited, report = delete_class(dataset, _split_values(args.class_values), compact=args.compact)
@@ -590,12 +624,38 @@ def handle_seg2det(args: argparse.Namespace) -> int:
     return 0
 
 
+def handle_pseudo(args: argparse.Namespace) -> int:
+    dataset = load_from_args(args)
+    pseudo = predictions_to_pseudo_labels(dataset, confidence_threshold=args.conf, drop_confidence=args.drop_confidence)
+    if not args.dry_run:
+        write_yolo_dataset(
+            pseudo,
+            args.out,
+            copy_images=args.copy_images,
+            keep_empty_labels=args.keep_empty_labels,
+            include_confidence=not args.drop_confidence,
+        )
+    print(json.dumps({"annotations": pseudo.annotation_count(), "out": None if args.dry_run else args.out}, indent=2, ensure_ascii=False))
+    return 0
+
+
 def handle_eval_compare(args: argparse.Namespace) -> int:
     gt = load_yolo_dataset(args.gt_root, task=args.task)
     pred = load_yolo_dataset(args.pred_root, task=args.task)
     rows, summary = compare_datasets(gt, pred, iou_threshold=args.iou, confidence_threshold=args.conf)
     write_compare_csv(rows, args.out)
     print(json.dumps({"summary": summary, "out": args.out}, indent=2, ensure_ascii=False))
+    return 0
+
+
+def handle_eval_review_pack(args: argparse.Namespace) -> int:
+    gt = load_yolo_dataset(args.gt_root, task=args.task)
+    pred = load_yolo_dataset(args.pred_root, task=args.task)
+    rows, summary = compare_datasets(gt, pred, iou_threshold=args.iou, confidence_threshold=args.conf)
+    if args.csv:
+        write_compare_csv(rows, args.csv)
+    counts = write_review_pack(rows, gt, args.out, statuses=set(_split_values(args.status)), pred=pred)
+    print(json.dumps({"summary": summary, "review": counts, "out": args.out}, indent=2, ensure_ascii=False))
     return 0
 
 
@@ -624,4 +684,3 @@ def _emit_json(payload: dict[str, object], out: str | None) -> None:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-from yolo_data_manager.dataset.duplicates import find_duplicate_images, write_duplicate_image_csv

@@ -20,6 +20,7 @@ ydm dataset split --root path/to/yolo --train 0.8 --val 0.2 --seed 233
 ydm dataset filter --root path/to/yolo --min-area 0.001 --out path/to/yolo_filtered
 ydm dataset merge --roots data1,data2 --out merged_yolo
 ydm dataset duplicates --root path/to/yolo --out duplicate_images.csv
+ydm dataset bad-images --root path/to/yolo --out bad_images.csv
 ydm dataset yaml --root path/to/yolo --out dataset.yaml
 ydm stats --root path/to/yolo --out stats.json
 ydm stats --root path/to/yolo --ann-csv annotations.csv --plots-dir stats_plots
@@ -31,7 +32,9 @@ ydm export xany --root path/to/yolo --out xany_json
 ydm import labelme --json-dir labelme_json --out yolo --task segment
 ydm import coco --json instances.json --images-dir images --out yolo
 ydm import voc --annotations-dir Annotations --images-dir JPEGImages --out yolo
+ydm convert pseudo --root pred_yolo --conf 0.5 --out pseudo_yolo
 ydm eval compare --gt-root gt_yolo --pred-root pred_yolo --out compare.csv --iou 0.5
+ydm eval review-pack --gt-root gt_yolo --pred-root pred_yolo --out review_pack --iou 0.5
 ```
 
 Install in editable mode from the project root:
@@ -71,7 +74,9 @@ This is the first implementation pass. The foundation is in place:
 - multi-dataset merge with class-name alignment
 - duplicate image-name and duplicate-annotation validation
 - duplicate image hash detection
+- bad image detection
 - GT vs prediction comparison
+- FP/FN review package generation
 - query-result image/label copying
 - annotation CSV export and optional statistics plots
 

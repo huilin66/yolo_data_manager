@@ -59,6 +59,7 @@ ydm dataset split --root yolo --train 0.8 --val 0.2 --test 0.0 --seed 233
 ydm dataset filter --root yolo --min-area 0.001 --out yolo_filtered
 ydm dataset merge --roots yolo_a,yolo_b --out yolo_merged
 ydm dataset duplicates --root yolo --out duplicate_images.csv
+ydm dataset bad-images --root yolo --out bad_images.csv
 ydm dataset yaml --root yolo --out dataset.yaml
 ```
 
@@ -141,6 +142,8 @@ ydm vis crop --root yolo --out crops
 
 ```bash
 ydm eval compare --gt-root gt_yolo --pred-root pred_yolo --out compare.csv --iou 0.5 --conf 0.3
+ydm eval review-pack --gt-root gt_yolo --pred-root pred_yolo --out review_pack --iou 0.5
+ydm convert pseudo --root pred_yolo --conf 0.5 --out pseudo_yolo
 ```
 
 ## 包结构

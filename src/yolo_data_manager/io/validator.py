@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from yolo_data_manager.core.geometry import polygon_self_intersects
 from yolo_data_manager.core.models import YoloDataset
 
 
@@ -113,6 +114,15 @@ def validate_dataset(dataset: YoloDataset) -> ValidationReport:
                         "error",
                         "invalid_polygon",
                         "polygon needs at least 3 points",
+                        image=image.file_name,
+                        label=image.label_path,
+                        line_no=ann.line_no,
+                    )
+                elif polygon_self_intersects(ann.polygon.points):
+                    report.add(
+                        "warning",
+                        "polygon_self_intersection",
+                        "polygon appears to self-intersect",
                         image=image.file_name,
                         label=image.label_path,
                         line_no=ann.line_no,

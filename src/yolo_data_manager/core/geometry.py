@@ -70,3 +70,31 @@ def normalized_points_to_pixels(
 ) -> list[tuple[float, float]]:
     return [(x * width, y * height) for x, y in points]
 
+
+def polygon_self_intersects(points: Sequence[tuple[float, float]]) -> bool:
+    if len(points) < 4:
+        return False
+    edges = list(zip(points, points[1:] + points[:1]))
+    for idx, edge_a in enumerate(edges):
+        for jdx, edge_b in enumerate(edges):
+            if abs(idx - jdx) <= 1 or {idx, jdx} == {0, len(edges) - 1}:
+                continue
+            if _segments_intersect(edge_a[0], edge_a[1], edge_b[0], edge_b[1]):
+                return True
+    return False
+
+
+def _segments_intersect(
+    a1: tuple[float, float],
+    a2: tuple[float, float],
+    b1: tuple[float, float],
+    b2: tuple[float, float],
+) -> bool:
+    def orient(p: tuple[float, float], q: tuple[float, float], r: tuple[float, float]) -> float:
+        return (q[1] - p[1]) * (r[0] - q[0]) - (q[0] - p[0]) * (r[1] - q[1])
+
+    o1 = orient(a1, a2, b1)
+    o2 = orient(a1, a2, b2)
+    o3 = orient(b1, b2, a1)
+    o4 = orient(b1, b2, a2)
+    return (o1 > 0) != (o2 > 0) and (o3 > 0) != (o4 > 0)
