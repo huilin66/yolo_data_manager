@@ -26,12 +26,14 @@
 
 - YOLO -> COCO
 - YOLO segmentation -> YOLO detection
+- YOLO -> x-anylabeling
+- LabelMe -> YOLO 简化导入
 
 迁移阶段：
 
 - COCO/VOC -> YOLO
-- LabelMe -> YOLO
-- YOLO -> x-anylabeling
+- LabelMe -> YOLO 完整迁移，包括多任务属性
+- YOLO -> x-anylabeling 属性细节对齐
 - Bosch/GTSDB/TZ 专用数据源
 
 ### 3. 数据集管理
@@ -43,6 +45,13 @@
 - 删除空标注
 - 保留/删除空 label 文件
 - 输出操作 report
+
+典型命令：
+
+```bash
+ydm dataset select --root yolo --file val.txt --out yolo_val
+ydm dataset split --root yolo --train 0.8 --val 0.2 --test 0.0 --seed 233
+```
 
 ### 4. 标注查询
 
@@ -56,6 +65,8 @@
 ```bash
 ydm query class --root yolo --class surface --out surface.csv
 ydm query class --root yolo --class 3 --out class3.csv
+ydm query class --root yolo --class surface --copy-images query/images --copy-labels query/labels
+ydm query class --root yolo --class surface --copy-labels query/labels --filtered-labels
 ```
 
 ### 5. 标注修改
@@ -96,6 +107,13 @@ ydm ann rename-class --root yolo --from old_name --to new_name --out yolo_rename
 - gallery
 - prediction threshold
 - 后续迁移现有 `data_vis/yolo_vis.py` 中更完整的 OpenCV 风格
+
+典型命令：
+
+```bash
+ydm vis draw --root yolo --out images_vis
+ydm vis crop --root yolo --out crops
+```
 
 ## 包结构
 
@@ -193,3 +211,12 @@ YoloAnnotation
 - 支持 `--keep-empty-labels`
 - class compact/remap 操作必须输出 remap 表
 
+## Git Ignore 策略
+
+项目根目录 `.gitignore` 默认忽略：
+
+- Python 缓存、构建产物、虚拟环境
+- 数据目录：`data/ datasets/ dataset/ raw/ processed/ images/ labels/ annotations/`
+- 训练与分析输出：`runs/ outputs/ work_dirs/ images_vis/ labels_sta/ cache/`
+- 模型权重：`.pt .pth .ckpt .onnx .engine .trt .safetensors .weights .h5`
+- 大型压缩包与视频

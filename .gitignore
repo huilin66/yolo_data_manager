@@ -1,0 +1,76 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Local configs and logs
+.env
+.env.*
+*.log
+logs/
+
+# Dataset folders
+data/
+datasets/
+dataset/
+raw/
+processed/
+images/
+labels/
+annotations/
+outputs/
+output/
+runs/
+work_dirs/
+vis/
+visualizations/
+images_vis/
+labels_sta/
+cache/
+
+# Model weights and ML artifacts
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.engine
+*.trt
+*.pb
+*.tflite
+*.mlmodel
+*.safetensors
+*.weights
+*.h5
+*.pkl
+*.pickle
+
+# Large media/archive artifacts
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.rar
+*.mp4
+*.avi
+*.mov
+*.mkv

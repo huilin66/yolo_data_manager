@@ -10,10 +10,16 @@ dataset management, annotation query/edit, statistics, and visualization on top.
 ```bash
 ydm check --root path/to/yolo --task auto
 ydm query class --root path/to/yolo --class person --out person_labels.csv
+ydm query class --root path/to/yolo --class person --copy-images out/images --copy-labels out/labels
 ydm ann merge-class --root path/to/yolo --from crack,break --to defect --out path/to/yolo_merged --compact
+ydm dataset select --root path/to/yolo --file val.txt --out path/to/yolo_val
+ydm dataset split --root path/to/yolo --train 0.8 --val 0.2 --seed 233
 ydm stats --root path/to/yolo --out stats.json
 ydm vis draw --root path/to/yolo --out images_vis
+ydm vis crop --root path/to/yolo --out crops
 ydm export coco --root path/to/yolo --out instances.json
+ydm export xany --root path/to/yolo --out xany_json
+ydm import labelme --json-dir labelme_json --out yolo --task segment
 ```
 
 Install in editable mode from the project root:
@@ -43,6 +49,16 @@ This is the first implementation pass. The foundation is in place:
 - PIL-based visualization
 - YOLO segmentation to detection conversion
 - basic COCO export
+- x-anylabeling export
+- simplified LabelMe import
+- dataset select/split
+- query-result image/label copying
+
+## Repository Ignore Policy
+
+The project `.gitignore` excludes local datasets, generated visualization/statistics
+outputs, training runs, caches, and common model-weight formats such as `.pt`,
+`.pth`, `.onnx`, `.engine`, `.safetensors`, and `.weights`.
 
 Next migration targets are the richer visualization/statistics from the existing
 `data_vis` scripts and the specialized importers in `dataformat_swift`.

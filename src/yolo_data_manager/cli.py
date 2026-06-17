@@ -5,16 +5,20 @@ import json
 from pathlib import Path
 
 from yolo_data_manager.annotation.edit import delete_class, merge_classes, rename_class, replace_class
-from yolo_data_manager.annotation.query import query_by_class
+from yolo_data_manager.annotation.query import copy_query_result, query_by_class
 from yolo_data_manager.annotation.remap import apply_class_map
 from yolo_data_manager.converters.coco import export_coco
+from yolo_data_manager.converters.labelme import import_labelme_dir
 from yolo_data_manager.converters.seg_det import segmentation_to_detection
+from yolo_data_manager.converters.xanylabeling import export_xanylabeling
+from yolo_data_manager.dataset.select import select_from_file
+from yolo_data_manager.dataset.split import split_dataset
 from yolo_data_manager.io.loader import load_yolo_dataset
 from yolo_data_manager.io.validator import validate_dataset
-from yolo_data_manager.io.writer import write_yolo_dataset
+from yolo_data_manager.io.writer import write_split_file, write_yolo_dataset
 from yolo_data_manager.stats.compute import compute_stats
-from yolo_data_manager.stats.report import write_json_report
-from yolo_data_manager.vis.renderer import render_dataset
+from yolo_data_manager.stats.report import write_class_counts_csv, write_json_report
+from yolo_data_manager.vis.renderer import crop_dataset, render_dataset
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -38,6 +42,7 @@ def build_parser() -> argparse.ArgumentParser:
     stats = subparsers.add_parser("stats", help="compute dataset statistics")
     add_dataset_args(stats)
     stats.add_argument("--out", default=None, help="optional JSON output path")
+    stats.add_argument("--class-csv", default=None, help="optional class-count CSV output path")
     stats.set_defaults(handler=handle_stats)
 
     query = subparsers.add_parser("query", help="query annotations")
@@ -46,7 +51,28 @@ def build_parser() -> argparse.ArgumentParser:
     add_dataset_args(query_class)
     query_class.add_argument("--class", dest="class_values", required=True, help="class id/name, comma-separated allowed")
     query_class.add_argument("--out", default=None, help="optional CSV output path")
+    query_class.add_argument("--copy-images", default=None, help="copy matching images to this directory")
+    query_class.add_argument("--copy-labels", default=None, help="copy matching labels to this directory")
+    query_class.add_argument("--filtered-labels", action="store_true", help="when copying labels, keep only matched instances")
     query_class.set_defaults(handler=handle_query_class)
+
+    dataset_cmd = subparsers.add_parser("dataset", help="dataset management")
+    dataset_sub = dataset_cmd.add_subparsers(dest="dataset_command", required=True)
+    dataset_select = dataset_sub.add_parser("select", help="copy a subset from a txt/csv-like file")
+    add_dataset_args(dataset_select)
+    dataset_select.add_argument("--file", required=True, help="selection file containing image paths/names/stems")
+    dataset_select.add_argument("--out", required=True, help="output dataset root")
+    dataset_select.add_argument("--no-copy-images", dest="copy_images", action="store_false")
+    dataset_select.set_defaults(handler=handle_dataset_select, copy_images=True)
+
+    dataset_split = dataset_sub.add_parser("split", help="write train/val/test split txt files")
+    add_dataset_args(dataset_split)
+    dataset_split.add_argument("--train", type=float, default=0.8)
+    dataset_split.add_argument("--val", type=float, default=0.2)
+    dataset_split.add_argument("--test", type=float, default=0.0)
+    dataset_split.add_argument("--seed", type=int, default=233)
+    dataset_split.add_argument("--out", default=None, help="output directory; defaults to dataset root")
+    dataset_split.set_defaults(handler=handle_dataset_split)
 
     ann = subparsers.add_parser("ann", help="edit annotations")
     ann_sub = ann.add_subparsers(dest="ann_command", required=True)
@@ -96,6 +122,12 @@ def build_parser() -> argparse.ArgumentParser:
     draw.add_argument("--limit", type=int, default=None)
     draw.add_argument("--show-conf", action="store_true")
     draw.set_defaults(handler=handle_vis_draw)
+    crop = vis_sub.add_parser("crop", help="crop annotation regions into class folders")
+    add_dataset_args(crop)
+    crop.add_argument("--out", required=True, help="output crop directory")
+    crop.add_argument("--keep-shape", action="store_true")
+    crop.add_argument("--min-size", type=int, default=1)
+    crop.set_defaults(handler=handle_vis_crop)
 
     export = subparsers.add_parser("export", help="export to another format")
     export_sub = export.add_subparsers(dest="export_command", required=True)
@@ -103,6 +135,19 @@ def build_parser() -> argparse.ArgumentParser:
     add_dataset_args(coco)
     coco.add_argument("--out", required=True, help="output COCO JSON path")
     coco.set_defaults(handler=handle_export_coco)
+    xany = export_sub.add_parser("xany", help="export YOLO dataset to x-anylabeling JSON files")
+    add_dataset_args(xany)
+    xany.add_argument("--out", required=True, help="output JSON directory")
+    xany.set_defaults(handler=handle_export_xany)
+
+    import_cmd = subparsers.add_parser("import", help="import another annotation format")
+    import_sub = import_cmd.add_subparsers(dest="import_command", required=True)
+    labelme = import_sub.add_parser("labelme", help="import LabelMe JSON directory as YOLO")
+    labelme.add_argument("--json-dir", required=True)
+    labelme.add_argument("--out", required=True)
+    labelme.add_argument("--task", choices=["auto", "detect", "segment"], default="auto")
+    labelme.add_argument("--classes", default=None, help="optional comma-separated class order")
+    labelme.set_defaults(handler=handle_import_labelme)
 
     convert = subparsers.add_parser("convert", help="convert dataset task/form")
     convert_sub = convert.add_subparsers(dest="convert_command", required=True)
@@ -159,6 +204,8 @@ def handle_check(args: argparse.Namespace) -> int:
 def handle_stats(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
     payload = compute_stats(dataset)
+    if args.class_csv:
+        write_class_counts_csv(payload, args.class_csv)
     _emit_json(payload, args.out)
     return 0
 
@@ -168,7 +215,31 @@ def handle_query_class(args: argparse.Namespace) -> int:
     result = query_by_class(dataset, _split_values(args.class_values))
     if args.out:
         result.write_csv(args.out)
+    copy_query_result(
+        result,
+        images_dir=args.copy_images,
+        labels_dir=args.copy_labels,
+        filtered_labels=args.filtered_labels,
+    )
     print(json.dumps({"matches": len(result), "labels": [str(p) for p in result.label_paths()]}, indent=2, ensure_ascii=False))
+    return 0
+
+
+def handle_dataset_select(args: argparse.Namespace) -> int:
+    dataset = load_from_args(args)
+    selected = select_from_file(dataset, args.file)
+    write_yolo_dataset(selected, args.out, copy_images=args.copy_images)
+    print(json.dumps({"images": len(selected.images), "out": args.out}, indent=2, ensure_ascii=False))
+    return 0
+
+
+def handle_dataset_split(args: argparse.Namespace) -> int:
+    dataset = load_from_args(args)
+    splits = split_dataset(dataset, train=args.train, val=args.val, test=args.test, seed=args.seed)
+    out_dir = Path(args.out) if args.out else Path(args.root)
+    for split_name, names in splits.items():
+        write_split_file(names, out_dir / f"{split_name}.txt")
+    print(json.dumps({name: len(values) for name, values in splits.items()}, indent=2, ensure_ascii=False))
     return 0
 
 
@@ -227,10 +298,31 @@ def handle_vis_draw(args: argparse.Namespace) -> int:
     return 0
 
 
+def handle_vis_crop(args: argparse.Namespace) -> int:
+    dataset = load_from_args(args)
+    saved = crop_dataset(dataset, args.out, keep_shape=args.keep_shape, min_size=args.min_size)
+    print(json.dumps({"saved": saved, "out": args.out}, indent=2, ensure_ascii=False))
+    return 0
+
+
 def handle_export_coco(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
     export_coco(dataset, args.out)
     print(json.dumps({"out": args.out}, indent=2, ensure_ascii=False))
+    return 0
+
+
+def handle_export_xany(args: argparse.Namespace) -> int:
+    dataset = load_from_args(args)
+    export_xanylabeling(dataset, args.out)
+    print(json.dumps({"out": args.out}, indent=2, ensure_ascii=False))
+    return 0
+
+
+def handle_import_labelme(args: argparse.Namespace) -> int:
+    classes = _split_values(args.classes) if args.classes else None
+    dataset = import_labelme_dir(args.json_dir, out_root=args.out, task=args.task, class_names=classes)
+    print(json.dumps({"images": len(dataset.images), "annotations": dataset.annotation_count(), "out": args.out}, indent=2, ensure_ascii=False))
     return 0
 
 
@@ -271,4 +363,3 @@ def _emit_json(payload: dict[str, object], out: str | None) -> None:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

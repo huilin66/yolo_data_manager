@@ -34,6 +34,39 @@ def render_dataset(
         rendered.save(out_path / image.file_name)
 
 
+def crop_dataset(
+    dataset: YoloDataset,
+    out_dir: str | Path,
+    keep_shape: bool = False,
+    min_size: int = 1,
+) -> int:
+    out_path = Path(out_dir)
+    out_path.mkdir(parents=True, exist_ok=True)
+    saved = 0
+    for image in dataset.images:
+        canvas = Image.open(image.path).convert("RGB")
+        width, height = canvas.size
+        for idx, annotation in enumerate(image.annotations):
+            box = annotation.geometry_box()
+            if box is None:
+                continue
+            xyxy = xywhn_to_xyxy(box.as_tuple(), width, height)
+            left = max(0, int(round(xyxy.x1)))
+            top = max(0, int(round(xyxy.y1)))
+            right = min(width, int(round(xyxy.x2)))
+            bottom = min(height, int(round(xyxy.y2)))
+            if right - left < min_size or bottom - top < min_size:
+                continue
+            crop = Image.new("RGB", canvas.size, color=(0, 0, 0)) if keep_shape else canvas.crop((left, top, right, bottom))
+            if keep_shape:
+                crop.paste(canvas.crop((left, top, right, bottom)), (left, top))
+            class_dir = out_path / dataset.class_name(annotation.class_id)
+            class_dir.mkdir(parents=True, exist_ok=True)
+            crop.save(class_dir / f"{image.stem}_{idx}{image.path.suffix}")
+            saved += 1
+    return saved
+
+
 def render_image(
     dataset: YoloDataset,
     image: YoloImage,
@@ -72,4 +105,3 @@ def _draw_label(draw: ImageDraw.ImageDraw, x: float, y: float, text: str, color:
     rect = [text_box[0] - pad, text_box[1] - pad, text_box[2] + pad, text_box[3] + pad]
     draw.rectangle(rect, fill=(*color, 220))
     draw.text((x, y), text, fill=(0, 0, 0, 255))
-

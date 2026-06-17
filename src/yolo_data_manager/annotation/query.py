@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -97,3 +98,38 @@ def query_by_class(dataset: YoloDataset, classes: Iterable[int | str]) -> QueryR
 def labels_containing_class(dataset: YoloDataset, classes: Iterable[int | str]) -> list[Path]:
     return query_by_class(dataset, classes).label_paths()
 
+
+def copy_query_result(
+    result: QueryResult,
+    images_dir: str | Path | None = None,
+    labels_dir: str | Path | None = None,
+    filtered_labels: bool = False,
+) -> None:
+    if images_dir is not None:
+        out_images = Path(images_dir)
+        out_images.mkdir(parents=True, exist_ok=True)
+        for image_path in result.image_paths():
+            if image_path.exists():
+                shutil.copy2(image_path, out_images / image_path.name)
+
+    if labels_dir is not None:
+        out_labels = Path(labels_dir)
+        out_labels.mkdir(parents=True, exist_ok=True)
+        if filtered_labels:
+            _write_filtered_labels(result, out_labels)
+        else:
+            for label_path in result.label_paths():
+                if label_path.exists():
+                    shutil.copy2(label_path, out_labels / label_path.name)
+
+
+def _write_filtered_labels(result: QueryResult, labels_dir: Path) -> None:
+    grouped: dict[str, list[QueryMatch]] = {}
+    for match in result.matches:
+        grouped.setdefault(match.image.stem, []).append(match)
+    for stem, matches in grouped.items():
+        lines = [match.annotation.to_yolo_line() for match in matches]
+        (labels_dir / f"{stem}.txt").write_text(
+            "\n".join(lines) + ("\n" if lines else ""),
+            encoding="utf-8",
+        )
