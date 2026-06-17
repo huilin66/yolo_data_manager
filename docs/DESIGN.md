@@ -18,7 +18,17 @@
 - 识别 `images/labels/class.txt/classes.txt/dataset.yaml/attribute.yaml`
 - 按文件 stem 匹配 image 和 label，不依赖目录排序
 - 支持 YOLO detection、YOLO segmentation、带属性多任务标签、预测 confidence
+- 支持不同 YOLO 布局：`flat`、`split_dirs`、`image_list`、`mixed`、`auto`
+- 支持把不同布局 normalize 成标准 `images/labels` 组织
 - 校验缺图、缺标签、孤儿 label、类别越界、坐标越界、负宽高、多边形点数异常
+
+典型命令：
+
+```bash
+ydm layout detect --root yolo_data
+ydm check --root yolo_data --layout auto
+ydm dataset normalize --root yolo_data --layout auto --out yolo_normalized
+```
 
 ### 2. 导入导出
 

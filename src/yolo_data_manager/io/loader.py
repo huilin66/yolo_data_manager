@@ -22,6 +22,7 @@ from yolo_data_manager.core.schema import (
     read_attribute_schema,
     read_dataset_class_schema,
 )
+from yolo_data_manager.io.layout import infer_label_path_from_image, read_image_list, resolve_layout
 
 
 def load_yolo_dataset(
@@ -32,11 +33,13 @@ def load_yolo_dataset(
     attribute_file: str | Path | None = None,
     task: str = TASK_AUTO,
     split_file: str | Path | None = None,
+    layout: str = "flat",
     read_image_size: bool = True,
 ) -> YoloDataset:
     root_path = Path(root)
-    image_root = _resolve_under(root_path, images_dir)
-    label_root = _resolve_under(root_path, labels_dir)
+    layout_info = resolve_layout(root_path, layout=layout, images_dir=images_dir, labels_dir=labels_dir)
+    image_root = layout_info.images_dir or _resolve_under(root_path, images_dir)
+    label_root = layout_info.labels_dir or _resolve_under(root_path, labels_dir)
 
     classes = read_dataset_class_schema(root_path) if class_file is None else read_dataset_class_schema(Path(class_file).parent)
     if class_file is not None:
@@ -47,7 +50,11 @@ def load_yolo_dataset(
     attr_path = Path(attribute_file) if attribute_file is not None else find_attribute_file(root_path)
     attributes = read_attribute_schema(attr_path)
 
-    image_paths = sorted([path for path in image_root.rglob("*") if path.is_file() and is_image_file(path)])
+    if layout_info.layout == "image_list":
+        source_lists = [Path(split_file)] if split_file is not None else layout_info.split_files
+        image_paths = read_image_list(source_lists, root_path)
+    else:
+        image_paths = sorted([path for path in image_root.rglob("*") if path.is_file() and is_image_file(path)])
     if split_file is not None:
         allowed_stems = _read_split_stems(split_file)
         image_paths = [path for path in image_paths if path.stem in allowed_stems or path.name in allowed_stems]
@@ -57,7 +64,9 @@ def load_yolo_dataset(
 
     images: list[YoloImage] = []
     for image_path in image_paths:
-        label_path = labels_by_stem.get(image_path.stem)
+        label_path = infer_label_path_from_image(image_path) if layout_info.layout == "image_list" else labels_by_stem.get(image_path.stem)
+        if label_path is not None and not label_path.exists():
+            label_path = None
         width, height = _read_image_size(image_path) if read_image_size else (None, None)
         annotations = parse_label_file(label_path, task=task, attributes=attributes) if label_path else []
         images.append(
@@ -221,4 +230,3 @@ def _read_split_stems(path: str | Path) -> set[str]:
         values.add(Path(text).stem)
         values.add(Path(text).name)
     return values
-

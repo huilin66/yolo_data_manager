@@ -9,6 +9,9 @@ dataset management, annotation query/edit, statistics, and visualization on top.
 
 ```bash
 ydm check --root path/to/yolo --task auto
+ydm layout detect --root path/to/yolo
+ydm check --root path/to/yolo --layout auto
+ydm dataset normalize --root path/to/yolo --layout auto --out normalized_yolo
 ydm query class --root path/to/yolo --class person --out person_labels.csv
 ydm query class --root path/to/yolo --class person --copy-images out/images --copy-labels out/labels
 ydm query attr --root path/to/yolo --name defect --value yes --out defect.csv
@@ -56,6 +59,7 @@ python -m yolo_data_manager.cli check --root path/to/yolo
 This is the first implementation pass. The foundation is in place:
 
 - YOLO detection/segmentation/multi-attribute label loading
+- layout detection for flat folders, split folders, image-list txt files, and mixed folders
 - dataset validation
 - class-level annotation query
 - attribute-level annotation query

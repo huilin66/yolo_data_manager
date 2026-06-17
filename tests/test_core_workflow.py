@@ -19,7 +19,9 @@ from yolo_data_manager.dataset.quality import find_bad_images
 from yolo_data_manager.evaluation.compare import compare_datasets
 from yolo_data_manager.evaluation.review_pack import write_review_pack
 from yolo_data_manager.io.loader import load_yolo_dataset
+from yolo_data_manager.io.layout import detect_layout
 from yolo_data_manager.io.validator import validate_dataset
+from yolo_data_manager.io.writer import write_yolo_dataset
 from yolo_data_manager.vis.renderer import crop_dataset
 
 
@@ -45,6 +47,40 @@ def test_load_query_and_validate(tmp_path):
     result = query_by_class(dataset, ["car"])
     assert len(result) == 2
     assert [path.name for path in result.label_paths()] == ["a.txt", "b.txt"]
+
+
+def test_layout_detect_split_dirs_and_normalize(tmp_path):
+    root = tmp_path / "split_yolo"
+    (root / "images" / "train").mkdir(parents=True)
+    (root / "labels" / "train").mkdir(parents=True)
+    Image.new("RGB", (100, 80), color="white").save(root / "images" / "train" / "a.jpg")
+    (root / "labels" / "train" / "a.txt").write_text("0 0.5 0.5 0.2 0.2\n", encoding="utf-8")
+    (root / "class.txt").write_text("obj\n", encoding="utf-8")
+
+    info = detect_layout(root)
+    dataset = load_yolo_dataset(root, layout="auto")
+    write_yolo_dataset(dataset, tmp_path / "normalized")
+
+    assert info.layout == "split_dirs"
+    assert dataset.annotation_count() == 1
+    assert (tmp_path / "normalized" / "images" / "a.jpg").exists()
+
+
+def test_image_list_layout(tmp_path):
+    root = tmp_path / "list_yolo"
+    (root / "images").mkdir(parents=True)
+    (root / "labels").mkdir(parents=True)
+    Image.new("RGB", (100, 80), color="white").save(root / "images" / "a.jpg")
+    (root / "labels" / "a.txt").write_text("0 0.5 0.5 0.2 0.2\n", encoding="utf-8")
+    (root / "class.txt").write_text("obj\n", encoding="utf-8")
+    (root / "train.txt").write_text("images/a.jpg\n", encoding="utf-8")
+
+    info = detect_layout(root)
+    dataset = load_yolo_dataset(root, layout="auto")
+
+    assert info.layout == "image_list"
+    assert len(dataset.images) == 1
+    assert dataset.annotation_count() == 1
 
 
 def test_merge_classes_with_compact(tmp_path):

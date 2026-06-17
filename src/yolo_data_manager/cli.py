@@ -20,6 +20,7 @@ from yolo_data_manager.dataset.quality import find_bad_images, write_image_quali
 from yolo_data_manager.dataset.select import select_from_file
 from yolo_data_manager.dataset.split import split_dataset
 from yolo_data_manager.core.schema import write_dataset_yaml
+from yolo_data_manager.io.layout import detect_layout
 from yolo_data_manager.io.loader import load_yolo_dataset
 from yolo_data_manager.io.validator import validate_dataset
 from yolo_data_manager.io.writer import write_split_file, write_yolo_dataset
@@ -57,6 +58,12 @@ def build_parser() -> argparse.ArgumentParser:
     stats.add_argument("--plots-dir", default=None, help="optional directory for PNG plots")
     stats.set_defaults(handler=handle_stats)
 
+    layout_cmd = subparsers.add_parser("layout", help="detect or inspect YOLO dataset layouts")
+    layout_sub = layout_cmd.add_subparsers(dest="layout_command", required=True)
+    layout_detect = layout_sub.add_parser("detect", help="detect YOLO layout")
+    layout_detect.add_argument("--root", required=True)
+    layout_detect.set_defaults(handler=handle_layout_detect)
+
     query = subparsers.add_parser("query", help="query annotations")
     query_sub = query.add_subparsers(dest="query_command", required=True)
     query_class = query_sub.add_parser("class", help="query labels containing a class")
@@ -86,6 +93,11 @@ def build_parser() -> argparse.ArgumentParser:
     dataset_select.add_argument("--out", required=True, help="output dataset root")
     dataset_select.add_argument("--no-copy-images", dest="copy_images", action="store_false")
     dataset_select.set_defaults(handler=handle_dataset_select, copy_images=True)
+
+    dataset_normalize = dataset_sub.add_parser("normalize", help="normalize supported YOLO layouts into flat images/labels")
+    add_dataset_args(dataset_normalize)
+    add_write_args(dataset_normalize)
+    dataset_normalize.set_defaults(handler=handle_dataset_normalize)
 
     dataset_split = dataset_sub.add_parser("split", help="write train/val/test split txt files")
     add_dataset_args(dataset_split)
@@ -297,6 +309,7 @@ def add_dataset_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--attribute-file", default=None)
     parser.add_argument("--task", choices=["auto", "detect", "segment"], default="auto")
     parser.add_argument("--split-file", default=None)
+    parser.add_argument("--layout", choices=["auto", "flat", "split_dirs", "image_list", "mixed"], default="flat")
 
 
 def add_write_args(parser: argparse.ArgumentParser) -> None:
@@ -317,7 +330,14 @@ def load_from_args(args: argparse.Namespace):
         attribute_file=args.attribute_file,
         task=args.task,
         split_file=args.split_file,
+        layout=args.layout,
     )
+
+
+def handle_layout_detect(args: argparse.Namespace) -> int:
+    info = detect_layout(args.root)
+    print(json.dumps(info.to_dict(), indent=2, ensure_ascii=False))
+    return 0
 
 
 def handle_check(args: argparse.Namespace) -> int:
@@ -381,6 +401,19 @@ def handle_dataset_select(args: argparse.Namespace) -> int:
     selected = select_from_file(dataset, args.file)
     write_yolo_dataset(selected, args.out, copy_images=args.copy_images)
     print(json.dumps({"images": len(selected.images), "out": args.out}, indent=2, ensure_ascii=False))
+    return 0
+
+
+def handle_dataset_normalize(args: argparse.Namespace) -> int:
+    dataset = load_from_args(args)
+    if not args.dry_run:
+        write_yolo_dataset(
+            dataset,
+            args.out,
+            copy_images=args.copy_images,
+            keep_empty_labels=args.keep_empty_labels,
+        )
+    print(json.dumps({"images": len(dataset.images), "annotations": dataset.annotation_count(), "out": None if args.dry_run else args.out}, indent=2, ensure_ascii=False))
     return 0
 
 
