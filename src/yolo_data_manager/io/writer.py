@@ -26,13 +26,13 @@ def write_yolo_dataset(
     write_attribute_schema(dataset.attributes, out_path / "attribute.yaml")
 
     for image in dataset.images:
-        dst_image = image_dir / image.path.name
+        dst_image = image_dir / image.file_name
         if copy_images and image.path.exists() and (overwrite_images or not dst_image.exists()):
             shutil.copy2(image.path, dst_image)
 
         if not image.annotations and not keep_empty_labels:
             continue
-        dst_label = label_dir / f"{image.path.stem}.txt"
+        dst_label = label_dir / f"{image.stem}.txt"
         lines = [ann.to_yolo_line(include_confidence=include_confidence) for ann in image.annotations]
         dst_label.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
 

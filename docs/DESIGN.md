@@ -48,6 +48,7 @@
 - 保留/删除空 label 文件
 - 输出操作 report
 - 按类别、面积、宽高、confidence 过滤标注
+- 多数据集合并，按类别名对齐并自动 remap class id
 - 生成 `dataset.yaml`
 
 典型命令：
@@ -56,6 +57,7 @@
 ydm dataset select --root yolo --file val.txt --out yolo_val
 ydm dataset split --root yolo --train 0.8 --val 0.2 --test 0.0 --seed 233
 ydm dataset filter --root yolo --min-area 0.001 --out yolo_filtered
+ydm dataset merge --roots yolo_a,yolo_b --out yolo_merged
 ydm dataset yaml --root yolo --out dataset.yaml
 ```
 
@@ -73,6 +75,8 @@ ydm query class --root yolo --class surface --out surface.csv
 ydm query class --root yolo --class 3 --out class3.csv
 ydm query class --root yolo --class surface --copy-images query/images --copy-labels query/labels
 ydm query class --root yolo --class surface --copy-labels query/labels --filtered-labels
+ydm query attr --root yolo --name defect --value yes --out defect.csv
+ydm query attr --root yolo --name defect --nonzero --copy-labels query/labels
 ```
 
 ### 5. 标注修改

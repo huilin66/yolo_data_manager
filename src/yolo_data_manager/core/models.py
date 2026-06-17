@@ -149,14 +149,15 @@ class YoloImage:
     width: int | None = None
     height: int | None = None
     annotations: list[YoloAnnotation] = field(default_factory=list)
+    output_name: str | None = None
 
     @property
     def stem(self) -> str:
-        return self.path.stem
+        return Path(self.file_name).stem
 
     @property
     def file_name(self) -> str:
-        return self.path.name
+        return self.output_name or self.path.name
 
 
 @dataclass
@@ -193,4 +194,3 @@ def _format_number(value: float | int, precision: int) -> str:
         return str(value)
     text = f"{float(value):.{precision}f}".rstrip("0").rstrip(".")
     return text if text else "0"
-

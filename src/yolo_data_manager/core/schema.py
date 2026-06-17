@@ -29,7 +29,7 @@ def read_attribute_schema(path: Path | str | None) -> AttributeSchema | None:
     attr_path = Path(path)
     if not attr_path.exists():
         return None
-    data = yaml.safe_load(attr_path.read_text(encoding="utf-8")) or {}
+    data = yaml.load(attr_path.read_text(encoding="utf-8"), Loader=yaml.BaseLoader) or {}
     attributes = data.get("attributes", data)
     if not isinstance(attributes, dict):
         attributes = {}

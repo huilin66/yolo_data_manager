@@ -68,16 +68,34 @@ class ValidationReport:
 def validate_dataset(dataset: YoloDataset) -> ValidationReport:
     report = ValidationReport()
 
+    seen_image_names: set[str] = set()
     for label in dataset.orphan_labels:
         report.add("warning", "orphan_label", "label has no matching image", label=label)
 
     for image in dataset.images:
+        if image.file_name in seen_image_names:
+            report.add("warning", "duplicate_image_name", f"duplicate image output name: {image.file_name}", image=image.file_name)
+        seen_image_names.add(image.file_name)
+
         if image.label_path is None:
             report.add("warning", "missing_label", "image has no matching label", image=image.file_name)
         elif not image.label_path.exists():
             report.add("warning", "missing_label_file", "label path does not exist", image=image.file_name, label=image.label_path)
 
+        seen_annotations: set[str] = set()
         for ann in image.annotations:
+            ann_key = ann.to_yolo_line(include_confidence=True)
+            if ann_key in seen_annotations:
+                report.add(
+                    "warning",
+                    "duplicate_annotation",
+                    "duplicate annotation line in image",
+                    image=image.file_name,
+                    label=image.label_path,
+                    line_no=ann.line_no,
+                )
+            seen_annotations.add(ann_key)
+
             if len(dataset.classes) and not 0 <= ann.class_id < len(dataset.classes):
                 report.add(
                     "error",
@@ -158,4 +176,3 @@ def _validate_values(
                 label=label_path,
                 line_no=line_no,
             )
-

@@ -4,7 +4,7 @@ import json
 from PIL import Image
 
 from yolo_data_manager.annotation.edit import merge_classes
-from yolo_data_manager.annotation.query import copy_query_result, query_by_class
+from yolo_data_manager.annotation.query import copy_query_result, query_by_attribute, query_by_class
 from yolo_data_manager.converters.coco import import_coco
 from yolo_data_manager.converters.labelme import import_labelme_dir
 from yolo_data_manager.converters.seg_det import segmentation_to_detection
@@ -12,6 +12,7 @@ from yolo_data_manager.converters.voc import import_voc_dir
 from yolo_data_manager.converters.xanylabeling import export_xanylabeling
 from yolo_data_manager.core.schema import write_dataset_yaml
 from yolo_data_manager.dataset.filter import filter_by_geometry
+from yolo_data_manager.dataset.merge import merge_datasets
 from yolo_data_manager.io.loader import load_yolo_dataset
 from yolo_data_manager.io.validator import validate_dataset
 from yolo_data_manager.vis.renderer import crop_dataset
@@ -60,6 +61,40 @@ def test_filter_by_geometry(tmp_path):
 
     assert filtered.annotation_count() == 1
     assert filtered.images[0].annotations[0].class_id == 0
+
+
+def test_merge_datasets_with_output_name_prefix(tmp_path):
+    root1 = make_dataset(tmp_path / "yolo1")
+    root2 = make_dataset(tmp_path / "yolo2")
+    dataset1 = load_yolo_dataset(root1)
+    dataset2 = load_yolo_dataset(root2)
+
+    merged, report = merge_datasets([dataset1, dataset2], root=tmp_path / "merged")
+
+    assert report.image_count == 4
+    assert merged.annotation_count() == 6
+    assert merged.classes.names == ["person", "car"]
+    assert sorted(image.file_name for image in merged.images) == ["d0_a.jpg", "d0_b.jpg", "d1_a.jpg", "d1_b.jpg"]
+
+
+def test_query_by_attribute_and_duplicate_validation(tmp_path):
+    root = tmp_path / "attr_yolo"
+    (root / "images").mkdir(parents=True)
+    (root / "labels").mkdir(parents=True)
+    Image.new("RGB", (100, 100), color="white").save(root / "images" / "a.jpg")
+    (root / "class.txt").write_text("sign\n", encoding="utf-8")
+    (root / "attribute.yaml").write_text("attributes:\n  defect: [no, yes]\n", encoding="utf-8")
+    (root / "labels" / "a.txt").write_text(
+        "0 1 1 0.5 0.5 0.2 0.2\n0 1 1 0.5 0.5 0.2 0.2\n",
+        encoding="utf-8",
+    )
+    dataset = load_yolo_dataset(root)
+
+    result = query_by_attribute(dataset, "defect", values=["yes"])
+    report = validate_dataset(dataset)
+
+    assert len(result) == 2
+    assert report.summary()["warning:duplicate_annotation"] == 1
 
 
 def test_segmentation_to_detection(tmp_path):

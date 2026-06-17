@@ -99,6 +99,34 @@ def labels_containing_class(dataset: YoloDataset, classes: Iterable[int | str]) 
     return query_by_class(dataset, classes).label_paths()
 
 
+def query_by_attribute(
+    dataset: YoloDataset,
+    attribute_name: str,
+    values: Iterable[str] | None = None,
+    nonzero: bool = False,
+) -> QueryResult:
+    if dataset.attributes is None:
+        return QueryResult(dataset=dataset, matches=[])
+    attr_names = dataset.attributes.names
+    if attribute_name not in attr_names:
+        return QueryResult(dataset=dataset, matches=[])
+
+    attr_idx = attr_names.index(attribute_name)
+    expected_values = {str(value) for value in values} if values is not None else None
+    matches: list[QueryMatch] = []
+    for image in dataset.images:
+        for annotation in image.annotations:
+            if attr_idx >= len(annotation.attributes):
+                continue
+            raw_value = annotation.attributes[attr_idx]
+            decoded = dataset.attributes.decode(annotation.attributes).get(attribute_name, raw_value)
+            if nonzero and float(raw_value) != 0:
+                matches.append(QueryMatch(image=image, annotation=annotation))
+            elif expected_values is not None and (str(raw_value) in expected_values or str(decoded) in expected_values):
+                matches.append(QueryMatch(image=image, annotation=annotation))
+    return QueryResult(dataset=dataset, matches=matches)
+
+
 def copy_query_result(
     result: QueryResult,
     images_dir: str | Path | None = None,

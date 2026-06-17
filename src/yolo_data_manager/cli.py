@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 from yolo_data_manager.annotation.edit import delete_class, merge_classes, rename_class, replace_class
-from yolo_data_manager.annotation.query import copy_query_result, query_by_class
+from yolo_data_manager.annotation.query import copy_query_result, query_by_attribute, query_by_class
 from yolo_data_manager.annotation.remap import apply_class_map
 from yolo_data_manager.converters.coco import export_coco, import_coco
 from yolo_data_manager.converters.labelme import import_labelme_dir
@@ -13,6 +13,7 @@ from yolo_data_manager.converters.seg_det import segmentation_to_detection
 from yolo_data_manager.converters.voc import import_voc_dir
 from yolo_data_manager.converters.xanylabeling import export_xanylabeling
 from yolo_data_manager.dataset.filter import filter_by_geometry
+from yolo_data_manager.dataset.merge import merge_datasets
 from yolo_data_manager.dataset.select import select_from_file
 from yolo_data_manager.dataset.split import split_dataset
 from yolo_data_manager.core.schema import write_dataset_yaml
@@ -61,6 +62,16 @@ def build_parser() -> argparse.ArgumentParser:
     query_class.add_argument("--copy-labels", default=None, help="copy matching labels to this directory")
     query_class.add_argument("--filtered-labels", action="store_true", help="when copying labels, keep only matched instances")
     query_class.set_defaults(handler=handle_query_class)
+    query_attr = query_sub.add_parser("attr", help="query annotations by attribute")
+    add_dataset_args(query_attr)
+    query_attr.add_argument("--name", required=True, help="attribute name")
+    query_attr.add_argument("--value", default=None, help="attribute value, comma-separated allowed")
+    query_attr.add_argument("--nonzero", action="store_true", help="match annotations whose raw attribute value is non-zero")
+    query_attr.add_argument("--out", default=None, help="optional CSV output path")
+    query_attr.add_argument("--copy-images", default=None, help="copy matching images to this directory")
+    query_attr.add_argument("--copy-labels", default=None, help="copy matching labels to this directory")
+    query_attr.add_argument("--filtered-labels", action="store_true", help="when copying labels, keep only matched instances")
+    query_attr.set_defaults(handler=handle_query_attr)
 
     dataset_cmd = subparsers.add_parser("dataset", help="dataset management")
     dataset_sub = dataset_cmd.add_subparsers(dest="dataset_command", required=True)
@@ -100,6 +111,18 @@ def build_parser() -> argparse.ArgumentParser:
     dataset_filter.add_argument("--no-copy-images", dest="copy_images", action="store_false")
     dataset_filter.add_argument("--dry-run", action="store_true")
     dataset_filter.set_defaults(handler=handle_dataset_filter, copy_images=True)
+
+    dataset_merge = dataset_sub.add_parser("merge", help="merge multiple YOLO datasets with class-name alignment")
+    dataset_merge.add_argument("--roots", required=True, help="comma-separated dataset roots")
+    dataset_merge.add_argument("--out", required=True, help="output dataset root")
+    dataset_merge.add_argument("--task", choices=["auto", "detect", "segment"], default="auto")
+    dataset_merge.add_argument("--images-dir", default="images")
+    dataset_merge.add_argument("--labels-dir", default="labels")
+    dataset_merge.add_argument("--no-source-prefix", dest="source_prefix", action="store_false", help="do not prefix output image names by dataset index")
+    dataset_merge.add_argument("--no-rename-duplicates", dest="rename_duplicates", action="store_false", help="fail on duplicate output image names")
+    dataset_merge.add_argument("--no-copy-images", dest="copy_images", action="store_false")
+    dataset_merge.add_argument("--dry-run", action="store_true")
+    dataset_merge.set_defaults(handler=handle_dataset_merge, source_prefix=True, rename_duplicates=True, copy_images=True)
 
     ann = subparsers.add_parser("ann", help="edit annotations")
     ann_sub = ann.add_subparsers(dest="ann_command", required=True)
@@ -277,6 +300,22 @@ def handle_query_class(args: argparse.Namespace) -> int:
     return 0
 
 
+def handle_query_attr(args: argparse.Namespace) -> int:
+    dataset = load_from_args(args)
+    values = _split_values(args.value) if args.value else None
+    result = query_by_attribute(dataset, args.name, values=values, nonzero=args.nonzero)
+    if args.out:
+        result.write_csv(args.out)
+    copy_query_result(
+        result,
+        images_dir=args.copy_images,
+        labels_dir=args.copy_labels,
+        filtered_labels=args.filtered_labels,
+    )
+    print(json.dumps({"matches": len(result), "labels": [str(p) for p in result.label_paths()]}, indent=2, ensure_ascii=False))
+    return 0
+
+
 def handle_dataset_select(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
     selected = select_from_file(dataset, args.file)
@@ -320,6 +359,36 @@ def handle_dataset_filter(args: argparse.Namespace) -> int:
     if not args.dry_run:
         write_yolo_dataset(filtered, args.out, copy_images=args.copy_images)
     print(json.dumps({"before": before, "after": after, "removed": before - after, "out": None if args.dry_run else args.out}, indent=2, ensure_ascii=False))
+    return 0
+
+
+def handle_dataset_merge(args: argparse.Namespace) -> int:
+    roots = _split_values(args.roots)
+    datasets = [
+        load_yolo_dataset(root, images_dir=args.images_dir, labels_dir=args.labels_dir, task=args.task)
+        for root in roots
+    ]
+    merged, report = merge_datasets(
+        datasets,
+        root=args.out,
+        rename_duplicates=args.rename_duplicates,
+        source_prefix=args.source_prefix,
+    )
+    if not args.dry_run:
+        write_yolo_dataset(merged, args.out, copy_images=args.copy_images)
+    print(
+        json.dumps(
+            {
+                "images": report.image_count,
+                "annotations": report.annotation_count,
+                "classes": report.class_names,
+                "renamed_images": report.renamed_images,
+                "out": None if args.dry_run else args.out,
+            },
+            indent=2,
+            ensure_ascii=False,
+        )
+    )
     return 0
 
 
