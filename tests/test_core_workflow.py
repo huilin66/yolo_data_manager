@@ -3,7 +3,7 @@ import json
 
 from PIL import Image
 
-from yolo_data_manager.annotation.edit import merge_classes
+from yolo_data_manager.annotation.edit import delete_by_attribute, merge_classes, set_attribute
 from yolo_data_manager.annotation.query import copy_query_result, query_by_attribute, query_by_class
 from yolo_data_manager.converters.coco import import_coco
 from yolo_data_manager.converters.labelme import import_labelme_dir
@@ -12,7 +12,9 @@ from yolo_data_manager.converters.voc import import_voc_dir
 from yolo_data_manager.converters.xanylabeling import export_xanylabeling
 from yolo_data_manager.core.schema import write_dataset_yaml
 from yolo_data_manager.dataset.filter import filter_by_geometry
+from yolo_data_manager.dataset.duplicates import find_duplicate_images
 from yolo_data_manager.dataset.merge import merge_datasets
+from yolo_data_manager.evaluation.compare import compare_datasets
 from yolo_data_manager.io.loader import load_yolo_dataset
 from yolo_data_manager.io.validator import validate_dataset
 from yolo_data_manager.vis.renderer import crop_dataset
@@ -97,6 +99,25 @@ def test_query_by_attribute_and_duplicate_validation(tmp_path):
     assert report.summary()["warning:duplicate_annotation"] == 1
 
 
+def test_set_and_delete_attribute(tmp_path):
+    root = tmp_path / "attr_edit_yolo"
+    (root / "images").mkdir(parents=True)
+    (root / "labels").mkdir(parents=True)
+    Image.new("RGB", (100, 100), color="white").save(root / "images" / "a.jpg")
+    (root / "class.txt").write_text("sign\n", encoding="utf-8")
+    (root / "attribute.yaml").write_text("attributes:\n  defect: [no, yes]\n", encoding="utf-8")
+    (root / "labels" / "a.txt").write_text("0 1 0 0.5 0.5 0.2 0.2\n", encoding="utf-8")
+    dataset = load_yolo_dataset(root)
+
+    edited, report = set_attribute(dataset, "defect", "yes")
+    deleted, delete_report = delete_by_attribute(edited, "defect", values=["yes"])
+
+    assert len(report.rows) == 1
+    assert edited.images[0].annotations[0].attributes == [1.0]
+    assert len(delete_report.rows) == 1
+    assert deleted.annotation_count() == 0
+
+
 def test_segmentation_to_detection(tmp_path):
     root = tmp_path / "seg"
     (root / "images").mkdir(parents=True)
@@ -126,6 +147,35 @@ def test_query_copy_and_crop(tmp_path):
     saved = crop_dataset(dataset, tmp_path / "crops")
     assert saved == 3
     assert (tmp_path / "crops" / "person" / "a_0.jpg").exists()
+
+
+def test_duplicate_image_hash(tmp_path):
+    root = make_dataset(tmp_path / "yolo")
+    dataset = load_yolo_dataset(root)
+
+    groups = find_duplicate_images(dataset)
+
+    assert len(groups) == 1
+    assert sorted(groups[0].images) == ["a.jpg", "b.jpg"]
+
+
+def test_compare_datasets(tmp_path):
+    gt_root = make_dataset(tmp_path / "gt")
+    pred_root = tmp_path / "pred"
+    (pred_root / "images").mkdir(parents=True)
+    (pred_root / "labels").mkdir(parents=True)
+    Image.new("RGB", (100, 80), color="white").save(pred_root / "images" / "a.jpg")
+    Image.new("RGB", (100, 80), color="white").save(pred_root / "images" / "b.jpg")
+    (pred_root / "class.txt").write_text("person\ncar\n", encoding="utf-8")
+    (pred_root / "labels" / "a.txt").write_text("0 0.5 0.5 0.2 0.3 0.9\n1 0.9 0.9 0.1 0.1 0.8\n", encoding="utf-8")
+    (pred_root / "labels" / "b.txt").write_text("", encoding="utf-8")
+    gt = load_yolo_dataset(gt_root)
+    pred = load_yolo_dataset(pred_root)
+
+    rows, summary = compare_datasets(gt, pred, iou_threshold=0.5)
+
+    assert summary == {"tp": 1, "fp": 1, "fn": 2}
+    assert len(rows) == 4
 
 
 def test_export_xanylabeling(tmp_path):

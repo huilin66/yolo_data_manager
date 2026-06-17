@@ -13,10 +13,13 @@ ydm query class --root path/to/yolo --class person --out person_labels.csv
 ydm query class --root path/to/yolo --class person --copy-images out/images --copy-labels out/labels
 ydm query attr --root path/to/yolo --name defect --value yes --out defect.csv
 ydm ann merge-class --root path/to/yolo --from crack,break --to defect --out path/to/yolo_merged --compact
+ydm ann set-attr --root path/to/yolo --name defect --value yes --class sign --out yolo_attr_fixed
+ydm ann delete-attr --root path/to/yolo --name defect --value yes --out yolo_attr_clean
 ydm dataset select --root path/to/yolo --file val.txt --out path/to/yolo_val
 ydm dataset split --root path/to/yolo --train 0.8 --val 0.2 --seed 233
 ydm dataset filter --root path/to/yolo --min-area 0.001 --out path/to/yolo_filtered
 ydm dataset merge --roots data1,data2 --out merged_yolo
+ydm dataset duplicates --root path/to/yolo --out duplicate_images.csv
 ydm dataset yaml --root path/to/yolo --out dataset.yaml
 ydm stats --root path/to/yolo --out stats.json
 ydm stats --root path/to/yolo --ann-csv annotations.csv --plots-dir stats_plots
@@ -28,6 +31,7 @@ ydm export xany --root path/to/yolo --out xany_json
 ydm import labelme --json-dir labelme_json --out yolo --task segment
 ydm import coco --json instances.json --images-dir images --out yolo
 ydm import voc --annotations-dir Annotations --images-dir JPEGImages --out yolo
+ydm eval compare --gt-root gt_yolo --pred-root pred_yolo --out compare.csv --iou 0.5
 ```
 
 Install in editable mode from the project root:
@@ -53,6 +57,7 @@ This is the first implementation pass. The foundation is in place:
 - class-level annotation query
 - attribute-level annotation query
 - class delete/replace/merge/rename operations
+- attribute set/delete operations
 - dataset writing
 - basic statistics
 - PIL-based visualization
@@ -65,6 +70,8 @@ This is the first implementation pass. The foundation is in place:
 - dataset filtering and dataset.yaml generation
 - multi-dataset merge with class-name alignment
 - duplicate image-name and duplicate-annotation validation
+- duplicate image hash detection
+- GT vs prediction comparison
 - query-result image/label copying
 - annotation CSV export and optional statistics plots
 

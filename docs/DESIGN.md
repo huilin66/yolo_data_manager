@@ -58,6 +58,7 @@ ydm dataset select --root yolo --file val.txt --out yolo_val
 ydm dataset split --root yolo --train 0.8 --val 0.2 --test 0.0 --seed 233
 ydm dataset filter --root yolo --min-area 0.001 --out yolo_filtered
 ydm dataset merge --roots yolo_a,yolo_b --out yolo_merged
+ydm dataset duplicates --root yolo --out duplicate_images.csv
 ydm dataset yaml --root yolo --out dataset.yaml
 ```
 
@@ -94,6 +95,8 @@ ydm ann drop-class --root yolo --class ignore --out yolo_clean --compact
 ydm ann replace-class --root yolo --from old --to new --out yolo_fixed
 ydm ann merge-class --root yolo --from crack,break,peeling --to defect --out yolo_merged --compact
 ydm ann rename-class --root yolo --from old_name --to new_name --out yolo_renamed
+ydm ann set-attr --root yolo --name defect --value yes --class sign --out yolo_attr_fixed
+ydm ann delete-attr --root yolo --name defect --value yes --out yolo_attr_clean
 ```
 
 ### 6. 统计
@@ -126,6 +129,18 @@ ydm ann rename-class --root yolo --from old_name --to new_name --out yolo_rename
 ydm vis draw --root yolo --out images_vis
 ydm vis draw --root yolo --out images_vis --show-conf --conf 0.5 --mask-alpha 80
 ydm vis crop --root yolo --out crops
+```
+
+### 8. 预测结果对比
+
+- GT vs prediction 按 class + IoU 贪心匹配
+- 输出 TP/FP/FN 明细 CSV
+- 支持 confidence threshold
+
+典型命令：
+
+```bash
+ydm eval compare --gt-root gt_yolo --pred-root pred_yolo --out compare.csv --iou 0.5 --conf 0.3
 ```
 
 ## 包结构

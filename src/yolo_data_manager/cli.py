@@ -4,7 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
-from yolo_data_manager.annotation.edit import delete_class, merge_classes, rename_class, replace_class
+from yolo_data_manager.annotation.edit import delete_by_attribute, delete_class, merge_classes, rename_class, replace_class, set_attribute
 from yolo_data_manager.annotation.query import copy_query_result, query_by_attribute, query_by_class
 from yolo_data_manager.annotation.remap import apply_class_map
 from yolo_data_manager.converters.coco import export_coco, import_coco
@@ -24,6 +24,7 @@ from yolo_data_manager.stats.compute import compute_stats
 from yolo_data_manager.stats.export import write_annotation_csv, write_stats_plots
 from yolo_data_manager.stats.report import write_class_counts_csv, write_json_report
 from yolo_data_manager.vis.renderer import crop_dataset, render_dataset
+from yolo_data_manager.evaluation.compare import compare_datasets, write_compare_csv
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -124,6 +125,12 @@ def build_parser() -> argparse.ArgumentParser:
     dataset_merge.add_argument("--dry-run", action="store_true")
     dataset_merge.set_defaults(handler=handle_dataset_merge, source_prefix=True, rename_duplicates=True, copy_images=True)
 
+    dataset_duplicates = dataset_sub.add_parser("duplicates", help="find duplicate image files by content hash")
+    add_dataset_args(dataset_duplicates)
+    dataset_duplicates.add_argument("--out", default=None, help="optional duplicate CSV output")
+    dataset_duplicates.add_argument("--algorithm", default="sha256")
+    dataset_duplicates.set_defaults(handler=handle_dataset_duplicates)
+
     ann = subparsers.add_parser("ann", help="edit annotations")
     ann_sub = ann.add_subparsers(dest="ann_command", required=True)
 
@@ -163,6 +170,23 @@ def build_parser() -> argparse.ArgumentParser:
     apply_map.add_argument("--map", dest="map_file", required=True, help="YAML class map")
     apply_map.add_argument("--no-compact", dest="compact", action="store_false", help="do not compact class ids")
     apply_map.set_defaults(handler=handle_apply_map, compact=True)
+
+    set_attr = ann_sub.add_parser("set-attr", help="set an attribute value on annotations")
+    add_dataset_args(set_attr)
+    add_write_args(set_attr)
+    set_attr.add_argument("--name", required=True, help="attribute name")
+    set_attr.add_argument("--value", required=True, help="new attribute value")
+    set_attr.add_argument("--class", dest="class_values", default=None, help="optional class id/name filter")
+    set_attr.add_argument("--where-value", default=None, help="only update annotations whose current attribute has this value")
+    set_attr.set_defaults(handler=handle_set_attr)
+
+    delete_attr = ann_sub.add_parser("delete-attr", help="delete annotations matched by an attribute")
+    add_dataset_args(delete_attr)
+    add_write_args(delete_attr)
+    delete_attr.add_argument("--name", required=True, help="attribute name")
+    delete_attr.add_argument("--value", default=None, help="attribute value, comma-separated allowed")
+    delete_attr.add_argument("--nonzero", action="store_true")
+    delete_attr.set_defaults(handler=handle_delete_attr)
 
     vis = subparsers.add_parser("vis", help="visualize annotations")
     vis_sub = vis.add_subparsers(dest="vis_command", required=True)
@@ -225,6 +249,17 @@ def build_parser() -> argparse.ArgumentParser:
     add_dataset_args(seg2det)
     add_write_args(seg2det)
     seg2det.set_defaults(handler=handle_seg2det)
+
+    eval_cmd = subparsers.add_parser("eval", help="evaluate or compare predictions")
+    eval_sub = eval_cmd.add_subparsers(dest="eval_command", required=True)
+    compare = eval_sub.add_parser("compare", help="compare prediction labels against GT labels")
+    compare.add_argument("--gt-root", required=True)
+    compare.add_argument("--pred-root", required=True)
+    compare.add_argument("--out", required=True, help="CSV output path")
+    compare.add_argument("--iou", type=float, default=0.5)
+    compare.add_argument("--conf", type=float, default=None)
+    compare.add_argument("--task", choices=["auto", "detect", "segment"], default="auto")
+    compare.set_defaults(handler=handle_eval_compare)
 
     return parser
 
@@ -392,6 +427,15 @@ def handle_dataset_merge(args: argparse.Namespace) -> int:
     return 0
 
 
+def handle_dataset_duplicates(args: argparse.Namespace) -> int:
+    dataset = load_from_args(args)
+    groups = find_duplicate_images(dataset, algorithm=args.algorithm)
+    if args.out:
+        write_duplicate_image_csv(groups, args.out)
+    print(json.dumps({"groups": len(groups), "duplicates": [group.__dict__ for group in groups]}, indent=2, ensure_ascii=False))
+    return 0
+
+
 def handle_delete_class(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
     edited, report = delete_class(dataset, _split_values(args.class_values), compact=args.compact)
@@ -438,6 +482,28 @@ def handle_apply_map(args: argparse.Namespace) -> int:
 
         EditReport(rows=rows).write_csv(args.report)
     print(json.dumps({"reports": len(reports), "out": None if args.dry_run else args.out}, indent=2, ensure_ascii=False))
+    return 0
+
+
+def handle_set_attr(args: argparse.Namespace) -> int:
+    dataset = load_from_args(args)
+    classes = _split_values(args.class_values) if args.class_values else None
+    edited, report = set_attribute(
+        dataset,
+        args.name,
+        args.value,
+        classes=classes,
+        where_value=args.where_value,
+    )
+    _write_edit_result(edited, report, args)
+    return 0
+
+
+def handle_delete_attr(args: argparse.Namespace) -> int:
+    dataset = load_from_args(args)
+    values = _split_values(args.value) if args.value else None
+    edited, report = delete_by_attribute(dataset, args.name, values=values, nonzero=args.nonzero)
+    _write_edit_result(edited, report, args)
     return 0
 
 
@@ -524,6 +590,15 @@ def handle_seg2det(args: argparse.Namespace) -> int:
     return 0
 
 
+def handle_eval_compare(args: argparse.Namespace) -> int:
+    gt = load_yolo_dataset(args.gt_root, task=args.task)
+    pred = load_yolo_dataset(args.pred_root, task=args.task)
+    rows, summary = compare_datasets(gt, pred, iou_threshold=args.iou, confidence_threshold=args.conf)
+    write_compare_csv(rows, args.out)
+    print(json.dumps({"summary": summary, "out": args.out}, indent=2, ensure_ascii=False))
+    return 0
+
+
 def _write_edit_result(dataset, report, args: argparse.Namespace) -> None:
     if not args.dry_run:
         write_yolo_dataset(
@@ -549,3 +624,4 @@ def _emit_json(payload: dict[str, object], out: str | None) -> None:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+from yolo_data_manager.dataset.duplicates import find_duplicate_images, write_duplicate_image_csv

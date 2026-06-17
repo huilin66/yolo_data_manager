@@ -72,6 +72,15 @@ class AttributeSchema:
                 decoded[name] = raw_value
         return decoded
 
+    def value_to_raw(self, name: str, value: str | int | float) -> float:
+        options = self.attributes.get(name)
+        if isinstance(options, list):
+            text = str(value)
+            for idx, option in enumerate(options):
+                if str(option) == text:
+                    return float(idx)
+        return float(value)
+
 
 @dataclass
 class Box:

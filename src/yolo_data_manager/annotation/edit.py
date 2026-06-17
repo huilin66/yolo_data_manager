@@ -20,6 +20,9 @@ class EditRow:
     new_class_id: int | None = None
     new_class_name: str | None = None
     action: str = "update"
+    attr_name: str | None = None
+    old_attr_value: object | None = None
+    new_attr_value: object | None = None
 
 
 @dataclass
@@ -42,6 +45,9 @@ class EditReport:
                 "new_class_id": row.new_class_id if row.new_class_id is not None else "",
                 "new_class_name": row.new_class_name or "",
                 "action": row.action,
+                "attr_name": row.attr_name or "",
+                "old_attr_value": row.old_attr_value if row.old_attr_value is not None else "",
+                "new_attr_value": row.new_attr_value if row.new_attr_value is not None else "",
             }
             for row in self.rows
         ]
@@ -60,6 +66,9 @@ class EditReport:
             "new_class_id",
             "new_class_name",
             "action",
+            "attr_name",
+            "old_attr_value",
+            "new_attr_value",
         ]
         with out_path.open("w", newline="", encoding="utf-8") as fp:
             writer = csv.DictWriter(fp, fieldnames=fieldnames)
@@ -187,6 +196,88 @@ def rename_class(
     return result, report
 
 
+def set_attribute(
+    dataset: YoloDataset,
+    attribute_name: str,
+    value: str | int | float,
+    classes: Iterable[int | str] | None = None,
+    where_value: str | int | float | None = None,
+) -> tuple[YoloDataset, EditReport]:
+    result = copy.deepcopy(dataset)
+    report = EditReport()
+    if result.attributes is None or attribute_name not in result.attributes.names:
+        return result, report
+
+    attr_idx = result.attributes.names.index(attribute_name)
+    new_raw = result.attributes.value_to_raw(attribute_name, value)
+    where_raw = result.attributes.value_to_raw(attribute_name, where_value) if where_value is not None else None
+    class_ids = _resolve_class_ids(result, classes) if classes is not None else None
+
+    for image in result.images:
+        for annotation in image.annotations:
+            if class_ids is not None and annotation.class_id not in class_ids:
+                continue
+            _ensure_attribute_len(annotation, attr_idx + 1)
+            old_raw = annotation.attributes[attr_idx]
+            if where_raw is not None and old_raw != where_raw:
+                continue
+            annotation.attributes[attr_idx] = new_raw
+            report.add(
+                EditRow(
+                    operation="set_attribute",
+                    image=image.file_name,
+                    label_path=str(image.label_path) if image.label_path else "",
+                    line_no=annotation.line_no,
+                    old_class_id=annotation.class_id,
+                    old_class_name=result.class_name(annotation.class_id),
+                    action="set_attribute",
+                    attr_name=attribute_name,
+                    old_attr_value=old_raw,
+                    new_attr_value=new_raw,
+                )
+            )
+    return result, report
+
+
+def delete_by_attribute(
+    dataset: YoloDataset,
+    attribute_name: str,
+    values: Iterable[str] | None = None,
+    nonzero: bool = False,
+) -> tuple[YoloDataset, EditReport]:
+    result = copy.deepcopy(dataset)
+    report = EditReport()
+    if result.attributes is None or attribute_name not in result.attributes.names:
+        return result, report
+
+    attr_idx = result.attributes.names.index(attribute_name)
+    raw_values = {result.attributes.value_to_raw(attribute_name, value) for value in values} if values is not None else None
+
+    for image in result.images:
+        kept: list[YoloAnnotation] = []
+        for annotation in image.annotations:
+            raw = annotation.attributes[attr_idx] if attr_idx < len(annotation.attributes) else 0
+            matched = (nonzero and float(raw) != 0) or (raw_values is not None and raw in raw_values)
+            if matched:
+                report.add(
+                    EditRow(
+                        operation="delete_by_attribute",
+                        image=image.file_name,
+                        label_path=str(image.label_path) if image.label_path else "",
+                        line_no=annotation.line_no,
+                        old_class_id=annotation.class_id,
+                        old_class_name=result.class_name(annotation.class_id),
+                        action="delete",
+                        attr_name=attribute_name,
+                        old_attr_value=raw,
+                    )
+                )
+            else:
+                kept.append(annotation)
+        image.annotations = kept
+    return result, report
+
+
 def _resolve_class_ids(dataset: YoloDataset, classes: Iterable[int | str]) -> set[int]:
     return {dataset.class_id(value) for value in classes}
 
@@ -208,3 +299,7 @@ def _compact_classes(dataset: YoloDataset, remove_ids: set[int]) -> dict[int, in
     dataset.classes = ClassSchema(new_names)
     return mapping
 
+
+def _ensure_attribute_len(annotation: YoloAnnotation, length: int) -> None:
+    while len(annotation.attributes) < length:
+        annotation.attributes.append(0.0)
