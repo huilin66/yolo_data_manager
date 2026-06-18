@@ -22,7 +22,10 @@ from yolo_data_manager.io.loader import load_yolo_dataset
 from yolo_data_manager.io.layout import detect_layout
 from yolo_data_manager.io.validator import validate_dataset
 from yolo_data_manager.io.writer import write_yolo_dataset
+from yolo_data_manager.stats.compute import compute_stats
+from yolo_data_manager.stats.export import write_attribute_csv
 from yolo_data_manager.vis.renderer import crop_dataset
+from yolo_data_manager.vis.renderer import render_dataset
 
 
 def make_dataset(root: Path) -> Path:
@@ -171,6 +174,44 @@ def test_set_and_delete_attribute(tmp_path):
     assert deleted.annotation_count() == 0
 
 
+def test_class_scoped_attribute_full_flow(tmp_path):
+    root = tmp_path / "class_attr_yolo"
+    (root / "images").mkdir(parents=True)
+    (root / "labels").mkdir(parents=True)
+    Image.new("RGB", (100, 100), color="white").save(root / "images" / "a.jpg")
+    (root / "class.txt").write_text("sign\nroad\n", encoding="utf-8")
+    (root / "attribute.yaml").write_text(
+        "attributes:\n"
+        "  sign:\n"
+        "    defect: [no, yes]\n"
+        "  road:\n"
+        "    material: [asphalt, concrete]\n",
+        encoding="utf-8",
+    )
+    (root / "labels" / "a.txt").write_text(
+        "0 1 1 0.5 0.5 0.2 0.2\n1 1 1 0.3 0.3 0.2 0.2\n",
+        encoding="utf-8",
+    )
+    dataset = load_yolo_dataset(root)
+
+    query = query_by_attribute(dataset, "defect", values=["yes"])
+    edited, edit_report = set_attribute(dataset, "material", "asphalt", classes=["road"])
+    stats = compute_stats(edited)
+    write_attribute_csv(edited, tmp_path / "attributes.csv")
+    render_dataset(edited, tmp_path / "vis", show_attributes=True, filter_no_attributes=True)
+    saved = crop_dataset(edited, tmp_path / "crops", by_attribute=True)
+
+    assert len(query) == 1
+    assert edited.images[0].annotations[1].attributes == [0.0]
+    assert len(edit_report.rows) == 1
+    assert stats["attribute_counts"]["defect"]["yes"] == 1
+    assert stats["class_attribute_counts"]["road"]["material"]["asphalt"] == 1
+    assert "material" in (tmp_path / "attributes.csv").read_text(encoding="utf-8")
+    assert (tmp_path / "vis" / "a.jpg").exists()
+    assert saved == 4
+    assert (tmp_path / "crops" / "sign" / "defect-yes" / "a_0.jpg").exists()
+
+
 def test_segmentation_to_detection(tmp_path):
     root = tmp_path / "seg"
     (root / "images").mkdir(parents=True)
@@ -304,6 +345,38 @@ def test_import_labelme(tmp_path):
     assert dataset.classes.names == ["surface"]
     assert dataset.annotation_count() == 1
     assert (tmp_path / "yolo_out" / "labels" / "img.txt").exists()
+
+
+def test_import_labelme_with_attributes(tmp_path):
+    labelme_dir = tmp_path / "labelme_attr"
+    labelme_dir.mkdir()
+    Image.new("RGB", (100, 100), color="white").save(labelme_dir / "img.jpg")
+    attr_file = tmp_path / "attribute.yaml"
+    attr_file.write_text(
+        "attributes:\n"
+        "  surface:\n"
+        "    defect: [no, yes]\n",
+        encoding="utf-8",
+    )
+    data = {
+        "imagePath": "img.jpg",
+        "imageWidth": 100,
+        "imageHeight": 100,
+        "shapes": [
+            {
+                "label": "surface",
+                "shape_type": "rectangle",
+                "points": [[10, 20], [50, 60]],
+                "attributes": {"defect": "yes"},
+            }
+        ],
+    }
+    (labelme_dir / "img.json").write_text(json.dumps(data), encoding="utf-8")
+
+    dataset = import_labelme_dir(labelme_dir, out_root=tmp_path / "yolo_attr_out", task="detect", attribute_file=attr_file)
+
+    assert dataset.annotation_attributes(dataset.images[0].annotations[0]) == {"defect": "yes"}
+    assert (tmp_path / "yolo_attr_out" / "labels" / "img.txt").read_text(encoding="utf-8").startswith("0 1 1 ")
 
 
 def test_import_coco(tmp_path):

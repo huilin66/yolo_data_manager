@@ -10,7 +10,8 @@ from pathlib import Path
 from PIL import Image
 
 from yolo_data_manager.core.geometry import xyxy_to_xywhn
-from yolo_data_manager.core.models import Box, ClassSchema, Polygon, YoloAnnotation, YoloDataset, YoloImage
+from yolo_data_manager.core.models import AttributeSchema, Box, ClassSchema, Polygon, YoloAnnotation, YoloDataset, YoloImage
+from yolo_data_manager.core.schema import read_attribute_schema
 
 
 def import_labelme_dir(
@@ -18,9 +19,11 @@ def import_labelme_dir(
     out_root: str | Path | None = None,
     task: str = "auto",
     class_names: list[str] | None = None,
+    attribute_file: str | Path | None = None,
 ) -> YoloDataset:
     root = Path(json_dir)
     classes = ClassSchema(list(class_names or []))
+    attributes = read_attribute_schema(attribute_file)
     images: list[YoloImage] = []
 
     for json_path in sorted(root.glob("*.json")):
@@ -37,6 +40,11 @@ def import_labelme_dir(
             shape_type = shape.get("shape_type") or "polygon"
             points = [(float(x), float(y)) for x, y in shape.get("points", [])]
             annotation = _shape_to_annotation(class_id, points, shape_type, width, height, task)
+            annotation.attributes = _shape_attributes_to_raw(
+                attributes,
+                class_name=label,
+                shape_attributes=shape.get("attributes") or {},
+            )
             annotation.line_no = line_no
             annotations.append(annotation)
 
@@ -50,7 +58,7 @@ def import_labelme_dir(
             )
         )
 
-    dataset = YoloDataset(root=Path(out_root or root), images=images, classes=classes, task=task)
+    dataset = YoloDataset(root=Path(out_root or root), images=images, classes=classes, attributes=attributes, task=task)
     if out_root is not None:
         from yolo_data_manager.io.writer import write_yolo_dataset
 
@@ -85,6 +93,22 @@ def _shape_to_annotation(
         y1, y2 = min(ys), max(ys)
     cx, cy, bw, bh = xyxy_to_xywhn(x1, y1, x2, y2, width, height)
     return YoloAnnotation(class_id=class_id, box=Box(cx, cy, bw, bh))
+
+
+def _shape_attributes_to_raw(
+    schema: AttributeSchema | None,
+    class_name: str,
+    shape_attributes: object,
+) -> list[float]:
+    if schema is None or not isinstance(shape_attributes, dict):
+        return []
+    raw_values: list[float] = []
+    for name in schema.names_for_class(class_name):
+        if name not in shape_attributes:
+            raw_values.append(0.0)
+            continue
+        raw_values.append(schema.value_to_raw(name, shape_attributes[name], class_name=class_name))
+    return raw_values
 
 
 def _circle_points(center: tuple[float, float], edge: tuple[float, float], count: int = 24) -> list[tuple[float, float]]:

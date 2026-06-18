@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from statistics import mean
 
-from yolo_data_manager.core.models import YoloDataset
+from yolo_data_manager.core.models import AttributeSchema, YoloDataset
 
 
 def compute_stats(dataset: YoloDataset) -> dict[str, object]:
@@ -13,12 +13,17 @@ def compute_stats(dataset: YoloDataset) -> dict[str, object]:
     heights: list[float] = []
     areas: list[float] = []
     polygon_points: list[int] = []
+    attribute_counts: dict[str, dict[str, int]] = {}
+    class_attribute_counts: dict[str, dict[str, dict[str, int]]] = {}
+    boxes_with_attribute = 0
+    images_with_attribute: set[str] = set()
 
     for image in dataset.images:
         objects_per_image.append(len(image.annotations))
         for annotation in image.annotations:
+            class_name = dataset.class_name(annotation.class_id)
             class_id_counts[annotation.class_id] = class_id_counts.get(annotation.class_id, 0) + 1
-            class_counts[dataset.class_name(annotation.class_id)] = class_counts.get(dataset.class_name(annotation.class_id), 0) + 1
+            class_counts[class_name] = class_counts.get(class_name, 0) + 1
             box = annotation.geometry_box()
             if box is not None:
                 widths.append(box.width)
@@ -26,6 +31,20 @@ def compute_stats(dataset: YoloDataset) -> dict[str, object]:
                 areas.append(box.width * box.height)
             if annotation.polygon is not None:
                 polygon_points.append(len(annotation.polygon.points))
+            attrs = dataset.annotation_attributes(annotation)
+            if attrs:
+                has_positive_attr = False
+                for attr_name, attr_value in attrs.items():
+                    value_text = str(attr_value)
+                    attribute_counts.setdefault(attr_name, {})
+                    attribute_counts[attr_name][value_text] = attribute_counts[attr_name].get(value_text, 0) + 1
+                    class_attribute_counts.setdefault(class_name, {}).setdefault(attr_name, {})
+                    class_attribute_counts[class_name][attr_name][value_text] = class_attribute_counts[class_name][attr_name].get(value_text, 0) + 1
+                    if not AttributeSchema.is_no_value(attr_value):
+                        has_positive_attr = True
+                if has_positive_attr:
+                    boxes_with_attribute += 1
+                    images_with_attribute.add(image.file_name)
 
     return {
         "image_count": len(dataset.images),
@@ -40,6 +59,12 @@ def compute_stats(dataset: YoloDataset) -> dict[str, object]:
         "box_height": _describe(heights),
         "box_area": _describe(areas),
         "polygon_points": _describe(polygon_points),
+        "attribute_counts": attribute_counts,
+        "class_attribute_counts": class_attribute_counts,
+        "boxes_with_attribute": boxes_with_attribute,
+        "boxes_without_attribute": dataset.annotation_count() - boxes_with_attribute,
+        "images_with_attribute": len(images_with_attribute),
+        "images_without_attribute": len(dataset.images) - len(images_with_attribute),
     }
 
 
@@ -52,4 +77,3 @@ def _describe(values: list[float | int]) -> dict[str, float | int | None]:
         "max": max(values),
         "mean": mean(values),
     }
-

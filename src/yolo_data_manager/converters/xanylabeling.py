@@ -23,9 +23,7 @@ def image_to_xanylabeling(dataset: YoloDataset, image: YoloImage) -> dict[str, o
     height = image.height or 0
     shapes = []
     for annotation in image.annotations:
-        attributes = {}
-        if dataset.attributes is not None and annotation.attributes:
-            attributes = dataset.attributes.decode(annotation.attributes)
+        attributes = dataset.annotation_attributes(annotation)
 
         if annotation.polygon is not None:
             points = normalized_points_to_pixels(annotation.polygon.points, width, height)
@@ -65,4 +63,3 @@ def image_to_xanylabeling(dataset: YoloDataset, image: YoloImage) -> dict[str, o
         "imageHeight": height,
         "imageWidth": width,
     }
-

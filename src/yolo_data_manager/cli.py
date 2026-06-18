@@ -25,7 +25,7 @@ from yolo_data_manager.io.loader import load_yolo_dataset
 from yolo_data_manager.io.validator import validate_dataset
 from yolo_data_manager.io.writer import write_split_file, write_yolo_dataset
 from yolo_data_manager.stats.compute import compute_stats
-from yolo_data_manager.stats.export import write_annotation_csv, write_stats_plots
+from yolo_data_manager.stats.export import write_annotation_csv, write_attribute_csv, write_stats_plots
 from yolo_data_manager.stats.report import write_class_counts_csv, write_json_report
 from yolo_data_manager.vis.renderer import crop_dataset, render_dataset
 from yolo_data_manager.evaluation.compare import compare_datasets, write_compare_csv
@@ -55,6 +55,7 @@ def build_parser() -> argparse.ArgumentParser:
     stats.add_argument("--out", default=None, help="optional JSON output path")
     stats.add_argument("--class-csv", default=None, help="optional class-count CSV output path")
     stats.add_argument("--ann-csv", default=None, help="optional annotation CSV output path")
+    stats.add_argument("--attr-csv", default=None, help="optional long-form attribute CSV output path")
     stats.add_argument("--plots-dir", default=None, help="optional directory for PNG plots")
     stats.set_defaults(handler=handle_stats)
 
@@ -219,6 +220,8 @@ def build_parser() -> argparse.ArgumentParser:
     draw.add_argument("--conf", type=float, default=None, help="optional confidence threshold")
     draw.add_argument("--mask-alpha", type=int, default=64)
     draw.add_argument("--no-fill-mask", dest="fill_mask", action="store_false")
+    draw.add_argument("--show-attrs", action="store_true")
+    draw.add_argument("--filter-no-attrs", action="store_true")
     draw.set_defaults(fill_mask=True)
     draw.set_defaults(handler=handle_vis_draw)
     crop = vis_sub.add_parser("crop", help="crop annotation regions into class folders")
@@ -227,6 +230,9 @@ def build_parser() -> argparse.ArgumentParser:
     crop.add_argument("--keep-shape", action="store_true")
     crop.add_argument("--min-size", type=int, default=1)
     crop.add_argument("--conf", type=float, default=None, help="optional confidence threshold")
+    crop.add_argument("--by-attr", action="store_true", help="also save crops into class/attribute-value folders")
+    crop.add_argument("--keep-no-attrs", dest="filter_no_attrs", action="store_false")
+    crop.set_defaults(filter_no_attrs=True)
     crop.set_defaults(handler=handle_vis_crop)
 
     export = subparsers.add_parser("export", help="export to another format")
@@ -247,6 +253,7 @@ def build_parser() -> argparse.ArgumentParser:
     labelme.add_argument("--out", required=True)
     labelme.add_argument("--task", choices=["auto", "detect", "segment"], default="auto")
     labelme.add_argument("--classes", default=None, help="optional comma-separated class order")
+    labelme.add_argument("--attribute-file", default=None, help="optional attribute.yaml for importing shape attributes")
     labelme.set_defaults(handler=handle_import_labelme)
     coco_import = import_sub.add_parser("coco", help="import COCO JSON as YOLO")
     coco_import.add_argument("--json", dest="json_path", required=True)
@@ -359,6 +366,8 @@ def handle_stats(args: argparse.Namespace) -> int:
         write_class_counts_csv(payload, args.class_csv)
     if args.ann_csv:
         write_annotation_csv(dataset, args.ann_csv)
+    if args.attr_csv:
+        write_attribute_csv(dataset, args.attr_csv)
     if args.plots_dir:
         write_stats_plots(dataset, args.plots_dir)
     _emit_json(payload, args.out)
@@ -584,6 +593,8 @@ def handle_vis_draw(args: argparse.Namespace) -> int:
         confidence_threshold=args.conf,
         mask_alpha=args.mask_alpha,
         fill_mask=args.fill_mask,
+        show_attributes=args.show_attrs,
+        filter_no_attributes=args.filter_no_attrs,
     )
     print(json.dumps({"out": args.out}, indent=2, ensure_ascii=False))
     return 0
@@ -591,7 +602,15 @@ def handle_vis_draw(args: argparse.Namespace) -> int:
 
 def handle_vis_crop(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
-    saved = crop_dataset(dataset, args.out, keep_shape=args.keep_shape, min_size=args.min_size, confidence_threshold=args.conf)
+    saved = crop_dataset(
+        dataset,
+        args.out,
+        keep_shape=args.keep_shape,
+        min_size=args.min_size,
+        confidence_threshold=args.conf,
+        by_attribute=args.by_attr,
+        filter_no_attributes=args.filter_no_attrs,
+    )
     print(json.dumps({"saved": saved, "out": args.out}, indent=2, ensure_ascii=False))
     return 0
 
@@ -612,7 +631,13 @@ def handle_export_xany(args: argparse.Namespace) -> int:
 
 def handle_import_labelme(args: argparse.Namespace) -> int:
     classes = _split_values(args.classes) if args.classes else None
-    dataset = import_labelme_dir(args.json_dir, out_root=args.out, task=args.task, class_names=classes)
+    dataset = import_labelme_dir(
+        args.json_dir,
+        out_root=args.out,
+        task=args.task,
+        class_names=classes,
+        attribute_file=args.attribute_file,
+    )
     print(json.dumps({"images": len(dataset.images), "annotations": dataset.annotation_count(), "out": args.out}, indent=2, ensure_ascii=False))
     return 0
 

@@ -28,6 +28,8 @@ def render_dataset(
     confidence_threshold: float | None = None,
     mask_alpha: int = 64,
     fill_mask: bool = True,
+    show_attributes: bool = False,
+    filter_no_attributes: bool = False,
 ) -> None:
     out_path = Path(out_dir)
     out_path.mkdir(parents=True, exist_ok=True)
@@ -40,6 +42,8 @@ def render_dataset(
             confidence_threshold=confidence_threshold,
             mask_alpha=mask_alpha,
             fill_mask=fill_mask,
+            show_attributes=show_attributes,
+            filter_no_attributes=filter_no_attributes,
         )
         rendered.save(out_path / image.file_name)
 
@@ -50,6 +54,8 @@ def crop_dataset(
     keep_shape: bool = False,
     min_size: int = 1,
     confidence_threshold: float | None = None,
+    by_attribute: bool = False,
+    filter_no_attributes: bool = True,
 ) -> int:
     out_path = Path(out_dir)
     out_path.mkdir(parents=True, exist_ok=True)
@@ -73,10 +79,17 @@ def crop_dataset(
             crop = Image.new("RGB", canvas.size, color=(0, 0, 0)) if keep_shape else canvas.crop((left, top, right, bottom))
             if keep_shape:
                 crop.paste(canvas.crop((left, top, right, bottom)), (left, top))
-            class_dir = out_path / dataset.class_name(annotation.class_id)
-            class_dir.mkdir(parents=True, exist_ok=True)
-            crop.save(class_dir / f"{image.stem}_{idx}{image.path.suffix}")
-            saved += 1
+            class_name = dataset.class_name(annotation.class_id)
+            save_dirs = [out_path / class_name]
+            if by_attribute:
+                for attr_name, attr_value in dataset.annotation_attributes(annotation).items():
+                    if filter_no_attributes and dataset.attributes is not None and dataset.attributes.is_no_value(attr_value):
+                        continue
+                    save_dirs.append(out_path / class_name / f"{_safe_name(attr_name)}-{_safe_name(str(attr_value))}")
+            for save_dir in save_dirs:
+                save_dir.mkdir(parents=True, exist_ok=True)
+                crop.save(save_dir / f"{image.stem}_{idx}{image.path.suffix}")
+                saved += 1
     return saved
 
 
@@ -87,6 +100,8 @@ def render_image(
     confidence_threshold: float | None = None,
     mask_alpha: int = 64,
     fill_mask: bool = True,
+    show_attributes: bool = False,
+    filter_no_attributes: bool = False,
 ) -> Image.Image:
     canvas = Image.open(image.path).convert("RGB")
     draw = ImageDraw.Draw(canvas, "RGBA")
@@ -98,19 +113,20 @@ def render_image(
         label = dataset.class_name(annotation.class_id)
         if show_confidence and annotation.confidence is not None:
             label = f"{label} {annotation.confidence:.2f}"
+        attr_lines = _attribute_lines(dataset, annotation, filter_no=filter_no_attributes) if show_attributes else []
         if annotation.polygon is not None:
             points = normalized_points_to_pixels(annotation.polygon.points, width, height)
             fill = (*color, mask_alpha) if fill_mask else None
             draw.polygon(points, fill=fill, outline=(*color, 255))
             if points:
-                _draw_label(draw, points[0][0], points[0][1], label, color)
+                _draw_label(draw, points[0][0], points[0][1], "\n".join([label] + attr_lines), color)
         else:
             box = annotation.geometry_box()
             if box is None:
                 continue
             xyxy = xywhn_to_xyxy(box.as_tuple(), width, height)
             draw.rectangle([xyxy.x1, xyxy.y1, xyxy.x2, xyxy.y2], outline=(*color, 255), width=2)
-            _draw_label(draw, xyxy.x1, xyxy.y1, label, color)
+            _draw_label(draw, xyxy.x1, xyxy.y1, "\n".join([label] + attr_lines), color)
     return canvas
 
 
@@ -124,3 +140,18 @@ def _draw_label(draw: ImageDraw.ImageDraw, x: float, y: float, text: str, color:
     rect = [text_box[0] - pad, text_box[1] - pad, text_box[2] + pad, text_box[3] + pad]
     draw.rectangle(rect, fill=(*color, 220))
     draw.text((x, y), text, fill=(0, 0, 0, 255))
+
+
+def _attribute_lines(dataset: YoloDataset, annotation, filter_no: bool = False) -> list[str]:
+    lines: list[str] = []
+    if dataset.attributes is None:
+        return lines
+    for name, value in dataset.annotation_attributes(annotation).items():
+        if filter_no and dataset.attributes.is_no_value(value):
+            continue
+        lines.append(f"{name}: {value}")
+    return lines
+
+
+def _safe_name(value: str) -> str:
+    return "".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in value)

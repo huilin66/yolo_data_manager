@@ -16,9 +16,7 @@ class QueryMatch:
 
     def to_row(self, dataset: YoloDataset) -> dict[str, object]:
         box = self.annotation.geometry_box()
-        attrs = {}
-        if dataset.attributes is not None and self.annotation.attributes:
-            attrs = dataset.attributes.decode(self.annotation.attributes)
+        attrs = dataset.annotation_attributes(self.annotation)
         return {
             "image": self.image.file_name,
             "image_path": str(self.image.path),
@@ -107,19 +105,19 @@ def query_by_attribute(
 ) -> QueryResult:
     if dataset.attributes is None:
         return QueryResult(dataset=dataset, matches=[])
-    attr_names = dataset.attributes.names
-    if attribute_name not in attr_names:
-        return QueryResult(dataset=dataset, matches=[])
-
-    attr_idx = attr_names.index(attribute_name)
     expected_values = {str(value) for value in values} if values is not None else None
     matches: list[QueryMatch] = []
     for image in dataset.images:
         for annotation in image.annotations:
+            class_name = dataset.class_name(annotation.class_id)
+            attr_names = dataset.attributes.names_for_class(class_name)
+            if attribute_name not in attr_names:
+                continue
+            attr_idx = attr_names.index(attribute_name)
             if attr_idx >= len(annotation.attributes):
                 continue
             raw_value = annotation.attributes[attr_idx]
-            decoded = dataset.attributes.decode(annotation.attributes).get(attribute_name, raw_value)
+            decoded = dataset.annotation_attributes(annotation).get(attribute_name, raw_value)
             if nonzero and float(raw_value) != 0:
                 matches.append(QueryMatch(image=image, annotation=annotation))
             elif expected_values is not None and (str(raw_value) in expected_values or str(decoded) in expected_values):

@@ -26,10 +26,10 @@ ydm dataset duplicates --root path/to/yolo --out duplicate_images.csv
 ydm dataset bad-images --root path/to/yolo --out bad_images.csv
 ydm dataset yaml --root path/to/yolo --out dataset.yaml
 ydm stats --root path/to/yolo --out stats.json
-ydm stats --root path/to/yolo --ann-csv annotations.csv --plots-dir stats_plots
+ydm stats --root path/to/yolo --ann-csv annotations.csv --attr-csv attributes.csv --plots-dir stats_plots
 ydm vis draw --root path/to/yolo --out images_vis
-ydm vis draw --root path/to/yolo --out images_vis --show-conf --conf 0.5
-ydm vis crop --root path/to/yolo --out crops
+ydm vis draw --root path/to/yolo --out images_vis --show-conf --show-attrs --filter-no-attrs
+ydm vis crop --root path/to/yolo --out crops --by-attr
 ydm export coco --root path/to/yolo --out instances.json
 ydm export xany --root path/to/yolo --out xany_json
 ydm import labelme --json-dir labelme_json --out yolo --task segment
@@ -65,6 +65,8 @@ This is the first implementation pass. The foundation is in place:
 - attribute-level annotation query
 - class delete/replace/merge/rename operations
 - attribute set/delete operations
+- global and class-scoped `attribute.yaml` support
+- attribute statistics, CSV export, visualization, and crop grouping
 - dataset writing
 - basic statistics
 - PIL-based visualization

@@ -59,12 +59,33 @@ class AttributeSchema:
 
     @property
     def names(self) -> list[str]:
-        return list(self.attributes.keys())
+        return self.names_for_class()
 
-    def decode(self, values: Iterable[float | int | str]) -> dict[str, Any]:
+    @property
+    def class_scoped(self) -> bool:
+        return bool(self.attributes) and all(isinstance(value, dict) for value in self.attributes.values())
+
+    def names_for_class(self, class_name: str | None = None) -> list[str]:
+        if class_name is not None and isinstance(self.attributes.get(class_name), dict):
+            return list(self.attributes[class_name].keys())
+        if not self.class_scoped:
+            return list(self.attributes.keys())
+        names: list[str] = []
+        for scoped_attributes in self.attributes.values():
+            for name in scoped_attributes.keys():
+                if name not in names:
+                    names.append(name)
+        return names
+
+    def options_for(self, name: str, class_name: str | None = None) -> Any:
+        if class_name is not None and isinstance(self.attributes.get(class_name), dict):
+            return self.attributes[class_name].get(name)
+        return self.attributes.get(name)
+
+    def decode(self, values: Iterable[float | int | str], class_name: str | None = None) -> dict[str, Any]:
         decoded: dict[str, Any] = {}
-        for name, raw_value in zip(self.names, values):
-            options = self.attributes.get(name)
+        for name, raw_value in zip(self.names_for_class(class_name), values):
+            options = self.options_for(name, class_name)
             if isinstance(options, list):
                 idx = int(float(raw_value))
                 decoded[name] = options[idx] if 0 <= idx < len(options) else raw_value
@@ -72,14 +93,19 @@ class AttributeSchema:
                 decoded[name] = raw_value
         return decoded
 
-    def value_to_raw(self, name: str, value: str | int | float) -> float:
-        options = self.attributes.get(name)
+    def value_to_raw(self, name: str, value: str | int | float, class_name: str | None = None) -> float:
+        options = self.options_for(name, class_name)
         if isinstance(options, list):
             text = str(value)
             for idx, option in enumerate(options):
                 if str(option) == text:
                     return float(idx)
         return float(value)
+
+    @staticmethod
+    def is_no_value(value: Any) -> bool:
+        text = str(value).strip().lower()
+        return text in {"", "0", "0.0", "false", "none", "no", "normal"}
 
 
 @dataclass
@@ -183,6 +209,11 @@ class YoloDataset:
 
     def class_name(self, class_id: int) -> str:
         return self.classes.name(class_id)
+
+    def annotation_attributes(self, annotation: YoloAnnotation) -> dict[str, Any]:
+        if self.attributes is None:
+            return {}
+        return self.attributes.decode(annotation.attributes, class_name=self.class_name(annotation.class_id))
 
     def labels(self) -> list[Path]:
         return [img.label_path for img in self.images if img.label_path is not None]

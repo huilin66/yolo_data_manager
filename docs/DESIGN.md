@@ -20,6 +20,7 @@
 - 支持 YOLO detection、YOLO segmentation、带属性多任务标签、预测 confidence
 - 支持不同 YOLO 布局：`flat`、`split_dirs`、`image_list`、`mixed`、`auto`
 - 支持把不同布局 normalize 成标准 `images/labels` 组织
+- 支持全局 attribute 和按类别组织的 class-scoped attribute
 - 校验缺图、缺标签、孤儿 label、类别越界、坐标越界、负宽高、多边形点数异常
 
 典型命令：
@@ -91,6 +92,22 @@ ydm query attr --root yolo --name defect --value yes --out defect.csv
 ydm query attr --root yolo --name defect --nonzero --copy-labels query/labels
 ```
 
+支持两类 attribute yaml：
+
+```yaml
+attributes:
+  defect: [no, yes]
+  color: [red, green]
+```
+
+```yaml
+attributes:
+  sign:
+    defect: [no, yes]
+  road:
+    material: [asphalt, concrete]
+```
+
 ### 5. 标注修改
 
 需要区分两种行为：
@@ -122,6 +139,7 @@ ydm ann delete-attr --root yolo --name defect --value yes --out yolo_attr_clean
 - segmentation polygon 点数、外接框
 - 属性分布、类别-属性交叉分布
 - annotation CSV 明细
+- attribute long-form CSV 明细
 - 可选 PNG 图表输出
 
 ### 7. 可视化
@@ -138,8 +156,8 @@ ydm ann delete-attr --root yolo --name defect --value yes --out yolo_attr_clean
 
 ```bash
 ydm vis draw --root yolo --out images_vis
-ydm vis draw --root yolo --out images_vis --show-conf --conf 0.5 --mask-alpha 80
-ydm vis crop --root yolo --out crops
+ydm vis draw --root yolo --out images_vis --show-conf --show-attrs --filter-no-attrs --mask-alpha 80
+ydm vis crop --root yolo --out crops --by-attr
 ```
 
 ### 8. 预测结果对比

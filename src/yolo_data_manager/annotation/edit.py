@@ -205,18 +205,22 @@ def set_attribute(
 ) -> tuple[YoloDataset, EditReport]:
     result = copy.deepcopy(dataset)
     report = EditReport()
-    if result.attributes is None or attribute_name not in result.attributes.names:
+    if result.attributes is None or not _has_attribute(result, attribute_name):
         return result, report
 
-    attr_idx = result.attributes.names.index(attribute_name)
-    new_raw = result.attributes.value_to_raw(attribute_name, value)
-    where_raw = result.attributes.value_to_raw(attribute_name, where_value) if where_value is not None else None
     class_ids = _resolve_class_ids(result, classes) if classes is not None else None
 
     for image in result.images:
         for annotation in image.annotations:
             if class_ids is not None and annotation.class_id not in class_ids:
                 continue
+            class_name = result.class_name(annotation.class_id)
+            attr_names = result.attributes.names_for_class(class_name)
+            if attribute_name not in attr_names:
+                continue
+            attr_idx = attr_names.index(attribute_name)
+            new_raw = result.attributes.value_to_raw(attribute_name, value, class_name=class_name)
+            where_raw = result.attributes.value_to_raw(attribute_name, where_value, class_name=class_name) if where_value is not None else None
             _ensure_attribute_len(annotation, attr_idx + 1)
             old_raw = annotation.attributes[attr_idx]
             if where_raw is not None and old_raw != where_raw:
@@ -247,15 +251,19 @@ def delete_by_attribute(
 ) -> tuple[YoloDataset, EditReport]:
     result = copy.deepcopy(dataset)
     report = EditReport()
-    if result.attributes is None or attribute_name not in result.attributes.names:
+    if result.attributes is None or not _has_attribute(result, attribute_name):
         return result, report
-
-    attr_idx = result.attributes.names.index(attribute_name)
-    raw_values = {result.attributes.value_to_raw(attribute_name, value) for value in values} if values is not None else None
 
     for image in result.images:
         kept: list[YoloAnnotation] = []
         for annotation in image.annotations:
+            class_name = result.class_name(annotation.class_id)
+            attr_names = result.attributes.names_for_class(class_name)
+            if attribute_name not in attr_names:
+                kept.append(annotation)
+                continue
+            attr_idx = attr_names.index(attribute_name)
+            raw_values = {result.attributes.value_to_raw(attribute_name, value, class_name=class_name) for value in values} if values is not None else None
             raw = annotation.attributes[attr_idx] if attr_idx < len(annotation.attributes) else 0
             matched = (nonzero and float(raw) != 0) or (raw_values is not None and raw in raw_values)
             if matched:
@@ -303,3 +311,11 @@ def _compact_classes(dataset: YoloDataset, remove_ids: set[int]) -> dict[int, in
 def _ensure_attribute_len(annotation: YoloAnnotation, length: int) -> None:
     while len(annotation.attributes) < length:
         annotation.attributes.append(0.0)
+
+
+def _has_attribute(dataset: YoloDataset, attribute_name: str) -> bool:
+    if dataset.attributes is None:
+        return False
+    if attribute_name in dataset.attributes.names:
+        return True
+    return any(attribute_name in dataset.attributes.names_for_class(class_name) for class_name in dataset.classes.names)
