@@ -7,6 +7,155 @@ cd E:\repository\yolo_data_manager
 python -m pip install -e .
 ```
 
+## YoloManager（推荐）
+
+通过 `YoloManager` 类管理数据集：初始化时绑定 `root`，后续调用无需重复传入路径。
+
+```python
+from yolo_data_manager import YoloManager
+
+mgr = YoloManager(r"E:\datasets\my_yolo", layout="auto")
+
+# 校验
+mgr.check()
+mgr.check(out="validation.json")
+
+# 统计
+mgr.stats(out="stats.json", class_csv="class_counts.csv", attr_csv="attributes.csv")
+
+# 布局检测
+mgr.layout_detect()
+
+# 按类别查询 —— class_ 是 Python 关键字别名
+mgr.query_class(class_=["car", "truck"], out="vehicles.csv")
+mgr.query_class(class_=["person"], copy_images="persons/images", copy_labels="persons/labels",
+                filtered_labels=True)
+
+# 按属性查询
+mgr.query_attr(name="occluded", value=["yes"], out="occluded.csv")
+mgr.query_attr(name="quality", nonzero=True)
+
+# 数据集管理
+mgr.dataset_normalize(out=r"E:\datasets\normalized_yolo")
+mgr.dataset_split(train=0.8, val=0.1, test=0.1, seed=233)
+mgr.dataset_filter(out="filtered", min_area=0.001, class_=["car", "truck"])
+mgr.dataset_select(file="val.txt", out="val_subset")
+mgr.dataset_yaml(out="dataset.yaml", train="images/train", val="images/val")
+mgr.dataset_duplicates(out="duplicates.csv")
+mgr.dataset_bad_images(out="bad_images.csv")
+
+# 多数据集合并 —— roots 不在 mgr 上，独立传入
+mgr.dataset_merge(roots=[r"E:\datasets\part1", r"E:\datasets\part2"],
+                  out="merged_yolo", source_prefix=True)
+
+# 标注修改 —— 修改操作写入新目录，不覆盖原数据；建议先 dry_run=True
+mgr.ann_merge_class(from_=["crack", "break"], to="defect", out="yolo_merged", compact=True)
+mgr.ann_delete_class(class_=["ignore"], out="yolo_clean", compact=True)
+mgr.ann_replace_class(from_=["old_name"], to="new_name", out="yolo_replaced")
+mgr.ann_rename_class(from_="cls_a", to="cls_b", out="yolo_renamed")
+mgr.ann_apply_map(map_file="class_map.yaml", out="yolo_mapped")
+mgr.ann_set_attr(name="defect", value="yes", class_=["sign"], out="yolo_attr")
+mgr.ann_delete_attr(name="quality", value=["bad"], out="yolo_clean")
+
+# 可视化
+mgr.vis_draw(out="images_vis", show_conf=True, show_attrs=True)
+mgr.vis_draw(out="images_vis", conf=0.25, fill_mask=True, mask_alpha=64)
+mgr.vis_crop(out="crops", by_attr=True, min_size=32)
+
+# 导出
+mgr.export_coco(out="instances.json")
+mgr.export_xany(out="xany_json")
+
+# 转换
+mgr.convert_seg2det(out="yolo_det")
+mgr.convert_pseudo(out="pseudo_labels", conf=0.5, drop_confidence=True)
+
+# 评估 —— gt_root / pred_root 独立传入
+mgr.eval_compare(gt_root=r"E:\datasets\gt", pred_root=r"E:\datasets\pred",
+                 out="compare.csv", iou=0.5)
+mgr.eval_review_pack(gt_root=r"E:\datasets\gt", pred_root=r"E:\datasets\pred",
+                     out="review_pack", status=["fp", "fn"])
+
+# 导入 —— 独立参数，不使用 mgr 的 root
+mgr.import_labelme(json_dir="labelme_json", out="yolo_out", task="segment")
+mgr.import_coco(json_path="instances.json", images_dir="images", out="yolo_out")
+mgr.import_voc(annotations_dir="Annotations", images_dir="JPEGImages", out="yolo_out")
+```
+
+### 初始化参数
+
+`YoloManager` 构造时存储的共用参数，在后续调用有 `--root` 的任务时自动填充：
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `root` | (必填) | 数据集根目录 |
+| `layout` | `"auto"` | 布局模式：auto / flat / split_dirs / image_list / mixed |
+| `task` | `"auto"` | 任务类型：auto / detect / segment |
+| `images_dir` | `"images"` | 图片子目录名 |
+| `labels_dir` | `"labels"` | 标注子目录名 |
+| `class_file` | `None` | class.txt 路径（默认 root/class.txt） |
+| `attribute_file` | `None` | attribute.yaml 路径（默认 root/attribute.yaml） |
+| `split_file` | `None` | split 文件路径 |
+
+### 方法速查
+
+| 方法 | 对应 CLI |
+|---|---|
+| `check()` | `ydm check` |
+| `stats()` | `ydm stats` |
+| `layout_detect()` | `ydm layout detect` |
+| `query_class(class_=..., ...)` | `ydm query class` |
+| `query_attr(name=..., ...)` | `ydm query attr` |
+| `dataset_select(file=..., out=...)` | `ydm dataset select` |
+| `dataset_normalize(out=...)` | `ydm dataset normalize` |
+| `dataset_split(train=..., val=..., ...)` | `ydm dataset split` |
+| `dataset_yaml(out=..., ...)` | `ydm dataset yaml` |
+| `dataset_filter(out=..., ...)` | `ydm dataset filter` |
+| `dataset_merge(roots=..., out=...)` | `ydm dataset merge` |
+| `dataset_duplicates(out=...)` | `ydm dataset duplicates` |
+| `dataset_bad_images(out=...)` | `ydm dataset bad-images` |
+| `ann_delete_class(class_=..., out=...)` | `ydm ann delete-class` |
+| `ann_replace_class(from_=..., to=..., out=...)` | `ydm ann replace-class` |
+| `ann_merge_class(from_=..., to=..., ...)` | `ydm ann merge-class` |
+| `ann_rename_class(from_=..., to=..., out=...)` | `ydm ann rename-class` |
+| `ann_apply_map(map_file=..., out=...)` | `ydm ann apply-map` |
+| `ann_set_attr(name=..., value=..., ...)` | `ydm ann set-attr` |
+| `ann_delete_attr(name=..., ...)` | `ydm ann delete-attr` |
+| `vis_draw(out=..., ...)` | `ydm vis draw` |
+| `vis_crop(out=..., ...)` | `ydm vis crop` |
+| `export_coco(out=...)` | `ydm export coco` |
+| `export_xany(out=...)` | `ydm export xany` |
+| `import_labelme(json_dir=..., out=...)` | `ydm import labelme` |
+| `import_coco(json_path=..., images_dir=..., out=...)` | `ydm import coco` |
+| `import_voc(annotations_dir=..., images_dir=..., out=...)` | `ydm import voc` |
+| `convert_seg2det(out=...)` | `ydm convert seg2det` |
+| `convert_pseudo(out=..., ...)` | `ydm convert pseudo` |
+| `eval_compare(gt_root=..., pred_root=..., out=...)` | `ydm eval compare` |
+| `eval_review_pack(gt_root=..., pred_root=..., out=...)` | `ydm eval review-pack` |
+
+所有方法返回 `int` 退出码（0 = 成功），底层调用 `run_task()`。
+
+## 函数式调用
+
+如果不习惯面向对象风格，可以直接使用 `run_task()` 函数。每次调用需要显式传入 `root`。
+
+```python
+from pathlib import Path
+from yolo_data_manager import run_task
+
+code = run_task(
+    "check",
+    root=Path(r"E:\datasets\my_yolo"),
+    layout="auto",
+    out="validation.json",
+)
+if code != 0:
+    print("数据集存在校验问题")
+```
+
+任务名使用 `模块.操作` 形式，例如 `query.class`、`ann.set_attr`、`vis.draw`。
+由于 `class` 和 `from` 是 Python 关键字，对应参数写成 `class_` 和 `from_`。
+
 ## 可编辑脚本入口
 
 项目提供 `scripts/run_ydm.py`。修改其中的 `TASK` 和 `PARAMS`，然后运行：
@@ -29,25 +178,6 @@ PARAMS = {
 ```
 
 路径可使用 `Path` 或字符串。值为 `None` 的参数会被忽略，多值参数可以直接使用列表。
-
-## 在自己的脚本中调用
-
-```python
-from pathlib import Path
-from yolo_data_manager import run_task
-
-code = run_task(
-    "check",
-    root=Path(r"E:\datasets\my_yolo"),
-    layout="auto",
-    out="validation.json",
-)
-if code != 0:
-    print("数据集存在校验问题")
-```
-
-任务名使用 `模块.操作` 形式，例如 `query.class`、`ann.set_attr`、`vis.draw`。
-由于 `class` 和 `from` 是 Python 关键字，对应参数写成 `class_` 和 `from_`。
 
 ## 加载并获得 Python 对象
 
@@ -72,33 +202,7 @@ for issue in report.issues:
     print(issue)
 ```
 
-## 查询类别和属性
-
-```python
-from yolo_data_manager import run_task
-
-run_task(
-    "query.class",
-    root=r"E:\datasets\my_yolo",
-    layout="auto",
-    class_=["car", "truck"],
-    out="vehicle_labels.csv",
-    copy_images="vehicle_query/images",
-    copy_labels="vehicle_query/labels",
-    filtered_labels=True,
-)
-
-run_task(
-    "query.attr",
-    root=r"E:\datasets\my_yolo",
-    attribute_file=r"E:\datasets\my_yolo\attribute.yaml",
-    name="occluded",
-    value=["yes"],
-    out="occluded.csv",
-)
-```
-
-查询结果也可以作为对象使用：
+## 查询结果对象
 
 ```python
 from yolo_data_manager import load_yolo_dataset
@@ -111,159 +215,6 @@ for match in occluded.matches:
     print(match.image.path, match.annotation.to_yolo_line())
 ```
 
-## 修改类别和属性
-
-修改操作写入新的输出目录，不会覆盖原数据。重要操作建议先设置 `dry_run=True`。
-
-```python
-from yolo_data_manager import run_task
-
-run_task(
-    "ann.merge_class",
-    root=r"E:\datasets\my_yolo",
-    from_=["crack", "break"],
-    to="defect",
-    compact=True,
-    out=r"E:\datasets\my_yolo_merged",
-    report="merge_report.csv",
-)
-
-run_task(
-    "ann.delete_class",
-    root=r"E:\datasets\my_yolo",
-    class_=["ignore"],
-    compact=True,
-    out=r"E:\datasets\my_yolo_clean",
-)
-
-run_task(
-    "ann.set_attr",
-    root=r"E:\datasets\my_yolo",
-    attribute_file=r"E:\datasets\my_yolo\attribute.yaml",
-    name="occluded",
-    value="yes",
-    class_=["car"],
-    out=r"E:\datasets\my_yolo_attr",
-)
-
-run_task(
-    "ann.delete_attr",
-    root=r"E:\datasets\my_yolo",
-    name="quality",
-    value=["bad"],
-    out=r"E:\datasets\my_yolo_quality_clean",
-)
-```
-
-## 数据集管理
-
-```python
-from yolo_data_manager import run_task
-
-run_task(
-    "dataset.normalize",
-    root=r"E:\datasets\source_yolo",
-    layout="auto",
-    out=r"E:\datasets\normalized_yolo",
-)
-
-run_task(
-    "dataset.split",
-    root=r"E:\datasets\normalized_yolo",
-    train=0.8,
-    val=0.1,
-    test=0.1,
-    seed=233,
-    out=r"E:\datasets\normalized_yolo",
-)
-
-run_task(
-    "dataset.filter",
-    root=r"E:\datasets\my_yolo",
-    min_area=0.001,
-    class_=["car", "truck"],
-    out=r"E:\datasets\my_yolo_filtered",
-)
-
-run_task(
-    "dataset.merge",
-    roots=[r"E:\datasets\part1", r"E:\datasets\part2"],
-    out=r"E:\datasets\merged_yolo",
-    source_prefix=True,
-)
-
-run_task("dataset.duplicates", root=r"E:\datasets\my_yolo", out="duplicates.csv")
-run_task("dataset.bad_images", root=r"E:\datasets\my_yolo", out="bad_images.csv")
-```
-
-## 统计与可视化
-
-```python
-from yolo_data_manager import run_task
-
-run_task(
-    "stats",
-    root=r"E:\datasets\my_yolo",
-    out="stats.json",
-    class_csv="class_counts.csv",
-    ann_csv="annotations.csv",
-    attr_csv="attributes.csv",
-    plots_dir="stats_plots",
-)
-
-run_task(
-    "vis.draw",
-    root=r"E:\datasets\my_yolo",
-    out="images_vis",
-    show_conf=True,
-    show_attrs=True,
-    filter_no_attrs=False,
-    conf=0.25,
-)
-
-run_task(
-    "vis.crop",
-    root=r"E:\datasets\my_yolo",
-    out="crops",
-    by_attr=True,
-    filter_no_attrs=False,
-)
-```
-
-## 导入、导出和评估
-
-```python
-from yolo_data_manager import run_task
-
-run_task("export.coco", root=r"E:\datasets\my_yolo", out="instances.json")
-run_task("export.xany", root=r"E:\datasets\my_yolo", out="xany_json")
-
-run_task(
-    "import.labelme",
-    json_dir=r"E:\datasets\labelme_json",
-    out=r"E:\datasets\labelme_yolo",
-    task="segment",
-    attribute_file=r"E:\datasets\attribute.yaml",
-)
-
-run_task(
-    "eval.compare",
-    gt_root=r"E:\datasets\gt_yolo",
-    pred_root=r"E:\datasets\pred_yolo",
-    out="compare.csv",
-    iou=0.5,
-    conf=0.25,
-)
-
-run_task(
-    "eval.review_pack",
-    gt_root=r"E:\datasets\gt_yolo",
-    pred_root=r"E:\datasets\pred_yolo",
-    out="review_pack",
-    status=["fp", "fn"],
-)
-```
-
 ## 查看支持的任务
 
 ```python
@@ -273,4 +224,17 @@ for task in TASK_COMMANDS:
     print(task)
 ```
 
-当前任务覆盖检查、统计、布局检测、查询、数据集管理、标注修改、可视化、导入导出、格式转换和评估。参数名与 `ydm` 命令一致，只需把连字符改成下划线，例如 `show-attrs` 写成 `show_attrs`。
+## 参数说明
+
+参数名与 `ydm` 命令一致，只需把连字符改成下划线，例如 `show-attrs` → `show_attrs`。
+
+| Python 参数 | CLI 标志 | 说明 |
+|---|---|---|
+| `class_` | `--class` | Python 关键字，需加下划线 |
+| `from_` | `--from` | Python 关键字，需加下划线 |
+| `map_file` | `--map` | 避免与内置函数冲突 |
+| `json_path` | `--json` | 避免与模块名冲突 |
+
+布尔值行为：`copy_images=False` → `--no-copy-images`，`compact=False` → `--no-compact`。
+列表/元组/集合自动转为逗号分隔字符串：`["a", "b"]` → `a,b`。
+`None` 值会被忽略，不传给 CLI。

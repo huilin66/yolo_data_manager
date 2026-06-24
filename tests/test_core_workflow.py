@@ -24,7 +24,7 @@ from yolo_data_manager.io.validator import validate_dataset
 from yolo_data_manager.io.writer import write_yolo_dataset
 from yolo_data_manager.stats.compute import compute_stats
 from yolo_data_manager.stats.export import write_attribute_csv
-from yolo_data_manager.scripting import build_task_argv
+from yolo_data_manager.scripting import YoloManager, build_task_argv
 from yolo_data_manager.vis.renderer import crop_dataset
 from yolo_data_manager.vis.renderer import render_dataset
 
@@ -53,6 +53,32 @@ def test_build_python_task_argv():
         "--no-copy-images",
         "--dry-run",
     ]
+
+
+def test_yolo_manager_methods(tmp_path):
+    root = make_dataset(tmp_path / "yolo")
+    mgr = YoloManager(root, layout="flat", task="detect")
+
+    assert mgr.root == str(root)
+    assert mgr.layout == "flat"
+
+    # check delegates to run_task with auto-filled root
+    code = mgr.check()
+    assert code == 0
+
+    # stats with output
+    code = mgr.stats(out=str(tmp_path / "stats.json"))
+    assert code == 0
+    assert (tmp_path / "stats.json").exists()
+
+    # query_class with class_ alias
+    code = mgr.query_class(class_=["car"], out=str(tmp_path / "cars.csv"))
+    assert code == 0
+
+    # vis_crop uses filter_no_attrs → --keep-no-attrs logic
+    argv = build_task_argv("vis.crop", root=str(root), out="crops",
+                           filter_no_attrs=False)
+    assert "--keep-no-attrs" in argv
 
 
 def make_dataset(root: Path) -> Path:
