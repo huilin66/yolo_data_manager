@@ -10,6 +10,7 @@ from yolo_data_manager.core.models import (
     YoloImage,
 )
 from yolo_data_manager.io.loader import load_yolo_dataset
+from yolo_data_manager.scripting import build_task_argv, run_task
 
 __all__ = [
     "AttributeSchema",
@@ -20,5 +21,7 @@ __all__ = [
     "YoloDataset",
     "YoloImage",
     "load_yolo_dataset",
+    "build_task_argv",
+    "run_task",
 ]
 

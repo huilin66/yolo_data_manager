@@ -54,6 +54,10 @@ $env:PYTHONPATH = "src"
 python -m yolo_data_manager.cli check --root path/to/yolo
 ```
 
+Prefer Python scripts? Edit and run [`scripts/run_ydm.py`](scripts/run_ydm.py),
+or call `run_task("stats", root=..., out=...)` from your own code. See the
+complete Chinese examples in [`docs/PYTHON_USAGE.md`](docs/PYTHON_USAGE.md).
+
 ## Project Status
 
 This is the first implementation pass. The foundation is in place:

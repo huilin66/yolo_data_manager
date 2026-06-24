@@ -24,8 +24,35 @@ from yolo_data_manager.io.validator import validate_dataset
 from yolo_data_manager.io.writer import write_yolo_dataset
 from yolo_data_manager.stats.compute import compute_stats
 from yolo_data_manager.stats.export import write_attribute_csv
+from yolo_data_manager.scripting import build_task_argv
 from yolo_data_manager.vis.renderer import crop_dataset
 from yolo_data_manager.vis.renderer import render_dataset
+
+
+def test_build_python_task_argv():
+    argv = build_task_argv(
+        "ann.merge_class",
+        root=Path("dataset"),
+        from_=["crack", "break"],
+        to="defect",
+        compact=False,
+        copy_images=False,
+        dry_run=True,
+    )
+
+    assert argv == [
+        "ann",
+        "merge-class",
+        "--root",
+        "dataset",
+        "--from",
+        "crack,break",
+        "--to",
+        "defect",
+        "--no-compact",
+        "--no-copy-images",
+        "--dry-run",
+    ]
 
 
 def make_dataset(root: Path) -> Path:
