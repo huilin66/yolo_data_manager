@@ -17,12 +17,16 @@ def yolo_split(input_dir):
         out=os.path.join(sta_dir, "stats.json"),
         class_csv=os.path.join(sta_dir, "class_counts.csv"),
     )
-
+    # split
+    mgr.dataset_split(train=0.9, val=0.1, test=0.0, seed=233)
 
 if __name__ == "__main__":
-    rgb_all_dir = r"/lovalnvme/data/bdd_hmt/sua_dataset_rgb_all"
-    rgb_all_rgbt_dir = r"/lovalnvme/data/bdd_hmt/sua_dataset_rgb_all_rgbt"
-    t_all_dir = r"/lovalnvme/data/bdd_hmt/sua_dataset_t_all"
-    t_all_rgbt_dir = r"/lovalnvme/data/bdd_hmt/sua_dataset_t_all_rgbt"
+    rgb_all_dir = r"/localnvme/data/bdd_hmt/sua_rgb"
+    rgb_all_rgbt_dir = r"/localnvme/data/bdd_hmt/sua_rgb_rgbt"
+    t_all_dir = r"/localnvme/data/bdd_hmt/sua_t"
+    t_all_rgbt_dir = r"/localnvme/data/bdd_hmt/sua_t_rgbt"
 
-    yolo_split(r"E:\datasets\my_yolo")
+    yolo_split(rgb_all_dir)
+    yolo_split(rgb_all_rgbt_dir)
+    yolo_split(t_all_dir)
+    yolo_split(t_all_rgbt_dir)
