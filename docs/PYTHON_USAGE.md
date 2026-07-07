@@ -15,10 +15,13 @@ python -m pip install -e .
 from yolo_data_manager import YoloManager
 
 mgr = YoloManager(r"E:\datasets\my_yolo", layout="auto")
+mgr = YoloManager(r"E:\datasets\my_yolo", layout="flat", init_check=False)
+mgr = YoloManager(r"E:\datasets\my_yolo", layout="flat", init_check=r"E:\datasets\my_yolo\stats\validation.json")
 
 # 校验
 mgr.check()
 mgr.check(out="validation.json")
+mgr.check(out="validation.json", fill_missing_txt=True)
 
 # 统计
 mgr.stats(out="stats.json", class_csv="class_counts.csv", attr_csv="attributes.csv")
@@ -97,6 +100,9 @@ mgr.import_voc(annotations_dir="Annotations", images_dir="JPEGImages", out="yolo
 | `class_file` | `None` | class.txt 路径（默认 root/class.txt） |
 | `attribute_file` | `None` | attribute.yaml 路径（默认 root/attribute.yaml） |
 | `split_file` | `None` | split 文件路径 |
+| `init_layout` | `True` | 初始化时是否执行一次 layout detect |
+| `init_check` | `True` | 初始化时是否自动 check；也可传入 JSON 路径 |
+| `init_check_fill_missing_txt` | `False` | 初始化自动 check 时是否补全缺失的空 label txt |
 
 ### 方法速查
 

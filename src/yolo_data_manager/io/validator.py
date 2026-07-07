@@ -5,6 +5,7 @@ from pathlib import Path
 
 from yolo_data_manager.core.geometry import polygon_self_intersects
 from yolo_data_manager.core.models import YoloDataset
+from yolo_data_manager.io.layout import infer_label_path_from_image
 
 
 @dataclass
@@ -146,6 +147,18 @@ def validate_dataset(dataset: YoloDataset) -> ValidationReport:
                     line_no=ann.line_no,
                 )
     return report
+
+
+def fill_missing_label_files(dataset: YoloDataset) -> list[Path]:
+    created: list[Path] = []
+    for image in dataset.images:
+        label_path = image.label_path or infer_label_path_from_image(image.path)
+        if label_path.exists():
+            continue
+        label_path.parent.mkdir(parents=True, exist_ok=True)
+        label_path.write_text("", encoding="utf-8")
+        created.append(label_path)
+    return created
 
 
 def _validate_box(

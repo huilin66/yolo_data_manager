@@ -11,6 +11,7 @@ dataset management, annotation query/edit, statistics, and visualization on top.
 ydm check --root path/to/yolo --task auto
 ydm layout detect --root path/to/yolo
 ydm check --root path/to/yolo --layout auto
+ydm check --root path/to/yolo --layout flat --fill-missing-txt --out validation.json
 ydm dataset normalize --root path/to/yolo --layout auto --out normalized_yolo
 ydm query class --root path/to/yolo --class person --out person_labels.csv
 ydm query class --root path/to/yolo --class person --copy-images out/images --copy-labels out/labels

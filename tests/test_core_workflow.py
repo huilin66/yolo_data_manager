@@ -82,6 +82,52 @@ def test_yolo_manager_methods(tmp_path):
     assert "--keep-no-attrs" in argv
 
 
+def test_yolo_manager_check_can_fill_missing_txt(tmp_path):
+    root = make_dataset(tmp_path / "yolo")
+    (root / "labels" / "b.txt").unlink()
+    out = tmp_path / "validation.json"
+    mgr = YoloManager(root, layout="flat", task="detect", init_check=False)
+
+    code = mgr.check(out=str(out), fill_missing_txt=True)
+    payload = json.loads(out.read_text(encoding="utf-8"))
+
+    assert code == 0
+    assert (root / "labels" / "b.txt").exists()
+    assert payload["fixed"]["missing_txt_created_count"] == 1
+    assert any(issue["code"] == "missing_label" and issue["image"] == "b.jpg" for issue in payload["issues"])
+
+
+def test_yolo_manager_init_check_can_write_to_path(tmp_path):
+    root = make_dataset(tmp_path / "yolo")
+    out = tmp_path / "init_validation.json"
+
+    YoloManager(root, layout="flat", task="detect", init_layout=False, init_check=out)
+
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert payload["ok"] is True
+    assert payload["summary"] == {}
+
+
+def test_yolo_manager_init_check_can_fill_missing_txt(tmp_path):
+    root = make_dataset(tmp_path / "yolo")
+    (root / "labels" / "b.txt").unlink()
+    out = tmp_path / "init_validation.json"
+
+    YoloManager(
+        root,
+        layout="flat",
+        task="detect",
+        init_layout=False,
+        init_check=out,
+        init_check_fill_missing_txt=True,
+    )
+
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert (root / "labels" / "b.txt").exists()
+    assert payload["fixed"]["missing_txt_created_count"] == 1
+    assert any(issue["code"] == "missing_label" and issue["image"] == "b.jpg" for issue in payload["issues"])
+
+
 def make_dataset(root: Path) -> Path:
     (root / "images").mkdir(parents=True)
     (root / "labels").mkdir(parents=True)

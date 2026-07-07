@@ -179,7 +179,8 @@ class YoloManager:
         attribute_file: str | None = None,
         split_file: str | None = None,
         init_layout: bool = True,
-        init_check: bool = True,
+        init_check: bool | str | Path = True,
+        init_check_fill_missing_txt: bool = False,
     ) -> None:
         self.root = str(root)
         self.layout = layout
@@ -191,14 +192,20 @@ class YoloManager:
         self.split_file = split_file
         self.init_layout = init_layout
         self.init_check = init_check
+        self.init_check_fill_missing_txt = init_check_fill_missing_txt
 
         self._warmup_()
 
     def _warmup_(self) -> None:
         if self.init_layout:
             self.layout_detect()
-        if self.init_check:
-            self.check()
+        if isinstance(self.init_check, (str, Path)):
+            self.check(
+                out=str(self.init_check),
+                fill_missing_txt=self.init_check_fill_missing_txt,
+            )
+        elif self.init_check:
+            self.check(fill_missing_txt=self.init_check_fill_missing_txt)
 
     # -- helpers ------------------------------------------------------------
 
@@ -219,9 +226,20 @@ class YoloManager:
 
     # -- check & stats -----------------------------------------------------
 
-    def check(self, *, out: str | None = None, **kwargs: Any) -> int:
+    def check(
+        self,
+        *,
+        out: str | None = None,
+        fill_missing_txt: bool = False,
+        **kwargs: Any,
+    ) -> int:
         """Validate the dataset (``ydm check``)."""
-        return self._run("check", out=out, **kwargs)
+        return self._run(
+            "check",
+            out=out,
+            fill_missing_txt=fill_missing_txt,
+            **kwargs,
+        )
 
     def stats(
         self,

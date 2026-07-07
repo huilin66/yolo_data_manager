@@ -22,7 +22,7 @@ from yolo_data_manager.dataset.split import split_dataset
 from yolo_data_manager.core.schema import write_dataset_yaml
 from yolo_data_manager.io.layout import detect_layout
 from yolo_data_manager.io.loader import load_yolo_dataset
-from yolo_data_manager.io.validator import validate_dataset
+from yolo_data_manager.io.validator import fill_missing_label_files, validate_dataset
 from yolo_data_manager.io.writer import write_split_file, write_yolo_dataset
 from yolo_data_manager.stats.compute import compute_stats
 from yolo_data_manager.stats.export import write_annotation_csv, write_attribute_csv, write_stats_plots
@@ -48,6 +48,7 @@ def build_parser() -> argparse.ArgumentParser:
     check = subparsers.add_parser("check", help="validate a YOLO dataset")
     add_dataset_args(check)
     check.add_argument("--out", default=None, help="optional JSON output path")
+    check.add_argument("--fill-missing-txt", action="store_true", help="create empty txt files for images without matching labels")
     check.set_defaults(handler=handle_check)
 
     stats = subparsers.add_parser("stats", help="compute dataset statistics")
@@ -351,10 +352,15 @@ def handle_layout_detect(args: argparse.Namespace) -> int:
 def handle_check(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
     report = validate_dataset(dataset)
+    created = fill_missing_label_files(dataset) if args.fill_missing_txt else []
     payload = {
         "ok": report.ok,
         "summary": report.summary(),
         "issues": report.to_rows(),
+        "fixed": {
+            "missing_txt_created": [str(path) for path in created],
+            "missing_txt_created_count": len(created),
+        },
     }
     _emit_json(payload, args.out)
     return 0 if report.ok else 2
