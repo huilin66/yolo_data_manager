@@ -38,6 +38,7 @@ mgr.query_attr(name="quality", nonzero=True)
 # 数据集管理
 mgr.dataset_normalize(out=r"E:\datasets\normalized_yolo")
 mgr.dataset_split(train=0.8, val=0.1, test=0.1, seed=233)
+mgr.dataset_split(train=0.8, val=0.1, test=0.1, seed=233, absolute_paths=True)
 mgr.dataset_filter(out="filtered", min_area=0.001, class_=["car", "truck"])
 mgr.dataset_select(file="val.txt", out="val_subset")
 mgr.dataset_yaml(out="dataset.yaml", train="images/train", val="images/val")

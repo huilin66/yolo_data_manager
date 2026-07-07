@@ -11,12 +11,16 @@ def split_dataset(
     val: float = 0.2,
     test: float = 0.0,
     seed: int = 233,
+    absolute_paths: bool = False,
 ) -> dict[str, list[str]]:
     total = train + val + test
     if total <= 0:
         raise ValueError("split ratios must sum to a positive value")
     ratios = {"train": train / total, "val": val / total, "test": test / total}
-    names = [image.file_name for image in dataset.images]
+    names = [
+        str(image.path.resolve()) if absolute_paths else image.file_name
+        for image in dataset.images
+    ]
     rng = random.Random(seed)
     rng.shuffle(names)
 
@@ -28,4 +32,3 @@ def split_dataset(
         "val": names[n_train : n_train + n_val],
         "test": names[n_train + n_val :],
     }
-

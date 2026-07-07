@@ -67,6 +67,7 @@ ydm dataset normalize --root yolo_data --layout auto --out yolo_normalized
 ```bash
 ydm dataset select --root yolo --file val.txt --out yolo_val
 ydm dataset split --root yolo --train 0.8 --val 0.2 --test 0.0 --seed 233
+ydm dataset split --root yolo --train 0.8 --val 0.1 --test 0.1 --absolute-paths
 ydm dataset filter --root yolo --min-area 0.001 --out yolo_filtered
 ydm dataset merge --roots yolo_a,yolo_b --out yolo_merged
 ydm dataset duplicates --root yolo --out duplicate_images.csv

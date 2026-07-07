@@ -107,6 +107,7 @@ def build_parser() -> argparse.ArgumentParser:
     dataset_split.add_argument("--test", type=float, default=0.0)
     dataset_split.add_argument("--seed", type=int, default=233)
     dataset_split.add_argument("--out", default=None, help="output directory; defaults to dataset root")
+    dataset_split.add_argument("--absolute-paths", action="store_true", help="write absolute image paths instead of image file names")
     dataset_split.set_defaults(handler=handle_dataset_split)
 
     dataset_yaml = dataset_sub.add_parser("yaml", help="write dataset.yaml")
@@ -428,7 +429,14 @@ def handle_dataset_normalize(args: argparse.Namespace) -> int:
 
 def handle_dataset_split(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
-    splits = split_dataset(dataset, train=args.train, val=args.val, test=args.test, seed=args.seed)
+    splits = split_dataset(
+        dataset,
+        train=args.train,
+        val=args.val,
+        test=args.test,
+        seed=args.seed,
+        absolute_paths=args.absolute_paths,
+    )
     out_dir = Path(args.out) if args.out else Path(args.root)
     for split_name, names in splits.items():
         write_split_file(names, out_dir / f"{split_name}.txt")

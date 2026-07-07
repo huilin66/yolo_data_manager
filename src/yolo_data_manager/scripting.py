@@ -344,6 +344,7 @@ class YoloManager:
         test: float = 0.0,
         seed: int = 233,
         out: str | None = None,
+        absolute_paths: bool = False,
         **kwargs: Any,
     ) -> int:
         """Write train/val/test split files (``ydm dataset split``)."""
@@ -354,6 +355,7 @@ class YoloManager:
             test=test,
             seed=seed,
             out=out,
+            absolute_paths=absolute_paths,
             **kwargs,
         )
 

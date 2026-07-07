@@ -16,6 +16,7 @@ from yolo_data_manager.dataset.filter import filter_by_geometry
 from yolo_data_manager.dataset.duplicates import find_duplicate_images
 from yolo_data_manager.dataset.merge import merge_datasets
 from yolo_data_manager.dataset.quality import find_bad_images
+from yolo_data_manager.dataset.split import split_dataset
 from yolo_data_manager.evaluation.compare import compare_datasets
 from yolo_data_manager.evaluation.review_pack import write_review_pack
 from yolo_data_manager.io.loader import load_yolo_dataset
@@ -103,6 +104,19 @@ def test_load_query_and_validate(tmp_path):
     result = query_by_class(dataset, ["car"])
     assert len(result) == 2
     assert [path.name for path in result.label_paths()] == ["a.txt", "b.txt"]
+
+
+def test_split_dataset_can_write_absolute_paths(tmp_path):
+    root = make_dataset(tmp_path / "yolo")
+    dataset = load_yolo_dataset(root)
+
+    relative = split_dataset(dataset, train=1.0, val=0.0, test=0.0, seed=1)
+    absolute = split_dataset(dataset, train=1.0, val=0.0, test=0.0, seed=1, absolute_paths=True)
+
+    assert sorted(relative["train"]) == ["a.jpg", "b.jpg"]
+    assert sorted(absolute["train"]) == sorted(
+        str((root / "images" / name).resolve()) for name in ["a.jpg", "b.jpg"]
+    )
 
 
 def test_layout_detect_split_dirs_and_normalize(tmp_path):

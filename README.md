@@ -20,6 +20,7 @@ ydm ann set-attr --root path/to/yolo --name defect --value yes --class sign --ou
 ydm ann delete-attr --root path/to/yolo --name defect --value yes --out yolo_attr_clean
 ydm dataset select --root path/to/yolo --file val.txt --out path/to/yolo_val
 ydm dataset split --root path/to/yolo --train 0.8 --val 0.2 --seed 233
+ydm dataset split --root path/to/yolo --train 0.8 --val 0.1 --test 0.1 --absolute-paths
 ydm dataset filter --root path/to/yolo --min-area 0.001 --out path/to/yolo_filtered
 ydm dataset merge --roots data1,data2 --out merged_yolo
 ydm dataset duplicates --root path/to/yolo --out duplicate_images.csv
