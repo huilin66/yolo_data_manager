@@ -681,7 +681,7 @@ class YoloManager:
         show_attrs: bool = False,
         filter_no_attrs: bool = False,
         workers: int = 1,
-        progress: bool = False,
+        progress: bool = True,
         **kwargs: Any,
     ) -> int:
         """Draw bounding-boxes / masks on images (``ydm vis draw``)."""
