@@ -46,11 +46,18 @@ ydm eval compare --gt-root gt_yolo --pred-root pred_yolo --out compare.csv --iou
 ydm eval review-pack --gt-root gt_yolo --pred-root pred_yolo --out review_pack --iou 0.5
 ```
 
-Install in editable mode from the project root:
+Install from the project root. There are only two recommended modes:
 
 ```bash
-python -m pip install -e .
+python -m pip install .
 ydm check --root path/to/yolo
+```
+
+For development and tests:
+
+```bash
+python -m pip install -e ".[dev]"
+python -m pytest -q
 ```
 
 Or run without installing by adding `src` to `PYTHONPATH`:

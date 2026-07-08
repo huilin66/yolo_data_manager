@@ -1,10 +1,20 @@
 # Python 脚本使用指南
 
-YOLO Data Manager 可以完全通过 Python 脚本运行。推荐先以可编辑模式安装：
+YOLO Data Manager 可以完全通过 Python 脚本运行。推荐只使用两种安装模式。
+
+普通使用，包含所有运行功能：
 
 ```powershell
 cd E:\repository\yolo_data_manager
-python -m pip install -e .
+python -m pip install .
+```
+
+开发和测试，包含所有运行功能与测试依赖：
+
+```powershell
+cd E:\repository\yolo_data_manager
+python -m pip install -e ".[dev]"
+python -m pytest -q
 ```
 
 ## YoloManager（推荐）

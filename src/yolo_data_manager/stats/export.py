@@ -125,7 +125,7 @@ def write_stats_plots(dataset: YoloDataset, out_dir: str | Path, stats_list: str
     try:
         import matplotlib.pyplot as plt
     except ImportError as exc:
-        raise RuntimeError("matplotlib is required for --plots-dir; install with `pip install -e .[plot]`") from exc
+        raise RuntimeError("matplotlib is required for --plots-dir; install with `pip install .`") from exc
 
     output = Path(out_dir)
     output.mkdir(parents=True, exist_ok=True)
