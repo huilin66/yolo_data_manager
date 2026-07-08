@@ -225,6 +225,8 @@ def build_parser() -> argparse.ArgumentParser:
     draw.add_argument("--no-fill-mask", dest="fill_mask", action="store_false")
     draw.add_argument("--show-attrs", action="store_true")
     draw.add_argument("--filter-no-attrs", action="store_true")
+    draw.add_argument("--workers", type=int, default=1, help="number of worker threads for visualization")
+    draw.add_argument("--progress", action="store_true", help="show visualization progress")
     draw.set_defaults(fill_mask=True)
     draw.set_defaults(handler=handle_vis_draw)
     crop = vis_sub.add_parser("crop", help="crop annotation regions into class folders")
@@ -235,6 +237,8 @@ def build_parser() -> argparse.ArgumentParser:
     crop.add_argument("--conf", type=float, default=None, help="optional confidence threshold")
     crop.add_argument("--by-attr", action="store_true", help="also save crops into class/attribute-value folders")
     crop.add_argument("--keep-no-attrs", dest="filter_no_attrs", action="store_false")
+    crop.add_argument("--workers", type=int, default=1, help="number of worker threads for cropping")
+    crop.add_argument("--progress", action="store_true", help="show cropping progress")
     crop.set_defaults(filter_no_attrs=True)
     crop.set_defaults(handler=handle_vis_crop)
 
@@ -610,6 +614,8 @@ def handle_vis_draw(args: argparse.Namespace) -> int:
         fill_mask=args.fill_mask,
         show_attributes=args.show_attrs,
         filter_no_attributes=args.filter_no_attrs,
+        workers=args.workers,
+        progress=args.progress,
     )
     print(json.dumps({"out": args.out}, indent=2, ensure_ascii=False))
     return 0
@@ -625,6 +631,8 @@ def handle_vis_crop(args: argparse.Namespace) -> int:
         confidence_threshold=args.conf,
         by_attribute=args.by_attr,
         filter_no_attributes=args.filter_no_attrs,
+        workers=args.workers,
+        progress=args.progress,
     )
     print(json.dumps({"saved": saved, "out": args.out}, indent=2, ensure_ascii=False))
     return 0

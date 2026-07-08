@@ -33,7 +33,9 @@ ydm stats --root path/to/yolo --plots-dir labels_sta --stats-list all
 ydm stats --root path/to/yolo --plots-dir labels_sta --stats-list image_shape,box_shape_pix,box_pos_center
 ydm vis draw --root path/to/yolo --out images_vis
 ydm vis draw --root path/to/yolo --out images_vis --show-conf --show-attrs --filter-no-attrs
+ydm vis draw --root path/to/yolo --out images_vis --workers 8 --progress
 ydm vis crop --root path/to/yolo --out crops --by-attr
+ydm vis crop --root path/to/yolo --out crops --workers 8 --progress
 ydm export coco --root path/to/yolo --out instances.json
 ydm export xany --root path/to/yolo --out xany_json
 ydm import labelme --json-dir labelme_json --out yolo --task segment

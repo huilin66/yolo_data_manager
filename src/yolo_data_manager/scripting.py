@@ -680,6 +680,8 @@ class YoloManager:
         fill_mask: bool = True,
         show_attrs: bool = False,
         filter_no_attrs: bool = False,
+        workers: int = 1,
+        progress: bool = False,
         **kwargs: Any,
     ) -> int:
         """Draw bounding-boxes / masks on images (``ydm vis draw``)."""
@@ -693,6 +695,8 @@ class YoloManager:
             fill_mask=fill_mask,
             show_attrs=show_attrs,
             filter_no_attrs=filter_no_attrs,
+            workers=workers,
+            progress=progress,
             **kwargs,
         )
 
@@ -705,6 +709,8 @@ class YoloManager:
         conf: float | None = None,
         by_attr: bool = False,
         filter_no_attrs: bool = True,
+        workers: int = 1,
+        progress: bool = False,
         **kwargs: Any,
     ) -> int:
         """Crop annotation regions into class folders (``ydm vis crop``)."""
@@ -716,6 +722,8 @@ class YoloManager:
             conf=conf,
             by_attr=by_attr,
             filter_no_attrs=filter_no_attrs,
+            workers=workers,
+            progress=progress,
             **kwargs,
         )
 

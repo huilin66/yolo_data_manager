@@ -66,7 +66,9 @@ mgr.ann_delete_attr(name="quality", value=["bad"], out="yolo_clean")
 # 可视化
 mgr.vis_draw(out="images_vis", show_conf=True, show_attrs=True)
 mgr.vis_draw(out="images_vis", conf=0.25, fill_mask=True, mask_alpha=64)
+mgr.vis_draw(out="images_vis", workers=8, progress=True)
 mgr.vis_crop(out="crops", by_attr=True, min_size=32)
+mgr.vis_crop(out="crops", workers=8, progress=True)
 
 # 导出
 mgr.export_coco(out="instances.json")

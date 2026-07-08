@@ -63,6 +63,9 @@ def test_build_python_task_argv():
     )
     assert stats_argv[-2:] == ["--stats-list", "image_shape,box_pos_center"]
 
+    vis_argv = build_task_argv("vis.draw", root=Path("dataset"), out="vis", workers=4, progress=True)
+    assert vis_argv[-3:] == ["--workers", "4", "--progress"]
+
 
 def test_yolo_manager_methods(tmp_path):
     root = make_dataset(tmp_path / "yolo")
@@ -376,8 +379,10 @@ def test_query_copy_and_crop(tmp_path):
     assert sorted(path.name for path in (tmp_path / "images_out").iterdir()) == ["a.jpg", "b.jpg"]
     assert sorted(path.name for path in (tmp_path / "labels_out").iterdir()) == ["a.txt", "b.txt"]
 
-    saved = crop_dataset(dataset, tmp_path / "crops")
+    render_dataset(dataset, tmp_path / "vis_mt", workers=2, progress=True)
+    saved = crop_dataset(dataset, tmp_path / "crops", workers=2, progress=True)
     assert saved == 3
+    assert (tmp_path / "vis_mt" / "a.jpg").exists()
     assert (tmp_path / "crops" / "person" / "a_0.jpg").exists()
 
 
