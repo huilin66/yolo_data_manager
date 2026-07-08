@@ -29,6 +29,8 @@ ydm dataset bad-images --root path/to/yolo --out bad_images.csv
 ydm dataset yaml --root path/to/yolo --out dataset.yaml
 ydm stats --root path/to/yolo --out stats.json
 ydm stats --root path/to/yolo --ann-csv annotations.csv --attr-csv attributes.csv --plots-dir stats_plots
+ydm stats --root path/to/yolo --plots-dir labels_sta --stats-list all
+ydm stats --root path/to/yolo --plots-dir labels_sta --stats-list image_shape,box_shape_pix,box_pos_center
 ydm vis draw --root path/to/yolo --out images_vis
 ydm vis draw --root path/to/yolo --out images_vis --show-conf --show-attrs --filter-no-attrs
 ydm vis crop --root path/to/yolo --out crops --by-attr

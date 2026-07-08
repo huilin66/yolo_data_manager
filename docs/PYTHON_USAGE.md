@@ -25,6 +25,8 @@ mgr.check(out="validation.json", fill_missing_txt=True)
 
 # 统计
 mgr.stats(out="stats.json", class_csv="class_counts.csv", attr_csv="attributes.csv")
+mgr.stats(plots_dir="labels_sta", stats_list=["all"])
+mgr.stats(plots_dir="labels_sta", stats_list=["image_shape", "box_shape_pix", "box_pos_center"])
 
 # 布局检测
 mgr.layout_detect()
@@ -85,6 +87,8 @@ mgr.import_labelme(json_dir="labelme_json", out="yolo_out", task="segment")
 mgr.import_coco(json_path="instances.json", images_dir="images", out="yolo_out")
 mgr.import_voc(annotations_dir="Annotations", images_dir="JPEGImages", out="yolo_out")
 ```
+
+`stats_list` 支持：`all`、`class_counts`、`box_number`、`box_width`、`box_height`、`box_area`、`image_shape`、`box_shape`、`box_shape_pix`、`box_shape_rate`、`box_pos_start`、`box_pos_center`、`box_pos_end`、`attribute`、`legacy_csv`。
 
 ### 初始化参数
 

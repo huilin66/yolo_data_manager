@@ -249,6 +249,7 @@ class YoloManager:
         ann_csv: str | None = None,
         attr_csv: str | None = None,
         plots_dir: str | None = None,
+        stats_list: str | list[str] | None = None,
         **kwargs: Any,
     ) -> int:
         """Compute dataset statistics (``ydm stats``)."""
@@ -259,6 +260,7 @@ class YoloManager:
             ann_csv=ann_csv,
             attr_csv=attr_csv,
             plots_dir=plots_dir,
+            stats_list=stats_list,
             **kwargs,
         )
 

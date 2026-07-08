@@ -24,7 +24,7 @@ from yolo_data_manager.io.layout import detect_layout
 from yolo_data_manager.io.validator import validate_dataset
 from yolo_data_manager.io.writer import write_yolo_dataset
 from yolo_data_manager.stats.compute import compute_stats
-from yolo_data_manager.stats.export import write_attribute_csv
+from yolo_data_manager.stats.export import write_attribute_csv, write_stats_plots
 from yolo_data_manager.scripting import YoloManager, build_task_argv
 from yolo_data_manager.vis.renderer import crop_dataset
 from yolo_data_manager.vis.renderer import render_dataset
@@ -54,6 +54,14 @@ def test_build_python_task_argv():
         "--no-copy-images",
         "--dry-run",
     ]
+
+    stats_argv = build_task_argv(
+        "stats",
+        root=Path("dataset"),
+        plots_dir=Path("stats_plots"),
+        stats_list=["image_shape", "box_pos_center"],
+    )
+    assert stats_argv[-2:] == ["--stats-list", "image_shape,box_pos_center"]
 
 
 def test_yolo_manager_methods(tmp_path):
@@ -218,6 +226,23 @@ def test_filter_by_geometry(tmp_path):
 
     assert filtered.annotation_count() == 1
     assert filtered.images[0].annotations[0].class_id == 0
+
+
+def test_stats_list_outputs_legacy_plots_and_csv(tmp_path):
+    root = make_dataset(tmp_path / "yolo")
+    dataset = load_yolo_dataset(root)
+    out_dir = tmp_path / "plots"
+
+    write_stats_plots(dataset, out_dir, stats_list=["image_shape", "box_shape_pix", "box_pos_center", "legacy_csv"])
+    stats = compute_stats(dataset)
+
+    assert (out_dir / "image_shape.png").exists()
+    assert (out_dir / "image_shape.csv").exists()
+    assert (out_dir / "box_shape_pix.png").exists()
+    assert (out_dir / "box_pos_center.png").exists()
+    assert (out_dir / "sta_box.csv").exists()
+    assert stats["box_width_pix"]["count"] == 3
+    assert stats["box_pos_center_x"]["count"] == 3
 
 
 def test_merge_datasets_with_output_name_prefix(tmp_path):

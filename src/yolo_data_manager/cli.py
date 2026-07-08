@@ -58,6 +58,7 @@ def build_parser() -> argparse.ArgumentParser:
     stats.add_argument("--ann-csv", default=None, help="optional annotation CSV output path")
     stats.add_argument("--attr-csv", default=None, help="optional long-form attribute CSV output path")
     stats.add_argument("--plots-dir", default=None, help="optional directory for PNG plots")
+    stats.add_argument("--stats-list", default=None, help="comma-separated stats to plot/export; use all for every stats output")
     stats.set_defaults(handler=handle_stats)
 
     layout_cmd = subparsers.add_parser("layout", help="detect or inspect YOLO dataset layouts")
@@ -376,7 +377,7 @@ def handle_stats(args: argparse.Namespace) -> int:
     if args.attr_csv:
         write_attribute_csv(dataset, args.attr_csv)
     if args.plots_dir:
-        write_stats_plots(dataset, args.plots_dir)
+        write_stats_plots(dataset, args.plots_dir, stats_list=args.stats_list)
     _emit_json(payload, args.out)
     return 0
 
