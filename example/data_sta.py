@@ -3,7 +3,7 @@ import os
 from yolo_data_manager import YoloManager
 
 
-def yolo_split(input_dir):
+def yolo_sta(input_dir):
     sta_dir = os.path.join(input_dir, "stats", "labels_sta")
     os.makedirs(sta_dir, exist_ok=True)
 
@@ -18,6 +18,6 @@ if __name__ == "__main__":
     rgb_all_dir = r"/localnvme/data/bdd_hmt/sua_rgb"
     t_all_dir = r"/localnvme/data/bdd_hmt/sua_t"
 
-    yolo_split(cube_dir)
-    yolo_split(rgb_all_dir)
-    yolo_split(t_all_dir)
+    yolo_sta(cube_dir)
+    yolo_sta(rgb_all_dir)
+    yolo_sta(t_all_dir)
