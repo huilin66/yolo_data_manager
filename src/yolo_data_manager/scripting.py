@@ -38,6 +38,7 @@ TASK_COMMANDS: Mapping[str, tuple[str, ...]] = {
     "convert.pseudo": ("convert", "pseudo"),
     "eval.compare": ("eval", "compare"),
     "eval.review_pack": ("eval", "review-pack"),
+    "eval.error_analysis": ("eval", "error-analysis"),
 }
 
 _PARAMETER_ALIASES = {
@@ -968,6 +969,32 @@ class YoloManager:
             iou=iou,
             conf=conf,
             status=status,
+            task=self.task,
+            **kwargs,
+        )
+
+    def eval_error_analysis(
+        self,
+        gt_root: str,
+        pred_root: str,
+        out: str,
+        *,
+        match_iou: float = 0.5,
+        low_iou: float = 0.1,
+        conf_thres: float = 0.0,
+        duplicate_iou: float = 0.9,
+        **kwargs: Any,
+    ) -> int:
+        """Fine-grained error analysis of predictions vs GT (``ydm eval error-analysis``)."""
+        return run_task(
+            "eval.error_analysis",
+            gt_root=gt_root,
+            pred_root=pred_root,
+            out=out,
+            match_iou=match_iou,
+            low_iou=low_iou,
+            conf_thres=conf_thres,
+            duplicate_iou=duplicate_iou,
             task=self.task,
             **kwargs,
         )

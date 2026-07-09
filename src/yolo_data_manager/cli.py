@@ -29,6 +29,13 @@ from yolo_data_manager.stats.export import write_annotation_csv, write_attribute
 from yolo_data_manager.stats.report import write_class_counts_csv, write_json_report
 from yolo_data_manager.vis.renderer import crop_dataset, render_dataset
 from yolo_data_manager.evaluation.compare import compare_datasets, write_compare_csv
+from yolo_data_manager.evaluation.error_analysis import (
+    analyze_errors,
+    find_duplicate_gt,
+    print_error_summary,
+    write_duplicate_gt_csv,
+    write_error_csvs,
+)
 from yolo_data_manager.evaluation.review_pack import write_review_pack
 
 
@@ -311,6 +318,19 @@ def build_parser() -> argparse.ArgumentParser:
     review.add_argument("--status", default="fp,fn", help="statuses to include, comma-separated")
     review.add_argument("--task", choices=["auto", "detect", "segment"], default="auto")
     review.set_defaults(handler=handle_eval_review_pack)
+    error_analysis = eval_sub.add_parser(
+        "error-analysis",
+        help="fine-grained error analysis: FP/FN sub-types, class errors, duplicate GT",
+    )
+    error_analysis.add_argument("--gt-root", required=True)
+    error_analysis.add_argument("--pred-root", required=True)
+    error_analysis.add_argument("--out", required=True, help="output directory for CSV reports")
+    error_analysis.add_argument("--match-iou", type=float, default=0.5)
+    error_analysis.add_argument("--low-iou", type=float, default=0.1)
+    error_analysis.add_argument("--conf-thres", type=float, default=0.0, help="confidence threshold for predictions")
+    error_analysis.add_argument("--duplicate-iou", type=float, default=0.9, help="IoU threshold for duplicate GT detection")
+    error_analysis.add_argument("--task", choices=["auto", "detect", "segment"], default="auto")
+    error_analysis.set_defaults(handler=handle_eval_error_analysis)
 
     return parser
 
@@ -737,6 +757,30 @@ def handle_eval_review_pack(args: argparse.Namespace) -> int:
         write_compare_csv(rows, args.csv)
     counts = write_review_pack(rows, gt, args.out, statuses=set(_split_values(args.status)), pred=pred)
     print(json.dumps({"summary": summary, "review": counts, "out": args.out}, indent=2, ensure_ascii=False))
+    return 0
+
+
+def handle_eval_error_analysis(args: argparse.Namespace) -> int:
+    gt = load_yolo_dataset(args.gt_root, task=args.task)
+    pred = load_yolo_dataset(args.pred_root, task=args.task)
+    error_rows, summary = analyze_errors(
+        gt,
+        pred,
+        match_iou=args.match_iou,
+        low_iou=args.low_iou,
+        conf_thres=args.conf_thres,
+    )
+    dup_rows = find_duplicate_gt(gt, duplicate_iou=args.duplicate_iou)
+    write_error_csvs(error_rows, args.out)
+    write_duplicate_gt_csv(dup_rows, args.out)
+    print_error_summary(error_rows, dup_rows)
+    print(
+        json.dumps(
+            {"summary": summary, "duplicate_gt_pairs": len(dup_rows), "out": args.out},
+            indent=2,
+            ensure_ascii=False,
+        )
+    )
     return 0
 
 

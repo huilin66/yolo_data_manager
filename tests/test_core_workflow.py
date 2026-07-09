@@ -18,6 +18,12 @@ from yolo_data_manager.dataset.merge import merge_datasets
 from yolo_data_manager.dataset.quality import find_bad_images
 from yolo_data_manager.dataset.split import split_dataset
 from yolo_data_manager.evaluation.compare import compare_datasets
+from yolo_data_manager.evaluation.error_analysis import (
+    analyze_errors,
+    find_duplicate_gt,
+    write_duplicate_gt_csv,
+    write_error_csvs,
+)
 from yolo_data_manager.evaluation.review_pack import write_review_pack
 from yolo_data_manager.io.loader import load_yolo_dataset
 from yolo_data_manager.io.layout import detect_layout
@@ -611,3 +617,84 @@ def test_import_voc_and_dataset_yaml(tmp_path):
     yaml_text = (tmp_path / "dataset.yaml").read_text(encoding="utf-8")
     assert "names:" in yaml_text
     assert "car" in yaml_text
+
+
+def test_error_analysis(tmp_path):
+    """Fine-grained error analysis: TP, FP sub-types, FN sub-types, duplicate GT."""
+    # -- GT dataset: 2 images, one with a duplicate GT pair --
+    gt_root = tmp_path / "gt_ea"
+    (gt_root / "images").mkdir(parents=True)
+    (gt_root / "labels").mkdir(parents=True)
+    Image.new("RGB", (100, 80), color="white").save(gt_root / "images" / "a.jpg")
+    Image.new("RGB", (100, 80), color="white").save(gt_root / "images" / "b.jpg")
+    (gt_root / "class.txt").write_text("person\ncar\n", encoding="utf-8")
+    # a.jpg: person + car (well-separated)
+    (gt_root / "labels" / "a.txt").write_text(
+        "0 0.5 0.5 0.3 0.4\n"
+        "1 0.3 0.3 0.3 0.3\n",
+        encoding="utf-8",
+    )
+    # b.jpg: two nearly-identical cars (duplicate GT)
+    (gt_root / "labels" / "b.txt").write_text(
+        "1 0.2 0.2 0.3 0.2\n"
+        "1 0.205 0.205 0.29 0.19\n",
+        encoding="utf-8",
+    )
+
+    # -- Pred dataset --
+    pred_root = tmp_path / "pred_ea"
+    (pred_root / "images").mkdir(parents=True)
+    (pred_root / "labels").mkdir(parents=True)
+    Image.new("RGB", (100, 80), color="white").save(pred_root / "images" / "a.jpg")
+    Image.new("RGB", (100, 80), color="white").save(pred_root / "images" / "b.jpg")
+    (pred_root / "class.txt").write_text("person\ncar\n", encoding="utf-8")
+    # a.jpg: TP + class_error_pred + background_fp
+    (pred_root / "labels" / "a.txt").write_text(
+        "0 0.5 0.5 0.3 0.4 0.90\n"
+        "1 0.5 0.5 0.3 0.4 0.60\n"
+        "1 0.85 0.15 0.15 0.15 0.50\n",
+        encoding="utf-8",
+    )
+    # b.jpg: TP matching first GT car; 2nd GT car unmatched -> FN
+    (pred_root / "labels" / "b.txt").write_text(
+        "1 0.2 0.2 0.3 0.2 0.85\n",
+        encoding="utf-8",
+    )
+
+    gt = load_yolo_dataset(gt_root, task="detect")
+    pred = load_yolo_dataset(pred_root, task="detect")
+
+    # --- analyze_errors ---
+    rows, summary = analyze_errors(gt, pred, match_iou=0.5, low_iou=0.1)
+
+    assert summary.get("tp") == 2, f"expected 2 TP, got {summary}"
+    assert summary.get("class_error_pred") == 1, f"expected 1 class_error_pred, got {summary}"
+    assert summary.get("background_fp") == 1, f"expected 1 background_fp, got {summary}"
+    assert summary.get("fn_low_iou") == 1, f"expected 1 fn_low_iou, got {summary}"
+    assert summary.get("fn_no_pred") == 1, f"expected 1 fn_no_pred, got {summary}"
+
+    # Status-level counts
+    tp_rows = [r for r in rows if r.status == "tp"]
+    fp_rows = [r for r in rows if r.status == "fp"]
+    fn_rows = [r for r in rows if r.status == "fn"]
+    assert len(tp_rows) == 2
+    assert len(fp_rows) == 2  # class_error_pred + background_fp
+    assert len(fn_rows) == 2  # fn_no_pred (a.jpg car) + fn_low_iou (b.jpg duplicate)
+
+    # Verify confidence is captured
+    assert tp_rows[0].pred_conf is not None
+
+    # --- find_duplicate_gt ---
+    dup_rows = find_duplicate_gt(gt, duplicate_iou=0.9)
+    assert len(dup_rows) == 1
+    assert dup_rows[0].type == "same_class_duplicate"
+    assert dup_rows[0].iou >= 0.9
+
+    # --- CSV output (smoke test) ---
+    write_error_csvs(rows, tmp_path / "error_out")
+    write_duplicate_gt_csv(dup_rows, tmp_path / "error_out")
+    assert (tmp_path / "error_out" / "fp_report.csv").exists()
+    assert (tmp_path / "error_out" / "fn_report.csv").exists()
+    assert (tmp_path / "error_out" / "class_error.csv").exists()
+    assert (tmp_path / "error_out" / "tp_report.csv").exists()
+    assert (tmp_path / "error_out" / "duplicate_gt.csv").exists()

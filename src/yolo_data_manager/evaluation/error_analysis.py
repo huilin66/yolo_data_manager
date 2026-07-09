@@ -1,0 +1,645 @@
+"""Fine-grained prediction-vs-ground-truth error analysis.
+
+Categorises every unmatched prediction and ground-truth annotation into
+detailed error subtypes (background FP, localisation FP, duplicate
+prediction, class-error, missed-due-to-class-error, missed-due-to-low-iou,
+missed-no-prediction) and detects duplicate / overlapping GT annotations.
+
+The matching logic is adapted from the ``demo.py`` reference script.
+"""
+
+from __future__ import annotations
+
+import csv
+from collections import Counter
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+
+from yolo_data_manager.core.models import YoloAnnotation, YoloDataset
+
+# ---------------------------------------------------------------------------
+# Error type constants
+# ---------------------------------------------------------------------------
+
+#: Matched prediction – correct class and sufficient IoU.
+TP = "tp"
+#: Unmatched prediction with best IoU < low_iou – likely background or
+#: unlabelled object.
+BACKGROUND_FP = "background_fp"
+#: Unmatched prediction whose best IoU is between low_iou and match_iou,
+#: or whose best-matching GT was already claimed by a higher-confidence
+#: prediction of the same class.
+LOCALISATION_FP = "localisation_fp"
+#: Unmatched prediction whose best IoU >= match_iou but the best GT was
+#: already matched to another prediction (duplicate / over-detection).
+DUPLICATE_PREDICTION = "duplicate_prediction"
+#: Unmatched prediction where best IoU >= match_iou with a GT of a
+#: *different* class (class confusion by the model).
+CLASS_ERROR_PRED = "class_error_pred"
+#: Unmatched GT whose best-matching prediction is of a different class
+#: (the GT was "stolen" by a class-error prediction).
+FN_CLASS_ERROR = "fn_class_error"
+#: Unmatched GT with a prediction whose IoU is in [low_iou, match_iou).
+FN_LOW_IOU = "fn_low_iou"
+#: Unmatched GT with no prediction above low_iou – the model completely
+#: missed this object.
+FN_NO_PRED = "fn_no_pred"
+
+# ---------------------------------------------------------------------------
+# Data structures
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ErrorDetail:
+    """A single error (or TP) entry from prediction-vs-GT analysis."""
+
+    image: str
+    """Image file name (stem or relative path)."""
+
+    status: str
+    """High-level status: ``"tp"``, ``"fp"``, or ``"fn"``."""
+
+    error_type: str
+    """Fine-grained error subtype (one of the module-level constants)."""
+
+    class_id: int
+    """Class id of the primary annotation (GT for FN, pred for FP/TP)."""
+
+    class_name: str
+    """Human-readable class name."""
+
+    pred_class_id: int | None = None
+    pred_class_name: str | None = None
+    pred_conf: float | None = None
+
+    gt_class_id: int | None = None
+    gt_class_name: str | None = None
+
+    best_iou: float = 0.0
+    """Best IoU with any annotation in the other set."""
+
+    pred_box_xyxy: str | None = None
+    """Normalised xyxy box of the prediction (JSON list string)."""
+
+    gt_box_xyxy: str | None = None
+    """Normalised xyxy box of the GT (JSON list string)."""
+
+    pred_line: str | None = None
+    """Raw text of the prediction label line."""
+
+    gt_line: str | None = None
+    """Raw text of the GT label line."""
+
+    pred_idx: int | None = None
+    """Index of this prediction within its label file."""
+
+    gt_idx: int | None = None
+    """Index of this GT within its label file."""
+
+
+@dataclass
+class DuplicateGt:
+    """A pair of GT annotations on the same image with high overlap."""
+
+    image: str
+    gt_idx_i: int
+    gt_idx_j: int
+    iou: float
+    cls_i: int
+    name_i: str
+    cls_j: int
+    name_j: str
+    type: str  # "same_class_duplicate" | "overlap_different_class"
+    line_i: str = ""
+    line_j: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+
+def _xywh_to_xyxy_norm(box: tuple[float, float, float, float]) -> list[float]:
+    """Convert normalised *cx-cy-w-h* to normalised *x1-y1-x2-y2*."""
+    cx, cy, w, h = box
+    return [cx - w / 2.0, cy - h / 2.0, cx + w / 2.0, cy + h / 2.0]
+
+
+def _annotation_box_norm(ann: YoloAnnotation) -> list[float]:
+    """Return the normalised *x1-y1-x2-y2* bounding box of *ann*."""
+    geo = ann.geometry_box()
+    if geo is None:
+        return [0.0, 0.0, 0.0, 0.0]
+    return _xywh_to_xyxy_norm(geo.as_tuple())
+
+
+def _box_iou_matrix(
+    boxes_a: np.ndarray,
+    boxes_b: np.ndarray,
+) -> np.ndarray:
+    """Vectorised IoU matrix (N x M) for two sets of xyxy boxes."""
+    if boxes_a.size == 0 or boxes_b.size == 0:
+        return np.zeros((boxes_a.shape[0], boxes_b.shape[0]), dtype=np.float64)
+
+    tl = np.maximum(boxes_a[:, None, :2], boxes_b[None, :, :2])
+    br = np.minimum(boxes_a[:, None, 2:], boxes_b[None, :, 2:])
+    wh = np.clip(br - tl, 0, None)
+    inter = wh[:, :, 0] * wh[:, :, 1]
+
+    area_a = np.clip(boxes_a[:, 2] - boxes_a[:, 0], 0, None) * np.clip(
+        boxes_a[:, 3] - boxes_a[:, 1], 0, None
+    )
+    area_b = np.clip(boxes_b[:, 2] - boxes_b[:, 0], 0, None) * np.clip(
+        boxes_b[:, 3] - boxes_b[:, 1], 0, None
+    )
+    union = area_a[:, None] + area_b[None, :] - inter + 1e-9
+    return inter / union
+
+
+def _serialise_box(box: list[float]) -> str:
+    """JSON-list string for a box, rounded to 6 decimal places."""
+    return "[" + ", ".join(f"{v:.6f}" for v in box) + "]"
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+
+def analyze_errors(
+    gt: YoloDataset,
+    pred: YoloDataset,
+    match_iou: float = 0.5,
+    low_iou: float = 0.1,
+    conf_thres: float = 0.0,
+) -> tuple[list[ErrorDetail], dict[str, int]]:
+    """Compare predictions against ground-truth with fine-grained error typing.
+
+    Parameters
+    ----------
+    gt:
+        Ground-truth dataset.
+    pred:
+        Prediction dataset.  Images are matched to GT by stem.
+    match_iou:
+        IoU threshold for a correct (TP) match.
+    low_iou:
+        IoU threshold below which an unmatched prediction is considered
+        a background / false-alarm FP rather than a localisation issue.
+    conf_thres:
+        Minimum confidence for a prediction to be considered (predictions
+        with ``confidence is None`` are always kept).
+
+    Returns
+    -------
+    rows:
+        One :class:`ErrorDetail` per annotation outcome.
+    summary:
+        Dict mapping error-type string to count.
+    """
+    pred_by_stem: dict[str, list[YoloAnnotation]] = {}
+    pred_lines_by_stem: dict[str, list[str]] = {}
+    for image in pred.images:
+        annotations = list(image.annotations)
+        if conf_thres > 0:
+            annotations = [
+                a
+                for a in annotations
+                if a.confidence is None or a.confidence >= conf_thres
+            ]
+        pred_by_stem[image.stem] = annotations
+        pred_lines_by_stem[image.stem] = [a.source_line for a in annotations]
+
+    rows: list[ErrorDetail] = []
+    type_counter: Counter[str] = Counter()
+
+    for gt_image in gt.images:
+        stem = gt_image.stem
+        gt_anns = gt_image.annotations
+        pred_anns = pred_by_stem.get(stem, [])
+        pred_lines = pred_lines_by_stem.get(stem, [])
+
+        # --- build box arrays (normalised xyxy) ---
+        gt_boxes_np = (
+            np.array([_annotation_box_norm(a) for a in gt_anns], dtype=np.float64)
+            if gt_anns
+            else np.zeros((0, 4), dtype=np.float64)
+        )
+        pred_boxes_np = (
+            np.array([_annotation_box_norm(a) for a in pred_anns], dtype=np.float64)
+            if pred_anns
+            else np.zeros((0, 4), dtype=np.float64)
+        )
+
+        ious = _box_iou_matrix(pred_boxes_np, gt_boxes_np)
+
+        matched_pred: set[int] = set()
+        matched_gt: set[int] = set()
+
+        # ---- 1. class-aware greedy matching (same class, IoU >= match_iou) ----
+        candidates: list[tuple[float, int, int]] = []
+        for pi, p_ann in enumerate(pred_anns):
+            for gi, g_ann in enumerate(gt_anns):
+                if p_ann.class_id == g_ann.class_id and ious[pi, gi] >= match_iou:
+                    candidates.append((float(ious[pi, gi]), pi, gi))
+        candidates.sort(key=lambda x: x[0], reverse=True)
+
+        for iou_val, pi, gi in candidates:
+            if pi not in matched_pred and gi not in matched_gt:
+                matched_pred.add(pi)
+                matched_gt.add(gi)
+                p_ann = pred_anns[pi]
+                conf = p_ann.confidence
+                rows.append(
+                    ErrorDetail(
+                        image=stem,
+                        status="tp",
+                        error_type=TP,
+                        class_id=p_ann.class_id,
+                        class_name=gt.class_name(p_ann.class_id),
+                        pred_class_id=p_ann.class_id,
+                        pred_class_name=gt.class_name(p_ann.class_id),
+                        pred_conf=conf,
+                        gt_class_id=g_ann.class_id,
+                        gt_class_name=gt.class_name(g_ann.class_id),
+                        best_iou=iou_val,
+                        pred_box_xyxy=_serialise_box(_annotation_box_norm(p_ann)),
+                        gt_box_xyxy=_serialise_box(_annotation_box_norm(g_ann)),
+                        pred_line=p_ann.source_line,
+                        gt_line=g_ann.source_line,
+                        pred_idx=pi,
+                        gt_idx=gi,
+                    )
+                )
+                type_counter[TP] += 1
+
+        # ---- 2. unmatched predictions → FP (with sub-type) ----
+        for pi, p_ann in enumerate(pred_anns):
+            if pi in matched_pred:
+                continue
+
+            pred_cls = p_ann.class_id
+            conf = p_ann.confidence
+
+            if len(gt_anns) > 0:
+                best_gi = int(np.argmax(ious[pi]))
+                best_iou = float(ious[pi, best_gi])
+                best_gt = gt_anns[best_gi]
+                best_gt_cls = best_gt.class_id
+            else:
+                best_gi = -1
+                best_iou = 0.0
+                best_gt = None
+                best_gt_cls = -1
+
+            error_type: str
+            if best_gt is not None and best_iou >= match_iou and pred_cls != best_gt_cls:
+                # High overlap but wrong class → class error (pred side)
+                error_type = CLASS_ERROR_PRED
+                gt_suffix = (
+                    f" (gt) | cls_err: {gt.class_name(pred_cls)} → "
+                    f"{gt.class_name(best_gt_cls)}"
+                )
+            elif (
+                best_gt is not None
+                and best_gi in matched_gt
+                and best_iou >= match_iou
+            ):
+                # GT already claimed → duplicate / over-detection
+                error_type = DUPLICATE_PREDICTION
+                gt_suffix = (
+                    f" (gt) | dup_pred: {gt.class_name(pred_cls)} "
+                    f"(best GT already matched)"
+                )
+            elif best_iou < low_iou:
+                error_type = BACKGROUND_FP
+                gt_suffix = " (gt)" if best_gt is not None else ""
+            else:
+                error_type = LOCALISATION_FP
+                gt_suffix = " (gt)" if best_gt is not None else ""
+
+            rows.append(
+                ErrorDetail(
+                    image=stem,
+                    status="fp",
+                    error_type=error_type,
+                    class_id=pred_cls,
+                    class_name=gt.class_name(pred_cls),
+                    pred_class_id=pred_cls,
+                    pred_class_name=gt.class_name(pred_cls),
+                    pred_conf=conf,
+                    gt_class_id=best_gt_cls if best_gt_cls >= 0 else None,
+                    gt_class_name=gt.class_name(best_gt_cls) if best_gt_cls >= 0 else None,
+                    best_iou=best_iou,
+                    pred_box_xyxy=_serialise_box(_annotation_box_norm(p_ann)),
+                    gt_box_xyxy=(
+                        _serialise_box(_annotation_box_norm(best_gt))
+                        if best_gt is not None
+                        else None
+                    ),
+                    pred_line=p_ann.source_line,
+                    gt_line=best_gt.source_line if best_gt is not None else None,
+                    pred_idx=pi,
+                    gt_idx=best_gi if best_gi >= 0 else None,
+                )
+            )
+            type_counter[error_type] += 1
+
+        # ---- 3. unmatched GT → FN (with sub-type) ----
+        for gi, g_ann in enumerate(gt_anns):
+            if gi in matched_gt:
+                continue
+
+            gt_cls = g_ann.class_id
+
+            if len(pred_anns) > 0:
+                best_pi = int(np.argmax(ious[:, gi]))
+                best_iou = float(ious[best_pi, gi])
+                best_pred = pred_anns[best_pi]
+                best_pred_cls = best_pred.class_id
+                best_pred_conf = best_pred.confidence
+            else:
+                best_pi = -1
+                best_iou = 0.0
+                best_pred = None
+                best_pred_cls = -1
+                best_pred_conf = None
+
+            error_type: str
+            if best_pred is not None and best_iou >= match_iou and best_pred_cls != gt_cls:
+                error_type = FN_CLASS_ERROR
+            elif best_pred is not None and best_iou >= low_iou:
+                error_type = FN_LOW_IOU
+            else:
+                error_type = FN_NO_PRED
+
+            rows.append(
+                ErrorDetail(
+                    image=stem,
+                    status="fn",
+                    error_type=error_type,
+                    class_id=gt_cls,
+                    class_name=gt.class_name(gt_cls),
+                    pred_class_id=best_pred_cls if best_pred_cls >= 0 else None,
+                    pred_class_name=(
+                        gt.class_name(best_pred_cls) if best_pred_cls >= 0 else None
+                    ),
+                    pred_conf=best_pred_conf,
+                    gt_class_id=gt_cls,
+                    gt_class_name=gt.class_name(gt_cls),
+                    best_iou=best_iou,
+                    pred_box_xyxy=(
+                        _serialise_box(_annotation_box_norm(best_pred))
+                        if best_pred is not None
+                        else None
+                    ),
+                    gt_box_xyxy=_serialise_box(_annotation_box_norm(g_ann)),
+                    pred_line=best_pred.source_line if best_pred is not None else None,
+                    gt_line=g_ann.source_line,
+                    pred_idx=best_pi if best_pi >= 0 else None,
+                    gt_idx=gi,
+                )
+            )
+            type_counter[error_type] += 1
+
+    # ---- 4. predictions with no matching GT image stem → FP ----
+    gt_stems = {img.stem for img in gt.images}
+    for pred_image in pred.images:
+        stem = pred_image.stem
+        if stem in gt_stems:
+            continue
+        for pi, p_ann in enumerate(pred_image.annotations):
+            if conf_thres > 0 and p_ann.confidence is not None and p_ann.confidence < conf_thres:
+                continue
+            rows.append(
+                ErrorDetail(
+                    image=stem,
+                    status="fp",
+                    error_type=BACKGROUND_FP,
+                    class_id=p_ann.class_id,
+                    class_name=pred.class_name(p_ann.class_id),
+                    pred_class_id=p_ann.class_id,
+                    pred_class_name=pred.class_name(p_ann.class_id),
+                    pred_conf=p_ann.confidence,
+                    best_iou=0.0,
+                    pred_box_xyxy=_serialise_box(_annotation_box_norm(p_ann)),
+                    pred_line=p_ann.source_line,
+                    pred_idx=pi,
+                )
+            )
+            type_counter[BACKGROUND_FP] += 1
+
+    summary = dict(type_counter)
+    return rows, summary
+
+
+def find_duplicate_gt(
+    dataset: YoloDataset,
+    duplicate_iou: float = 0.9,
+) -> list[DuplicateGt]:
+    """Find highly-overlapping GT annotation pairs on the same image.
+
+    Parameters
+    ----------
+    dataset:
+        Ground-truth dataset to inspect.
+    duplicate_iou:
+        IoU threshold above which two annotations are flagged as
+        potential duplicates.
+
+    Returns
+    -------
+    rows:
+        One :class:`DuplicateGt` per overlapping pair.
+    """
+    rows: list[DuplicateGt] = []
+    for image in dataset.images:
+        anns = image.annotations
+        if len(anns) <= 1:
+            continue
+        boxes = np.array(
+            [_annotation_box_norm(a) for a in anns], dtype=np.float64
+        )
+        ious = _box_iou_matrix(boxes, boxes)
+        for i in range(len(anns)):
+            for j in range(i + 1, len(anns)):
+                if ious[i, j] >= duplicate_iou:
+                    rows.append(
+                        DuplicateGt(
+                            image=image.stem,
+                            gt_idx_i=i,
+                            gt_idx_j=j,
+                            iou=float(ious[i, j]),
+                            cls_i=anns[i].class_id,
+                            name_i=dataset.class_name(anns[i].class_id),
+                            cls_j=anns[j].class_id,
+                            name_j=dataset.class_name(anns[j].class_id),
+                            type=(
+                                "same_class_duplicate"
+                                if anns[i].class_id == anns[j].class_id
+                                else "overlap_different_class"
+                            ),
+                            line_i=anns[i].source_line,
+                            line_j=anns[j].source_line,
+                        )
+                    )
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# Output helpers
+# ---------------------------------------------------------------------------
+
+_ERROR_CSV_COLUMNS = [
+    "image",
+    "status",
+    "error_type",
+    "class_id",
+    "class_name",
+    "pred_class_id",
+    "pred_class_name",
+    "pred_conf",
+    "gt_class_id",
+    "gt_class_name",
+    "best_iou",
+    "pred_box_xyxy",
+    "gt_box_xyxy",
+    "pred_line",
+    "gt_line",
+    "pred_idx",
+    "gt_idx",
+]
+
+_DUP_CSV_COLUMNS = [
+    "image",
+    "gt_idx_i",
+    "gt_idx_j",
+    "iou",
+    "cls_i",
+    "name_i",
+    "cls_j",
+    "name_j",
+    "type",
+    "line_i",
+    "line_j",
+]
+
+
+def write_error_csvs(
+    error_rows: list[ErrorDetail],
+    out_dir: str | Path,
+) -> None:
+    """Write error-analysis CSV files to *out_dir*.
+
+    Produces four files:
+
+    * ``fp_report.csv`` — all false-positive entries
+    * ``fn_report.csv`` — all false-negative entries
+    * ``class_error.csv`` — class-confusion entries (pred side)
+    * ``tp_report.csv`` — correctly matched entries
+    """
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+
+    _write_rows(
+        out / "fp_report.csv",
+        _ERROR_CSV_COLUMNS,
+        [r for r in error_rows if r.status == "fp"],
+    )
+    _write_rows(
+        out / "fn_report.csv",
+        _ERROR_CSV_COLUMNS,
+        [r for r in error_rows if r.status == "fn"],
+    )
+    _write_rows(
+        out / "class_error.csv",
+        _ERROR_CSV_COLUMNS,
+        [
+            r
+            for r in error_rows
+            if r.error_type in (CLASS_ERROR_PRED, FN_CLASS_ERROR)
+        ],
+    )
+    _write_rows(
+        out / "tp_report.csv",
+        _ERROR_CSV_COLUMNS,
+        [r for r in error_rows if r.status == "tp"],
+    )
+
+
+def write_duplicate_gt_csv(
+    dup_rows: list[DuplicateGt],
+    out_dir: str | Path,
+) -> None:
+    """Write duplicate-GT CSV to *out_dir / duplicate_gt.csv*."""
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    _write_rows(out / "duplicate_gt.csv", _DUP_CSV_COLUMNS, dup_rows)
+
+
+def print_error_summary(
+    error_rows: list[ErrorDetail],
+    dup_rows: list[DuplicateGt] | None = None,
+) -> None:
+    """Print a human-readable summary of error analysis results."""
+    status_counter: Counter[str] = Counter()
+    type_counter: Counter[str] = Counter()
+    gt_class_counter: Counter[str] = Counter()
+    pred_class_counter: Counter[str] = Counter()
+
+    for r in error_rows:
+        status_counter[r.status] += 1
+        type_counter[r.error_type] += 1
+        if r.status == "fn":
+            gt_class_counter[f"{r.class_id} {r.class_name}"] += 1
+        elif r.status in ("fp", "tp"):
+            pred_class_counter[f"{r.class_id} {r.class_name}"] += 1
+            if r.gt_class_id is not None and r.gt_class_name:
+                gt_class_counter[f"{r.gt_class_id} {r.gt_class_name}"] += 1
+
+    dup_count = len(dup_rows) if dup_rows else 0
+
+    print("\n========== ERROR ANALYSIS SUMMARY ==========")
+    print(f"Total rows: {len(error_rows)}")
+    print(f"  TP: {status_counter.get('tp', 0)}")
+    print(f"  FP: {status_counter.get('fp', 0)}")
+    print(f"  FN: {status_counter.get('fn', 0)}")
+    print(f"  Duplicate GT pairs: {dup_count}")
+    print("\nError type breakdown:")
+    for etype, count in sorted(type_counter.items()):
+        print(f"  {etype}: {count}")
+
+    if gt_class_counter:
+        print("\nGT class distribution:")
+        for cls_key, count in sorted(gt_class_counter.items()):
+            print(f"  {cls_key}: {count}")
+
+    if pred_class_counter:
+        print("\nPred class distribution:")
+        for cls_key, count in sorted(pred_class_counter.items()):
+            print(f"  {cls_key}: {count}")
+    print("==============================================\n")
+
+
+# ---------------------------------------------------------------------------
+# Internal
+# ---------------------------------------------------------------------------
+
+
+def _write_rows(
+    path: Path,
+    columns: list[str],
+    rows: list[Any],
+) -> None:
+    """Write a list of objects/dataclasses to CSV."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="", encoding="utf-8-sig") as f:
+        writer = csv.DictWriter(f, fieldnames=columns, extrasaction="ignore")
+        writer.writeheader()
+        for row in rows:
+            d = row.__dict__ if hasattr(row, "__dict__") else row
+            writer.writerow(d)
