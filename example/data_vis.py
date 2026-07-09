@@ -4,12 +4,12 @@ from yolo_data_manager import YoloManager
 
 
 def yolo_split(input_dir):
-    vis_dir = os.path.join(input_dir, "stats")
+    vis_dir = os.path.join(input_dir, "image_vis")
     os.makedirs(vis_dir, exist_ok=True)
 
-    mgr = YoloManager(input_dir, layout="flat", init_check=False)
+    mgr = YoloManager(input_dir, layout="flat", init_check=False, init_layout=False)
 
-    mgr.vis_draw(out=vis_dir, show_conf=True, show_attrs=True)
+    mgr.vis_draw(out=vis_dir)
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@ import os
 from yolo_data_manager import YoloManager
 
 
-def yolo_split(input_dir):
+def yolo_split(input_dir, train=0.9, val=0.1, test=0.0):
     sta_dir = os.path.join(input_dir, "stats")
     os.makedirs(sta_dir, exist_ok=True)
 
@@ -17,18 +17,18 @@ def yolo_split(input_dir):
     mgr.dataset_duplicates(out=os.path.join(sta_dir, "duplicates.csv"))
     mgr.dataset_bad_images(out=os.path.join(sta_dir, "bad_images.csv"))
     # split
-    mgr.dataset_split(train=0.9, val=0.1, test=0.0, seed=233, absolute_paths=True)
+    mgr.dataset_split(train=train, val=val, test=test, seed=233, absolute_paths=True)
 
 if __name__ == "__main__":
     pass
     cube_dir = r"/localnvme/data/bdd_hmt/bp_cube"
-    rgb_all_dir = r"/localnvme/data/bdd_hmt/sua_rgb"
-    t_all_dir = r"/localnvme/data/bdd_hmt/sua_t"
+    # rgb_all_dir = r"/localnvme/data/bdd_hmt/sua_rgb"
+    # t_all_dir = r"/localnvme/data/bdd_hmt/sua_t"
     # rgb_all_rgbt_dir = r"/localnvme/data/bdd_hmt/sua_rgb_rgbt"
     # t_all_rgbt_dir = r"/localnvme/data/bdd_hmt/sua_t_rgbt"
 
-    yolo_split(cube_dir)
-    yolo_split(rgb_all_dir)
-    yolo_split(t_all_dir)
+    yolo_split(cube_dir, train=0.8, val=0.2, test=0.0)
+    # yolo_split(rgb_all_dir)
+    # yolo_split(t_all_dir)
     # yolo_split(rgb_all_rgbt_dir)
     # yolo_split(t_all_rgbt_dir)
