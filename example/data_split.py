@@ -21,14 +21,17 @@ def yolo_split(input_dir, train=0.9, val=0.1, test=0.0):
 
 if __name__ == "__main__":
     pass
-    cube_dir = r"/localnvme/data/bdd_hmt/bp_cube"
+    # cube_dir = r"/localnvme/data/bdd_hmt/bp_cube"
     # rgb_all_dir = r"/localnvme/data/bdd_hmt/sua_rgb"
     # t_all_dir = r"/localnvme/data/bdd_hmt/sua_t"
-    # rgb_all_rgbt_dir = r"/localnvme/data/bdd_hmt/sua_rgb_rgbt"
-    # t_all_rgbt_dir = r"/localnvme/data/bdd_hmt/sua_t_rgbt"
+    cube_f01_dir = r"/localnvme/data/bdd_hmt/bp_cube_filter_p01"
+    rgb_f01_dir = r"/localnvme/data/bdd_hmt/sua_rgb_filter_p01"
+    t_f01_dir = r"/localnvme/data/bdd_hmt/sua_t_filter_p01"
 
-    yolo_split(cube_dir, train=0.8, val=0.2, test=0.0)
+    # yolo_split(cube_dir, train=0.8, val=0.2, test=0.0)
     # yolo_split(rgb_all_dir)
     # yolo_split(t_all_dir)
-    # yolo_split(rgb_all_rgbt_dir)
-    # yolo_split(t_all_rgbt_dir)
+
+    yolo_split(cube_f01_dir, train=0.8, val=0.2, test=0.0)
+    yolo_split(rgb_f01_dir)
+    yolo_split(t_f01_dir)
