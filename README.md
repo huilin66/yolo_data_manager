@@ -44,6 +44,8 @@ ydm import voc --annotations-dir Annotations --images-dir JPEGImages --out yolo
 ydm convert pseudo --root pred_yolo --conf 0.5 --out pseudo_yolo
 ydm eval compare --gt-root gt_yolo --pred-root pred_yolo --out compare.csv --iou 0.5
 ydm eval review-pack --gt-root gt_yolo --pred-root pred_yolo --out review_pack --iou 0.5
+ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --out error_report
+ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --out error_report --match-iou 0.5 --low-iou 0.1 --duplicate-iou 0.9
 ```
 
 Install from the project root. There are only two recommended modes:
@@ -100,6 +102,9 @@ This is the first implementation pass. The foundation is in place:
 - bad image detection
 - GT vs prediction comparison
 - FP/FN review package generation
+- fine-grained error analysis (7 error sub-types: background FP, localisation FP,
+  duplicate prediction, class error, FN with sub-types)
+- duplicate GT detection
 - query-result image/label copying
 - annotation CSV export and optional statistics plots
 

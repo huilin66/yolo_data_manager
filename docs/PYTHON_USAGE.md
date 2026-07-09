@@ -95,6 +95,13 @@ mgr.eval_compare(gt_root=r"E:\datasets\gt", pred_root=r"E:\datasets\pred",
 mgr.eval_review_pack(gt_root=r"E:\datasets\gt", pred_root=r"E:\datasets\pred",
                      out="review_pack", status=["fp", "fn"])
 
+# 细粒度错误分析 —— 7 种错误子类型 + 重复 GT 检测
+mgr.eval_error_analysis(gt_root=r"E:\datasets\gt", pred_root=r"E:\datasets\pred",
+                        out="error_report")
+mgr.eval_error_analysis(gt_root=r"E:\datasets\gt", pred_root=r"E:\datasets\pred",
+                        out="error_report", match_iou=0.5, low_iou=0.1,
+                        conf_thres=0.25, duplicate_iou=0.9)
+
 # 导入 —— 独立参数，不使用 mgr 的 root
 mgr.import_labelme(json_dir="labelme_json", out="yolo_out", task="segment")
 mgr.import_coco(json_path="instances.json", images_dir="images", out="yolo_out")
@@ -156,6 +163,7 @@ mgr.import_voc(annotations_dir="Annotations", images_dir="JPEGImages", out="yolo
 | `convert_pseudo(out=..., ...)` | `ydm convert pseudo` |
 | `eval_compare(gt_root=..., pred_root=..., out=...)` | `ydm eval compare` |
 | `eval_review_pack(gt_root=..., pred_root=..., out=...)` | `ydm eval review-pack` |
+| `eval_error_analysis(gt_root=..., pred_root=..., out=...)` | `ydm eval error-analysis` |
 
 所有方法返回 `int` 退出码（0 = 成功），底层调用 `run_task()`。
 
@@ -177,7 +185,7 @@ if code != 0:
     print("数据集存在校验问题")
 ```
 
-任务名使用 `模块.操作` 形式，例如 `query.class`、`ann.set_attr`、`vis.draw`。
+任务名使用 `模块.操作` 形式，例如 `query.class`、`ann.set_attr`、`vis.draw`、`eval.error_analysis`。
 由于 `class` 和 `from` 是 Python 关键字，对应参数写成 `class_` 和 `from_`。
 
 ## 可编辑脚本入口
