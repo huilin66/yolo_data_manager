@@ -117,6 +117,12 @@ def _stringify(value: Any) -> str:
     return str(value)
 
 
+def _class_values(value: str | list[str]) -> list[str]:
+    if isinstance(value, str):
+        return [value]
+    return list(value)
+
+
 # ---------------------------------------------------------------------------
 # Tasks that accept a --root argument (root is auto-filled by YoloManager)
 # ---------------------------------------------------------------------------
@@ -536,8 +542,8 @@ class YoloManager:
 
     def ann_merge_class(
         self,
-        from_: str | list[str],
-        to: str,
+        from_: str | list[str] | Mapping[str, str | list[str]],
+        to: str | None = None,
         *,
         out: str | None = None,
         compact: bool = True,
@@ -548,6 +554,18 @@ class YoloManager:
         **kwargs: Any,
     ) -> int:
         """Merge source classes into one (``ydm ann merge-class``)."""
+        if isinstance(from_, Mapping):
+            return self._ann_merge_class_map(
+                from_,
+                out=out,
+                compact=compact,
+                copy_images=copy_images,
+                keep_empty_labels=keep_empty_labels,
+                dry_run=dry_run,
+                report=report,
+            )
+        if to is None:
+            raise ValueError("to is required when from_ is not a merge mapping")
         return self._run(
             "ann.merge_class",
             from_=from_,
@@ -560,6 +578,64 @@ class YoloManager:
             report=report,
             **kwargs,
         )
+
+    def _ann_merge_class_map(
+        self,
+        merge_map: Mapping[str, str | list[str]],
+        *,
+        out: str | None,
+        compact: bool,
+        copy_images: bool,
+        keep_empty_labels: bool,
+        dry_run: bool,
+        report: str | None,
+    ) -> int:
+        import json
+
+        from yolo_data_manager.annotation.edit import EditReport, merge_classes
+        from yolo_data_manager.io.loader import load_yolo_dataset
+        from yolo_data_manager.io.writer import write_yolo_dataset
+
+        dataset = load_yolo_dataset(
+            self.root,
+            images_dir=self.images_dir,
+            labels_dir=self.labels_dir,
+            class_file=self.class_file,
+            attribute_file=self.attribute_file,
+            task=self.task,
+            split_file=self.split_file,
+            layout=self.layout,
+        )
+        current = dataset
+        reports: list[EditReport] = []
+        for target, sources in merge_map.items():
+            current, merge_report = merge_classes(
+                current,
+                _class_values(sources),
+                target,
+                compact=compact,
+                add_missing=True,
+            )
+            reports.append(merge_report)
+
+        rows = []
+        for merge_report in reports:
+            rows.extend(merge_report.rows)
+        combined_report = EditReport(rows=rows)
+
+        if not dry_run:
+            if out is None:
+                raise ValueError("out is required when dry_run=False")
+            write_yolo_dataset(
+                current,
+                out,
+                copy_images=copy_images,
+                keep_empty_labels=keep_empty_labels,
+            )
+        if report:
+            combined_report.write_csv(report)
+        print(json.dumps({"changed": len(combined_report.rows), "out": None if dry_run else out}, indent=2, ensure_ascii=False))
+        return 0
 
     def ann_rename_class(
         self,

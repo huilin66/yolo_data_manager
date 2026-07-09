@@ -221,6 +221,47 @@ def test_merge_classes_with_compact(tmp_path):
     assert {ann.class_id for image in edited.images for ann in image.annotations} == {0}
 
 
+def test_yolo_manager_merge_class_mapping(tmp_path):
+    root = tmp_path / "merge_map_yolo"
+    (root / "images").mkdir(parents=True)
+    (root / "labels").mkdir(parents=True)
+    Image.new("RGB", (100, 80), color="white").save(root / "images" / "a.jpg")
+    (root / "class.txt").write_text("person\ncar\ntruck\nbike\n", encoding="utf-8")
+    (root / "labels" / "a.txt").write_text(
+        "1 0.2 0.2 0.1 0.1\n2 0.4 0.4 0.1 0.1\n0 0.6 0.6 0.1 0.1\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "merged"
+    report = tmp_path / "merge_report.csv"
+    mgr = YoloManager(root, layout="flat", task="detect", init_check=False)
+
+    code = mgr.ann_merge_class(
+        {
+            "vehicle": ["car", "truck"],
+            "human": ["person"],
+        },
+        out=str(out),
+        compact=False,
+        report=str(report),
+    )
+
+    assert code == 0
+    assert (out / "class.txt").read_text(encoding="utf-8").splitlines() == [
+        "person",
+        "car",
+        "truck",
+        "bike",
+        "vehicle",
+        "human",
+    ]
+    assert (out / "labels" / "a.txt").read_text(encoding="utf-8").splitlines() == [
+        "4 0.2 0.2 0.1 0.1",
+        "4 0.4 0.4 0.1 0.1",
+        "5 0.6 0.6 0.1 0.1",
+    ]
+    assert "merge_class" in report.read_text(encoding="utf-8")
+
+
 def test_filter_by_geometry(tmp_path):
     root = make_dataset(tmp_path / "yolo")
     dataset = load_yolo_dataset(root)

@@ -66,6 +66,7 @@ mgr.dataset_merge(roots=[r"E:\datasets\part1", r"E:\datasets\part2"],
 
 # 标注修改 —— 修改操作写入新目录，不覆盖原数据；建议先 dry_run=True
 mgr.ann_merge_class(from_=["crack", "break"], to="defect", out="yolo_merged", compact=True)
+mgr.ann_merge_class({"vehicle": ["car", "truck"], "human": ["person"]}, out="yolo_merged_multi")
 mgr.ann_delete_class(class_=["ignore"], out="yolo_clean", compact=True)
 mgr.ann_replace_class(from_=["old_name"], to="new_name", out="yolo_replaced")
 mgr.ann_rename_class(from_="cls_a", to="cls_b", out="yolo_renamed")
