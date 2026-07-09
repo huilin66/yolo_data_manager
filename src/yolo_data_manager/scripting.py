@@ -59,7 +59,7 @@ _FALSE_FLAGS = {
 }
 
 
-def build_task_argv(task: str, **params: Any) -> list[str]:
+def build_task_argv(command: str, **params: Any) -> list[str]:
     """Convert a Python task call into the argument list accepted by ``ydm``.
 
     Lists, tuples, and sets become comma-separated values. ``None`` values are
@@ -67,11 +67,11 @@ def build_task_argv(task: str, **params: Any) -> list[str]:
     ``from_``.
     """
 
-    if task not in TASK_COMMANDS:
+    if command not in TASK_COMMANDS:
         available = ", ".join(sorted(TASK_COMMANDS))
-        raise ValueError(f"unknown task {task!r}; available tasks: {available}")
+        raise ValueError(f"unknown task {command!r}; available tasks: {available}")
 
-    argv = list(TASK_COMMANDS[task])
+    argv = list(TASK_COMMANDS[command])
     for python_name, value in params.items():
         if value is None:
             continue
@@ -79,7 +79,7 @@ def build_task_argv(task: str, **params: Any) -> list[str]:
         flag = f"--{option_name}"
 
         if isinstance(value, bool):
-            bool_flag = _boolean_flag(task, python_name, value, flag)
+            bool_flag = _boolean_flag(command, python_name, value, flag)
             if bool_flag:
                 argv.append(bool_flag)
             continue
@@ -88,12 +88,12 @@ def build_task_argv(task: str, **params: Any) -> list[str]:
     return argv
 
 
-def run_task(task: str, **params: Any) -> int:
+def run_task(command: str, **params: Any) -> int:
     """Run any YOLO Data Manager task from Python and return its exit code."""
 
     from yolo_data_manager.cli import main
 
-    return main(build_task_argv(task, **params))
+    return main(build_task_argv(command, **params))
 
 
 def _boolean_flag(task: str, name: str, value: bool, default_flag: str) -> str | None:
