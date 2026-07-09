@@ -307,6 +307,9 @@ def build_parser() -> argparse.ArgumentParser:
     compare.add_argument("--iou", type=float, default=0.5)
     compare.add_argument("--conf", type=float, default=None)
     compare.add_argument("--task", choices=["auto", "detect", "segment"], default="auto")
+    compare.add_argument("--layout", choices=["auto", "flat", "split_dirs", "image_list", "mixed"], default="auto")
+    compare.add_argument("--images-dir", default="images")
+    compare.add_argument("--labels-dir", default="labels")
     compare.set_defaults(handler=handle_eval_compare)
     review = eval_sub.add_parser("review-pack", help="write FP/FN review package from GT and predictions")
     review.add_argument("--gt-root", required=True)
@@ -317,6 +320,9 @@ def build_parser() -> argparse.ArgumentParser:
     review.add_argument("--conf", type=float, default=None)
     review.add_argument("--status", default="fp,fn", help="statuses to include, comma-separated")
     review.add_argument("--task", choices=["auto", "detect", "segment"], default="auto")
+    review.add_argument("--layout", choices=["auto", "flat", "split_dirs", "image_list", "mixed"], default="auto")
+    review.add_argument("--images-dir", default="images")
+    review.add_argument("--labels-dir", default="labels")
     review.set_defaults(handler=handle_eval_review_pack)
     error_analysis = eval_sub.add_parser(
         "error-analysis",
@@ -330,6 +336,9 @@ def build_parser() -> argparse.ArgumentParser:
     error_analysis.add_argument("--conf-thres", type=float, default=0.0, help="confidence threshold for predictions")
     error_analysis.add_argument("--duplicate-iou", type=float, default=0.9, help="IoU threshold for duplicate GT detection")
     error_analysis.add_argument("--task", choices=["auto", "detect", "segment"], default="auto")
+    error_analysis.add_argument("--layout", choices=["auto", "flat", "split_dirs", "image_list", "mixed"], default="auto")
+    error_analysis.add_argument("--images-dir", default="images")
+    error_analysis.add_argument("--labels-dir", default="labels")
     error_analysis.set_defaults(handler=handle_eval_error_analysis)
 
     return parser
@@ -740,9 +749,20 @@ def handle_pseudo(args: argparse.Namespace) -> int:
     return 0
 
 
+def _eval_load_kwargs(args: argparse.Namespace) -> dict:
+    """Shared kwargs for loading GT/pred datasets in eval handlers."""
+    return {
+        "task": args.task,
+        "layout": args.layout,
+        "images_dir": args.images_dir,
+        "labels_dir": args.labels_dir,
+    }
+
+
 def handle_eval_compare(args: argparse.Namespace) -> int:
-    gt = load_yolo_dataset(args.gt_root, task=args.task)
-    pred = load_yolo_dataset(args.pred_root, task=args.task)
+    kw = _eval_load_kwargs(args)
+    gt = load_yolo_dataset(args.gt_root, **kw)
+    pred = load_yolo_dataset(args.pred_root, **kw)
     rows, summary = compare_datasets(gt, pred, iou_threshold=args.iou, confidence_threshold=args.conf)
     write_compare_csv(rows, args.out)
     print(json.dumps({"summary": summary, "out": args.out}, indent=2, ensure_ascii=False))
@@ -750,8 +770,9 @@ def handle_eval_compare(args: argparse.Namespace) -> int:
 
 
 def handle_eval_review_pack(args: argparse.Namespace) -> int:
-    gt = load_yolo_dataset(args.gt_root, task=args.task)
-    pred = load_yolo_dataset(args.pred_root, task=args.task)
+    kw = _eval_load_kwargs(args)
+    gt = load_yolo_dataset(args.gt_root, **kw)
+    pred = load_yolo_dataset(args.pred_root, **kw)
     rows, summary = compare_datasets(gt, pred, iou_threshold=args.iou, confidence_threshold=args.conf)
     if args.csv:
         write_compare_csv(rows, args.csv)
@@ -761,8 +782,9 @@ def handle_eval_review_pack(args: argparse.Namespace) -> int:
 
 
 def handle_eval_error_analysis(args: argparse.Namespace) -> int:
-    gt = load_yolo_dataset(args.gt_root, task=args.task)
-    pred = load_yolo_dataset(args.pred_root, task=args.task)
+    kw = _eval_load_kwargs(args)
+    gt = load_yolo_dataset(args.gt_root, **kw)
+    pred = load_yolo_dataset(args.pred_root, **kw)
     error_rows, summary = analyze_errors(
         gt,
         pred,

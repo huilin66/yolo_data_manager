@@ -944,6 +944,9 @@ class YoloManager:
             iou=iou,
             conf=conf,
             task=self.task,
+            layout=self.layout,
+            images_dir=self.images_dir,
+            labels_dir=self.labels_dir,
             **kwargs,
         )
 
@@ -970,6 +973,9 @@ class YoloManager:
             conf=conf,
             status=status,
             task=self.task,
+            layout=self.layout,
+            images_dir=self.images_dir,
+            labels_dir=self.labels_dir,
             **kwargs,
         )
 
@@ -996,5 +1002,8 @@ class YoloManager:
             conf_thres=conf_thres,
             duplicate_iou=duplicate_iou,
             task=self.task,
+            layout=self.layout,
+            images_dir=self.images_dir,
+            labels_dir=self.labels_dir,
             **kwargs,
         )
