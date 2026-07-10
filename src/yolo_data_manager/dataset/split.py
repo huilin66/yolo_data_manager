@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import random
+from pathlib import Path
+from typing import Iterable
 
 from yolo_data_manager.core.models import YoloDataset
 
@@ -31,4 +33,40 @@ def split_dataset(
         "train": names[:n_train],
         "val": names[n_train : n_train + n_val],
         "test": names[n_train + n_val :],
+    }
+
+
+def class_counts_for_images(
+    dataset: YoloDataset,
+    image_names: Iterable[str] | None = None,
+) -> dict[str, int]:
+    selected = _image_key_set(image_names) if image_names is not None else None
+    counts = {name: 0 for name in dataset.classes.names}
+
+    for image in dataset.images:
+        if selected is not None and not (_image_keys(image) & selected):
+            continue
+        for annotation in image.annotations:
+            class_name = dataset.class_name(annotation.class_id)
+            counts[class_name] = counts.get(class_name, 0) + 1
+    return counts
+
+
+def _image_key_set(values: Iterable[str]) -> set[str]:
+    keys: set[str] = set()
+    for value in values:
+        text = str(value)
+        path = Path(text)
+        keys.update({text, path.name, path.stem})
+    return keys
+
+
+def _image_keys(image) -> set[str]:
+    return {
+        image.file_name,
+        image.stem,
+        str(image.path),
+        str(image.path.resolve()),
+        image.path.name,
+        image.path.stem,
     }

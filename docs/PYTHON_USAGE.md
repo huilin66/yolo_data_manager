@@ -115,6 +115,8 @@ mgr.import_voc(annotations_dir="Annotations", images_dir="JPEGImages", out="yolo
 
 `stats_list` 支持：`all`、`class_counts`、`box_number`、`box_width`、`box_height`、`box_area`、`image_shape`、`box_shape`、`box_shape_pix`、`box_shape_rate`、`box_pos_start`、`box_pos_center`、`box_pos_end`、`attribute`、`legacy_csv`。
 
+`dataset_split` 会写出 `train.txt`、`val.txt`、`test.txt`，并在输出中显示 `total_class_counts` 和 `val_class_counts`，方便检查验证集类别分布。
+
 ### 初始化参数
 
 `YoloManager` 构造时存储的共用参数，在后续调用有 `--root` 的任务时自动填充：

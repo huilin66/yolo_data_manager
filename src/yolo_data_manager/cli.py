@@ -18,7 +18,7 @@ from yolo_data_manager.dataset.filter import filter_by_geometry
 from yolo_data_manager.dataset.merge import merge_datasets
 from yolo_data_manager.dataset.quality import find_bad_images, write_image_quality_csv
 from yolo_data_manager.dataset.select import select_from_file
-from yolo_data_manager.dataset.split import split_dataset
+from yolo_data_manager.dataset.split import class_counts_for_images, split_dataset
 from yolo_data_manager.core.schema import write_dataset_yaml
 from yolo_data_manager.io.layout import detect_layout
 from yolo_data_manager.io.loader import load_yolo_dataset
@@ -488,7 +488,17 @@ def handle_dataset_split(args: argparse.Namespace) -> int:
     out_dir = Path(args.out) if args.out else Path(args.root)
     for split_name, names in splits.items():
         write_split_file(names, out_dir / f"{split_name}.txt")
-    print(json.dumps({name: len(values) for name, values in splits.items()}, indent=2, ensure_ascii=False))
+    print(
+        json.dumps(
+            {
+                "splits": {name: len(values) for name, values in splits.items()},
+                "total_class_counts": class_counts_for_images(dataset),
+                "val_class_counts": class_counts_for_images(dataset, splits.get("val", [])),
+            },
+            indent=2,
+            ensure_ascii=False,
+        )
+    )
     return 0
 
 
