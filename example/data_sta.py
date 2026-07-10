@@ -14,10 +14,15 @@ def yolo_sta(input_dir):
 
 if __name__ == "__main__":
     pass
-    cube_dir = r"/localnvme/data/bdd_hmt/bp_cube"
-    rgb_all_dir = r"/localnvme/data/bdd_hmt/sua_rgb"
-    t_all_dir = r"/localnvme/data/bdd_hmt/sua_t"
+    # cube_dir = r"/localnvme/data/bdd_hmt/bp_cube"
+    # rgb_all_dir = r"/localnvme/data/bdd_hmt/sua_rgb"
+    # t_all_dir = r"/localnvme/data/bdd_hmt/sua_t"
 
-    yolo_sta(cube_dir)
-    yolo_sta(rgb_all_dir)
+    # yolo_sta(cube_dir)
+    # yolo_sta(rgb_all_dir)
+    # yolo_sta(t_all_dir)
+
+
+    t_all_dir = r"/localnvme/data/bdd_hmt/sua_t_filter_p01_merge_v2"
+
     yolo_sta(t_all_dir)
