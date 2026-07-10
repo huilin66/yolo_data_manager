@@ -381,6 +381,7 @@ def analyze_errors(
                 matched_pred.add(pi)
                 matched_gt.add(gi)
                 p_ann = pred_anns[pi]
+                g_ann = gt_anns[gi]
                 conf = p_ann.confidence
                 rows.append(
                     ErrorDetail(
@@ -742,8 +743,8 @@ def write_error_review_pack(
     Class-confusion rows are grouped under
     ``pred_gt/pred_<pred_class>_gt_<gt_class>`` so off-diagonal
     confusion-matrix cases are easy to inspect.  Other errors keep their error
-    type as the group name.  It also writes
-    ``review/pred_gt/confusion_matrix.png`` when class-confusion rows exist.
+    type as the group name.  It also writes an Ultralytics-style
+    ``review/pred_gt/confusion_matrix.png`` with classes plus ``background``.
     """
     output = Path(out_dir) / "review"
     output.mkdir(parents=True, exist_ok=True)
@@ -772,7 +773,7 @@ def write_error_review_pack(
                 if error_type:
                     counts[error_type] += 1
 
-    _write_pred_gt_confusion_matrix(error_rows, output / "pred_gt")
+    _write_ultralytics_confusion_matrix(error_rows, gt, pred, output / "pred_gt")
     return dict(counts)
 
 
@@ -899,16 +900,15 @@ def _class_label(class_id: int | None, class_name: str | None) -> str:
     return "unknown"
 
 
-def _write_pred_gt_confusion_matrix(error_rows: list[ErrorDetail], out_dir: Path) -> Path | None:
-    pairs = _class_confusion_pairs(error_rows)
-    if not pairs:
+def _write_ultralytics_confusion_matrix(
+    error_rows: list[ErrorDetail],
+    gt: YoloDataset,
+    pred: YoloDataset,
+    out_dir: Path,
+) -> Path | None:
+    matrix, labels = _ultralytics_confusion_matrix_data(error_rows, gt, pred)
+    if matrix.size == 0:
         return None
-
-    labels = sorted({label for pred_label, gt_label in pairs for label in (pred_label, gt_label)})
-    index = {label: idx for idx, label in enumerate(labels)}
-    matrix = np.zeros((len(labels), len(labels)), dtype=np.int64)
-    for pred_label, gt_label in pairs:
-        matrix[index[gt_label], index[pred_label]] += 1
 
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / "confusion_matrix.png"
@@ -921,9 +921,9 @@ def _write_pred_gt_confusion_matrix(error_rows: list[ErrorDetail], out_dir: Path
     size = min(24.0, max(6.0, 0.55 * len(labels) + 3.0))
     fig, ax = plt.subplots(figsize=(size, size))
     im = ax.imshow(matrix, cmap="Blues")
-    ax.set_title("Pred-GT Class Confusion")
-    ax.set_xlabel("Pred class")
-    ax.set_ylabel("GT class")
+    ax.set_title("Confusion Matrix")
+    ax.set_xlabel("True")
+    ax.set_ylabel("Predicted")
     ax.set_xticks(np.arange(len(labels)))
     ax.set_yticks(np.arange(len(labels)))
     ax.set_xticklabels(labels, rotation=45, ha="right", rotation_mode="anchor")
@@ -945,26 +945,75 @@ def _write_pred_gt_confusion_matrix(error_rows: list[ErrorDetail], out_dir: Path
     return out_path
 
 
-def _class_confusion_pairs(error_rows: list[ErrorDetail]) -> list[tuple[str, str]]:
-    pairs: list[tuple[str, str]] = []
+def _ultralytics_confusion_matrix_data(
+    error_rows: list[ErrorDetail],
+    gt: YoloDataset,
+    pred: YoloDataset,
+) -> tuple[np.ndarray, list[str]]:
+    max_class_id = _max_matrix_class_id(error_rows, gt, pred)
+    if max_class_id < 0:
+        return np.zeros((0, 0), dtype=np.int64), []
+
+    class_ids = list(range(max_class_id + 1))
+    labels = [_matrix_class_name(class_id, gt, pred) for class_id in class_ids] + ["background"]
+    background_idx = len(labels) - 1
+    matrix = np.zeros((len(labels), len(labels)), dtype=np.int64)
     seen: set[tuple[Any, ...]] = set()
+
     for idx, row in enumerate(error_rows):
-        if row.error_type not in {CLASS_ERROR_PRED, FN_CLASS_ERROR}:
+        pred_idx = row.pred_class_id
+        gt_idx = row.gt_class_id
+
+        if row.status == "tp":
+            if pred_idx is not None and gt_idx is not None:
+                matrix[pred_idx, gt_idx] += 1
             continue
-        pred_label = _class_label(row.pred_class_id, row.pred_class_name)
-        gt_label = _class_label(row.gt_class_id, row.gt_class_name)
-        key = (
-            row.image,
-            row.pred_idx if row.pred_idx is not None else f"pred_row_{idx}",
-            row.gt_idx if row.gt_idx is not None else f"gt_row_{idx}",
-            row.pred_class_id,
-            row.gt_class_id,
-        )
-        if key in seen:
+
+        if row.error_type in {CLASS_ERROR_PRED, FN_CLASS_ERROR}:
+            if pred_idx is None or gt_idx is None:
+                continue
+            key = _class_confusion_key(row, idx)
+            if key in seen:
+                continue
+            seen.add(key)
+            matrix[pred_idx, gt_idx] += 1
             continue
-        seen.add(key)
-        pairs.append((pred_label, gt_label))
-    return pairs
+
+        if row.status == "fp":
+            if pred_idx is not None:
+                matrix[pred_idx, background_idx] += 1
+        elif row.status == "fn":
+            if gt_idx is not None:
+                matrix[background_idx, gt_idx] += 1
+
+    return matrix, labels
+
+
+def _max_matrix_class_id(error_rows: list[ErrorDetail], gt: YoloDataset, pred: YoloDataset) -> int:
+    max_id = max(len(gt.classes.names), len(pred.classes.names)) - 1
+    for row in error_rows:
+        for class_id in (row.pred_class_id, row.gt_class_id, row.class_id):
+            if class_id is not None:
+                max_id = max(max_id, int(class_id))
+    return max_id
+
+
+def _matrix_class_name(class_id: int, gt: YoloDataset, pred: YoloDataset) -> str:
+    if 0 <= class_id < len(gt.classes.names):
+        return gt.classes.names[class_id]
+    if 0 <= class_id < len(pred.classes.names):
+        return pred.classes.names[class_id]
+    return str(class_id)
+
+
+def _class_confusion_key(row: ErrorDetail, idx: int) -> tuple[Any, ...]:
+    return (
+        row.image,
+        row.pred_idx if row.pred_idx is not None else f"pred_row_{idx}",
+        row.gt_idx if row.gt_idx is not None else f"gt_row_{idx}",
+        row.pred_class_id,
+        row.gt_class_id,
+    )
 
 
 def _row_primary_box(row: ErrorDetail) -> list[float] | None:

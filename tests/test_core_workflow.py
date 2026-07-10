@@ -23,6 +23,7 @@ from yolo_data_manager.evaluation.error_analysis import (
     collect_stems_from_source,
     find_duplicate_gt,
     load_error_analysis_dataset,
+    _ultralytics_confusion_matrix_data,
     write_duplicate_gt_csv,
     write_error_csvs,
     write_error_review_pack,
@@ -741,6 +742,13 @@ def test_error_analysis(tmp_path):
     assert any((confusion_dir / "images").iterdir())
     assert any((confusion_dir / "crops").iterdir())
     assert (tmp_path / "error_out" / "review" / "pred_gt" / "confusion_matrix.png").exists()
+    matrix, labels = _ultralytics_confusion_matrix_data(rows, gt, pred)
+    assert labels == ["person", "car", "background"]
+    assert matrix.tolist() == [
+        [1, 0, 0],
+        [1, 1, 1],
+        [0, 2, 0],
+    ]
 
 
 def test_error_analysis_label_dirs_val_source_and_id_names(tmp_path):
