@@ -191,7 +191,7 @@ def _crop_image(
                 save_dirs.append(out_path / class_name / f"{_safe_name(attr_name)}-{_safe_name(str(attr_value))}")
         for save_dir in save_dirs:
             save_dir.mkdir(parents=True, exist_ok=True)
-            crop.save(save_dir / f"{image.stem}_{idx}{image.path.suffix}")
+            crop.save(save_dir / f"{image.stem}_{idx + 1}{image.path.suffix}")
             saved += 1
     return saved
 
@@ -211,7 +211,7 @@ def _draw_label(draw: ImageDraw.ImageDraw, x: float, y: float, text: str, color:
 def _annotation_label(dataset: YoloDataset, annotation, *, show_txt_id: bool, annotation_idx: int | None = None) -> str:
     class_name = dataset.class_name(annotation.class_id)
     if show_txt_id:
-        txt_id = annotation.line_no if annotation.line_no is not None else annotation_idx
+        txt_id = annotation.line_no if annotation.line_no is not None else (annotation_idx + 1 if annotation_idx is not None else None)
         return f"{txt_id} {class_name}"
     return class_name
 

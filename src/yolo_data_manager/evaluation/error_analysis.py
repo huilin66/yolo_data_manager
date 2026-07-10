@@ -400,8 +400,8 @@ def analyze_errors(
                         gt_box_xyxy=_serialise_box(_annotation_box_norm(g_ann)),
                         pred_line=p_ann.source_line,
                         gt_line=g_ann.source_line,
-                        pred_idx=pi,
-                        gt_idx=gi,
+                        pred_idx=pi + 1,
+                        gt_idx=gi + 1,
                     )
                 )
                 type_counter[TP] += 1
@@ -472,8 +472,8 @@ def analyze_errors(
                     ),
                     pred_line=p_ann.source_line,
                     gt_line=best_gt.source_line if best_gt is not None else None,
-                    pred_idx=pi,
-                    gt_idx=best_gi if best_gi >= 0 else None,
+                    pred_idx=pi + 1,
+                    gt_idx=best_gi + 1 if best_gi >= 0 else None,
                 )
             )
             type_counter[error_type] += 1
@@ -529,8 +529,8 @@ def analyze_errors(
                     gt_box_xyxy=_serialise_box(_annotation_box_norm(g_ann)),
                     pred_line=best_pred.source_line if best_pred is not None else None,
                     gt_line=g_ann.source_line,
-                    pred_idx=best_pi if best_pi >= 0 else None,
-                    gt_idx=gi,
+                    pred_idx=best_pi + 1 if best_pi >= 0 else None,
+                    gt_idx=gi + 1,
                 )
             )
             type_counter[error_type] += 1
@@ -557,7 +557,7 @@ def analyze_errors(
                     best_iou=0.0,
                     pred_box_xyxy=_serialise_box(_annotation_box_norm(p_ann)),
                     pred_line=p_ann.source_line,
-                    pred_idx=pi,
+                    pred_idx=pi + 1,
                 )
             )
             type_counter[BACKGROUND_FP] += 1
@@ -600,8 +600,8 @@ def find_duplicate_gt(
                     rows.append(
                         DuplicateGt(
                             image=image.stem,
-                            gt_idx_i=i,
-                            gt_idx_j=j,
+                            gt_idx_i=i + 1,
+                            gt_idx_j=j + 1,
                             iou=float(ious[i, j]),
                             cls_i=anns[i].class_id,
                             name_i=dataset.class_name(anns[i].class_id),
@@ -753,7 +753,7 @@ def write_error_review_pack(
     counts: dict[str, int] = Counter()
     worker_count = max(1, int(workers))
 
-    work_items = [(idx, row) for idx, row in enumerate(error_rows) if row.status != "tp"]
+    work_items = [(idx, row) for idx, row in enumerate(error_rows, start=1) if row.status != "tp"]
     if worker_count == 1:
         iterator = (
             _write_one_error_review(item, gt_images, pred_images, output, crop_padding)

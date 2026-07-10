@@ -428,7 +428,7 @@ def test_class_scoped_attribute_full_flow(tmp_path):
     assert "material" in (tmp_path / "attributes.csv").read_text(encoding="utf-8")
     assert (tmp_path / "vis" / "a.jpg").exists()
     assert saved == 4
-    assert (tmp_path / "crops" / "sign" / "defect-yes" / "a_0.jpg").exists()
+    assert (tmp_path / "crops" / "sign" / "defect-yes" / "a_1.jpg").exists()
 
 
 def test_segmentation_to_detection(tmp_path):
@@ -461,7 +461,7 @@ def test_query_copy_and_crop(tmp_path):
     saved = crop_dataset(dataset, tmp_path / "crops", workers=2, progress=True)
     assert saved == 3
     assert (tmp_path / "vis_mt" / "a.jpg").exists()
-    assert (tmp_path / "crops" / "person" / "a_0.jpg").exists()
+    assert (tmp_path / "crops" / "person" / "a_1.jpg").exists()
 
 
 def test_duplicate_image_hash(tmp_path):
@@ -711,6 +711,9 @@ def test_error_analysis(tmp_path):
     assert len(tp_rows) == 2
     assert len(fp_rows) == 2  # class_error_pred + background_fp
     assert len(fn_rows) == 2  # fn_no_pred (a.jpg car) + fn_low_iou (b.jpg duplicate)
+    class_error_rows = [r for r in rows if r.error_type == "class_error_pred"]
+    assert class_error_rows[0].pred_idx == 2
+    assert class_error_rows[0].gt_idx == 1
 
     # Verify confidence is captured
     assert tp_rows[0].pred_conf is not None
@@ -720,6 +723,8 @@ def test_error_analysis(tmp_path):
     assert len(dup_rows) == 1
     assert dup_rows[0].type == "same_class_duplicate"
     assert dup_rows[0].iou >= 0.9
+    assert dup_rows[0].gt_idx_i == 1
+    assert dup_rows[0].gt_idx_j == 2
 
     # --- CSV output (smoke test) ---
     write_error_csvs(rows, tmp_path / "error_out")
