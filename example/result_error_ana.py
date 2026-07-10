@@ -11,9 +11,6 @@ def yolo_error_ana(input_dir, pred_dir, pred_name):
 
     # split
     mgr.eval_error_analysis(
-        gt_root=os.path.join(input_dir, "labels"),
-        val_source=os.path.join(input_dir, "val.txt"),
-        class_file=os.path.join(input_dir, "class.txt"),
         pred_root=pred_dir,
         out=ana_dir, 
         match_iou=0.5, 

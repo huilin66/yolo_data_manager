@@ -744,3 +744,28 @@ def test_error_analysis_label_dirs_val_source_and_id_names(tmp_path):
     assert gt.class_name(0) == "person"
     assert summary == {"tp": 1}
     assert rows[0].class_name == "person"
+
+
+def test_yolo_manager_error_analysis_defaults_to_manager_root(tmp_path, monkeypatch):
+    root = make_dataset(tmp_path / "yolo")
+    (root / "val.txt").write_text("images/a.jpg\n", encoding="utf-8")
+    captured = {}
+
+    def fake_run_task(task_name, **params):
+        captured["command"] = task_name
+        captured.update(params)
+        return 0
+
+    import yolo_data_manager.scripting as scripting
+
+    monkeypatch.setattr(scripting, "run_task", fake_run_task)
+    mgr = YoloManager(root, layout="flat", task="detect", init_check=False, init_layout=False)
+
+    code = mgr.eval_error_analysis(pred_root="pred_labels", out="error_report")
+
+    assert code == 0
+    assert captured["command"] == "eval.error_analysis"
+    assert captured["gt_root"] == str(root)
+    assert captured["pred_root"] == "pred_labels"
+    assert captured["val_source"] == str(root / "val.txt")
+    assert captured["class_file"] == str(root / "class.txt")

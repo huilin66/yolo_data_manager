@@ -124,6 +124,11 @@ def _class_values(value: str | list[str]) -> list[str]:
     return list(value)
 
 
+def _default_existing_path(root: str, name: str) -> str | None:
+    path = Path(root) / name
+    return str(path) if path.exists() else None
+
+
 # ---------------------------------------------------------------------------
 # Tasks that accept a --root argument (root is auto-filled by YoloManager)
 # ---------------------------------------------------------------------------
@@ -981,10 +986,10 @@ class YoloManager:
 
     def eval_error_analysis(
         self,
-        gt_root: str,
         pred_root: str,
         out: str,
         *,
+        gt_root: str | None = None,
         match_iou: float = 0.5,
         low_iou: float = 0.1,
         conf_thres: float = 0.0,
@@ -996,17 +1001,20 @@ class YoloManager:
         **kwargs: Any,
     ) -> int:
         """Fine-grained error analysis of predictions vs GT (``ydm eval error-analysis``)."""
+        resolved_gt_root = gt_root or self.root
+        resolved_val_source = val_source or self.split_file or _default_existing_path(self.root, "val.txt")
+        resolved_class_file = class_file or self.class_file or _default_existing_path(self.root, "class.txt")
         return run_task(
             "eval.error_analysis",
-            gt_root=gt_root,
+            gt_root=resolved_gt_root,
             pred_root=pred_root,
             out=out,
             match_iou=match_iou,
             low_iou=low_iou,
             conf_thres=conf_thres,
             duplicate_iou=duplicate_iou,
-            val_source=val_source,
-            class_file=class_file,
+            val_source=resolved_val_source,
+            class_file=resolved_class_file,
             review=review,
             crop_padding=crop_padding,
             task=self.task,
