@@ -736,9 +736,10 @@ def test_error_analysis(tmp_path):
     assert (tmp_path / "error_out" / "duplicate_gt.csv").exists()
     assert (tmp_path / "error_out" / "false_positive_background.csv").exists()
     assert (tmp_path / "error_out" / "false_negative_missed_gt.csv").exists()
-    assert review_counts["class_error_pred"] == 1
-    assert any((tmp_path / "error_out" / "review" / "class_error_pred" / "images").iterdir())
-    assert any((tmp_path / "error_out" / "review" / "class_error_pred" / "crops").iterdir())
+    confusion_dir = tmp_path / "error_out" / "review" / "pred_car_gt_person"
+    assert review_counts["pred_car_gt_person"] == 1
+    assert any((confusion_dir / "images").iterdir())
+    assert any((confusion_dir / "crops").iterdir())
 
 
 def test_error_analysis_label_dirs_val_source_and_id_names(tmp_path):

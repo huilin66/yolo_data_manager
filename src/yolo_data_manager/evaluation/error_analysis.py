@@ -736,8 +736,12 @@ def write_error_review_pack(
     The review pack is intentionally optional because it opens and writes many
     image files.  It creates:
 
-    * ``review/<error_type>/images`` — full images with GT / prediction boxes
-    * ``review/<error_type>/crops`` — local crops around the relevant box
+    * ``review/<group>/images`` — full images with GT / prediction boxes
+    * ``review/<group>/crops`` — local crops around the relevant box
+
+    Class-confusion rows are grouped as ``pred_<pred_class>_gt_<gt_class>`` so
+    off-diagonal confusion-matrix cases are easy to inspect.  Other errors keep
+    their error type as the group name.
     """
     output = Path(out_dir) / "review"
     output.mkdir(parents=True, exist_ok=True)
@@ -852,7 +856,8 @@ def _write_one_error_review(
     if box is None:
         return None
 
-    type_dir = output / row.error_type
+    group_name = _review_group_name(row)
+    type_dir = output / group_name
     image_dir = type_dir / "images"
     crop_dir = type_dir / "crops"
     image_dir.mkdir(parents=True, exist_ok=True)
@@ -871,7 +876,24 @@ def _write_one_error_review(
 
     crop = _crop_norm_box(canvas, box, padding=crop_padding)
     crop.save(crop_dir / image_name)
+    return group_name
+
+
+def _review_group_name(row: ErrorDetail) -> str:
+    if row.error_type in {CLASS_ERROR_PRED, FN_CLASS_ERROR}:
+        pred_name = _class_label(row.pred_class_id, row.pred_class_name)
+        gt_name = _class_label(row.gt_class_id, row.gt_class_name)
+        if pred_name and gt_name:
+            return f"pred_{_safe_file_name(pred_name)}_gt_{_safe_file_name(gt_name)}"
     return row.error_type
+
+
+def _class_label(class_id: int | None, class_name: str | None) -> str:
+    if class_name:
+        return class_name
+    if class_id is not None:
+        return str(class_id)
+    return "unknown"
 
 
 def _row_primary_box(row: ErrorDetail) -> list[float] | None:
