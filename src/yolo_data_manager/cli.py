@@ -31,7 +31,9 @@ from yolo_data_manager.vis.renderer import crop_dataset, render_dataset
 from yolo_data_manager.evaluation.compare import compare_datasets, write_compare_csv
 from yolo_data_manager.evaluation.error_analysis import (
     analyze_errors,
+    collect_stems_from_source,
     find_duplicate_gt,
+    load_error_analysis_dataset,
     print_error_summary,
     write_duplicate_gt_csv,
     write_error_csvs,
@@ -335,6 +337,9 @@ def build_parser() -> argparse.ArgumentParser:
     error_analysis.add_argument("--low-iou", type=float, default=0.1)
     error_analysis.add_argument("--conf-thres", type=float, default=0.0, help="confidence threshold for predictions")
     error_analysis.add_argument("--duplicate-iou", type=float, default=0.9, help="IoU threshold for duplicate GT detection")
+    error_analysis.add_argument("--val-source", default=None, help="validation image dir or txt list used to limit evaluated stems")
+    error_analysis.add_argument("--class-file", default=None, help="optional class names file; supports 'id name' or one name per line")
+    error_analysis.add_argument("--names", dest="class_file", default=None, help="alias of --class-file")
     error_analysis.add_argument("--task", choices=["auto", "detect", "segment"], default="auto")
     error_analysis.add_argument("--layout", choices=["auto", "flat", "split_dirs", "image_list", "mixed"], default="auto")
     error_analysis.add_argument("--images-dir", default="images")
@@ -782,9 +787,25 @@ def handle_eval_review_pack(args: argparse.Namespace) -> int:
 
 
 def handle_eval_error_analysis(args: argparse.Namespace) -> int:
-    kw = _eval_load_kwargs(args)
-    gt = load_yolo_dataset(args.gt_root, **kw)
-    pred = load_yolo_dataset(args.pred_root, **kw)
+    stems = collect_stems_from_source(args.val_source)
+    gt = load_error_analysis_dataset(
+        args.gt_root,
+        task=args.task,
+        layout=args.layout,
+        images_dir=args.images_dir,
+        labels_dir=args.labels_dir,
+        class_file=args.class_file,
+        stems=stems,
+    )
+    pred = load_error_analysis_dataset(
+        args.pred_root,
+        task=args.task,
+        layout=args.layout,
+        images_dir=args.images_dir,
+        labels_dir=args.labels_dir,
+        class_file=args.class_file,
+        stems=stems,
+    )
     error_rows, summary = analyze_errors(
         gt,
         pred,

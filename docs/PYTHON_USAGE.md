@@ -101,6 +101,9 @@ mgr.eval_error_analysis(gt_root=r"E:\datasets\gt", pred_root=r"E:\datasets\pred"
 mgr.eval_error_analysis(gt_root=r"E:\datasets\gt", pred_root=r"E:\datasets\pred",
                         out="error_report", match_iou=0.5, low_iou=0.1,
                         conf_thres=0.25, duplicate_iou=0.9)
+mgr.eval_error_analysis(gt_root=r"E:\datasets\gt", pred_root=r"E:\datasets\pred",
+                        out="error_report", val_source=r"E:\datasets\val.txt",
+                        class_file=r"E:\datasets\class.txt")
 
 # 导入 —— 独立参数，不使用 mgr 的 root
 mgr.import_labelme(json_dir="labelme_json", out="yolo_out", task="segment")

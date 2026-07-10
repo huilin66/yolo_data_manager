@@ -20,7 +20,9 @@ from yolo_data_manager.dataset.split import split_dataset
 from yolo_data_manager.evaluation.compare import compare_datasets
 from yolo_data_manager.evaluation.error_analysis import (
     analyze_errors,
+    collect_stems_from_source,
     find_duplicate_gt,
+    load_error_analysis_dataset,
     write_duplicate_gt_csv,
     write_error_csvs,
 )
@@ -698,3 +700,33 @@ def test_error_analysis(tmp_path):
     assert (tmp_path / "error_out" / "class_error.csv").exists()
     assert (tmp_path / "error_out" / "tp_report.csv").exists()
     assert (tmp_path / "error_out" / "duplicate_gt.csv").exists()
+    assert (tmp_path / "error_out" / "false_positive_background.csv").exists()
+    assert (tmp_path / "error_out" / "false_negative_missed_gt.csv").exists()
+
+
+def test_error_analysis_label_dirs_val_source_and_id_names(tmp_path):
+    gt_labels = tmp_path / "gt_labels"
+    pred_labels = tmp_path / "pred_labels"
+    gt_labels.mkdir()
+    pred_labels.mkdir()
+    names = tmp_path / "names.txt"
+    names.write_text("0 person\n1 car\n", encoding="utf-8")
+    val_txt = tmp_path / "val.txt"
+    val_txt.write_text("/images/a.jpg\n", encoding="utf-8")
+
+    (gt_labels / "a.txt").write_text("0 0.5 0.5 0.2 0.2\n", encoding="utf-8")
+    (gt_labels / "b.txt").write_text("1 0.5 0.5 0.2 0.2\n", encoding="utf-8")
+    (pred_labels / "a.txt").write_text("0 0.5 0.5 0.2 0.2 0.9\n", encoding="utf-8")
+    (pred_labels / "b.txt").write_text("1 0.5 0.5 0.2 0.2 0.9\n", encoding="utf-8")
+
+    stems = collect_stems_from_source(val_txt)
+    gt = load_error_analysis_dataset(gt_labels, task="detect", class_file=names, stems=stems)
+    pred = load_error_analysis_dataset(pred_labels, task="detect", class_file=names, stems=stems)
+    rows, summary = analyze_errors(gt, pred, match_iou=0.5, low_iou=0.1)
+
+    assert stems == {"a"}
+    assert [image.stem for image in gt.images] == ["a"]
+    assert [image.stem for image in pred.images] == ["a"]
+    assert gt.class_name(0) == "person"
+    assert summary == {"tp": 1}
+    assert rows[0].class_name == "person"

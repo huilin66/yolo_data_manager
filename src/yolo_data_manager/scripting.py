@@ -989,6 +989,8 @@ class YoloManager:
         low_iou: float = 0.1,
         conf_thres: float = 0.0,
         duplicate_iou: float = 0.9,
+        val_source: str | None = None,
+        class_file: str | None = None,
         **kwargs: Any,
     ) -> int:
         """Fine-grained error analysis of predictions vs GT (``ydm eval error-analysis``)."""
@@ -1001,6 +1003,8 @@ class YoloManager:
             low_iou=low_iou,
             conf_thres=conf_thres,
             duplicate_iou=duplicate_iou,
+            val_source=val_source,
+            class_file=class_file,
             task=self.task,
             layout=self.layout,
             images_dir=self.images_dir,

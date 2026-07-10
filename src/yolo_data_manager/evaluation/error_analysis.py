@@ -18,7 +18,8 @@ from typing import Any
 
 import numpy as np
 
-from yolo_data_manager.core.models import YoloAnnotation, YoloDataset
+from yolo_data_manager.core.models import ClassSchema, YoloAnnotation, YoloDataset, YoloImage, is_image_file
+from yolo_data_manager.io.loader import load_yolo_dataset, parse_label_file
 
 # ---------------------------------------------------------------------------
 # Error type constants
@@ -163,6 +164,128 @@ def _box_iou_matrix(
 def _serialise_box(box: list[float]) -> str:
     """JSON-list string for a box, rounded to 6 decimal places."""
     return "[" + ", ".join(f"{v:.6f}" for v in box) + "]"
+
+
+def read_eval_class_schema(path: str | Path | None) -> ClassSchema:
+    """Read a class-name file, accepting either ``name`` or ``id name`` lines."""
+    if path is None:
+        return ClassSchema([])
+    class_path = Path(path)
+    if not class_path.exists():
+        return ClassSchema([])
+
+    names_by_id: dict[int, str] = {}
+    fallback_names: list[str] = []
+    for idx, raw_line in enumerate(class_path.read_text(encoding="utf-8").splitlines()):
+        line = raw_line.strip()
+        if not line:
+            continue
+        parts = line.split(maxsplit=1)
+        if len(parts) == 2 and parts[0].isdigit():
+            names_by_id[int(parts[0])] = parts[1]
+        else:
+            fallback_names.append(line)
+            names_by_id.setdefault(idx, line)
+
+    if names_by_id:
+        max_id = max(names_by_id)
+        return ClassSchema([names_by_id.get(idx, str(idx)) for idx in range(max_id + 1)])
+    return ClassSchema(fallback_names)
+
+
+def collect_stems_from_source(source: str | Path | None) -> set[str] | None:
+    """Collect image/label stems from an image directory or txt list."""
+    if source is None:
+        return None
+    source_path = Path(source)
+    stems: set[str] = set()
+    if source_path.is_dir():
+        for path in source_path.rglob("*"):
+            if path.is_file() and (is_image_file(path) or path.suffix.lower() == ".txt"):
+                stems.add(path.stem)
+        return stems
+    if source_path.is_file():
+        for line in source_path.read_text(encoding="utf-8").splitlines():
+            text = line.strip()
+            if text:
+                stems.add(Path(text).stem)
+        return stems
+    raise FileNotFoundError(f"val_source not found: {source_path}")
+
+
+def load_error_analysis_dataset(
+    root: str | Path,
+    *,
+    task: str = "auto",
+    layout: str = "auto",
+    images_dir: str | Path = "images",
+    labels_dir: str | Path = "labels",
+    class_file: str | Path | None = None,
+    stems: set[str] | None = None,
+) -> YoloDataset:
+    """Load either a full YOLO dataset root or a plain label-txt directory."""
+    root_path = Path(root)
+    if _looks_like_label_dir(root_path, images_dir=images_dir, labels_dir=labels_dir):
+        return _load_label_dir_dataset(root_path, task=task, class_file=class_file, stems=stems)
+
+    dataset = load_yolo_dataset(
+        root_path,
+        images_dir=images_dir,
+        labels_dir=labels_dir,
+        class_file=class_file,
+        task=task,
+        layout=layout,
+    )
+    if class_file is not None:
+        dataset.classes = read_eval_class_schema(class_file)
+    return _filter_dataset_by_stems(dataset, stems)
+
+
+def _looks_like_label_dir(root: Path, *, images_dir: str | Path, labels_dir: str | Path) -> bool:
+    if not root.is_dir():
+        return False
+    image_root = root / images_dir
+    label_root = root / labels_dir
+    return not image_root.exists() and not label_root.exists() and any(root.glob("*.txt"))
+
+
+def _load_label_dir_dataset(
+    label_dir: Path,
+    *,
+    task: str,
+    class_file: str | Path | None,
+    stems: set[str] | None,
+) -> YoloDataset:
+    labels = sorted(path for path in label_dir.glob("*.txt") if stems is None or path.stem in stems)
+    images: list[YoloImage] = []
+    for label_path in labels:
+        annotations = parse_label_file(label_path, task=task)
+        images.append(
+            YoloImage(
+                path=label_dir / f"{label_path.stem}.jpg",
+                label_path=label_path,
+                annotations=annotations,
+            )
+        )
+    return YoloDataset(
+        root=label_dir,
+        images=images,
+        classes=read_eval_class_schema(class_file),
+        task=task,
+    )
+
+
+def _filter_dataset_by_stems(dataset: YoloDataset, stems: set[str] | None) -> YoloDataset:
+    if stems is None:
+        return dataset
+    return YoloDataset(
+        root=dataset.root,
+        images=[image for image in dataset.images if image.stem in stems],
+        classes=dataset.classes,
+        attributes=dataset.attributes,
+        task=dataset.task,
+        orphan_labels=[path for path in dataset.orphan_labels if path.stem in stems],
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -568,6 +691,17 @@ def write_error_csvs(
         out / "tp_report.csv",
         _ERROR_CSV_COLUMNS,
         [r for r in error_rows if r.status == "tp"],
+    )
+    # Compatibility with the original demo.py report names.
+    _write_rows(
+        out / "false_positive_background.csv",
+        _ERROR_CSV_COLUMNS,
+        [r for r in error_rows if r.status == "fp"],
+    )
+    _write_rows(
+        out / "false_negative_missed_gt.csv",
+        _ERROR_CSV_COLUMNS,
+        [r for r in error_rows if r.status == "fn"],
     )
 
 
