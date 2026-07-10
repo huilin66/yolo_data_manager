@@ -3,7 +3,7 @@ import os
 from yolo_data_manager import YoloManager
 
 
-def yolo_error_ana(input_dir, pred_dir, pred_name):
+def yolo_error_ana(input_dir, pred_dir, pred_name, workers=8):
     ana_dir = os.path.join(input_dir, "ana", pred_name)
     os.makedirs(ana_dir, exist_ok=True)
 
@@ -18,7 +18,10 @@ def yolo_error_ana(input_dir, pred_dir, pred_name):
         conf_thres=0.01,
         duplicate_iou=0.9,
         review=True,
-        crop_padding=12)
+        crop_padding=12,
+        review_workers=workers,
+        review_progress=True,
+        review_progress_leave=False)
 
 if __name__ == "__main__":
     pass

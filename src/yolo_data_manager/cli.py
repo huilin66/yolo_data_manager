@@ -343,6 +343,9 @@ def build_parser() -> argparse.ArgumentParser:
     error_analysis.add_argument("--names", dest="class_file", default=None, help="alias of --class-file")
     error_analysis.add_argument("--review", action="store_true", help="write visual review images and box crops grouped by error type")
     error_analysis.add_argument("--crop-padding", type=int, default=12, help="pixel padding around review crops")
+    error_analysis.add_argument("--review-workers", type=int, default=1, help="number of worker threads for review visualization")
+    error_analysis.add_argument("--review-progress", action="store_true", help="show progress while writing review visualization")
+    error_analysis.add_argument("--review-progress-leave", action="store_true", help="keep review progress bar after completion")
     error_analysis.add_argument("--task", choices=["auto", "detect", "segment"], default="auto")
     error_analysis.add_argument("--layout", choices=["auto", "flat", "split_dirs", "image_list", "mixed"], default="auto")
     error_analysis.add_argument("--images-dir", default="images")
@@ -829,7 +832,20 @@ def handle_eval_error_analysis(args: argparse.Namespace) -> int:
     dup_rows = find_duplicate_gt(gt, duplicate_iou=args.duplicate_iou)
     write_error_csvs(error_rows, args.out)
     write_duplicate_gt_csv(dup_rows, args.out)
-    review_counts = write_error_review_pack(error_rows, gt, pred, args.out, crop_padding=args.crop_padding) if args.review else {}
+    review_counts = (
+        write_error_review_pack(
+            error_rows,
+            gt,
+            pred,
+            args.out,
+            crop_padding=args.crop_padding,
+            workers=args.review_workers,
+            progress=args.review_progress,
+            progress_leave=args.review_progress_leave,
+        )
+        if args.review
+        else {}
+    )
     print_error_summary(error_rows, dup_rows)
     print(
         json.dumps(

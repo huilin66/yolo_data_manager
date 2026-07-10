@@ -12,16 +12,19 @@ from __future__ import annotations
 
 import csv
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable, Iterator, TypeVar
 
 import numpy as np
 from PIL import Image, ImageDraw
 
 from yolo_data_manager.core.models import ClassSchema, YoloAnnotation, YoloDataset, YoloImage, is_image_file
 from yolo_data_manager.io.loader import load_yolo_dataset, parse_label_file
+
+T = TypeVar("T")
 
 # ---------------------------------------------------------------------------
 # Error type constants
@@ -724,6 +727,9 @@ def write_error_review_pack(
     out_dir: str | Path,
     *,
     crop_padding: int = 12,
+    workers: int = 1,
+    progress: bool = False,
+    progress_leave: bool = False,
 ) -> dict[str, int]:
     """Write visual review images and crops grouped by error type.
 
@@ -738,37 +744,27 @@ def write_error_review_pack(
     gt_images = _images_by_stem(gt)
     pred_images = _images_by_stem(pred)
     counts: dict[str, int] = Counter()
+    worker_count = max(1, int(workers))
 
-    for idx, row in enumerate(error_rows):
-        if row.status == "tp":
-            continue
-        source_image = gt_images.get(row.image) or pred_images.get(row.image)
-        if source_image is None or not source_image.path.exists():
-            continue
-        box = _row_primary_box(row)
-        if box is None:
-            continue
-
-        type_dir = output / row.error_type
-        image_dir = type_dir / "images"
-        crop_dir = type_dir / "crops"
-        image_dir.mkdir(parents=True, exist_ok=True)
-        crop_dir.mkdir(parents=True, exist_ok=True)
-
-        with Image.open(source_image.path) as src:
-            canvas = src.convert("RGB")
-        width, height = canvas.size
-        draw = ImageDraw.Draw(canvas)
-        _draw_review_box(draw, row.pred_box_xyxy, width, height, outline=(255, 42, 4), label="pred")
-        _draw_review_box(draw, row.gt_box_xyxy, width, height, outline=(0, 192, 38), label="gt")
-
-        safe_image = _safe_file_name(row.image)
-        image_name = f"{safe_image}_{idx}_{row.status}_{row.error_type}{source_image.path.suffix}"
-        canvas.save(image_dir / image_name)
-
-        crop = _crop_norm_box(canvas, box, padding=crop_padding)
-        crop.save(crop_dir / image_name)
-        counts[row.error_type] += 1
+    work_items = [(idx, row) for idx, row in enumerate(error_rows) if row.status != "tp"]
+    if worker_count == 1:
+        iterator = (
+            _write_one_error_review(item, gt_images, pred_images, output, crop_padding)
+            for item in work_items
+        )
+        for error_type in _progress(iterator, enabled=progress, total=len(work_items), desc="error review", leave=progress_leave):
+            if error_type:
+                counts[error_type] += 1
+    else:
+        with ThreadPoolExecutor(max_workers=worker_count) as executor:
+            futures = [
+                executor.submit(_write_one_error_review, item, gt_images, pred_images, output, crop_padding)
+                for item in work_items
+            ]
+            for future in _progress(as_completed(futures), enabled=progress, total=len(futures), desc="error review", leave=progress_leave):
+                error_type = future.result()
+                if error_type:
+                    counts[error_type] += 1
 
     return dict(counts)
 
@@ -841,6 +837,43 @@ def _images_by_stem(dataset: YoloDataset) -> dict[str, YoloImage]:
     return {image.stem: image for image in dataset.images}
 
 
+def _write_one_error_review(
+    item: tuple[int, ErrorDetail],
+    gt_images: dict[str, YoloImage],
+    pred_images: dict[str, YoloImage],
+    output: Path,
+    crop_padding: int,
+) -> str | None:
+    idx, row = item
+    source_image = gt_images.get(row.image) or pred_images.get(row.image)
+    if source_image is None or not source_image.path.exists():
+        return None
+    box = _row_primary_box(row)
+    if box is None:
+        return None
+
+    type_dir = output / row.error_type
+    image_dir = type_dir / "images"
+    crop_dir = type_dir / "crops"
+    image_dir.mkdir(parents=True, exist_ok=True)
+    crop_dir.mkdir(parents=True, exist_ok=True)
+
+    with Image.open(source_image.path) as src:
+        canvas = src.convert("RGB")
+    width, height = canvas.size
+    draw = ImageDraw.Draw(canvas)
+    _draw_review_box(draw, row.pred_box_xyxy, width, height, outline=(255, 42, 4), label="pred")
+    _draw_review_box(draw, row.gt_box_xyxy, width, height, outline=(0, 192, 38), label="gt")
+
+    safe_image = _safe_file_name(row.image)
+    image_name = f"{safe_image}_{idx}_{row.status}_{row.error_type}{source_image.path.suffix}"
+    canvas.save(image_dir / image_name)
+
+    crop = _crop_norm_box(canvas, box, padding=crop_padding)
+    crop.save(crop_dir / image_name)
+    return row.error_type
+
+
 def _row_primary_box(row: ErrorDetail) -> list[float] | None:
     if row.status == "fn":
         return _parse_box_json(row.gt_box_xyxy)
@@ -898,3 +931,21 @@ def _norm_box_to_pixels(box: list[float], width: int, height: int) -> tuple[int,
 
 def _safe_file_name(value: str) -> str:
     return "".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in value)
+
+
+def _progress(items: Iterable[T], *, enabled: bool, total: int, desc: str, leave: bool) -> Iterable[T]:
+    if not enabled:
+        return items
+    try:
+        from tqdm import tqdm
+    except ImportError:
+        return _simple_progress(items, total=total, desc=desc)
+    return tqdm(items, total=total, desc=desc, leave=leave)
+
+
+def _simple_progress(items: Iterable[T], *, total: int, desc: str) -> Iterator[T]:
+    step = max(1, total // 20) if total else 1
+    for idx, item in enumerate(items, start=1):
+        if idx == 1 or idx == total or idx % step == 0:
+            print(f"{desc}: {idx}/{total}")
+        yield item

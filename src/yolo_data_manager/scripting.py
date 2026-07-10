@@ -998,6 +998,9 @@ class YoloManager:
         class_file: str | None = None,
         review: bool = False,
         crop_padding: int = 12,
+        review_workers: int = 1,
+        review_progress: bool = False,
+        review_progress_leave: bool = False,
         **kwargs: Any,
     ) -> int:
         """Fine-grained error analysis of predictions vs GT (``ydm eval error-analysis``)."""
@@ -1017,6 +1020,9 @@ class YoloManager:
             class_file=resolved_class_file,
             review=review,
             crop_padding=crop_padding,
+            review_workers=review_workers,
+            review_progress=review_progress,
+            review_progress_leave=review_progress_leave,
             task=self.task,
             layout=self.layout,
             images_dir=self.images_dir,

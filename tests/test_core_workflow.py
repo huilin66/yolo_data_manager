@@ -75,6 +75,21 @@ def test_build_python_task_argv():
     vis_argv = build_task_argv("vis.draw", root=Path("dataset"), out="vis", workers=4, progress=True)
     assert vis_argv[-3:] == ["--workers", "4", "--progress"]
 
+    error_argv = build_task_argv(
+        "eval.error_analysis",
+        gt_root=Path("dataset"),
+        pred_root=Path("pred"),
+        out=Path("error_out"),
+        review=True,
+        review_workers=4,
+        review_progress=True,
+        review_progress_leave=False,
+    )
+    assert "--review" in error_argv
+    assert "--review-workers" in error_argv
+    assert "--review-progress" in error_argv
+    assert "--review-progress-leave" not in error_argv
+
 
 def test_yolo_manager_methods(tmp_path):
     root = make_dataset(tmp_path / "yolo")
@@ -705,7 +720,15 @@ def test_error_analysis(tmp_path):
     # --- CSV output (smoke test) ---
     write_error_csvs(rows, tmp_path / "error_out")
     write_duplicate_gt_csv(dup_rows, tmp_path / "error_out")
-    review_counts = write_error_review_pack(rows, gt, pred, tmp_path / "error_out")
+    review_counts = write_error_review_pack(
+        rows,
+        gt,
+        pred,
+        tmp_path / "error_out",
+        workers=2,
+        progress=True,
+        progress_leave=False,
+    )
     assert (tmp_path / "error_out" / "fp_report.csv").exists()
     assert (tmp_path / "error_out" / "fn_report.csv").exists()
     assert (tmp_path / "error_out" / "class_error.csv").exists()
@@ -761,7 +784,13 @@ def test_yolo_manager_error_analysis_defaults_to_manager_root(tmp_path, monkeypa
     monkeypatch.setattr(scripting, "run_task", fake_run_task)
     mgr = YoloManager(root, layout="flat", task="detect", init_check=False, init_layout=False)
 
-    code = mgr.eval_error_analysis(pred_root="pred_labels", out="error_report")
+    code = mgr.eval_error_analysis(
+        pred_root="pred_labels",
+        out="error_report",
+        review=True,
+        review_workers=4,
+        review_progress=True,
+    )
 
     assert code == 0
     assert captured["command"] == "eval.error_analysis"
@@ -769,3 +798,7 @@ def test_yolo_manager_error_analysis_defaults_to_manager_root(tmp_path, monkeypa
     assert captured["pred_root"] == "pred_labels"
     assert captured["val_source"] == str(root / "val.txt")
     assert captured["class_file"] == str(root / "class.txt")
+    assert captured["review"] is True
+    assert captured["review_workers"] == 4
+    assert captured["review_progress"] is True
+    assert captured["review_progress_leave"] is False
