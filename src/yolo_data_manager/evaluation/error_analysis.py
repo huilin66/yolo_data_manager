@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import csv
 import json
+import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import Counter
 from dataclasses import dataclass, field
@@ -775,6 +776,27 @@ def write_error_review_pack(
 
     _write_ultralytics_confusion_matrix(error_rows, gt, pred, output / "pred_gt")
     return dict(counts)
+
+
+def copy_prediction_txt_to_review(
+    pred: YoloDataset,
+    out_dir: str | Path,
+    *,
+    stems: set[str] | None = None,
+) -> list[Path]:
+    """Copy prediction label txt files to ``review/pred_txt``."""
+    pred_txt_dir = Path(out_dir) / "review" / "pred_txt"
+    pred_txt_dir.mkdir(parents=True, exist_ok=True)
+    copied: list[Path] = []
+    for image in pred.images:
+        if stems is not None and image.stem not in stems and image.file_name not in stems:
+            continue
+        if image.label_path is None or not image.label_path.exists():
+            continue
+        out_path = pred_txt_dir / image.label_path.name
+        shutil.copy2(image.label_path, out_path)
+        copied.append(out_path)
+    return copied
 
 
 def print_error_summary(

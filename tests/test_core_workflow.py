@@ -21,6 +21,7 @@ from yolo_data_manager.evaluation.compare import compare_datasets
 from yolo_data_manager.evaluation.error_analysis import (
     analyze_errors,
     collect_stems_from_source,
+    copy_prediction_txt_to_review,
     find_duplicate_gt,
     load_error_analysis_dataset,
     _ultralytics_confusion_matrix_data,
@@ -87,11 +88,13 @@ def test_build_python_task_argv():
         review_workers=4,
         review_progress=True,
         review_progress_leave=False,
+        copy_pred_txt=True,
     )
     assert "--review" in error_argv
     assert "--review-workers" in error_argv
     assert "--review-progress" in error_argv
     assert "--review-progress-leave" not in error_argv
+    assert "--copy-pred-txt" in error_argv
 
 
 def test_yolo_manager_methods(tmp_path):
@@ -738,6 +741,7 @@ def test_error_analysis(tmp_path):
         progress=True,
         progress_leave=False,
     )
+    copied_pred_txt = copy_prediction_txt_to_review(pred, tmp_path / "error_out")
     assert (tmp_path / "error_out" / "fp_report.csv").exists()
     assert (tmp_path / "error_out" / "fn_report.csv").exists()
     assert (tmp_path / "error_out" / "class_error.csv").exists()
@@ -745,6 +749,8 @@ def test_error_analysis(tmp_path):
     assert (tmp_path / "error_out" / "duplicate_gt.csv").exists()
     assert (tmp_path / "error_out" / "false_positive_background.csv").exists()
     assert (tmp_path / "error_out" / "false_negative_missed_gt.csv").exists()
+    assert len(copied_pred_txt) == 2
+    assert (tmp_path / "error_out" / "review" / "pred_txt" / "a.txt").exists()
     confusion_dir = tmp_path / "error_out" / "review" / "pred_gt" / "pred_car_gt_person"
     fp_background_dir = tmp_path / "error_out" / "review" / "pred_gt" / "pred_car_gt_background"
     fn_background_dir = tmp_path / "error_out" / "review" / "pred_gt" / "pred_background_gt_car"
@@ -814,6 +820,7 @@ def test_yolo_manager_error_analysis_defaults_to_manager_root(tmp_path, monkeypa
         review=True,
         review_workers=4,
         review_progress=True,
+        copy_pred_txt=True,
     )
 
     assert code == 0
@@ -826,3 +833,4 @@ def test_yolo_manager_error_analysis_defaults_to_manager_root(tmp_path, monkeypa
     assert captured["review_workers"] == 4
     assert captured["review_progress"] is True
     assert captured["review_progress_leave"] is False
+    assert captured["copy_pred_txt"] is True

@@ -32,6 +32,7 @@ from yolo_data_manager.evaluation.compare import compare_datasets, write_compare
 from yolo_data_manager.evaluation.error_analysis import (
     analyze_errors,
     collect_stems_from_source,
+    copy_prediction_txt_to_review,
     find_duplicate_gt,
     load_error_analysis_dataset,
     print_error_summary,
@@ -347,6 +348,7 @@ def build_parser() -> argparse.ArgumentParser:
     error_analysis.add_argument("--review-workers", type=int, default=1, help="number of worker threads for review visualization")
     error_analysis.add_argument("--review-progress", action="store_true", help="show progress while writing review visualization")
     error_analysis.add_argument("--review-progress-leave", action="store_true", help="keep review progress bar after completion")
+    error_analysis.add_argument("--copy-pred-txt", action="store_true", help="copy prediction txt files into review/pred_txt")
     error_analysis.add_argument("--task", choices=["auto", "detect", "segment"], default="auto")
     error_analysis.add_argument("--layout", choices=["auto", "flat", "split_dirs", "image_list", "mixed"], default="auto")
     error_analysis.add_argument("--images-dir", default="images")
@@ -848,6 +850,7 @@ def handle_eval_error_analysis(args: argparse.Namespace) -> int:
         if args.review
         else {}
     )
+    copied_pred_txt = copy_prediction_txt_to_review(pred, args.out, stems=stems) if args.copy_pred_txt else []
     print_error_summary(error_rows, dup_rows)
     print(
         json.dumps(
@@ -855,6 +858,7 @@ def handle_eval_error_analysis(args: argparse.Namespace) -> int:
                 "summary": summary,
                 "duplicate_gt_pairs": len(dup_rows),
                 "review": review_counts,
+                "pred_txt_copied": len(copied_pred_txt),
                 "out": args.out,
             },
             indent=2,

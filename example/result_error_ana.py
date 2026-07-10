@@ -21,7 +21,8 @@ def yolo_error_ana(input_dir, pred_dir, pred_name, workers=8):
         crop_padding=12,
         review_workers=workers,
         review_progress=True,
-        review_progress_leave=False)
+        review_progress_leave=False,
+        copy_pred_txt=True)
 
 if __name__ == "__main__":
     pass

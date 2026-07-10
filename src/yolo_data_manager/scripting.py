@@ -1003,6 +1003,7 @@ class YoloManager:
         review_workers: int = 1,
         review_progress: bool = False,
         review_progress_leave: bool = False,
+        copy_pred_txt: bool = False,
         **kwargs: Any,
     ) -> int:
         """Fine-grained error analysis of predictions vs GT (``ydm eval error-analysis``)."""
@@ -1025,6 +1026,7 @@ class YoloManager:
             review_workers=review_workers,
             review_progress=review_progress,
             review_progress_leave=review_progress_leave,
+            copy_pred_txt=copy_pred_txt,
             task=self.task,
             layout=self.layout,
             images_dir=self.images_dir,
