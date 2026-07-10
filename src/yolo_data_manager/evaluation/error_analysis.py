@@ -739,9 +739,10 @@ def write_error_review_pack(
     * ``review/<group>/images`` — full images with GT / prediction boxes
     * ``review/<group>/crops`` — local crops around the relevant box
 
-    Class-confusion rows are grouped as ``pred_<pred_class>_gt_<gt_class>`` so
-    off-diagonal confusion-matrix cases are easy to inspect.  Other errors keep
-    their error type as the group name.
+    Class-confusion rows are grouped under
+    ``pred_gt/pred_<pred_class>_gt_<gt_class>`` so off-diagonal
+    confusion-matrix cases are easy to inspect.  Other errors keep their error
+    type as the group name.
     """
     output = Path(out_dir) / "review"
     output.mkdir(parents=True, exist_ok=True)
@@ -884,7 +885,7 @@ def _review_group_name(row: ErrorDetail) -> str:
         pred_name = _class_label(row.pred_class_id, row.pred_class_name)
         gt_name = _class_label(row.gt_class_id, row.gt_class_name)
         if pred_name and gt_name:
-            return f"pred_{_safe_file_name(pred_name)}_gt_{_safe_file_name(gt_name)}"
+            return f"pred_gt/pred_{_safe_file_name(pred_name)}_gt_{_safe_file_name(gt_name)}"
     return row.error_type
 
 
