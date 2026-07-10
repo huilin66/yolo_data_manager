@@ -37,6 +37,7 @@ from yolo_data_manager.evaluation.error_analysis import (
     print_error_summary,
     write_duplicate_gt_csv,
     write_error_csvs,
+    write_error_review_pack,
 )
 from yolo_data_manager.evaluation.review_pack import write_review_pack
 
@@ -340,6 +341,8 @@ def build_parser() -> argparse.ArgumentParser:
     error_analysis.add_argument("--val-source", default=None, help="validation image dir or txt list used to limit evaluated stems")
     error_analysis.add_argument("--class-file", default=None, help="optional class names file; supports 'id name' or one name per line")
     error_analysis.add_argument("--names", dest="class_file", default=None, help="alias of --class-file")
+    error_analysis.add_argument("--review", action="store_true", help="write visual review images and box crops grouped by error type")
+    error_analysis.add_argument("--crop-padding", type=int, default=12, help="pixel padding around review crops")
     error_analysis.add_argument("--task", choices=["auto", "detect", "segment"], default="auto")
     error_analysis.add_argument("--layout", choices=["auto", "flat", "split_dirs", "image_list", "mixed"], default="auto")
     error_analysis.add_argument("--images-dir", default="images")
@@ -816,10 +819,16 @@ def handle_eval_error_analysis(args: argparse.Namespace) -> int:
     dup_rows = find_duplicate_gt(gt, duplicate_iou=args.duplicate_iou)
     write_error_csvs(error_rows, args.out)
     write_duplicate_gt_csv(dup_rows, args.out)
+    review_counts = write_error_review_pack(error_rows, gt, pred, args.out, crop_padding=args.crop_padding) if args.review else {}
     print_error_summary(error_rows, dup_rows)
     print(
         json.dumps(
-            {"summary": summary, "duplicate_gt_pairs": len(dup_rows), "out": args.out},
+            {
+                "summary": summary,
+                "duplicate_gt_pairs": len(dup_rows),
+                "review": review_counts,
+                "out": args.out,
+            },
             indent=2,
             ensure_ascii=False,
         )

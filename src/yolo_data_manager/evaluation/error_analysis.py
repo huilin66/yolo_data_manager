@@ -11,12 +11,14 @@ The matching logic is adapted from the ``demo.py`` reference script.
 from __future__ import annotations
 
 import csv
+import json
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import numpy as np
+from PIL import Image, ImageDraw
 
 from yolo_data_manager.core.models import ClassSchema, YoloAnnotation, YoloDataset, YoloImage, is_image_file
 from yolo_data_manager.io.loader import load_yolo_dataset, parse_label_file
@@ -715,6 +717,62 @@ def write_duplicate_gt_csv(
     _write_rows(out / "duplicate_gt.csv", _DUP_CSV_COLUMNS, dup_rows)
 
 
+def write_error_review_pack(
+    error_rows: list[ErrorDetail],
+    gt: YoloDataset,
+    pred: YoloDataset,
+    out_dir: str | Path,
+    *,
+    crop_padding: int = 12,
+) -> dict[str, int]:
+    """Write visual review images and crops grouped by error type.
+
+    The review pack is intentionally optional because it opens and writes many
+    image files.  It creates:
+
+    * ``review/<error_type>/images`` — full images with GT / prediction boxes
+    * ``review/<error_type>/crops`` — local crops around the relevant box
+    """
+    output = Path(out_dir) / "review"
+    output.mkdir(parents=True, exist_ok=True)
+    gt_images = _images_by_stem(gt)
+    pred_images = _images_by_stem(pred)
+    counts: dict[str, int] = Counter()
+
+    for idx, row in enumerate(error_rows):
+        if row.status == "tp":
+            continue
+        source_image = gt_images.get(row.image) or pred_images.get(row.image)
+        if source_image is None or not source_image.path.exists():
+            continue
+        box = _row_primary_box(row)
+        if box is None:
+            continue
+
+        type_dir = output / row.error_type
+        image_dir = type_dir / "images"
+        crop_dir = type_dir / "crops"
+        image_dir.mkdir(parents=True, exist_ok=True)
+        crop_dir.mkdir(parents=True, exist_ok=True)
+
+        with Image.open(source_image.path) as src:
+            canvas = src.convert("RGB")
+        width, height = canvas.size
+        draw = ImageDraw.Draw(canvas)
+        _draw_review_box(draw, row.pred_box_xyxy, width, height, outline=(255, 42, 4), label="pred")
+        _draw_review_box(draw, row.gt_box_xyxy, width, height, outline=(0, 192, 38), label="gt")
+
+        safe_image = _safe_file_name(row.image)
+        image_name = f"{safe_image}_{idx}_{row.status}_{row.error_type}{source_image.path.suffix}"
+        canvas.save(image_dir / image_name)
+
+        crop = _crop_norm_box(canvas, box, padding=crop_padding)
+        crop.save(crop_dir / image_name)
+        counts[row.error_type] += 1
+
+    return dict(counts)
+
+
 def print_error_summary(
     error_rows: list[ErrorDetail],
     dup_rows: list[DuplicateGt] | None = None,
@@ -777,3 +835,66 @@ def _write_rows(
         for row in rows:
             d = row.__dict__ if hasattr(row, "__dict__") else row
             writer.writerow(d)
+
+
+def _images_by_stem(dataset: YoloDataset) -> dict[str, YoloImage]:
+    return {image.stem: image for image in dataset.images}
+
+
+def _row_primary_box(row: ErrorDetail) -> list[float] | None:
+    if row.status == "fn":
+        return _parse_box_json(row.gt_box_xyxy)
+    return _parse_box_json(row.pred_box_xyxy) or _parse_box_json(row.gt_box_xyxy)
+
+
+def _parse_box_json(text: str | None) -> list[float] | None:
+    if not text:
+        return None
+    try:
+        values = json.loads(text)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(values, list) or len(values) != 4:
+        return None
+    return [float(value) for value in values]
+
+
+def _draw_review_box(
+    draw: ImageDraw.ImageDraw,
+    box_text: str | None,
+    width: int,
+    height: int,
+    *,
+    outline: tuple[int, int, int],
+    label: str,
+) -> None:
+    box = _parse_box_json(box_text)
+    if box is None:
+        return
+    left, top, right, bottom = _norm_box_to_pixels(box, width, height)
+    draw.rectangle([left, top, right, bottom], outline=outline, width=3)
+    draw.rectangle([left, max(0, top - 16), left + 42, top], fill=outline)
+    draw.text((left + 2, max(0, top - 15)), label, fill=(0, 0, 0))
+
+
+def _crop_norm_box(image: Image.Image, box: list[float], padding: int) -> Image.Image:
+    width, height = image.size
+    left, top, right, bottom = _norm_box_to_pixels(box, width, height)
+    left = max(0, left - padding)
+    top = max(0, top - padding)
+    right = min(width, right + padding)
+    bottom = min(height, bottom + padding)
+    return image.crop((left, top, right, bottom))
+
+
+def _norm_box_to_pixels(box: list[float], width: int, height: int) -> tuple[int, int, int, int]:
+    x1, y1, x2, y2 = box
+    left = max(0, min(width, int(round(x1 * width))))
+    top = max(0, min(height, int(round(y1 * height))))
+    right = max(0, min(width, int(round(x2 * width))))
+    bottom = max(0, min(height, int(round(y2 * height))))
+    return left, top, max(left + 1, right), max(top + 1, bottom)
+
+
+def _safe_file_name(value: str) -> str:
+    return "".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in value)

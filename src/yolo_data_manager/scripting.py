@@ -991,6 +991,8 @@ class YoloManager:
         duplicate_iou: float = 0.9,
         val_source: str | None = None,
         class_file: str | None = None,
+        review: bool = False,
+        crop_padding: int = 12,
         **kwargs: Any,
     ) -> int:
         """Fine-grained error analysis of predictions vs GT (``ydm eval error-analysis``)."""
@@ -1005,6 +1007,8 @@ class YoloManager:
             duplicate_iou=duplicate_iou,
             val_source=val_source,
             class_file=class_file,
+            review=review,
+            crop_padding=crop_padding,
             task=self.task,
             layout=self.layout,
             images_dir=self.images_dir,

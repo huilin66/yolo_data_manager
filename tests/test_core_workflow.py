@@ -25,6 +25,7 @@ from yolo_data_manager.evaluation.error_analysis import (
     load_error_analysis_dataset,
     write_duplicate_gt_csv,
     write_error_csvs,
+    write_error_review_pack,
 )
 from yolo_data_manager.evaluation.review_pack import write_review_pack
 from yolo_data_manager.io.loader import load_yolo_dataset
@@ -695,6 +696,7 @@ def test_error_analysis(tmp_path):
     # --- CSV output (smoke test) ---
     write_error_csvs(rows, tmp_path / "error_out")
     write_duplicate_gt_csv(dup_rows, tmp_path / "error_out")
+    review_counts = write_error_review_pack(rows, gt, pred, tmp_path / "error_out")
     assert (tmp_path / "error_out" / "fp_report.csv").exists()
     assert (tmp_path / "error_out" / "fn_report.csv").exists()
     assert (tmp_path / "error_out" / "class_error.csv").exists()
@@ -702,6 +704,9 @@ def test_error_analysis(tmp_path):
     assert (tmp_path / "error_out" / "duplicate_gt.csv").exists()
     assert (tmp_path / "error_out" / "false_positive_background.csv").exists()
     assert (tmp_path / "error_out" / "false_negative_missed_gt.csv").exists()
+    assert review_counts["class_error_pred"] == 1
+    assert any((tmp_path / "error_out" / "review" / "class_error_pred" / "images").iterdir())
+    assert any((tmp_path / "error_out" / "review" / "class_error_pred" / "crops").iterdir())
 
 
 def test_error_analysis_label_dirs_val_source_and_id_names(tmp_path):

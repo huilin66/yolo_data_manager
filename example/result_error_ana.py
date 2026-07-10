@@ -19,7 +19,9 @@ def yolo_error_ana(input_dir, pred_dir, pred_name):
         match_iou=0.5, 
         low_iou=0.1,
         conf_thres=0.01,
-        duplicate_iou=0.9)
+        duplicate_iou=0.9,
+        review=True,
+        crop_padding=12)
 
 if __name__ == "__main__":
     pass
