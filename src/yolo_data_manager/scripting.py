@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+import tempfile
 from typing import Any
+
+import yaml
 
 TASK_COMMANDS: Mapping[str, tuple[str, ...]] = {
     "check": ("check",),
@@ -421,11 +424,33 @@ class YoloManager:
         min_area: float | None = None,
         max_area: float | None = None,
         min_conf: float | None = None,
+        class_rules: str | Path | Mapping[str, Mapping[str, Any]] | None = None,
         copy_images: bool = True,
         dry_run: bool = False,
         **kwargs: Any,
     ) -> int:
         """Filter annotations by geometry/confidence (``ydm dataset filter``)."""
+        if isinstance(class_rules, Mapping):
+            with tempfile.NamedTemporaryFile("w", suffix=".yaml", encoding="utf-8", delete=False) as f:
+                yaml.safe_dump(dict(class_rules), f, allow_unicode=True, sort_keys=False)
+                class_rules_path = f.name
+            try:
+                return self.dataset_filter(
+                    out,
+                    class_=class_,
+                    min_width=min_width,
+                    min_height=min_height,
+                    min_size_logic=min_size_logic,
+                    min_area=min_area,
+                    max_area=max_area,
+                    min_conf=min_conf,
+                    class_rules=class_rules_path,
+                    copy_images=copy_images,
+                    dry_run=dry_run,
+                    **kwargs,
+                )
+            finally:
+                Path(class_rules_path).unlink(missing_ok=True)
         return self._run(
             "dataset.filter",
             out=out,
@@ -436,6 +461,7 @@ class YoloManager:
             min_area=min_area,
             max_area=max_area,
             min_conf=min_conf,
+            class_rules=class_rules,
             copy_images=copy_images,
             dry_run=dry_run,
             **kwargs,

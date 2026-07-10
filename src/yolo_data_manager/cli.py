@@ -4,6 +4,8 @@ import argparse
 import json
 from pathlib import Path
 
+import yaml
+
 from yolo_data_manager.annotation.edit import delete_by_attribute, delete_class, merge_classes, rename_class, replace_class, set_attribute
 from yolo_data_manager.annotation.query import copy_query_result, query_by_attribute, query_by_class
 from yolo_data_manager.annotation.remap import apply_class_map
@@ -141,6 +143,7 @@ def build_parser() -> argparse.ArgumentParser:
     dataset_filter.add_argument("--min-area", type=float, default=None)
     dataset_filter.add_argument("--max-area", type=float, default=None)
     dataset_filter.add_argument("--min-conf", type=float, default=None)
+    dataset_filter.add_argument("--class-rules", default=None, help="YAML/JSON per-class filter rules")
     dataset_filter.add_argument("--no-copy-images", dest="copy_images", action="store_false")
     dataset_filter.add_argument("--dry-run", action="store_true")
     dataset_filter.set_defaults(handler=handle_dataset_filter, copy_images=True)
@@ -530,12 +533,22 @@ def handle_dataset_filter(args: argparse.Namespace) -> int:
         min_area=args.min_area,
         max_area=args.max_area,
         min_confidence=args.min_conf,
+        class_rules=_read_class_rules(args.class_rules),
     )
     after = filtered.annotation_count()
     if not args.dry_run:
         write_yolo_dataset(filtered, args.out, copy_images=args.copy_images)
     print(json.dumps({"before": before, "after": after, "removed": before - after, "out": None if args.dry_run else args.out}, indent=2, ensure_ascii=False))
     return 0
+
+
+def _read_class_rules(path: str | None) -> dict | None:
+    if path is None:
+        return None
+    text = Path(path).read_text(encoding="utf-8")
+    if Path(path).suffix.lower() == ".json":
+        return json.loads(text)
+    return yaml.safe_load(text) or {}
 
 
 def handle_dataset_merge(args: argparse.Namespace) -> int:

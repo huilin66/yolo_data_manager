@@ -82,8 +82,10 @@ def test_build_python_task_argv():
         min_width=0.01,
         min_height=0.01,
         min_size_logic="and",
+        class_rules=Path("rules.yaml"),
     )
-    assert filter_argv[-2:] == ["--min-size-logic", "and"]
+    assert "--min-size-logic" in filter_argv
+    assert "--class-rules" in filter_argv
 
     vis_argv = build_task_argv("vis.draw", root=Path("dataset"), out="vis", show_id=True, workers=4, progress=True)
     assert "--show-id" in vis_argv
@@ -336,9 +338,44 @@ def test_filter_by_geometry(tmp_path):
 
     filtered_or = filter_by_geometry(size_dataset, min_width=0.01, min_height=0.01)
     filtered_and = filter_by_geometry(size_dataset, min_width=0.01, min_height=0.01, min_size_logic="and")
+    filtered_rules = filter_by_geometry(
+        size_dataset,
+        min_width=0.0,
+        min_height=0.0,
+        class_rules={
+            "obj": {
+                "min_width": 0.01,
+                "min_height": 0.01,
+                "min_size_logic": "and",
+            }
+        },
+    )
 
     assert filtered_or.annotation_count() == 0
     assert filtered_and.annotation_count() == 2
+    assert filtered_rules.annotation_count() == 2
+
+    class_root = tmp_path / "class_rules"
+    (class_root / "images").mkdir(parents=True)
+    (class_root / "labels").mkdir(parents=True)
+    Image.new("RGB", (100, 100), color="white").save(class_root / "images" / "a.jpg")
+    (class_root / "class.txt").write_text("person\ncar\n", encoding="utf-8")
+    (class_root / "labels" / "a.txt").write_text(
+        "0 0.2 0.2 0.006 0.006\n"
+        "1 0.4 0.4 0.006 0.006\n",
+        encoding="utf-8",
+    )
+    class_dataset = load_yolo_dataset(class_root)
+    class_filtered = filter_by_geometry(
+        class_dataset,
+        class_rules={
+            "person": {"min_width": 0.01, "min_height": 0.01, "min_size_logic": "and"},
+            "car": {"min_width": 0.005, "min_height": 0.005, "min_size_logic": "and"},
+        },
+    )
+
+    assert class_filtered.annotation_count() == 1
+    assert class_filtered.images[0].annotations[0].class_id == 1
 
 
 def test_stats_list_outputs_legacy_plots_and_csv(tmp_path):
