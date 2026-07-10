@@ -740,6 +740,7 @@ def test_error_analysis(tmp_path):
     assert review_counts["pred_gt/pred_car_gt_person"] == 1
     assert any((confusion_dir / "images").iterdir())
     assert any((confusion_dir / "crops").iterdir())
+    assert (tmp_path / "error_out" / "review" / "pred_gt" / "confusion_matrix.png").exists()
 
 
 def test_error_analysis_label_dirs_val_source_and_id_names(tmp_path):

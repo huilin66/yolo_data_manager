@@ -742,7 +742,8 @@ def write_error_review_pack(
     Class-confusion rows are grouped under
     ``pred_gt/pred_<pred_class>_gt_<gt_class>`` so off-diagonal
     confusion-matrix cases are easy to inspect.  Other errors keep their error
-    type as the group name.
+    type as the group name.  It also writes
+    ``review/pred_gt/confusion_matrix.png`` when class-confusion rows exist.
     """
     output = Path(out_dir) / "review"
     output.mkdir(parents=True, exist_ok=True)
@@ -771,6 +772,7 @@ def write_error_review_pack(
                 if error_type:
                     counts[error_type] += 1
 
+    _write_pred_gt_confusion_matrix(error_rows, output / "pred_gt")
     return dict(counts)
 
 
@@ -895,6 +897,74 @@ def _class_label(class_id: int | None, class_name: str | None) -> str:
     if class_id is not None:
         return str(class_id)
     return "unknown"
+
+
+def _write_pred_gt_confusion_matrix(error_rows: list[ErrorDetail], out_dir: Path) -> Path | None:
+    pairs = _class_confusion_pairs(error_rows)
+    if not pairs:
+        return None
+
+    labels = sorted({label for pred_label, gt_label in pairs for label in (pred_label, gt_label)})
+    index = {label: idx for idx, label in enumerate(labels)}
+    matrix = np.zeros((len(labels), len(labels)), dtype=np.int64)
+    for pred_label, gt_label in pairs:
+        matrix[index[gt_label], index[pred_label]] += 1
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / "confusion_matrix.png"
+
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    size = min(24.0, max(6.0, 0.55 * len(labels) + 3.0))
+    fig, ax = plt.subplots(figsize=(size, size))
+    im = ax.imshow(matrix, cmap="Blues")
+    ax.set_title("Pred-GT Class Confusion")
+    ax.set_xlabel("Pred class")
+    ax.set_ylabel("GT class")
+    ax.set_xticks(np.arange(len(labels)))
+    ax.set_yticks(np.arange(len(labels)))
+    ax.set_xticklabels(labels, rotation=45, ha="right", rotation_mode="anchor")
+    ax.set_yticklabels(labels)
+
+    max_count = int(matrix.max()) if matrix.size else 0
+    threshold = max_count / 2 if max_count else 0
+    for row_idx in range(matrix.shape[0]):
+        for col_idx in range(matrix.shape[1]):
+            value = int(matrix[row_idx, col_idx])
+            if value:
+                color = "white" if value > threshold else "black"
+                ax.text(col_idx, row_idx, str(value), ha="center", va="center", color=color)
+
+    fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=200)
+    plt.close(fig)
+    return out_path
+
+
+def _class_confusion_pairs(error_rows: list[ErrorDetail]) -> list[tuple[str, str]]:
+    pairs: list[tuple[str, str]] = []
+    seen: set[tuple[Any, ...]] = set()
+    for idx, row in enumerate(error_rows):
+        if row.error_type not in {CLASS_ERROR_PRED, FN_CLASS_ERROR}:
+            continue
+        pred_label = _class_label(row.pred_class_id, row.pred_class_name)
+        gt_label = _class_label(row.gt_class_id, row.gt_class_name)
+        key = (
+            row.image,
+            row.pred_idx if row.pred_idx is not None else f"pred_row_{idx}",
+            row.gt_idx if row.gt_idx is not None else f"gt_row_{idx}",
+            row.pred_class_id,
+            row.gt_class_id,
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        pairs.append((pred_label, gt_label))
+    return pairs
 
 
 def _row_primary_box(row: ErrorDetail) -> list[float] | None:
