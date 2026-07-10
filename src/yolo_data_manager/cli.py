@@ -234,6 +234,7 @@ def build_parser() -> argparse.ArgumentParser:
     draw.add_argument("--mask-alpha", type=int, default=64)
     draw.add_argument("--no-fill-mask", dest="fill_mask", action="store_false")
     draw.add_argument("--show-attrs", action="store_true")
+    draw.add_argument("--show-id", action="store_true", help="show class id from YOLO txt before class name")
     draw.add_argument("--filter-no-attrs", action="store_true")
     draw.add_argument("--workers", type=int, default=1, help="number of worker threads for visualization")
     draw.add_argument("--progress", action="store_true", help="show visualization progress")
@@ -663,6 +664,7 @@ def handle_vis_draw(args: argparse.Namespace) -> int:
         mask_alpha=args.mask_alpha,
         fill_mask=args.fill_mask,
         show_attributes=args.show_attrs,
+        show_class_id=args.show_id,
         filter_no_attributes=args.filter_no_attrs,
         workers=args.workers,
         progress=args.progress,

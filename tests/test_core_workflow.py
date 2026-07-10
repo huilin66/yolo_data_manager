@@ -36,6 +36,7 @@ from yolo_data_manager.io.writer import write_yolo_dataset
 from yolo_data_manager.stats.compute import compute_stats
 from yolo_data_manager.stats.export import write_attribute_csv, write_stats_plots
 from yolo_data_manager.scripting import YoloManager, build_task_argv
+from yolo_data_manager.vis.renderer import _annotation_label
 from yolo_data_manager.vis.renderer import crop_dataset
 from yolo_data_manager.vis.renderer import render_dataset
 
@@ -73,7 +74,8 @@ def test_build_python_task_argv():
     )
     assert stats_argv[-2:] == ["--stats-list", "image_shape,box_pos_center"]
 
-    vis_argv = build_task_argv("vis.draw", root=Path("dataset"), out="vis", workers=4, progress=True)
+    vis_argv = build_task_argv("vis.draw", root=Path("dataset"), out="vis", show_id=True, workers=4, progress=True)
+    assert "--show-id" in vis_argv
     assert vis_argv[-3:] == ["--workers", "4", "--progress"]
 
     error_argv = build_task_argv(
@@ -178,6 +180,7 @@ def make_dataset(root: Path) -> Path:
 def test_load_query_and_validate(tmp_path):
     root = make_dataset(tmp_path / "yolo")
     dataset = load_yolo_dataset(root)
+    assert _annotation_label(dataset, dataset.images[0].annotations[1], show_class_id=True) == "1 car"
 
     assert len(dataset.images) == 2
     assert dataset.annotation_count() == 3
