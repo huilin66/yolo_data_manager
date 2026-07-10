@@ -25,10 +25,14 @@ def filter_by_geometry(
     class_ids: set[int] | None = None,
     min_width: float | None = None,
     min_height: float | None = None,
+    min_size_logic: str = "or",
     min_area: float | None = None,
     max_area: float | None = None,
     min_confidence: float | None = None,
 ) -> YoloDataset:
+    if min_size_logic not in {"or", "and"}:
+        raise ValueError("min_size_logic must be 'or' or 'and'")
+
     def predicate(annotation: YoloAnnotation) -> bool:
         if class_ids is not None and annotation.class_id not in class_ids:
             return False
@@ -38,9 +42,12 @@ def filter_by_geometry(
         if box is None:
             return False
         area = box.width * box.height
-        if min_width is not None and box.width < min_width:
-            return False
-        if min_height is not None and box.height < min_height:
+        width_too_small = min_width is not None and box.width < min_width
+        height_too_small = min_height is not None and box.height < min_height
+        if min_size_logic == "and":
+            if width_too_small and height_too_small:
+                return False
+        elif width_too_small or height_too_small:
             return False
         if min_area is not None and area < min_area:
             return False

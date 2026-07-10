@@ -75,6 +75,16 @@ def test_build_python_task_argv():
     )
     assert stats_argv[-2:] == ["--stats-list", "image_shape,box_pos_center"]
 
+    filter_argv = build_task_argv(
+        "dataset.filter",
+        root=Path("dataset"),
+        out=Path("filtered"),
+        min_width=0.01,
+        min_height=0.01,
+        min_size_logic="and",
+    )
+    assert filter_argv[-2:] == ["--min-size-logic", "and"]
+
     vis_argv = build_task_argv("vis.draw", root=Path("dataset"), out="vis", show_id=True, workers=4, progress=True)
     assert "--show-id" in vis_argv
     assert vis_argv[-3:] == ["--workers", "4", "--progress"]
@@ -310,6 +320,25 @@ def test_filter_by_geometry(tmp_path):
 
     assert filtered.annotation_count() == 1
     assert filtered.images[0].annotations[0].class_id == 0
+
+    size_root = tmp_path / "size_filter"
+    (size_root / "images").mkdir(parents=True)
+    (size_root / "labels").mkdir(parents=True)
+    Image.new("RGB", (100, 100), color="white").save(size_root / "images" / "a.jpg")
+    (size_root / "class.txt").write_text("obj\n", encoding="utf-8")
+    (size_root / "labels" / "a.txt").write_text(
+        "0 0.2 0.2 0.005 0.02\n"
+        "0 0.4 0.4 0.02 0.005\n"
+        "0 0.6 0.6 0.005 0.005\n",
+        encoding="utf-8",
+    )
+    size_dataset = load_yolo_dataset(size_root)
+
+    filtered_or = filter_by_geometry(size_dataset, min_width=0.01, min_height=0.01)
+    filtered_and = filter_by_geometry(size_dataset, min_width=0.01, min_height=0.01, min_size_logic="and")
+
+    assert filtered_or.annotation_count() == 0
+    assert filtered_and.annotation_count() == 2
 
 
 def test_stats_list_outputs_legacy_plots_and_csv(tmp_path):

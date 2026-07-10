@@ -137,6 +137,7 @@ def build_parser() -> argparse.ArgumentParser:
     dataset_filter.add_argument("--class", dest="class_values", default=None, help="class id/name, comma-separated allowed")
     dataset_filter.add_argument("--min-width", type=float, default=None)
     dataset_filter.add_argument("--min-height", type=float, default=None)
+    dataset_filter.add_argument("--min-size-logic", choices=["or", "and"], default="or", help="combine min-width/min-height removal checks")
     dataset_filter.add_argument("--min-area", type=float, default=None)
     dataset_filter.add_argument("--max-area", type=float, default=None)
     dataset_filter.add_argument("--min-conf", type=float, default=None)
@@ -525,6 +526,7 @@ def handle_dataset_filter(args: argparse.Namespace) -> int:
         class_ids=class_ids,
         min_width=args.min_width,
         min_height=args.min_height,
+        min_size_logic=args.min_size_logic,
         min_area=args.min_area,
         max_area=args.max_area,
         min_confidence=args.min_conf,
