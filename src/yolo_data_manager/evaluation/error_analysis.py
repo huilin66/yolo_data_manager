@@ -901,8 +901,15 @@ def _write_one_error_review(
     canvas.save(image_dir / image_name)
 
     crop = _crop_norm_box(canvas, box, padding=crop_padding)
-    crop.save(crop_dir / image_name)
+    crop.save(crop_dir / _review_crop_name(row, source_image.path.suffix))
     return group_name
+
+
+def _review_crop_name(row: ErrorDetail, suffix: str) -> str:
+    safe_image = _safe_file_name(row.image)
+    pred_id = "none" if row.error_type == FN_NO_PRED else (str(row.pred_idx) if row.pred_idx is not None else "none")
+    gt_id = "none" if row.error_type == BACKGROUND_FP else (str(row.gt_idx) if row.gt_idx is not None else "none")
+    return f"{safe_image}_pred{pred_id}_gt{gt_id}{suffix}"
 
 
 def _review_group_name(row: ErrorDetail) -> str:

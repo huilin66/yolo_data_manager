@@ -758,9 +758,10 @@ def test_error_analysis(tmp_path):
     assert review_counts["pred_gt/pred_car_gt_background"] == 1
     assert review_counts["pred_gt/pred_background_gt_car"] == 2
     assert any((confusion_dir / "images").iterdir())
-    assert any((confusion_dir / "crops").iterdir())
+    assert (confusion_dir / "crops" / "a_pred2_gt1.jpg").exists()
     assert any((fp_background_dir / "images").iterdir())
-    assert any((fn_background_dir / "crops").iterdir())
+    assert (fp_background_dir / "crops" / "a_pred3_gtnone.jpg").exists()
+    assert (fn_background_dir / "crops" / "a_prednone_gt2.jpg").exists()
     assert (tmp_path / "error_out" / "review" / "pred_gt" / "confusion_matrix.png").exists()
     matrix, labels = _ultralytics_confusion_matrix_data(rows, gt, pred)
     assert labels == ["person", "car", "background"]
