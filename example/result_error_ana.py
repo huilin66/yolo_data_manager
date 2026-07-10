@@ -22,14 +22,14 @@ def yolo_error_ana(input_dir, pred_dir, pred_name, workers=8):
         review_workers=workers,
         review_progress=True,
         review_progress_leave=False,
-        copy_pred_txt=True)
+        copy_pred_txt=True,
+        )
 
 if __name__ == "__main__":
     pass
-    cube_dir = r"/localnvme/data/bdd_hmt/bp_cube_filter_p01"
-    rgb_all_dir = r"/localnvme/data/bdd_hmt/sua_rgb_filter_p01"
-    cube_dir_pred = r"/localnvme/project/ultralytics/runs/detect/val181/labels"
-    rgb_all_dir_pred = r"/localnvme/project/ultralytics/runs/detect/val180/labels"
-
-    yolo_error_ana(cube_dir, rgb_all_dir_pred, "val180")
-    yolo_error_ana(rgb_all_dir, rgb_all_dir_pred, "val180")
+    t_dir = r"/localnvme/data/bdd_hmt/sua_t"
+    t_dir_pred = r"/localnvme/project/ultralytics/runs/detect/val-4/labels"
+    rgb_dir = r"/localnvme/data/bdd_hmt/sua_rgb_merge"
+    rgb_dir_pred = r"/localnvme/project/ultralytics/runs/detect/val-18/labels"
+    # yolo_error_ana(t_dir, t_dir_pred, "val-4")
+    yolo_error_ana(rgb_dir, rgb_dir_pred, "val-18")

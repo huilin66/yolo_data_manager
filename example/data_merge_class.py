@@ -9,22 +9,16 @@ def yolo_merge_class(input_dir, output_dir, merge_dict):
 
 if __name__ == "__main__":
     pass
-    rgb_f01_dir = r"/localnvme/data/bdd_hmt/sua_rgb_filter_p01"
-    rgb_f01_merge_dir = r"/localnvme/data/bdd_hmt/sua_rgb_filter_p01_merge"
-    t_f01_dir = r"/localnvme/data/bdd_hmt/sua_t_filter_p01"
-    t_f01_merge_dir = r"/localnvme/data/bdd_hmt/sua_t_filter_p01_merge_v2"
+    rgb_dir = r"/localnvme/data/bdd_hmt/sua_rgb"
+    rgb_merge_dir = r"/localnvme/data/bdd_hmt/sua_rgb_merge"
+    rgb_merge_v2_dir = r"/localnvme/data/bdd_hmt/sua_rgb_merge_v2"
     rgb_merge = {
-        "Broken": ["Broken Low Risk", "Broken High Risk", "Cracked Tile"], 
-        "Corrosion": ["Corrosion", "Spalling", "background"],
-        "Delaminated": ["Delaminated Tile Low Risk", "Delaminate Tile High Risk"],
-        "Efforescene": ["Efforescene Low Gray", "Efflorescene Low Risk", "Efflorescene High Risk"],
+        "Broken High Risk":["Broken High Risk", "Cracked Tile"],
+        "Corrosion": ["Corrosion", "Spalling"],
+        "Efflorescene Low Risk": ["Efflorescene Low Risk", "Broken Low Risk"], 
         }
-    t_merge = {
-        "Hollow": ["Hollow Low Risk", "Hollow High Risk", "Hollow High Risk Line"], 
-        "Leakage": ["Leakage High Risk", "background"],
+    rgb_merge_v2 = {
+        "Delaminated Tile":["Delaminated Tile Low Risk", "Delaminate Tile High Risk"],
         }
-
-
-
-    # yolo_merge_class(rgb_f01_dir, rgb_f01_merge_dir, rgb_merge)
-    yolo_merge_class(t_f01_dir, t_f01_merge_dir, t_merge)
+    # yolo_merge_class(rgb_dir, rgb_merge_dir, rgb_merge)
+    yolo_merge_class(rgb_merge_dir, rgb_merge_v2_dir, rgb_merge_v2)
