@@ -180,7 +180,7 @@ def make_dataset(root: Path) -> Path:
 def test_load_query_and_validate(tmp_path):
     root = make_dataset(tmp_path / "yolo")
     dataset = load_yolo_dataset(root)
-    assert _annotation_label(dataset, dataset.images[0].annotations[1], show_class_id=True) == "1 car"
+    assert _annotation_label(dataset, dataset.images[0].annotations[1], show_txt_id=True, annotation_idx=1) == "2 car"
 
     assert len(dataset.images) == 2
     assert dataset.annotation_count() == 3

@@ -34,7 +34,7 @@ def render_dataset(
     mask_alpha: int = 64,
     fill_mask: bool = True,
     show_attributes: bool = False,
-    show_class_id: bool = False,
+    show_txt_id: bool = False,
     filter_no_attributes: bool = False,
     workers: int = 1,
     progress: bool = False,
@@ -53,7 +53,7 @@ def render_dataset(
             mask_alpha=mask_alpha,
             fill_mask=fill_mask,
             show_attributes=show_attributes,
-            show_class_id=show_class_id,
+            show_txt_id=show_txt_id,
             filter_no_attributes=filter_no_attributes,
         )
         save_path = out_path / image.file_name
@@ -120,18 +120,18 @@ def render_image(
     mask_alpha: int = 64,
     fill_mask: bool = True,
     show_attributes: bool = False,
-    show_class_id: bool = False,
+    show_txt_id: bool = False,
     filter_no_attributes: bool = False,
 ) -> Image.Image:
     with Image.open(image.path) as source:
         canvas = source.convert("RGB")
     draw = ImageDraw.Draw(canvas, "RGBA")
     width, height = canvas.size
-    for annotation in image.annotations:
+    for annotation_idx, annotation in enumerate(image.annotations):
         if confidence_threshold is not None and annotation.confidence is not None and annotation.confidence < confidence_threshold:
             continue
         color = COLORS[annotation.class_id % len(COLORS)]
-        label = _annotation_label(dataset, annotation, show_class_id=show_class_id)
+        label = _annotation_label(dataset, annotation, show_txt_id=show_txt_id, annotation_idx=annotation_idx)
         if show_confidence and annotation.confidence is not None:
             label = f"{label} {annotation.confidence:.2f}"
         attr_lines = _attribute_lines(dataset, annotation, filter_no=filter_no_attributes) if show_attributes else []
@@ -208,10 +208,11 @@ def _draw_label(draw: ImageDraw.ImageDraw, x: float, y: float, text: str, color:
     draw.text((x, y), text, fill=(0, 0, 0, 255))
 
 
-def _annotation_label(dataset: YoloDataset, annotation, *, show_class_id: bool) -> str:
+def _annotation_label(dataset: YoloDataset, annotation, *, show_txt_id: bool, annotation_idx: int | None = None) -> str:
     class_name = dataset.class_name(annotation.class_id)
-    if show_class_id:
-        return f"{annotation.class_id} {class_name}"
+    if show_txt_id:
+        txt_id = annotation.line_no if annotation.line_no is not None else annotation_idx
+        return f"{txt_id} {class_name}"
     return class_name
 
 
