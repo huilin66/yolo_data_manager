@@ -11,6 +11,7 @@ from yolo_data_manager.annotation.query import copy_query_result, query_by_attri
 from yolo_data_manager.annotation.remap import apply_class_map
 from yolo_data_manager.converters.coco import export_coco, import_coco
 from yolo_data_manager.converters.labelme import import_labelme_dir
+from yolo_data_manager.converters.mask import import_semantic_mask_dir
 from yolo_data_manager.converters.pseudo import predictions_to_pseudo_labels
 from yolo_data_manager.converters.seg_det import segmentation_to_detection
 from yolo_data_manager.converters.voc import import_voc_dir
@@ -293,6 +294,15 @@ def build_parser() -> argparse.ArgumentParser:
     voc_import.add_argument("--classes", default=None, help="optional comma-separated class order")
     voc_import.add_argument("--keep-difficult", dest="skip_difficult", action="store_false")
     voc_import.set_defaults(handler=handle_import_voc, skip_difficult=True)
+    mask_import = import_sub.add_parser("mask", help="import semantic segmentation masks as YOLO segmentation")
+    mask_import.add_argument("--images-dir", required=True)
+    mask_import.add_argument("--masks-dir", required=True)
+    mask_import.add_argument("--out", required=True)
+    mask_import.add_argument("--class-map", default=None, help="YAML/JSON mapping from mask value/color to class name")
+    mask_import.add_argument("--background", default="0", help="background mask value or color")
+    mask_import.add_argument("--min-area", type=int, default=1, help="minimum connected-component area in pixels")
+    mask_import.add_argument("--no-copy-images", dest="copy_images", action="store_false")
+    mask_import.set_defaults(handler=handle_import_mask, copy_images=True)
 
     convert = subparsers.add_parser("convert", help="convert dataset task/form")
     convert_sub = convert.add_subparsers(dest="convert_command", required=True)
@@ -756,6 +766,20 @@ def handle_import_voc(args: argparse.Namespace) -> int:
         out_root=args.out,
         class_names=classes,
         skip_difficult=args.skip_difficult,
+    )
+    print(json.dumps({"images": len(dataset.images), "annotations": dataset.annotation_count(), "out": args.out}, indent=2, ensure_ascii=False))
+    return 0
+
+
+def handle_import_mask(args: argparse.Namespace) -> int:
+    dataset = import_semantic_mask_dir(
+        args.images_dir,
+        args.masks_dir,
+        out_root=args.out,
+        class_map=_read_class_rules(args.class_map),
+        background=args.background,
+        min_area=args.min_area,
+        copy_images=args.copy_images,
     )
     print(json.dumps({"images": len(dataset.images), "annotations": dataset.annotation_count(), "out": args.out}, indent=2, ensure_ascii=False))
     return 0

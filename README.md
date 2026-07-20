@@ -1,61 +1,22 @@
 # YOLO Data Manager
 
-YOLO Data Manager is a Python toolkit and CLI for managing YOLO datasets.
+[中文文档](README_CN.md)
 
-It is designed around one internal dataset model, then layers loading, import/export,
-dataset management, annotation query/edit, statistics, and visualization on top.
+YOLO Data Manager is a Python package and CLI for managing YOLO datasets. It normalizes different dataset sources into one internal model, then provides loading, validation, import/export, dataset operations, annotation query/edit, statistics, visualization, and prediction error analysis on top of that model.
 
-## First commands
+## Documentation
 
-```bash
-ydm check --root path/to/yolo --task auto
-ydm layout detect --root path/to/yolo
-ydm check --root path/to/yolo --layout auto
-ydm check --root path/to/yolo --layout flat --fill-missing-txt --out validation.json
-ydm dataset normalize --root path/to/yolo --layout auto --out normalized_yolo
-ydm query class --root path/to/yolo --class person --out person_labels.csv
-ydm query class --root path/to/yolo --class person --copy-images out/images --copy-labels out/labels
-ydm query attr --root path/to/yolo --name defect --value yes --out defect.csv
-ydm ann merge-class --root path/to/yolo --from crack,break --to defect --out path/to/yolo_merged --compact
-ydm ann set-attr --root path/to/yolo --name defect --value yes --class sign --out yolo_attr_fixed
-ydm ann delete-attr --root path/to/yolo --name defect --value yes --out yolo_attr_clean
-ydm dataset select --root path/to/yolo --file val.txt --out path/to/yolo_val
-ydm dataset split --root path/to/yolo --train 0.8 --val 0.2 --seed 233
-ydm dataset split --root path/to/yolo --train 0.8 --val 0.1 --test 0.1 --absolute-paths
-ydm dataset filter --root path/to/yolo --min-area 0.001 --out path/to/yolo_filtered
-ydm dataset merge --roots data1,data2 --out merged_yolo
-ydm dataset duplicates --root path/to/yolo --out duplicate_images.csv
-ydm dataset bad-images --root path/to/yolo --out bad_images.csv
-ydm dataset yaml --root path/to/yolo --out dataset.yaml
-ydm stats --root path/to/yolo --out stats.json
-ydm stats --root path/to/yolo --ann-csv annotations.csv --attr-csv attributes.csv --plots-dir stats_plots
-ydm stats --root path/to/yolo --plots-dir labels_sta --stats-list all
-ydm stats --root path/to/yolo --plots-dir labels_sta --stats-list image_shape,box_shape_pix,box_pos_center
-ydm vis draw --root path/to/yolo --out images_vis
-ydm vis draw --root path/to/yolo --out images_vis --show-conf --show-attrs --filter-no-attrs
-ydm vis draw --root path/to/yolo --out images_vis --workers 8 --progress
-ydm vis crop --root path/to/yolo --out crops --by-attr
-ydm vis crop --root path/to/yolo --out crops --workers 8 --progress
-ydm export coco --root path/to/yolo --out instances.json
-ydm export xany --root path/to/yolo --out xany_json
-ydm import labelme --json-dir labelme_json --out yolo --task segment
-ydm import coco --json instances.json --images-dir images --out yolo
-ydm import voc --annotations-dir Annotations --images-dir JPEGImages --out yolo
-ydm convert pseudo --root pred_yolo --conf 0.5 --out pseudo_yolo
-ydm eval compare --gt-root gt_yolo --pred-root pred_yolo --out compare.csv --iou 0.5
-ydm eval review-pack --gt-root gt_yolo --pred-root pred_yolo --out review_pack --iou 0.5
-ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --out error_report
-ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --out error_report --match-iou 0.5 --low-iou 0.1 --duplicate-iou 0.9
-ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --out error_report --review
-ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --val-source val.txt --class-file class.txt --out error_report
-ydm eval error-analysis --gt-root gt_labels --pred-root pred_labels --names class.txt --out error_report
-```
+- [Python Usage](docs/PYTHON_USAGE_EN.md)
+- [CLI Usage](docs/CLI_USAGE_EN.md)
+- [Project Handoff](docs/HANDOFF_EN.md)
+- [中文 Python 使用](docs/PYTHON_USAGE.md)
+- [中文 CLI 使用](docs/CLI_USAGE.md)
+- [中文交接说明](docs/HANDOFF.md)
 
-Install from the project root. There are only two recommended modes:
+## Installation
 
 ```bash
 python -m pip install .
-ydm check --root path/to/yolo
 ```
 
 For development and tests:
@@ -65,57 +26,69 @@ python -m pip install -e ".[dev]"
 python -m pytest -q
 ```
 
-Or run without installing by adding `src` to `PYTHONPATH`:
+## Feature Map
 
-```powershell
-$env:PYTHONPATH = "src"
-python -m yolo_data_manager.cli check --root path/to/yolo
+| Area | What It Does | Common Parameters |
+|---|---|---|
+| Load and validate | Check missing images/labels, orphan labels, invalid classes, invalid geometry | `layout`, `task`, `fill_missing_txt` |
+| Layout management | Detect and normalize YOLO dataset layouts | `images_dir`, `labels_dir`, `split_file` |
+| Query | Find images, labels, and instances by class or attribute | `class_`, `name`, `value`, `copy_images` |
+| Annotation edits | Delete, replace, merge, rename classes; set/delete attributes | `compact`, `dry_run`, `report` |
+| Dataset operations | select, split, merge, filter, yaml, duplicate/bad-image checks | `train`, `val`, `absolute_paths`, `class_rules` |
+| Statistics | Class distribution, object counts, box shapes, image shapes, attributes, plots | `stats_list`, `plots_dir`, `ann_csv` |
+| Visualization | Draw boxes/masks, show confidence/attributes/txt order id, crop objects | `show_id`, `show_conf`, `workers` |
+| Import/export | Convert between YOLO and LabelMe/COCO/VOC/masks/x-anylabeling | `class_map`, `background`, `min_area` |
+| Evaluation | Compare GT vs predictions, build FP/FN review packs, error analysis, confusion matrix | `match_iou`, `low_iou`, `review_workers` |
+
+## Python Quick Demo
+
+```python
+from yolo_data_manager import YoloManager
+
+mgr = YoloManager("datasets/my_yolo", layout="auto", init_check=False)
+
+mgr.check(out="validation.json", fill_missing_txt=True)
+mgr.stats(plots_dir="stats", stats_list=["all"])
+mgr.vis_draw(out="vis", show_id=True, show_conf=True, workers=8, progress=True)
+
+mgr.dataset_filter(
+    out="filtered",
+    min_width=0.01,
+    min_height=0.01,
+    min_size_logic="and",
+    class_rules={
+        "person": {"min_width": 0.01, "min_height": 0.01},
+        "car": {"min_area": 0.0005},
+    },
+)
+
+mgr.eval_error_analysis(
+    pred_root="datasets/pred_labels",
+    out="error_report",
+    review=True,
+    review_workers=8,
+    review_progress=True,
+    copy_pred_txt=True,
+)
 ```
 
-Prefer Python scripts? Edit and run [`scripts/run_ydm.py`](scripts/run_ydm.py),
-or call `run_task("stats", root=..., out=...)` from your own code. See the
-complete Chinese examples in [`docs/PYTHON_USAGE.md`](docs/PYTHON_USAGE.md).
+## CLI Quick Demo
 
-## Project Status
+```bash
+ydm check --root path/to/yolo --layout auto --fill-missing-txt --out validation.json
+ydm stats --root path/to/yolo --plots-dir stats --stats-list all
+ydm vis draw --root path/to/yolo --out vis --show-id --show-conf --workers 8 --progress
+ydm dataset filter --root path/to/yolo --out filtered --min-width 0.01 --min-height 0.01 --min-size-logic and
+ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --out error_report --review --review-workers 8 --review-progress --copy-pred-txt
+```
 
-This is the first implementation pass. The foundation is in place:
+## Output Conventions
 
-- YOLO detection/segmentation/multi-attribute label loading
-- layout detection for flat folders, split folders, image-list txt files, and mixed folders
-- dataset validation
-- class-level annotation query
-- attribute-level annotation query
-- class delete/replace/merge/rename operations
-- attribute set/delete operations
-- global and class-scoped `attribute.yaml` support
-- attribute statistics, CSV export, visualization, and crop grouping
-- dataset writing
-- basic statistics
-- PIL-based visualization
-- YOLO segmentation to detection conversion
-- basic COCO export
-- x-anylabeling export
-- simplified LabelMe import
-- COCO and VOC import
-- dataset select/split
-- dataset filtering and dataset.yaml generation
-- multi-dataset merge with class-name alignment
-- duplicate image-name and duplicate-annotation validation
-- duplicate image hash detection
-- bad image detection
-- GT vs prediction comparison
-- FP/FN review package generation
-- fine-grained error analysis (7 error sub-types: background FP, localisation FP,
-  duplicate prediction, class error, FN with sub-types)
-- duplicate GT detection
-- query-result image/label copying
-- annotation CSV export and optional statistics plots
+- Write operations default to a new output directory and do not overwrite the source dataset in place.
+- Standard YOLO output includes `images/`, `labels/`, `class.txt`, and `dataset.yaml`.
+- Error-analysis review output includes `review/pred_gt`, `confusion_matrix.png`, grouped `pred_<pred_class>_gt_<gt_class>` folders, and optional `review/pred_txt`.
+- Review crop names use `image_pred<pred_txt_order>_gt<gt_txt_order>`, with `none` for missing sides.
 
-## Repository Ignore Policy
+## Git Ignore Policy
 
-The project `.gitignore` excludes local datasets, generated visualization/statistics
-outputs, training runs, caches, and common model-weight formats such as `.pt`,
-`.pth`, `.onnx`, `.engine`, `.safetensors`, and `.weights`.
-
-Next migration targets are the richer visualization/statistics from the existing
-`data_vis` scripts and the specialized importers in `dataformat_swift`.
+The project `.gitignore` excludes local datasets, generated visualization/statistics outputs, training runs, caches, and common model-weight formats such as `.pt`, `.pth`, `.onnx`, `.engine`, `.safetensors`, and `.weights`.

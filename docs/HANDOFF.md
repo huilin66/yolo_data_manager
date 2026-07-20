@@ -1,6 +1,8 @@
-# YOLO Data Manager 项目设计
+# YOLO Data Manager Handoff
 
-## 目标
+本文档用于项目交接，说明当前设计原则、功能边界、包结构、关键约定和后续迁移方向。面向使用者的教程在 [README](../README.md)，Python 细节在 [PYTHON_USAGE.md](PYTHON_USAGE.md)，CLI 细节在 [CLI_USAGE.md](CLI_USAGE.md)。
+
+## 目标与原则
 
 `YOLO Data Manager` 用来统一管理 YOLO 数据集，避免现有脚本中“读取、转换、统计、可视化、路径配置、临时逻辑”混在一起的问题。
 
@@ -11,7 +13,7 @@
 3. 导入导出只负责格式边界，不重复实现业务逻辑。
 4. 默认不原地破坏数据，写操作优先输出到新目录，并支持 `dry-run/report/backup`。
 
-## 功能分组
+## 当前功能分组
 
 ### 1. 加载与校验
 
@@ -41,13 +43,22 @@ ydm dataset normalize --root yolo_data --layout auto --out yolo_normalized
 - LabelMe -> YOLO 简化导入
 - COCO -> YOLO
 - VOC -> YOLO
+- semantic segmentation mask -> YOLO segmentation
 
 迁移阶段：
 
-- COCO/VOC -> YOLO
 - LabelMe -> YOLO 完整迁移，包括多任务属性
 - YOLO -> x-anylabeling 属性细节对齐
 - Bosch/GTSDB/TZ 专用数据源
+
+语义 mask 导入约定：
+
+- 单通道 mask 使用像素值作为类别值，例如 `0=background, 1=crack`
+- RGB mask 使用颜色作为类别值，例如 `#ff0000=crack`
+- 每个连通区域转为一个 YOLO segmentation polygon
+- `background` 不输出到 label
+- `min_area` 过滤小连通区域
+- 有 OpenCV 时使用 contour polygon；无 OpenCV 时退回外接矩形 polygon，避免强制引入重依赖
 
 ### 3. 数据集管理
 
@@ -59,6 +70,8 @@ ydm dataset normalize --root yolo_data --layout auto --out yolo_normalized
 - 保留/删除空 label 文件
 - 输出操作 report
 - 按类别、面积、宽高、confidence 过滤标注
+- 支持 `min_size_logic=or/and` 控制宽高小框过滤逻辑
+- 支持每个类别单独设置过滤规则
 - 多数据集合并，按类别名对齐并自动 remap class id
 - 生成 `dataset.yaml`
 
@@ -69,6 +82,8 @@ ydm dataset select --root yolo --file val.txt --out yolo_val
 ydm dataset split --root yolo --train 0.8 --val 0.2 --test 0.0 --seed 233
 ydm dataset split --root yolo --train 0.8 --val 0.1 --test 0.1 --absolute-paths
 ydm dataset filter --root yolo --min-area 0.001 --out yolo_filtered
+ydm dataset filter --root yolo --min-width 0.01 --min-height 0.01 --min-size-logic and --out yolo_filtered
+ydm dataset filter --root yolo --class-rules filter_rules.yaml --out yolo_filtered
 ydm dataset merge --roots yolo_a,yolo_b --out yolo_merged
 ydm dataset duplicates --root yolo --out duplicate_images.csv
 ydm dataset bad-images --root yolo --out bad_images.csv
@@ -148,9 +163,11 @@ ydm ann delete-attr --root yolo --name defect --value yes --out yolo_attr_clean
 - detection box
 - segmentation polygon
 - class name/confidence
+- txt 中从 1 开始的标注顺序号
 - crop
 - gallery
 - prediction threshold
+- 多线程渲染和进度条
 - 后续迁移现有 `data_vis/yolo_vis.py` 中更完整的 OpenCV 风格
 
 典型命令：
@@ -158,6 +175,7 @@ ydm ann delete-attr --root yolo --name defect --value yes --out yolo_attr_clean
 ```bash
 ydm vis draw --root yolo --out images_vis
 ydm vis draw --root yolo --out images_vis --show-conf --show-attrs --filter-no-attrs --mask-alpha 80
+ydm vis draw --root yolo --out images_vis --show-id --workers 8 --progress
 ydm vis crop --root yolo --out crops --by-attr
 ```
 
@@ -166,12 +184,19 @@ ydm vis crop --root yolo --out crops --by-attr
 - GT vs prediction 按 class + IoU 贪心匹配
 - 输出 TP/FP/FN 明细 CSV
 - 支持 confidence threshold
+- 细粒度错误分析：background FP、localisation FP、duplicate prediction、class error、FN 子类型
+- 生成 Ultralytics 风格完整混淆矩阵，包含 `background`
+- review 目录按 `pred_<预测类别>_gt_<真实类别>` 组织，包含 background 情况
+- review crop 文件名使用 `原图名_pred预测txt顺序id_gtGTtxt顺序id`
+- 可复制预测 txt 到 `review/pred_txt`
+- review 图和 crop 支持多线程与进度条
 
 典型命令：
 
 ```bash
 ydm eval compare --gt-root gt_yolo --pred-root pred_yolo --out compare.csv --iou 0.5 --conf 0.3
 ydm eval review-pack --gt-root gt_yolo --pred-root pred_yolo --out review_pack --iou 0.5
+ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --out error_report --review --review-workers 8 --review-progress --copy-pred-txt
 ydm convert pseudo --root pred_yolo --conf 0.5 --out pseudo_yolo
 ```
 
@@ -198,7 +223,11 @@ yolo_data_manager/
     filter.py
   converters/
     coco.py
+    labelme.py
+    mask.py
     seg_det.py
+    voc.py
+    xanylabeling.py
   stats/
     compute.py
     report.py

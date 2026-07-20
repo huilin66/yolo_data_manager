@@ -1,6 +1,6 @@
-# Python 脚本使用指南
+# Python 使用指南
 
-YOLO Data Manager 可以完全通过 Python 脚本运行。推荐只使用两种安装模式。
+YOLO Data Manager 可以完全通过 Python 脚本运行。README 是主入口教程；本文档记录更完整的 Python 调用方式。命令行用法见 [CLI_USAGE.md](CLI_USAGE.md)，项目交接说明见 [HANDOFF.md](HANDOFF.md)。
 
 普通使用，包含所有运行功能：
 
@@ -55,6 +55,16 @@ mgr.dataset_normalize(out=r"E:\datasets\normalized_yolo")
 mgr.dataset_split(train=0.8, val=0.1, test=0.1, seed=233)
 mgr.dataset_split(train=0.8, val=0.1, test=0.1, seed=233, absolute_paths=True)
 mgr.dataset_filter(out="filtered", min_area=0.001, class_=["car", "truck"])
+mgr.dataset_filter(out="filtered_small", min_width=0.01, min_height=0.01,
+                   min_size_logic="and")
+mgr.dataset_filter(
+    out="filtered_by_class",
+    class_rules={
+        "person": {"min_width": 0.01, "min_height": 0.01, "min_size_logic": "and"},
+        "car": {"min_area": 0.0005},
+        "defect": {"min_width": 0.005, "min_height": 0.005},
+    },
+)
 mgr.dataset_select(file="val.txt", out="val_subset")
 mgr.dataset_yaml(out="dataset.yaml", train="images/train", val="images/val")
 mgr.dataset_duplicates(out="duplicates.csv")
@@ -77,6 +87,7 @@ mgr.ann_delete_attr(name="quality", value=["bad"], out="yolo_clean")
 # 可视化
 mgr.vis_draw(out="images_vis", show_conf=True, show_attrs=True)
 mgr.vis_draw(out="images_vis", conf=0.25, fill_mask=True, mask_alpha=64)
+mgr.vis_draw(out="images_vis", show_id=True)  # 显示 txt 中从 1 开始的标注顺序号
 mgr.vis_draw(out="images_vis", workers=8, progress=True)
 mgr.vis_crop(out="crops", by_attr=True, min_size=32)
 mgr.vis_crop(out="crops", workers=8, progress=True)
@@ -106,16 +117,33 @@ mgr.eval_error_analysis(gt_root=r"E:\datasets\gt", pred_root=r"E:\datasets\pred"
                         class_file=r"E:\datasets\class.txt")
 mgr.eval_error_analysis(pred_root=r"E:\datasets\pred", out="error_report",
                         review=True, crop_padding=12)
+mgr.eval_error_analysis(pred_root=r"E:\datasets\pred", out="error_report",
+                        review=True, review_workers=8, review_progress=True,
+                        review_progress_leave=False, copy_pred_txt=True)
 
 # 导入 —— 独立参数，不使用 mgr 的 root
 mgr.import_labelme(json_dir="labelme_json", out="yolo_out", task="segment")
 mgr.import_coco(json_path="instances.json", images_dir="images", out="yolo_out")
 mgr.import_voc(annotations_dir="Annotations", images_dir="JPEGImages", out="yolo_out")
+mgr.import_mask(
+    images_dir="images",
+    masks_dir="masks",
+    out="yolo_seg",
+    class_map={0: "background", 1: "crack", 2: "spalling"},
+    background=0,
+    min_area=20,
+)
 ```
 
 `stats_list` 支持：`all`、`class_counts`、`box_number`、`box_width`、`box_height`、`box_area`、`image_shape`、`box_shape`、`box_shape_pix`、`box_shape_rate`、`box_pos_start`、`box_pos_center`、`box_pos_end`、`attribute`、`legacy_csv`。
 
 `dataset_split` 会写出 `train.txt`、`val.txt`、`test.txt`，并在输出中显示 `total_class_counts` 和 `val_class_counts`，方便检查验证集类别分布。
+
+`dataset_filter` 中 `min_width` 和 `min_height` 默认按 `or` 逻辑删除小框：`w < min_width` 或 `h < min_height` 即删除。设置 `min_size_logic="and"` 时，只有 `w < min_width` 且 `h < min_height` 才删除。`class_rules` 可以给不同类别设置不同过滤规则；类别没有命中规则时，继续使用全局过滤参数。
+
+`eval_error_analysis(review=True)` 会在 `review/pred_gt` 下生成按 `pred_<预测类别>_gt_<真实类别>` 组织的复核图片和 crop，并写出 Ultralytics 风格 `confusion_matrix.png`。`copy_pred_txt=True` 会把参与分析的预测 txt 复制到 `review/pred_txt`。
+
+`import_mask` 用于把语义分割 mask 转成 YOLO segmentation。单通道 mask 使用像素值作为类别 id；RGB mask 可在 `class_map` 中使用 `"#ff0000"` 或 `"255,0,0"` 作为 key。若环境中有 OpenCV，会用轮廓提取；否则退回为外接矩形 polygon。
 
 ### 初始化参数
 
@@ -166,6 +194,7 @@ mgr.import_voc(annotations_dir="Annotations", images_dir="JPEGImages", out="yolo
 | `import_labelme(json_dir=..., out=...)` | `ydm import labelme` |
 | `import_coco(json_path=..., images_dir=..., out=...)` | `ydm import coco` |
 | `import_voc(annotations_dir=..., images_dir=..., out=...)` | `ydm import voc` |
+| `import_mask(images_dir=..., masks_dir=..., out=...)` | `ydm import mask` |
 | `convert_seg2det(out=...)` | `ydm convert seg2det` |
 | `convert_pseudo(out=..., ...)` | `ydm convert pseudo` |
 | `eval_compare(gt_root=..., pred_root=..., out=...)` | `ydm eval compare` |

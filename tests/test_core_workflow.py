@@ -7,6 +7,7 @@ from yolo_data_manager.annotation.edit import delete_by_attribute, merge_classes
 from yolo_data_manager.annotation.query import copy_query_result, query_by_attribute, query_by_class
 from yolo_data_manager.converters.coco import import_coco
 from yolo_data_manager.converters.labelme import import_labelme_dir
+from yolo_data_manager.converters.mask import import_semantic_mask_dir
 from yolo_data_manager.converters.pseudo import predictions_to_pseudo_labels
 from yolo_data_manager.converters.seg_det import segmentation_to_detection
 from yolo_data_manager.converters.voc import import_voc_dir
@@ -107,6 +108,17 @@ def test_build_python_task_argv():
     assert "--review-progress" in error_argv
     assert "--review-progress-leave" not in error_argv
     assert "--copy-pred-txt" in error_argv
+
+    mask_argv = build_task_argv(
+        "import.mask",
+        images_dir=Path("images"),
+        masks_dir=Path("masks"),
+        out=Path("yolo_seg"),
+        class_map=Path("class_map.yaml"),
+        min_area=10,
+    )
+    assert mask_argv[:2] == ["import", "mask"]
+    assert "--class-map" in mask_argv
 
 
 def test_yolo_manager_methods(tmp_path):
@@ -686,6 +698,37 @@ def test_import_coco(tmp_path):
     assert dataset.classes.names == ["sign"]
     assert dataset.annotation_count() == 1
     assert (tmp_path / "yolo_coco" / "labels" / "a.txt").read_text(encoding="utf-8").strip() == "0 0.3 0.35 0.4 0.3"
+
+
+def test_import_semantic_mask_dir(tmp_path):
+    images_dir = tmp_path / "images"
+    masks_dir = tmp_path / "masks"
+    images_dir.mkdir()
+    masks_dir.mkdir()
+    Image.new("RGB", (10, 10), color="white").save(images_dir / "a.jpg")
+    mask = Image.new("L", (10, 10), color=0)
+    for y in range(2, 6):
+        for x in range(3, 8):
+            mask.putpixel((x, y), 1)
+    mask.putpixel((0, 0), 2)
+    mask.save(masks_dir / "a.png")
+
+    dataset = import_semantic_mask_dir(
+        images_dir,
+        masks_dir,
+        out_root=tmp_path / "yolo_mask",
+        class_map={0: "background", 1: "defect", 2: "noise"},
+        background=0,
+        min_area=2,
+    )
+
+    assert dataset.classes.names == ["defect", "noise"]
+    assert dataset.annotation_count() == 1
+    assert dataset.images[0].annotations[0].polygon is not None
+    assert (tmp_path / "yolo_mask" / "images" / "a.jpg").exists()
+    label_values = (tmp_path / "yolo_mask" / "labels" / "a.txt").read_text(encoding="utf-8").split()
+    assert label_values[0] == "0"
+    assert len(label_values) >= 7
 
 
 def test_import_voc_and_dataset_yaml(tmp_path):

@@ -37,6 +37,7 @@ TASK_COMMANDS: Mapping[str, tuple[str, ...]] = {
     "import.labelme": ("import", "labelme"),
     "import.coco": ("import", "coco"),
     "import.voc": ("import", "voc"),
+    "import.mask": ("import", "mask"),
     "convert.seg2det": ("convert", "seg2det"),
     "convert.pseudo": ("convert", "pseudo"),
     "eval.compare": ("eval", "compare"),
@@ -49,6 +50,7 @@ _PARAMETER_ALIASES = {
     "from_": "from",
     "map_file": "map",
     "json_path": "json",
+    "class_map": "class-map",
 }
 
 _FALSE_FLAGS = {
@@ -911,6 +913,48 @@ class YoloManager:
             out=out,
             classes=classes,
             skip_difficult=skip_difficult,
+            **kwargs,
+        )
+
+    def import_mask(
+        self,
+        images_dir: str,
+        masks_dir: str,
+        out: str,
+        *,
+        class_map: str | Path | Mapping[Any, str] | None = None,
+        background: int | str = 0,
+        min_area: int = 1,
+        copy_images: bool = True,
+        **kwargs: Any,
+    ) -> int:
+        """Import semantic segmentation masks as YOLO segmentation (``ydm import mask``)."""
+        if isinstance(class_map, Mapping):
+            with tempfile.NamedTemporaryFile("w", suffix=".yaml", encoding="utf-8", delete=False) as f:
+                yaml.safe_dump(dict(class_map), f, allow_unicode=True, sort_keys=False)
+                class_map_path = f.name
+            try:
+                return self.import_mask(
+                    images_dir,
+                    masks_dir,
+                    out,
+                    class_map=class_map_path,
+                    background=background,
+                    min_area=min_area,
+                    copy_images=copy_images,
+                    **kwargs,
+                )
+            finally:
+                Path(class_map_path).unlink(missing_ok=True)
+        return run_task(
+            "import.mask",
+            images_dir=images_dir,
+            masks_dir=masks_dir,
+            out=out,
+            class_map=class_map,
+            background=background,
+            min_area=min_area,
+            copy_images=copy_images,
             **kwargs,
         )
 
