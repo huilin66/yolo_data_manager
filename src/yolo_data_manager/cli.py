@@ -85,6 +85,9 @@ def build_parser() -> argparse.ArgumentParser:
     layout_sub = layout_cmd.add_subparsers(dest="layout_command", required=True)
     layout_detect = layout_sub.add_parser("detect", help="detect YOLO layout")
     layout_detect.add_argument("--root", required=True)
+    layout_detect.add_argument("--no-progress", dest="progress", action="store_false", help="disable layout scan progress bar")
+    layout_detect.add_argument("--progress-leave", action="store_true", help="keep layout scan progress bar after completion")
+    layout_detect.set_defaults(progress=True, progress_leave=False)
     layout_detect.set_defaults(handler=handle_layout_detect)
 
     query = subparsers.add_parser("query", help="query annotations")
@@ -398,7 +401,7 @@ def add_write_args(parser: argparse.ArgumentParser) -> None:
     parser.set_defaults(copy_images=True, keep_empty_labels=True)
 
 
-def load_from_args(args: argparse.Namespace):
+def load_from_args(args: argparse.Namespace, *, progress: bool = False, progress_leave: bool = False):
     return load_yolo_dataset(
         root=args.root,
         images_dir=args.images_dir,
@@ -408,12 +411,14 @@ def load_from_args(args: argparse.Namespace):
         task=args.task,
         split_file=args.split_file,
         layout=args.layout,
+        progress=progress,
+        progress_leave=progress_leave,
     )
 
 
 def handle_layout_detect(args: argparse.Namespace) -> int:
     _print_status("LAYOUT", f"detecting dataset layout: {args.root}")
-    info = detect_layout(args.root)
+    info = detect_layout(args.root, progress=args.progress, progress_leave=args.progress_leave)
     print(json.dumps(info.to_dict(), indent=2, ensure_ascii=False))
     return 0
 
@@ -421,7 +426,7 @@ def handle_layout_detect(args: argparse.Namespace) -> int:
 def handle_check(args: argparse.Namespace) -> int:
     out = args.out or str(Path(args.root) / "check_result.json")
     _print_status("CHECK", f"loading and validating dataset: {args.root}")
-    dataset = load_from_args(args)
+    dataset = load_from_args(args, progress=args.progress, progress_leave=args.progress_leave)
     _print_status("CHECK", f"validating {len(dataset.images)} images with {max(1, int(args.workers))} worker(s)")
     report = validate_dataset(
         dataset,

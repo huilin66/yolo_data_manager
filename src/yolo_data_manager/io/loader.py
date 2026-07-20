@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterable, Iterator
 from pathlib import Path
+from typing import TypeVar
 
 from PIL import Image
 
@@ -24,6 +26,8 @@ from yolo_data_manager.core.schema import (
 )
 from yolo_data_manager.io.layout import infer_label_path_from_image, read_image_list, resolve_layout
 
+T = TypeVar("T")
+
 
 def load_yolo_dataset(
     root: str | Path,
@@ -35,9 +39,18 @@ def load_yolo_dataset(
     split_file: str | Path | None = None,
     layout: str = "flat",
     read_image_size: bool = True,
+    progress: bool = False,
+    progress_leave: bool = False,
 ) -> YoloDataset:
     root_path = Path(root)
-    layout_info = resolve_layout(root_path, layout=layout, images_dir=images_dir, labels_dir=labels_dir)
+    layout_info = resolve_layout(
+        root_path,
+        layout=layout,
+        images_dir=images_dir,
+        labels_dir=labels_dir,
+        progress=progress,
+        progress_leave=progress_leave,
+    )
     image_root = layout_info.images_dir or _resolve_under(root_path, images_dir)
     label_root = layout_info.labels_dir or _resolve_under(root_path, labels_dir)
 
@@ -54,16 +67,42 @@ def load_yolo_dataset(
         source_lists = [Path(split_file)] if split_file is not None else layout_info.split_files
         image_paths = read_image_list(source_lists, root_path)
     else:
-        image_paths = sorted([path for path in image_root.rglob("*") if path.is_file() and is_image_file(path)])
+        image_paths = sorted(
+            _progress(
+                (path for path in image_root.rglob("*") if path.is_file() and is_image_file(path)),
+                enabled=progress,
+                total=None,
+                desc="load scan images",
+                leave=progress_leave,
+            )
+        )
     if split_file is not None:
         allowed_stems = _read_split_stems(split_file)
         image_paths = [path for path in image_paths if path.stem in allowed_stems or path.name in allowed_stems]
 
-    label_paths = sorted([path for path in label_root.rglob("*.txt")]) if label_root.exists() else []
+    label_paths = (
+        sorted(
+            _progress(
+                (path for path in label_root.rglob("*.txt")),
+                enabled=progress,
+                total=None,
+                desc="load scan labels",
+                leave=progress_leave,
+            )
+        )
+        if label_root.exists()
+        else []
+    )
     labels_by_stem = {path.stem: path for path in label_paths}
 
     images: list[YoloImage] = []
-    for image_path in image_paths:
+    for image_path in _progress(
+        image_paths,
+        enabled=progress,
+        total=len(image_paths),
+        desc="load parse labels",
+        leave=progress_leave,
+    ):
         label_path = infer_label_path_from_image(image_path) if layout_info.layout == "image_list" else labels_by_stem.get(image_path.stem)
         if label_path is not None and not label_path.exists():
             label_path = None
@@ -230,3 +269,24 @@ def _read_split_stems(path: str | Path) -> set[str]:
         values.add(Path(text).stem)
         values.add(Path(text).name)
     return values
+
+
+def _progress(items: Iterable[T], *, enabled: bool, total: int | None, desc: str, leave: bool) -> Iterable[T]:
+    if not enabled:
+        return items
+    try:
+        from tqdm import tqdm
+    except ImportError:
+        return _simple_progress(items, total=total, desc=desc)
+    return tqdm(items, total=total, desc=desc, leave=leave)
+
+
+def _simple_progress(items: Iterable[T], *, total: int | None, desc: str) -> Iterator[T]:
+    step = max(1, (total or 20) // 20)
+    for idx, item in enumerate(items, start=1):
+        if total is None:
+            if idx == 1 or idx % 100 == 0:
+                print(f"{desc}: {idx}")
+        elif idx == 1 or idx == total or idx % step == 0:
+            print(f"{desc}: {idx}/{total}")
+        yield item

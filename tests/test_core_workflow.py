@@ -126,6 +126,9 @@ def test_build_python_task_argv():
     assert "--no-progress" in check_argv
     assert "--progress-leave" in check_argv
 
+    layout_argv = build_task_argv("layout.detect", root=Path("dataset"), progress=False, progress_leave=True)
+    assert layout_argv == ["layout", "detect", "--root", "dataset", "--no-progress", "--progress-leave"]
+
 
 def test_yolo_manager_methods(tmp_path):
     root = make_dataset(tmp_path / "yolo")
@@ -281,6 +284,14 @@ def test_validate_dataset_parallel_matches_serial(tmp_path):
     parallel = validate_dataset(dataset, workers=4, progress=True, progress_leave=False).to_rows()
 
     assert parallel == serial
+
+
+def test_load_yolo_dataset_accepts_progress_options(tmp_path):
+    root = make_dataset(tmp_path / "yolo")
+    dataset = load_yolo_dataset(root, layout="auto", progress=True, progress_leave=False)
+
+    assert len(dataset.images) == 2
+    assert dataset.annotation_count() == 3
 
 
 def make_dataset(root: Path) -> Path:

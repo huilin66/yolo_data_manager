@@ -102,9 +102,9 @@ def run_task(command: str, **params: Any) -> int:
 
 
 def _boolean_flag(task: str, name: str, value: bool, default_flag: str) -> str | None:
-    if task == "check" and name == "progress":
+    if task in {"check", "layout.detect"} and name == "progress":
         return None if value else "--no-progress"
-    if task == "check" and name == "progress_leave":
+    if task in {"check", "layout.detect"} and name == "progress_leave":
         return "--progress-leave" if value else None
     if name == "compact":
         if task in {"ann.merge_class", "ann.apply_map"}:
@@ -200,6 +200,8 @@ class YoloManager:
         attribute_file: str | None = None,
         split_file: str | None = None,
         init_layout: bool = True,
+        init_layout_progress: bool = True,
+        init_layout_progress_leave: bool = False,
         init_check: bool | str | Path = True,
         init_check_fill_missing_txt: bool = False,
         init_check_workers: int = 8,
@@ -215,6 +217,8 @@ class YoloManager:
         self.attribute_file = attribute_file
         self.split_file = split_file
         self.init_layout = init_layout
+        self.init_layout_progress = init_layout_progress
+        self.init_layout_progress_leave = init_layout_progress_leave
         self.init_check = init_check
         self.init_check_fill_missing_txt = init_check_fill_missing_txt
         self.init_check_workers = init_check_workers
@@ -225,7 +229,7 @@ class YoloManager:
 
     def _warmup_(self) -> None:
         if self.init_layout:
-            self.layout_detect()
+            self.layout_detect(progress=self.init_layout_progress, progress_leave=self.init_layout_progress_leave)
         check_kwargs = {
             "fill_missing_txt": self.init_check_fill_missing_txt,
             "workers": self.init_check_workers,
@@ -308,9 +312,9 @@ class YoloManager:
 
     # -- layout -------------------------------------------------------------
 
-    def layout_detect(self) -> int:
+    def layout_detect(self, *, progress: bool = True, progress_leave: bool = False) -> int:
         """Detect the YOLO layout under the manager root."""
-        return run_task("layout.detect", root=self.root)
+        return run_task("layout.detect", root=self.root, progress=progress, progress_leave=progress_leave)
 
     # -- query --------------------------------------------------------------
 

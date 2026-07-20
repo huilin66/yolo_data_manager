@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import os
 from pathlib import Path
 
 from yolo_data_manager.core.models import is_image_file
@@ -38,7 +39,7 @@ class LayoutInfo:
         }
 
 
-def detect_layout(root: str | Path) -> LayoutInfo:
+def detect_layout(root: str | Path, *, progress: bool = False, progress_leave: bool = False) -> LayoutInfo:
     root_path = Path(root)
     split_files = [root_path / name for name in ("train.txt", "val.txt", "test.txt") if (root_path / name).exists()]
     if split_files:
@@ -51,8 +52,8 @@ def detect_layout(root: str | Path) -> LayoutInfo:
             split for split in ("train", "val", "test")
             if (images_root / split).exists() or (labels_root / split).exists()
         ]
-        image_count = _count_images(images_root)
-        label_count = _count_labels(labels_root)
+        image_count = _count_images(images_root, progress=progress, progress_leave=progress_leave, desc="layout scan images")
+        label_count = _count_labels(labels_root, progress=progress, progress_leave=progress_leave, desc="layout scan labels")
         if splits:
             return LayoutInfo(
                 layout="split_dirs",
@@ -72,8 +73,8 @@ def detect_layout(root: str | Path) -> LayoutInfo:
             label_count=label_count,
         )
 
-    image_count = _count_images(root_path)
-    label_count = _count_labels(root_path)
+    image_count = _count_images(root_path, progress=progress, progress_leave=progress_leave, desc="layout scan images")
+    label_count = _count_labels(root_path, progress=progress, progress_leave=progress_leave, desc="layout scan labels")
     if image_count or label_count:
         return LayoutInfo(
             layout="mixed",
@@ -92,10 +93,12 @@ def resolve_layout(
     layout: str = "auto",
     images_dir: str | Path = "images",
     labels_dir: str | Path = "labels",
+    progress: bool = False,
+    progress_leave: bool = False,
 ) -> LayoutInfo:
     root_path = Path(root)
     if layout == "auto":
-        return detect_layout(root_path)
+        return detect_layout(root_path, progress=progress, progress_leave=progress_leave)
     if layout == "flat":
         image_root = _resolve_under(root_path, images_dir)
         label_root = _resolve_under(root_path, labels_dir)
@@ -104,8 +107,8 @@ def resolve_layout(
             root=root_path,
             images_dir=image_root,
             labels_dir=label_root,
-            image_count=_count_images(image_root),
-            label_count=_count_labels(label_root),
+            image_count=_count_images(image_root, progress=progress, progress_leave=progress_leave, desc="layout scan images"),
+            label_count=_count_labels(label_root, progress=progress, progress_leave=progress_leave, desc="layout scan labels"),
         )
     if layout == "split_dirs":
         image_root = _resolve_under(root_path, images_dir)
@@ -120,8 +123,8 @@ def resolve_layout(
             images_dir=image_root,
             labels_dir=label_root,
             splits=splits,
-            image_count=_count_images(image_root),
-            label_count=_count_labels(label_root),
+            image_count=_count_images(image_root, progress=progress, progress_leave=progress_leave, desc="layout scan images"),
+            label_count=_count_labels(label_root, progress=progress, progress_leave=progress_leave, desc="layout scan labels"),
         )
     if layout == "image_list":
         split_files = [root_path / name for name in ("train.txt", "val.txt", "test.txt") if (root_path / name).exists()]
@@ -132,8 +135,8 @@ def resolve_layout(
             root=root_path,
             images_dir=root_path,
             labels_dir=root_path,
-            image_count=_count_images(root_path),
-            label_count=_count_labels(root_path),
+            image_count=_count_images(root_path, progress=progress, progress_leave=progress_leave, desc="layout scan images"),
+            label_count=_count_labels(root_path, progress=progress, progress_leave=progress_leave, desc="layout scan labels"),
         )
     raise ValueError(f"unsupported YOLO layout: {layout}")
 
@@ -177,14 +180,76 @@ def _image_list_layout(root: Path, split_files: list[Path]) -> LayoutInfo:
     )
 
 
-def _count_images(root: Path) -> int:
-    return sum(1 for path in root.rglob("*") if path.is_file() and is_image_file(path)) if root.exists() else 0
+def _count_images(root: Path, *, progress: bool = False, progress_leave: bool = False, desc: str = "scan images") -> int:
+    if not root.exists():
+        return 0
+    return _count_matching_files(
+        root,
+        lambda path: is_image_file(path),
+        progress=progress,
+        progress_leave=progress_leave,
+        desc=desc,
+    )
 
 
-def _count_labels(root: Path) -> int:
-    return sum(1 for path in root.rglob("*.txt") if path.is_file()) if root.exists() else 0
+def _count_labels(root: Path, *, progress: bool = False, progress_leave: bool = False, desc: str = "scan labels") -> int:
+    if not root.exists():
+        return 0
+    return _count_matching_files(
+        root,
+        lambda path: path.suffix.lower() == ".txt",
+        progress=progress,
+        progress_leave=progress_leave,
+        desc=desc,
+    )
 
 
 def _resolve_under(root: Path, child: str | Path) -> Path:
     child_path = Path(child)
     return child_path if child_path.is_absolute() else root / child_path
+
+
+def _count_matching_files(root: Path, matcher, *, progress: bool, progress_leave: bool, desc: str) -> int:
+    count = 0
+    progress_bar = _make_dynamic_progress(desc=desc, leave=progress_leave) if progress else None
+    try:
+        for dirpath, _, filenames in os.walk(root):
+            if progress_bar is not None:
+                progress_bar.total = (progress_bar.total or 0) + len(filenames)
+                progress_bar.refresh()
+            for filename in filenames:
+                path = Path(dirpath) / filename
+                if matcher(path):
+                    count += 1
+                if progress_bar is not None:
+                    progress_bar.update(1)
+    finally:
+        if progress_bar is not None:
+            progress_bar.close()
+    return count
+
+
+def _make_dynamic_progress(*, desc: str, leave: bool):
+    try:
+        from tqdm import tqdm
+    except ImportError:
+        return _SimpleDynamicProgress(desc=desc)
+    return tqdm(total=0, desc=desc, leave=leave, unit="file")
+
+
+class _SimpleDynamicProgress:
+    def __init__(self, *, desc: str) -> None:
+        self.desc = desc
+        self.total = 0
+        self.n = 0
+
+    def update(self, value: int) -> None:
+        self.n += value
+        if self.n == 1 or self.n == self.total or self.n % 100 == 0:
+            print(f"{self.desc}: {self.n}/{self.total}")
+
+    def refresh(self) -> None:
+        return None
+
+    def close(self) -> None:
+        return None
