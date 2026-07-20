@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Iterator
+import os
 from pathlib import Path
 from typing import TypeVar
 
@@ -67,28 +68,24 @@ def load_yolo_dataset(
         source_lists = [Path(split_file)] if split_file is not None else layout_info.split_files
         image_paths = read_image_list(source_lists, root_path)
     else:
-        image_paths = sorted(
-            _progress(
-                (path for path in image_root.rglob("*") if path.is_file() and is_image_file(path)),
-                enabled=progress,
-                total=None,
-                desc="load scan images",
-                leave=progress_leave,
-            )
+        image_paths = _scan_matching_files(
+            image_root,
+            lambda path: is_image_file(path),
+            progress=progress,
+            progress_leave=progress_leave,
+            desc="load scan images",
         )
     if split_file is not None:
         allowed_stems = _read_split_stems(split_file)
         image_paths = [path for path in image_paths if path.stem in allowed_stems or path.name in allowed_stems]
 
     label_paths = (
-        sorted(
-            _progress(
-                (path for path in label_root.rglob("*.txt")),
-                enabled=progress,
-                total=None,
-                desc="load scan labels",
-                leave=progress_leave,
-            )
+        _scan_matching_files(
+            label_root,
+            lambda path: path.suffix.lower() == ".txt",
+            progress=progress,
+            progress_leave=progress_leave,
+            desc="load scan labels",
         )
         if label_root.exists()
         else []
@@ -271,6 +268,26 @@ def _read_split_stems(path: str | Path) -> set[str]:
     return values
 
 
+def _scan_matching_files(root: Path, matcher, *, progress: bool, progress_leave: bool, desc: str) -> list[Path]:
+    paths: list[Path] = []
+    progress_bar = _make_dynamic_progress(desc=desc, leave=progress_leave) if progress else None
+    try:
+        for dirpath, _, filenames in os.walk(root):
+            if progress_bar is not None:
+                progress_bar.total = (progress_bar.total or 0) + len(filenames)
+                progress_bar.refresh()
+            for filename in filenames:
+                path = Path(dirpath) / filename
+                if matcher(path):
+                    paths.append(path)
+                if progress_bar is not None:
+                    progress_bar.update(1)
+    finally:
+        if progress_bar is not None:
+            progress_bar.close()
+    return sorted(paths)
+
+
 def _progress(items: Iterable[T], *, enabled: bool, total: int | None, desc: str, leave: bool) -> Iterable[T]:
     if not enabled:
         return items
@@ -279,6 +296,14 @@ def _progress(items: Iterable[T], *, enabled: bool, total: int | None, desc: str
     except ImportError:
         return _simple_progress(items, total=total, desc=desc)
     return tqdm(items, total=total, desc=desc, leave=leave)
+
+
+def _make_dynamic_progress(*, desc: str, leave: bool):
+    try:
+        from tqdm import tqdm
+    except ImportError:
+        return _SimpleDynamicProgress(desc=desc)
+    return tqdm(total=0, desc=desc, leave=leave, unit="file")
 
 
 def _simple_progress(items: Iterable[T], *, total: int | None, desc: str) -> Iterator[T]:
@@ -290,3 +315,21 @@ def _simple_progress(items: Iterable[T], *, total: int | None, desc: str) -> Ite
         elif idx == 1 or idx == total or idx % step == 0:
             print(f"{desc}: {idx}/{total}")
         yield item
+
+
+class _SimpleDynamicProgress:
+    def __init__(self, *, desc: str) -> None:
+        self.desc = desc
+        self.total = 0
+        self.n = 0
+
+    def update(self, value: int) -> None:
+        self.n += value
+        if self.n == 1 or self.n == self.total or self.n % 100 == 0:
+            print(f"{self.desc}: {self.n}/{self.total}")
+
+    def refresh(self) -> None:
+        return None
+
+    def close(self) -> None:
+        return None
