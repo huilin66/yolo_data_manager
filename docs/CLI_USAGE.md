@@ -48,6 +48,8 @@ ydm check --root path/to/yolo --layout flat --fill-missing-txt --out validation.
 ydm dataset normalize --root path/to/yolo --layout auto --out normalized_yolo
 ```
 
+`layout detect` 输出的 `report_type` 是 `layout_detect`，这是布局检测结果，不是 `check` 校验结果。输出中还会包含 `class_source`、`class_count`、`classes`，用于确认类别是从 `class.txt`、`classes.txt`、`dataset.yaml` 还是 `data.yaml` 读取到的。
+
 `--fill-missing-txt` 会为没有 label 的图片创建空 txt，并在 JSON 中列出创建结果。
 
 ## 查询

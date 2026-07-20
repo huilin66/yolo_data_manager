@@ -40,6 +40,8 @@ python -m pytest -q
 | Import/export | Convert between YOLO and LabelMe/COCO/VOC/masks/x-anylabeling | `class_map`, `background`, `min_area` |
 | Evaluation | Compare GT vs predictions, build FP/FN review packs, error analysis, confusion matrix | `match_iou`, `low_iou`, `review_workers` |
 
+`layout detect` output is a layout detection result, not a validation/check result. It includes `report_type`, `class_source`, `class_count`, and `classes`.
+
 ## Python Quick Demo
 
 ```python

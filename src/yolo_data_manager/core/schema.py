@@ -72,6 +72,17 @@ def find_class_file(root: Path) -> Path | None:
     return None
 
 
+def find_class_source(root: Path) -> Path | None:
+    class_file = find_class_file(root)
+    if class_file is not None:
+        return class_file
+    for name in ("dataset.yaml", "data.yaml"):
+        path = root / name
+        if path.exists():
+            return path
+    return None
+
+
 def read_dataset_class_schema(root: Path) -> ClassSchema:
     class_file = find_class_file(root)
     if class_file is not None:

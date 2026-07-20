@@ -40,6 +40,8 @@ python -m pytest -q
 | 导入导出 | 在 YOLO 与 LabelMe/COCO/VOC/mask/x-anylabeling 之间转换 | `class_map`、`background`、`min_area` |
 | 评估分析 | GT vs pred 对比、FP/FN review、细粒度错误分析、混淆矩阵 | `match_iou`、`low_iou`、`review_workers` |
 
+`layout detect` 输出是布局检测结果，不是 `check` 校验结果；结果中会包含 `report_type`、`class_source`、`class_count`、`classes`。
+
 ## Python 快速 Demo
 
 ```python

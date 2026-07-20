@@ -30,6 +30,8 @@ mgr.check(out="validation.json", fill_missing_txt=True)
 mgr.layout_detect()
 ```
 
+`layout_detect()` prints a layout detection result, not a validation/check result. The output has `report_type: layout_detect` and includes `class_source`, `class_count`, and `classes`.
+
 ## Statistics
 
 ```python

@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from yolo_data_manager.core.models import is_image_file
+from yolo_data_manager.core.schema import find_class_source, read_dataset_class_schema
 
 
 @dataclass
@@ -18,7 +19,11 @@ class LayoutInfo:
     label_count: int = 0
 
     def to_dict(self) -> dict[str, object]:
+        classes = read_dataset_class_schema(self.root)
+        class_source = find_class_source(self.root)
         return {
+            "report_type": "layout_detect",
+            "message": "This is a layout detection result, not a dataset validation/check result.",
             "layout": self.layout,
             "root": str(self.root),
             "images_dir": str(self.images_dir) if self.images_dir else None,
@@ -27,6 +32,9 @@ class LayoutInfo:
             "splits": self.splits,
             "image_count": self.image_count,
             "label_count": self.label_count,
+            "class_source": str(class_source) if class_source else None,
+            "class_count": len(classes.names),
+            "classes": classes.names,
         }
 
 

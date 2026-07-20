@@ -48,6 +48,8 @@ ydm check --root path/to/yolo --layout flat --fill-missing-txt --out validation.
 ydm dataset normalize --root path/to/yolo --layout auto --out normalized_yolo
 ```
 
+`layout detect` emits `report_type: layout_detect`. It is a layout detection result, not a dataset validation/check result. The output also includes `class_source`, `class_count`, and `classes` so you can confirm whether classes were read from `class.txt`, `classes.txt`, `dataset.yaml`, or `data.yaml`.
+
 `--fill-missing-txt` creates empty label txt files for images without labels and reports the created files in JSON.
 
 ## Query

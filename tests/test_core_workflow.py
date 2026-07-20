@@ -274,6 +274,10 @@ def test_layout_detect_split_dirs_and_normalize(tmp_path):
     write_yolo_dataset(dataset, tmp_path / "normalized")
 
     assert info.layout == "split_dirs"
+    payload = info.to_dict()
+    assert payload["report_type"] == "layout_detect"
+    assert payload["class_source"] == str(root / "class.txt")
+    assert payload["classes"] == ["obj"]
     assert dataset.annotation_count() == 1
     assert (tmp_path / "normalized" / "images" / "a.jpg").exists()
 
