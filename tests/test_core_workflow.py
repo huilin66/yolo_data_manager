@@ -218,6 +218,27 @@ def test_load_query_and_validate(tmp_path):
     assert [path.name for path in result.label_paths()] == ["a.txt", "b.txt"]
 
 
+def test_load_classes_from_data_yaml(tmp_path):
+    root = tmp_path / "data_yaml_yolo"
+    (root / "images").mkdir(parents=True)
+    (root / "labels").mkdir(parents=True)
+    Image.new("RGB", (100, 80), color="white").save(root / "images" / "a.jpg")
+    (root / "labels" / "a.txt").write_text("1 0.5 0.5 0.2 0.2\n", encoding="utf-8")
+    (root / "data.yaml").write_text(
+        "train: images\n"
+        "val: images\n"
+        "names:\n"
+        "  0: person\n"
+        "  1: car\n",
+        encoding="utf-8",
+    )
+
+    dataset = load_yolo_dataset(root, layout="flat")
+
+    assert dataset.classes.names == ["person", "car"]
+    assert dataset.images[0].annotations[0].class_id == 1
+
+
 def test_split_dataset_can_write_absolute_paths(tmp_path):
     root = make_dataset(tmp_path / "yolo")
     dataset = load_yolo_dataset(root)
