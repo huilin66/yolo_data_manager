@@ -25,10 +25,19 @@ python -m pytest -q
 from yolo_data_manager import YoloManager
 
 mgr = YoloManager("datasets/my_yolo", layout="auto", init_check=False)
+mgr = YoloManager(
+    "datasets/my_yolo",
+    layout="flat",
+    init_check_workers=16,
+    init_check_progress=True,
+    init_check_progress_leave=False,
+)
 
 mgr.check(out="validation.json", fill_missing_txt=True)
 mgr.layout_detect()
 ```
+
+`check` uses multi-threaded validation and a tqdm progress bar by default with `leave=False`. It writes the full validation report to JSON, while the terminal prints only a red warning/error summary or a green OK summary. If `out` is omitted, the default file is `<root>/check_result.json`. Use `workers=16` to tune threads, `progress=False` to disable the bar, and `progress_leave=True` to keep it.
 
 `layout_detect()` prints a layout detection result, not a validation/check result. The output has `report_type: layout_detect` and includes `class_source`, `class_count`, and `classes`.
 

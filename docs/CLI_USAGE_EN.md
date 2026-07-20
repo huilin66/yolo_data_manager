@@ -50,6 +50,8 @@ ydm dataset normalize --root path/to/yolo --layout auto --out normalized_yolo
 
 `layout detect` emits `report_type: layout_detect`. It is a layout detection result, not a dataset validation/check result. The output also includes `class_source`, `class_count`, and `classes` so you can confirm whether classes were read from `class.txt`, `classes.txt`, `dataset.yaml`, or `data.yaml`.
 
+`check` uses multi-threaded validation and a tqdm progress bar by default with `leave=False`. It writes the full validation report to JSON, while the terminal prints only a red warning/error summary or a green OK summary. If `--out` is omitted, the default file is `<root>/check_result.json`. Use `--workers 16` to tune threads, `--no-progress` to disable the bar, `--progress-leave` to keep it, and `--print-full` only when you also want the full JSON printed to the terminal.
+
 `--fill-missing-txt` creates empty label txt files for images without labels and reports the created files in JSON.
 
 ## Query

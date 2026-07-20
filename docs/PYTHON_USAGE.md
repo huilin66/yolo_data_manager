@@ -27,6 +27,9 @@ from yolo_data_manager import YoloManager
 mgr = YoloManager(r"E:\datasets\my_yolo", layout="auto")
 mgr = YoloManager(r"E:\datasets\my_yolo", layout="flat", init_check=False)
 mgr = YoloManager(r"E:\datasets\my_yolo", layout="flat", init_check=r"E:\datasets\my_yolo\stats\validation.json")
+mgr = YoloManager(r"E:\datasets\my_yolo", layout="flat",
+                  init_check_workers=16, init_check_progress=True,
+                  init_check_progress_leave=False)
 
 # 校验
 mgr.check()
@@ -135,6 +138,8 @@ mgr.import_mask(
 )
 ```
 
+`check` 默认使用多线程和 tqdm 进度条，`leave=False`；完整校验结果会写入 JSON 文件，终端只输出红色 warning/error 摘要或绿色 OK 摘要。`out` 不指定时默认写到 `<root>/check_result.json`。可用 `workers=16` 调整线程数，用 `progress=False` 关闭进度条，用 `progress_leave=True` 保留进度条。
+
 `layout_detect()` 打印的是布局检测结果，不是 `check` 校验结果。输出中 `report_type` 为 `layout_detect`，并包含 `class_source`、`class_count`、`classes`，可用于确认类别文件来源。
 
 `stats_list` 支持：`all`、`class_counts`、`box_number`、`box_width`、`box_height`、`box_area`、`image_shape`、`box_shape`、`box_shape_pix`、`box_shape_rate`、`box_pos_start`、`box_pos_center`、`box_pos_end`、`attribute`、`legacy_csv`。
@@ -164,6 +169,9 @@ mgr.import_mask(
 | `init_layout` | `True` | 初始化时是否执行一次 layout detect |
 | `init_check` | `True` | 初始化时是否自动 check；也可传入 JSON 路径 |
 | `init_check_fill_missing_txt` | `False` | 初始化自动 check 时是否补全缺失的空 label txt |
+| `init_check_workers` | `8` | 初始化自动 check 的线程数 |
+| `init_check_progress` | `True` | 初始化自动 check 是否显示 tqdm 进度条 |
+| `init_check_progress_leave` | `False` | 初始化自动 check 是否保留进度条 |
 
 ### 方法速查
 

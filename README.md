@@ -87,6 +87,7 @@ ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --out error_re
 ## Output Conventions
 
 - Write operations default to a new output directory and do not overwrite the source dataset in place.
+- `check` uses multi-threaded validation and a tqdm progress bar by default with `leave=False`. It writes the full validation report to JSON, while the terminal prints only a red warning/error summary or a green OK summary. Without an output path, the default report is `<root>/check_result.json`.
 - Standard YOLO output includes `images/`, `labels/`, `class.txt`, and `dataset.yaml`.
 - Error-analysis review output includes `review/pred_gt`, `confusion_matrix.png`, grouped `pred_<pred_class>_gt_<gt_class>` folders, and optional `review/pred_txt`.
 - Review crop names use `image_pred<pred_txt_order>_gt<gt_txt_order>`, with `none` for missing sides.

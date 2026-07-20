@@ -50,6 +50,8 @@ ydm dataset normalize --root path/to/yolo --layout auto --out normalized_yolo
 
 `layout detect` 输出的 `report_type` 是 `layout_detect`，这是布局检测结果，不是 `check` 校验结果。输出中还会包含 `class_source`、`class_count`、`classes`，用于确认类别是从 `class.txt`、`classes.txt`、`dataset.yaml` 还是 `data.yaml` 读取到的。
 
+`check` 默认使用多线程和 tqdm 进度条，`leave=False`；完整校验结果会写入 JSON 文件，终端只输出红色 warning/error 摘要或绿色 OK 摘要。`--out` 不指定时默认写到 `<root>/check_result.json`。可用 `--workers 16` 调整线程数，用 `--no-progress` 关闭进度条，用 `--progress-leave` 保留进度条。如确实需要在终端打印完整 JSON，可加 `--print-full`。
+
 `--fill-missing-txt` 会为没有 label 的图片创建空 txt，并在 JSON 中列出创建结果。
 
 ## 查询

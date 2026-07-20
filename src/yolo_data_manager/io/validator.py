@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+from collections.abc import Iterable, Iterator
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TypeVar
 
 from yolo_data_manager.core.geometry import polygon_self_intersects
-from yolo_data_manager.core.models import YoloDataset
+from yolo_data_manager.core.models import YoloDataset, YoloImage
 from yolo_data_manager.io.layout import infer_label_path_from_image
+
+T = TypeVar("T")
 
 
 @dataclass
@@ -67,86 +72,121 @@ class ValidationReport:
         ]
 
 
-def validate_dataset(dataset: YoloDataset) -> ValidationReport:
+def validate_dataset(
+    dataset: YoloDataset,
+    *,
+    workers: int = 1,
+    progress: bool = False,
+    progress_leave: bool = False,
+) -> ValidationReport:
     report = ValidationReport()
 
     seen_image_names: set[str] = set()
+    duplicate_image_indices: set[int] = set()
     for label in dataset.orphan_labels:
         report.add("warning", "orphan_label", "label has no matching image", label=label)
-
-    for image in dataset.images:
+    for idx, image in enumerate(dataset.images):
         if image.file_name in seen_image_names:
-            report.add("warning", "duplicate_image_name", f"duplicate image output name: {image.file_name}", image=image.file_name)
+            duplicate_image_indices.add(idx)
         seen_image_names.add(image.file_name)
 
-        if image.label_path is None:
-            report.add("warning", "missing_label", "image has no matching label", image=image.file_name)
-        elif not image.label_path.exists():
-            report.add("warning", "missing_label_file", "label path does not exist", image=image.file_name, label=image.label_path)
+    worker_count = max(1, int(workers))
+    class_count = len(dataset.classes)
+    if worker_count == 1:
+        for idx, image in _progress(enumerate(dataset.images), enabled=progress, total=len(dataset.images), desc="check", leave=progress_leave):
+            report.issues.extend(_validate_image(image, class_count, idx in duplicate_image_indices))
+        return report
 
-        seen_annotations: set[str] = set()
-        for ann in image.annotations:
-            ann_key = ann.to_yolo_line(include_confidence=True)
-            if ann_key in seen_annotations:
-                report.add(
-                    "warning",
-                    "duplicate_annotation",
-                    "duplicate annotation line in image",
-                    image=image.file_name,
-                    label=image.label_path,
-                    line_no=ann.line_no,
-                )
-            seen_annotations.add(ann_key)
+    indexed_issues: list[tuple[int, list[ValidationIssue]]] = []
+    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+        futures = [
+            (
+                idx,
+                executor.submit(_validate_image, image, class_count, idx in duplicate_image_indices),
+            )
+            for idx, image in enumerate(dataset.images)
+        ]
+        future_to_idx = {future: idx for idx, future in futures}
+        for future in _progress(as_completed(future_to_idx), enabled=progress, total=len(future_to_idx), desc="check", leave=progress_leave):
+            indexed_issues.append((future_to_idx[future], future.result()))
+    for _, issues in sorted(indexed_issues, key=lambda item: item[0]):
+        report.issues.extend(issues)
+    return report
 
-            if len(dataset.classes) and not 0 <= ann.class_id < len(dataset.classes):
+
+def _validate_image(image: YoloImage, class_count: int, duplicate_image_name: bool) -> list[ValidationIssue]:
+    report = ValidationReport()
+    if duplicate_image_name:
+        report.add("warning", "duplicate_image_name", f"duplicate image output name: {image.file_name}", image=image.file_name)
+
+    if image.label_path is None:
+        report.add("warning", "missing_label", "image has no matching label", image=image.file_name)
+    elif not image.label_path.exists():
+        report.add("warning", "missing_label_file", "label path does not exist", image=image.file_name, label=image.label_path)
+
+    seen_annotations: set[str] = set()
+    for ann in image.annotations:
+        ann_key = ann.to_yolo_line(include_confidence=True)
+        if ann_key in seen_annotations:
+            report.add(
+                "warning",
+                "duplicate_annotation",
+                "duplicate annotation line in image",
+                image=image.file_name,
+                label=image.label_path,
+                line_no=ann.line_no,
+            )
+        seen_annotations.add(ann_key)
+
+        if class_count and not 0 <= ann.class_id < class_count:
+            report.add(
+                "error",
+                "class_out_of_range",
+                f"class id {ann.class_id} is out of range",
+                image=image.file_name,
+                label=image.label_path,
+                line_no=ann.line_no,
+            )
+        if ann.box is not None:
+            _validate_box(report, image.file_name, image.label_path, ann.line_no, ann.box.as_tuple())
+        if ann.polygon is not None:
+            if len(ann.polygon.points) < 3:
                 report.add(
                     "error",
-                    "class_out_of_range",
-                    f"class id {ann.class_id} is out of range",
+                    "invalid_polygon",
+                    "polygon needs at least 3 points",
                     image=image.file_name,
                     label=image.label_path,
                     line_no=ann.line_no,
                 )
-            if ann.box is not None:
-                _validate_box(report, image.file_name, image.label_path, ann.line_no, ann.box.as_tuple())
-            if ann.polygon is not None:
-                if len(ann.polygon.points) < 3:
-                    report.add(
-                        "error",
-                        "invalid_polygon",
-                        "polygon needs at least 3 points",
-                        image=image.file_name,
-                        label=image.label_path,
-                        line_no=ann.line_no,
-                    )
-                elif polygon_self_intersects(ann.polygon.points):
-                    report.add(
-                        "warning",
-                        "polygon_self_intersection",
-                        "polygon appears to self-intersect",
-                        image=image.file_name,
-                        label=image.label_path,
-                        line_no=ann.line_no,
-                    )
-                for idx, point in enumerate(ann.polygon.points):
-                    _validate_values(
-                        report,
-                        image.file_name,
-                        image.label_path,
-                        ann.line_no,
-                        point,
-                        f"polygon point {idx}",
-                    )
-            if ann.confidence is not None and not 0 <= ann.confidence <= 1:
+            elif polygon_self_intersects(ann.polygon.points):
                 report.add(
                     "warning",
-                    "confidence_out_of_range",
-                    f"confidence {ann.confidence} is outside [0, 1]",
+                    "polygon_self_intersection",
+                    "polygon appears to self-intersect",
                     image=image.file_name,
                     label=image.label_path,
                     line_no=ann.line_no,
                 )
-    return report
+            for idx, point in enumerate(ann.polygon.points):
+                _validate_values(
+                    report,
+                    image.file_name,
+                    image.label_path,
+                    ann.line_no,
+                    point,
+                    f"polygon point {idx}",
+                )
+        if ann.confidence is not None and not 0 <= ann.confidence <= 1:
+            report.add(
+                "warning",
+                "confidence_out_of_range",
+                f"confidence {ann.confidence} is outside [0, 1]",
+                image=image.file_name,
+                label=image.label_path,
+                line_no=ann.line_no,
+            )
+    return report.issues
 
 
 def fill_missing_label_files(dataset: YoloDataset) -> list[Path]:
@@ -199,3 +239,21 @@ def _validate_values(
                 label=label_path,
                 line_no=line_no,
             )
+
+
+def _progress(items: Iterable[T], *, enabled: bool, total: int, desc: str, leave: bool) -> Iterable[T]:
+    if not enabled:
+        return items
+    try:
+        from tqdm import tqdm
+    except ImportError:
+        return _simple_progress(items, total=total, desc=desc)
+    return tqdm(items, total=total, desc=desc, leave=leave)
+
+
+def _simple_progress(items: Iterable[T], *, total: int, desc: str) -> Iterator[T]:
+    step = max(1, total // 20) if total else 1
+    for idx, item in enumerate(items, start=1):
+        if idx == 1 or idx == total or idx % step == 0:
+            print(f"{desc}: {idx}/{total}")
+        yield item

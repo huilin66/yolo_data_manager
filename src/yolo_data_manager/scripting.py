@@ -102,6 +102,10 @@ def run_task(command: str, **params: Any) -> int:
 
 
 def _boolean_flag(task: str, name: str, value: bool, default_flag: str) -> str | None:
+    if task == "check" and name == "progress":
+        return None if value else "--no-progress"
+    if task == "check" and name == "progress_leave":
+        return "--progress-leave" if value else None
     if name == "compact":
         if task in {"ann.merge_class", "ann.apply_map"}:
             return None if value else "--no-compact"
@@ -198,6 +202,9 @@ class YoloManager:
         init_layout: bool = True,
         init_check: bool | str | Path = True,
         init_check_fill_missing_txt: bool = False,
+        init_check_workers: int = 8,
+        init_check_progress: bool = True,
+        init_check_progress_leave: bool = False,
     ) -> None:
         self.root = str(root)
         self.layout = layout
@@ -210,19 +217,25 @@ class YoloManager:
         self.init_layout = init_layout
         self.init_check = init_check
         self.init_check_fill_missing_txt = init_check_fill_missing_txt
+        self.init_check_workers = init_check_workers
+        self.init_check_progress = init_check_progress
+        self.init_check_progress_leave = init_check_progress_leave
 
         self._warmup_()
 
     def _warmup_(self) -> None:
         if self.init_layout:
             self.layout_detect()
+        check_kwargs = {
+            "fill_missing_txt": self.init_check_fill_missing_txt,
+            "workers": self.init_check_workers,
+            "progress": self.init_check_progress,
+            "progress_leave": self.init_check_progress_leave,
+        }
         if isinstance(self.init_check, (str, Path)):
-            self.check(
-                out=str(self.init_check),
-                fill_missing_txt=self.init_check_fill_missing_txt,
-            )
+            self.check(out=str(self.init_check), **check_kwargs)
         elif self.init_check:
-            self.check(fill_missing_txt=self.init_check_fill_missing_txt)
+            self.check(**check_kwargs)
 
     # -- helpers ------------------------------------------------------------
 
@@ -248,13 +261,25 @@ class YoloManager:
         *,
         out: str | None = None,
         fill_missing_txt: bool = False,
+        workers: int = 8,
+        progress: bool = True,
+        progress_leave: bool = False,
         **kwargs: Any,
     ) -> int:
-        """Validate the dataset (``ydm check``)."""
+        """Validate the dataset (``ydm check``).
+
+        The full JSON report is written to ``out``. If ``out`` is omitted,
+        the CLI writes ``check_result.json`` under the dataset root and prints
+        only a compact terminal summary. Progress is enabled by default with
+        multiple validation workers and ``leave=False``.
+        """
         return self._run(
             "check",
             out=out,
             fill_missing_txt=fill_missing_txt,
+            workers=workers,
+            progress=progress,
+            progress_leave=progress_leave,
             **kwargs,
         )
 

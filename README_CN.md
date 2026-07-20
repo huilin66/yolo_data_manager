@@ -87,6 +87,7 @@ ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --out error_re
 ## 输出约定
 
 - 写操作默认输出到新目录，不覆盖原数据。
+- `check` 默认使用多线程和 tqdm 进度条，`leave=False`；完整校验结果写入 JSON，终端只输出红色 warning/error 摘要或绿色 OK 摘要。不指定输出路径时默认写到 `<root>/check_result.json`。
 - 标准 YOLO 输出包含 `images/`、`labels/`、`class.txt`、`dataset.yaml`。
 - error analysis 的 review 输出包含 `pred_gt/`、`confusion_matrix.png`、按 `pred_<预测类别>_gt_<真实类别>` 组织的图片和 crop。
 - review crop 文件名使用 `原图名_pred预测txt顺序id_gtGTtxt顺序id`，没有的一侧为 `none`。

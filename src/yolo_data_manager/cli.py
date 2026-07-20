@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import sys
 
 import yaml
 
@@ -61,8 +62,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     check = subparsers.add_parser("check", help="validate a YOLO dataset")
     add_dataset_args(check)
-    check.add_argument("--out", default=None, help="optional JSON output path")
+    check.add_argument("--out", default=None, help="JSON output path; defaults to <root>/check_result.json")
     check.add_argument("--fill-missing-txt", action="store_true", help="create empty txt files for images without matching labels")
+    check.add_argument("--print-full", action="store_true", help="also print the full JSON report to terminal")
+    check.add_argument("--workers", type=int, default=8, help="number of worker threads for validation")
+    check.add_argument("--no-progress", dest="progress", action="store_false", help="disable validation progress bar")
+    check.add_argument("--progress-leave", action="store_true", help="keep validation progress bar after completion")
+    check.set_defaults(progress=True, progress_leave=False)
     check.set_defaults(handler=handle_check)
 
     stats = subparsers.add_parser("stats", help="compute dataset statistics")
@@ -406,14 +412,25 @@ def load_from_args(args: argparse.Namespace):
 
 
 def handle_layout_detect(args: argparse.Namespace) -> int:
+    _print_status("LAYOUT", f"detecting dataset layout: {args.root}")
     info = detect_layout(args.root)
     print(json.dumps(info.to_dict(), indent=2, ensure_ascii=False))
     return 0
 
 
 def handle_check(args: argparse.Namespace) -> int:
+    out = args.out or str(Path(args.root) / "check_result.json")
+    _print_status("CHECK", f"loading and validating dataset: {args.root}")
     dataset = load_from_args(args)
-    report = validate_dataset(dataset)
+    _print_status("CHECK", f"validating {len(dataset.images)} images with {max(1, int(args.workers))} worker(s)")
+    report = validate_dataset(
+        dataset,
+        workers=args.workers,
+        progress=args.progress,
+        progress_leave=args.progress_leave,
+    )
+    if args.fill_missing_txt:
+        _print_status("CHECK", "creating empty txt files for missing labels")
     created = fill_missing_label_files(dataset) if args.fill_missing_txt else []
     payload = {
         "ok": report.ok,
@@ -424,7 +441,10 @@ def handle_check(args: argparse.Namespace) -> int:
             "missing_txt_created_count": len(created),
         },
     }
-    _emit_json(payload, args.out)
+    write_json_report(payload, out)
+    _print_check_summary(payload, out)
+    if args.print_full:
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
     return 0 if report.ok else 2
 
 
@@ -928,6 +948,34 @@ def _emit_json(payload: dict[str, object], out: str | None) -> None:
     if out:
         write_json_report(payload, out)
     print(json.dumps(payload, indent=2, ensure_ascii=False))
+
+
+def _print_status(tag: str, message: str) -> None:
+    print(f"\033[36m[{tag}] {message}\033[0m", file=sys.stderr)
+
+
+def _print_check_summary(payload: dict[str, object], out: str) -> None:
+    summary = payload.get("summary")
+    fixed = payload.get("fixed")
+    issue_counts = summary if isinstance(summary, dict) else {}
+    fixed_counts = fixed if isinstance(fixed, dict) else {}
+    warning_count = sum(int(count) for key, count in issue_counts.items() if str(key).startswith("warning:"))
+    error_count = sum(int(count) for key, count in issue_counts.items() if str(key).startswith("error:"))
+    created_count = int(fixed_counts.get("missing_txt_created_count", 0) or 0)
+
+    if error_count or warning_count:
+        color = "\033[31m"
+        reset = "\033[0m"
+        print(
+            f"{color}[CHECK WARNING] errors={error_count}, warnings={warning_count}, "
+            f"missing_txt_created={created_count}. Full report: {out}{reset}",
+            file=sys.stderr,
+        )
+        for key, count in sorted(issue_counts.items(), key=lambda item: (not str(item[0]).startswith("error:"), str(item[0]))):
+            print(f"{color}  {key}: {count}{reset}", file=sys.stderr)
+        return
+
+    print(f"\033[32m[CHECK OK] no issues. Full report: {out}\033[0m", file=sys.stderr)
 
 
 if __name__ == "__main__":

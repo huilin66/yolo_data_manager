@@ -13,6 +13,7 @@ from yolo_data_manager.converters.seg_det import segmentation_to_detection
 from yolo_data_manager.converters.voc import import_voc_dir
 from yolo_data_manager.converters.xanylabeling import export_xanylabeling
 from yolo_data_manager.core.schema import write_dataset_yaml
+from yolo_data_manager.cli import main as cli_main
 from yolo_data_manager.dataset.filter import filter_by_geometry
 from yolo_data_manager.dataset.duplicates import find_duplicate_images
 from yolo_data_manager.dataset.merge import merge_datasets
@@ -120,6 +121,11 @@ def test_build_python_task_argv():
     assert mask_argv[:2] == ["import", "mask"]
     assert "--class-map" in mask_argv
 
+    check_argv = build_task_argv("check", root=Path("dataset"), workers=4, progress=False, progress_leave=True)
+    assert "--workers" in check_argv
+    assert "--no-progress" in check_argv
+    assert "--progress-leave" in check_argv
+
 
 def test_yolo_manager_methods(tmp_path):
     root = make_dataset(tmp_path / "yolo")
@@ -191,6 +197,90 @@ def test_yolo_manager_init_check_can_fill_missing_txt(tmp_path):
     assert (root / "labels" / "b.txt").exists()
     assert payload["fixed"]["missing_txt_created_count"] == 1
     assert any(issue["code"] == "missing_label" and issue["image"] == "b.jpg" for issue in payload["issues"])
+
+
+def test_yolo_manager_init_check_passes_progress_options(tmp_path, monkeypatch):
+    root = make_dataset(tmp_path / "yolo")
+    calls = []
+
+    def fake_run_task(task, **params):
+        calls.append((task, params))
+        return 0
+
+    monkeypatch.setattr("yolo_data_manager.scripting.run_task", fake_run_task)
+
+    YoloManager(
+        root,
+        layout="flat",
+        task="detect",
+        init_layout=False,
+        init_check=True,
+        init_check_workers=3,
+        init_check_progress=False,
+        init_check_progress_leave=True,
+    )
+
+    assert calls == [
+        (
+            "check",
+            {
+                "out": None,
+                "fill_missing_txt": False,
+                "workers": 3,
+                "progress": False,
+                "progress_leave": True,
+                "root": str(root),
+                "layout": "flat",
+                "images_dir": "images",
+                "labels_dir": "labels",
+            },
+        )
+    ]
+
+
+def test_cli_check_writes_report_and_prints_compact_warning(tmp_path, capsys):
+    root = make_dataset(tmp_path / "yolo")
+    (root / "labels" / "a.txt").write_text(
+        "0 0.5 0.5 0.2 0.3\n0 0.5 0.5 0.2 0.3\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "validation.json"
+
+    code = cli_main(["check", "--root", str(root), "--layout", "flat", "--out", str(out)])
+    captured = capsys.readouterr()
+    payload = json.loads(out.read_text(encoding="utf-8"))
+
+    assert code == 0
+    assert payload["summary"]["warning:duplicate_annotation"] == 1
+    assert "[CHECK WARNING]" in captured.err
+    assert "warning:duplicate_annotation: 1" in captured.err
+    assert "\"issues\"" not in captured.out
+
+
+def test_cli_check_uses_default_report_path(tmp_path, capsys):
+    root = make_dataset(tmp_path / "yolo")
+
+    code = cli_main(["check", "--root", str(root), "--layout", "flat"])
+    captured = capsys.readouterr()
+
+    assert code == 0
+    assert (root / "check_result.json").exists()
+    assert "[CHECK OK]" in captured.err
+    assert captured.out == ""
+
+
+def test_validate_dataset_parallel_matches_serial(tmp_path):
+    root = make_dataset(tmp_path / "yolo")
+    (root / "labels" / "a.txt").write_text(
+        "3 0.5 0.5 0.2 0.3\n1 1.2 0.4 0.2 0.2\n1 1.2 0.4 0.2 0.2\n",
+        encoding="utf-8",
+    )
+    dataset = load_yolo_dataset(root)
+
+    serial = validate_dataset(dataset, workers=1, progress=False).to_rows()
+    parallel = validate_dataset(dataset, workers=4, progress=True, progress_leave=False).to_rows()
+
+    assert parallel == serial
 
 
 def make_dataset(root: Path) -> Path:
