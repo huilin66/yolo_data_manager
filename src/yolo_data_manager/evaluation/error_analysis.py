@@ -17,15 +17,14 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable, Iterator, TypeVar
+from typing import Any
 
 import numpy as np
 from PIL import Image, ImageDraw
 
 from yolo_data_manager.core.models import ClassSchema, YoloAnnotation, YoloDataset, YoloImage, is_image_file
 from yolo_data_manager.io.loader import load_yolo_dataset, parse_label_file
-
-T = TypeVar("T")
+from yolo_data_manager.runtime import iter_progress, normalize_workers
 
 # ---------------------------------------------------------------------------
 # Error type constants
@@ -228,11 +227,22 @@ def load_error_analysis_dataset(
     labels_dir: str | Path = "labels",
     class_file: str | Path | None = None,
     stems: set[str] | None = None,
+    workers: int = 8,
+    progress: bool = False,
+    progress_leave: bool = False,
 ) -> YoloDataset:
     """Load either a full YOLO dataset root or a plain label-txt directory."""
     root_path = Path(root)
     if _looks_like_label_dir(root_path, images_dir=images_dir, labels_dir=labels_dir):
-        return _load_label_dir_dataset(root_path, task=task, class_file=class_file, stems=stems)
+        return _load_label_dir_dataset(
+            root_path,
+            task=task,
+            class_file=class_file,
+            stems=stems,
+            workers=workers,
+            progress=progress,
+            progress_leave=progress_leave,
+        )
 
     dataset = load_yolo_dataset(
         root_path,
@@ -241,6 +251,9 @@ def load_error_analysis_dataset(
         class_file=class_file,
         task=task,
         layout=layout,
+        workers=workers,
+        progress=progress,
+        progress_leave=progress_leave,
     )
     if class_file is not None:
         dataset.classes = read_eval_class_schema(class_file)
@@ -261,24 +274,56 @@ def _load_label_dir_dataset(
     task: str,
     class_file: str | Path | None,
     stems: set[str] | None,
+    workers: int,
+    progress: bool,
+    progress_leave: bool,
 ) -> YoloDataset:
     labels = sorted(path for path in label_dir.glob("*.txt") if stems is None or path.stem in stems)
-    images: list[YoloImage] = []
-    for label_path in labels:
-        annotations = parse_label_file(label_path, task=task)
-        images.append(
-            YoloImage(
-                path=label_dir / f"{label_path.stem}.jpg",
-                label_path=label_path,
-                annotations=annotations,
-            )
-        )
+    images = _load_label_dir_images(
+        labels,
+        label_dir=label_dir,
+        task=task,
+        workers=workers,
+        progress=progress,
+        progress_leave=progress_leave,
+    )
     return YoloDataset(
         root=label_dir,
         images=images,
         classes=read_eval_class_schema(class_file),
         task=task,
     )
+
+
+def _load_label_dir_images(
+    labels: list[Path],
+    *,
+    label_dir: Path,
+    task: str,
+    workers: int,
+    progress: bool,
+    progress_leave: bool,
+) -> list[YoloImage]:
+    def build(label_path: Path) -> YoloImage:
+        return YoloImage(
+            path=label_dir / f"{label_path.stem}.jpg",
+            label_path=label_path,
+            annotations=parse_label_file(label_path, task=task),
+        )
+
+    worker_count = normalize_workers(workers)
+    if worker_count == 1:
+        return [
+            build(label_path)
+            for label_path in iter_progress(labels, enabled=progress, total=len(labels), desc="load label dir", leave=progress_leave)
+        ]
+
+    indexed: list[tuple[int, YoloImage]] = []
+    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+        future_to_idx = {executor.submit(build, label_path): idx for idx, label_path in enumerate(labels)}
+        for future in iter_progress(as_completed(future_to_idx), enabled=progress, total=len(future_to_idx), desc="load label dir", leave=progress_leave):
+            indexed.append((future_to_idx[future], future.result()))
+    return [image for _, image in sorted(indexed, key=lambda item: item[0])]
 
 
 def _filter_dataset_by_stems(dataset: YoloDataset, stems: set[str] | None) -> YoloDataset:
@@ -752,7 +797,7 @@ def write_error_review_pack(
     gt_images = _images_by_stem(gt)
     pred_images = _images_by_stem(pred)
     counts: dict[str, int] = Counter()
-    worker_count = max(1, int(workers))
+    worker_count = normalize_workers(workers)
 
     work_items = [(idx, row) for idx, row in enumerate(error_rows, start=1) if row.status != "tp"]
     if worker_count == 1:
@@ -760,7 +805,7 @@ def write_error_review_pack(
             _write_one_error_review(item, gt_images, pred_images, output, crop_padding)
             for item in work_items
         )
-        for error_type in _progress(iterator, enabled=progress, total=len(work_items), desc="error review", leave=progress_leave):
+        for error_type in iter_progress(iterator, enabled=progress, total=len(work_items), desc="error review", leave=progress_leave):
             if error_type:
                 counts[error_type] += 1
     else:
@@ -769,7 +814,7 @@ def write_error_review_pack(
                 executor.submit(_write_one_error_review, item, gt_images, pred_images, output, crop_padding)
                 for item in work_items
             ]
-            for future in _progress(as_completed(futures), enabled=progress, total=len(futures), desc="error review", leave=progress_leave):
+            for future in iter_progress(as_completed(futures), enabled=progress, total=len(futures), desc="error review", leave=progress_leave):
                 error_type = future.result()
                 if error_type:
                     counts[error_type] += 1
@@ -1104,20 +1149,3 @@ def _norm_box_to_pixels(box: list[float], width: int, height: int) -> tuple[int,
 def _safe_file_name(value: str) -> str:
     return "".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in value)
 
-
-def _progress(items: Iterable[T], *, enabled: bool, total: int, desc: str, leave: bool) -> Iterable[T]:
-    if not enabled:
-        return items
-    try:
-        from tqdm import tqdm
-    except ImportError:
-        return _simple_progress(items, total=total, desc=desc)
-    return tqdm(items, total=total, desc=desc, leave=leave)
-
-
-def _simple_progress(items: Iterable[T], *, total: int, desc: str) -> Iterator[T]:
-    step = max(1, total // 20) if total else 1
-    for idx, item in enumerate(items, start=1):
-        if idx == 1 or idx == total or idx % step == 0:
-            print(f"{desc}: {idx}/{total}")
-        yield item

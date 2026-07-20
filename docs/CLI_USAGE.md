@@ -38,6 +38,19 @@ python -m yolo_data_manager.cli check --root path/to/yolo
 | `--attribute-file` | 属性配置路径 |
 | `--split-file` | 图片列表文件路径 |
 
+## 统一运行参数
+
+大多数读取、写入、校验、可视化和评估命令都支持同一组运行参数：
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `--workers` | `8` | 支持并行的加载、校验、写入、可视化、复核等步骤使用的线程数 |
+| `--progress` | 开启 | 显示临时 tqdm 进度条 |
+| `--no-progress` | 关闭进度条 | 不显示 tqdm 进度条 |
+| `--progress-leave` | `False` | 任务结束后保留进度条 |
+
+默认风格是 `workers=8`、显示 tqdm、`leave=False`。少数纯格式转换命令暂不使用线程，但仍会保持相同的 CLI 风格。
+
 ## 加载、布局与校验
 
 ```bash
@@ -50,7 +63,7 @@ ydm dataset normalize --root path/to/yolo --layout auto --out normalized_yolo
 
 `layout detect` 输出的 `report_type` 是 `layout_detect`，这是布局检测结果，不是 `check` 校验结果。输出中还会包含 `class_source`、`class_count`、`classes`，用于确认类别是从 `class.txt`、`classes.txt`、`dataset.yaml` 还是 `data.yaml` 读取到的。
 
-`check` 默认使用多线程和 tqdm 进度条，`leave=False`；完整校验结果会写入 JSON 文件，终端只输出红色 warning/error 摘要或绿色 OK 摘要。`--out` 不指定时默认写到 `<root>/check_result.json`。可用 `--workers 16` 调整线程数，用 `--no-progress` 关闭进度条，用 `--progress-leave` 保留进度条。如确实需要在终端打印完整 JSON，可加 `--print-full`。
+`check` 完整校验结果会写入 JSON 文件，终端只输出红色 warning/error 摘要或绿色 OK 摘要。`--out` 不指定时默认写到 `<root>/check_result.json`。如确实需要在终端打印完整 JSON，可加 `--print-full`。
 
 `--fill-missing-txt` 会为没有 label 的图片创建空 txt，并在 JSON 中列出创建结果。
 
@@ -149,9 +162,10 @@ box_pos_start, box_pos_center, box_pos_end, attribute, legacy_csv
 ydm vis draw --root path/to/yolo --out images_vis
 ydm vis draw --root path/to/yolo --out images_vis --show-conf --show-attrs --filter-no-attrs
 ydm vis draw --root path/to/yolo --out images_vis --show-id
-ydm vis draw --root path/to/yolo --out images_vis --workers 8 --progress
+ydm vis draw --root path/to/yolo --out images_vis --workers 16
+ydm vis draw --root path/to/yolo --out images_vis --no-progress
 ydm vis crop --root path/to/yolo --out crops --by-attr
-ydm vis crop --root path/to/yolo --out crops --workers 8 --progress
+ydm vis crop --root path/to/yolo --out crops --workers 16
 ```
 
 `--show-id` 显示 txt 中从 1 开始的标注顺序号。crop 文件名也从 1 开始。
@@ -202,10 +216,12 @@ ydm eval compare --gt-root gt_yolo --pred-root pred_yolo --out compare.csv --iou
 ydm eval review-pack --gt-root gt_yolo --pred-root pred_yolo --out review_pack --iou 0.5
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --out error_report
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --out error_report --match-iou 0.5 --low-iou 0.1 --duplicate-iou 0.9
-ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --out error_report --review --review-workers 8 --review-progress --copy-pred-txt
+ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --out error_report --review --workers 8 --copy-pred-txt
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --val-source val.txt --class-file class.txt --out error_report
 ydm eval error-analysis --gt-root gt_labels --pred-root pred_labels --names class.txt --out error_report
 ```
+
+`eval error-analysis` 仍兼容旧参数 `--review-workers`、`--review-progress`、`--review-progress-leave`；新脚本建议直接使用统一运行参数。
 
 review 输出：
 

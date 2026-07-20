@@ -51,7 +51,7 @@ mgr = YoloManager("datasets/my_yolo", layout="auto", init_check=False)
 
 mgr.check(out="validation.json", fill_missing_txt=True)
 mgr.stats(plots_dir="stats", stats_list=["all"])
-mgr.vis_draw(out="vis", show_id=True, show_conf=True, workers=8, progress=True)
+mgr.vis_draw(out="vis", show_id=True, show_conf=True)
 
 mgr.dataset_filter(
     out="filtered",
@@ -68,8 +68,7 @@ mgr.eval_error_analysis(
     pred_root="datasets/pred_labels",
     out="error_report",
     review=True,
-    review_workers=8,
-    review_progress=True,
+    workers=8,
     copy_pred_txt=True,
 )
 ```
@@ -79,15 +78,16 @@ mgr.eval_error_analysis(
 ```bash
 ydm check --root path/to/yolo --layout auto --fill-missing-txt --out validation.json
 ydm stats --root path/to/yolo --plots-dir stats --stats-list all
-ydm vis draw --root path/to/yolo --out vis --show-id --show-conf --workers 8 --progress
+ydm vis draw --root path/to/yolo --out vis --show-id --show-conf
 ydm dataset filter --root path/to/yolo --out filtered --min-width 0.01 --min-height 0.01 --min-size-logic and
-ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --out error_report --review --review-workers 8 --review-progress --copy-pred-txt
+ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --out error_report --review --workers 8 --copy-pred-txt
 ```
 
 ## Output Conventions
 
 - Write operations default to a new output directory and do not overwrite the source dataset in place.
-- `check` uses multi-threaded validation and a tqdm progress bar by default with `leave=False`. It writes the full validation report to JSON, while the terminal prints only a red warning/error summary or a green OK summary. Without an output path, the default report is `<root>/check_result.json`.
+- The CLI and `YoloManager` use common runtime defaults: `workers=8`, temporary tqdm progress bars, and `leave=False`. Tune them with `--workers/--no-progress/--progress-leave` or Python `workers/progress/progress_leave`.
+- `check` writes the full validation report to JSON, while the terminal prints only a red warning/error summary or a green OK summary. Without an output path, the default report is `<root>/check_result.json`.
 - Standard YOLO output includes `images/`, `labels/`, `class.txt`, and `dataset.yaml`.
 - Error-analysis review output includes `review/pred_gt`, `confusion_matrix.png`, grouped `pred_<pred_class>_gt_<gt_class>` folders, and optional `review/pred_txt`.
 - Review crop names use `image_pred<pred_txt_order>_gt<gt_txt_order>`, with `none` for missing sides.

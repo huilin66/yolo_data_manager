@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from collections.abc import Iterable, Iterator
 from pathlib import Path
-from typing import TypeVar
 
 from PIL import Image, ImageDraw
 
 from yolo_data_manager.core.geometry import normalized_points_to_pixels, xywhn_to_xyxy
 from yolo_data_manager.core.models import YoloDataset, YoloImage
+from yolo_data_manager.runtime import iter_progress, normalize_workers
 
 COLORS = [
     (255, 42, 4),
@@ -22,9 +21,6 @@ COLORS = [
     (0, 192, 38),
 ]
 
-T = TypeVar("T")
-
-
 def render_dataset(
     dataset: YoloDataset,
     out_dir: str | Path,
@@ -36,13 +32,14 @@ def render_dataset(
     show_attributes: bool = False,
     show_txt_id: bool = False,
     filter_no_attributes: bool = False,
-    workers: int = 1,
-    progress: bool = False,
+    workers: int = 8,
+    progress: bool = True,
+    progress_leave: bool = False,
 ) -> None:
     out_path = Path(out_dir)
     out_path.mkdir(parents=True, exist_ok=True)
     images = dataset.images[:limit] if limit is not None else dataset.images
-    worker_count = max(1, int(workers))
+    worker_count = normalize_workers(workers)
 
     def save_image(image: YoloImage) -> None:
         rendered = render_image(
@@ -61,13 +58,13 @@ def render_dataset(
         rendered.save(save_path)
 
     if worker_count == 1:
-        for image in _progress(images, enabled=progress, total=len(images), desc="vis draw"):
+        for image in iter_progress(images, enabled=progress, total=len(images), desc="vis draw", leave=progress_leave):
             save_image(image)
         return
 
     with ThreadPoolExecutor(max_workers=worker_count) as executor:
         futures = [executor.submit(save_image, image) for image in images]
-        for future in _progress(as_completed(futures), enabled=progress, total=len(futures), desc="vis draw"):
+        for future in iter_progress(as_completed(futures), enabled=progress, total=len(futures), desc="vis draw", leave=progress_leave):
             future.result()
 
 
@@ -79,12 +76,13 @@ def crop_dataset(
     confidence_threshold: float | None = None,
     by_attribute: bool = False,
     filter_no_attributes: bool = True,
-    workers: int = 1,
-    progress: bool = False,
+    workers: int = 8,
+    progress: bool = True,
+    progress_leave: bool = False,
 ) -> int:
     out_path = Path(out_dir)
     out_path.mkdir(parents=True, exist_ok=True)
-    worker_count = max(1, int(workers))
+    worker_count = normalize_workers(workers)
 
     def crop_image(image: YoloImage) -> int:
         return _crop_image(
@@ -101,13 +99,13 @@ def crop_dataset(
     if worker_count == 1:
         return sum(
             crop_image(image)
-            for image in _progress(dataset.images, enabled=progress, total=len(dataset.images), desc="vis crop")
+            for image in iter_progress(dataset.images, enabled=progress, total=len(dataset.images), desc="vis crop", leave=progress_leave)
         )
 
     saved = 0
     with ThreadPoolExecutor(max_workers=worker_count) as executor:
         futures = [executor.submit(crop_image, image) for image in dataset.images]
-        for future in _progress(as_completed(futures), enabled=progress, total=len(futures), desc="vis crop"):
+        for future in iter_progress(as_completed(futures), enabled=progress, total=len(futures), desc="vis crop", leave=progress_leave):
             saved += future.result()
     return saved
 
@@ -229,21 +227,3 @@ def _attribute_lines(dataset: YoloDataset, annotation, filter_no: bool = False) 
 
 def _safe_name(value: str) -> str:
     return "".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in value)
-
-
-def _progress(items: Iterable[T], *, enabled: bool, total: int, desc: str) -> Iterable[T]:
-    if not enabled:
-        return items
-    try:
-        from tqdm import tqdm
-    except ImportError:
-        return _simple_progress(items, total=total, desc=desc)
-    return tqdm(items, total=total, desc=desc)
-
-
-def _simple_progress(items: Iterable[T], *, total: int, desc: str) -> Iterator[T]:
-    step = max(1, total // 20) if total else 1
-    for idx, item in enumerate(items, start=1):
-        if idx == 1 or idx == total or idx % step == 0:
-            print(f"{desc}: {idx}/{total}")
-        yield item

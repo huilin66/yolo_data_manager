@@ -7,6 +7,7 @@ from yolo_data_manager.core.geometry import normalized_points_to_pixels, polygon
 from yolo_data_manager.core.geometry import xyxy_to_xywhn
 from yolo_data_manager.core.models import Box, ClassSchema, Polygon, YoloAnnotation, YoloDataset, YoloImage
 from yolo_data_manager.io.writer import write_yolo_dataset
+from yolo_data_manager.runtime import iter_progress
 
 
 def dataset_to_coco(dataset: YoloDataset) -> dict[str, object]:
@@ -90,6 +91,9 @@ def import_coco(
     task: str = "detect",
     class_names: list[str] | None = None,
     copy_images: bool = True,
+    workers: int = 8,
+    progress: bool = False,
+    progress_leave: bool = False,
 ) -> YoloDataset:
     data = json.loads(Path(json_path).read_text(encoding="utf-8"))
     categories = sorted(data.get("categories", []), key=lambda item: item["id"])
@@ -104,7 +108,8 @@ def import_coco(
 
     img_root = Path(images_dir)
     images: list[YoloImage] = []
-    for image_item in data.get("images", []):
+    image_items = list(data.get("images", []))
+    for image_item in iter_progress(image_items, enabled=progress, total=len(image_items), desc="import coco", leave=progress_leave):
         image_id = int(image_item["id"])
         file_name = str(image_item["file_name"])
         width = int(image_item.get("width") or 0)
@@ -128,7 +133,14 @@ def import_coco(
 
     dataset = YoloDataset(root=Path(out_root or Path(json_path).parent), images=images, classes=classes, task=task)
     if out_root is not None:
-        write_yolo_dataset(dataset, out_root, copy_images=copy_images)
+        write_yolo_dataset(
+            dataset,
+            out_root,
+            copy_images=copy_images,
+            workers=workers,
+            progress=progress,
+            progress_leave=progress_leave,
+        )
     return dataset
 
 

@@ -92,9 +92,10 @@ mgr.ann_delete_attr(name="quality", value=["bad"], out="yolo_clean")
 mgr.vis_draw(out="images_vis", show_conf=True, show_attrs=True)
 mgr.vis_draw(out="images_vis", conf=0.25, fill_mask=True, mask_alpha=64)
 mgr.vis_draw(out="images_vis", show_id=True)  # 显示 txt 中从 1 开始的标注顺序号
-mgr.vis_draw(out="images_vis", workers=8, progress=True)
+mgr.vis_draw(out="images_vis", workers=16)
+mgr.vis_draw(out="images_vis", progress=False)
 mgr.vis_crop(out="crops", by_attr=True, min_size=32)
-mgr.vis_crop(out="crops", workers=8, progress=True)
+mgr.vis_crop(out="crops", workers=16)
 
 # 导出
 mgr.export_coco(out="instances.json")
@@ -122,8 +123,7 @@ mgr.eval_error_analysis(gt_root=r"E:\datasets\gt", pred_root=r"E:\datasets\pred"
 mgr.eval_error_analysis(pred_root=r"E:\datasets\pred", out="error_report",
                         review=True, crop_padding=12)
 mgr.eval_error_analysis(pred_root=r"E:\datasets\pred", out="error_report",
-                        review=True, review_workers=8, review_progress=True,
-                        review_progress_leave=False, copy_pred_txt=True)
+                        review=True, workers=16, copy_pred_txt=True)
 
 # 导入 —— 独立参数，不使用 mgr 的 root
 mgr.import_labelme(json_dir="labelme_json", out="yolo_out", task="segment")
@@ -139,7 +139,27 @@ mgr.import_mask(
 )
 ```
 
-`YoloManager(..., layout="auto")` 初始化时会先做 layout 扫描，再加载图片和 label，最后执行 check。layout 扫描、加载阶段、check 阶段现在都会显示 tqdm，默认 `leave=False`。`check` 完整校验结果会写入 JSON 文件，终端只输出红色 warning/error 摘要或绿色 OK 摘要。`out` 不指定时默认写到 `<root>/check_result.json`。可用 `workers=16` 调整线程数，用 `progress=False` 关闭 check 进度条，用 `progress_leave=True` 保留 check 进度条。
+`YoloManager(..., layout="auto")` 初始化时会先做 layout 扫描，再加载图片和 label，最后执行 check。
+
+## 统一运行参数
+
+大多数加载、写入、校验、可视化和评估方法都支持同一组运行参数：
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `workers` | `8` | 支持并行的加载、校验、写入、可视化、复核等步骤使用的线程数 |
+| `progress` | `True` | 显示临时 tqdm 进度条 |
+| `progress_leave` | `False` | 任务结束后保留进度条 |
+
+```python
+mgr.check(workers=16)
+mgr.vis_draw(out="images_vis", progress=False)
+mgr.eval_error_analysis(pred_root="pred", out="error_report", review=True, workers=16)
+```
+
+底层函数如 `load_yolo_dataset()`、`validate_dataset()` 默认不显示进度条，方便作为库函数安静调用；`YoloManager` 和 CLI 默认显示进度条。
+
+`check` 完整校验结果会写入 JSON 文件，终端只输出红色 warning/error 摘要或绿色 OK 摘要。`out` 不指定时默认写到 `<root>/check_result.json`。
 
 `layout_detect()` 打印的是布局检测结果，不是 `check` 校验结果。输出中 `report_type` 为 `layout_detect`，并包含 `class_source`、`class_count`、`classes`，可用于确认类别文件来源。
 

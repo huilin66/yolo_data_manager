@@ -175,7 +175,7 @@ ydm ann delete-attr --root yolo --name defect --value yes --out yolo_attr_clean
 ```bash
 ydm vis draw --root yolo --out images_vis
 ydm vis draw --root yolo --out images_vis --show-conf --show-attrs --filter-no-attrs --mask-alpha 80
-ydm vis draw --root yolo --out images_vis --show-id --workers 8 --progress
+ydm vis draw --root yolo --out images_vis --show-id
 ydm vis crop --root yolo --out crops --by-attr
 ```
 
@@ -196,7 +196,7 @@ ydm vis crop --root yolo --out crops --by-attr
 ```bash
 ydm eval compare --gt-root gt_yolo --pred-root pred_yolo --out compare.csv --iou 0.5 --conf 0.3
 ydm eval review-pack --gt-root gt_yolo --pred-root pred_yolo --out review_pack --iou 0.5
-ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --out error_report --review --review-workers 8 --review-progress --copy-pred-txt
+ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --out error_report --review --workers 8 --copy-pred-txt
 ydm convert pseudo --root pred_yolo --conf 0.5 --out pseudo_yolo
 ```
 

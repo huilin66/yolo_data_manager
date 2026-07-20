@@ -65,10 +65,6 @@ def build_parser() -> argparse.ArgumentParser:
     check.add_argument("--out", default=None, help="JSON output path; defaults to <root>/check_result.json")
     check.add_argument("--fill-missing-txt", action="store_true", help="create empty txt files for images without matching labels")
     check.add_argument("--print-full", action="store_true", help="also print the full JSON report to terminal")
-    check.add_argument("--workers", type=int, default=8, help="number of worker threads for validation")
-    check.add_argument("--no-progress", dest="progress", action="store_false", help="disable validation progress bar")
-    check.add_argument("--progress-leave", action="store_true", help="keep validation progress bar after completion")
-    check.set_defaults(progress=True, progress_leave=False)
     check.set_defaults(handler=handle_check)
 
     stats = subparsers.add_parser("stats", help="compute dataset statistics")
@@ -85,9 +81,7 @@ def build_parser() -> argparse.ArgumentParser:
     layout_sub = layout_cmd.add_subparsers(dest="layout_command", required=True)
     layout_detect = layout_sub.add_parser("detect", help="detect YOLO layout")
     layout_detect.add_argument("--root", required=True)
-    layout_detect.add_argument("--no-progress", dest="progress", action="store_false", help="disable layout scan progress bar")
-    layout_detect.add_argument("--progress-leave", action="store_true", help="keep layout scan progress bar after completion")
-    layout_detect.set_defaults(progress=True, progress_leave=False)
+    add_runtime_args(layout_detect, workers=False)
     layout_detect.set_defaults(handler=handle_layout_detect)
 
     query = subparsers.add_parser("query", help="query annotations")
@@ -251,8 +245,6 @@ def build_parser() -> argparse.ArgumentParser:
     draw.add_argument("--show-attrs", action="store_true")
     draw.add_argument("--show-id", action="store_true", help="show annotation order id from YOLO txt before class name")
     draw.add_argument("--filter-no-attrs", action="store_true")
-    draw.add_argument("--workers", type=int, default=1, help="number of worker threads for visualization")
-    draw.add_argument("--progress", action="store_true", help="show visualization progress")
     draw.set_defaults(fill_mask=True)
     draw.set_defaults(handler=handle_vis_draw)
     crop = vis_sub.add_parser("crop", help="crop annotation regions into class folders")
@@ -263,8 +255,6 @@ def build_parser() -> argparse.ArgumentParser:
     crop.add_argument("--conf", type=float, default=None, help="optional confidence threshold")
     crop.add_argument("--by-attr", action="store_true", help="also save crops into class/attribute-value folders")
     crop.add_argument("--keep-no-attrs", dest="filter_no_attrs", action="store_false")
-    crop.add_argument("--workers", type=int, default=1, help="number of worker threads for cropping")
-    crop.add_argument("--progress", action="store_true", help="show cropping progress")
     crop.set_defaults(filter_no_attrs=True)
     crop.set_defaults(handler=handle_vis_crop)
 
@@ -287,6 +277,7 @@ def build_parser() -> argparse.ArgumentParser:
     labelme.add_argument("--task", choices=["auto", "detect", "segment"], default="auto")
     labelme.add_argument("--classes", default=None, help="optional comma-separated class order")
     labelme.add_argument("--attribute-file", default=None, help="optional attribute.yaml for importing shape attributes")
+    add_runtime_args(labelme)
     labelme.set_defaults(handler=handle_import_labelme)
     coco_import = import_sub.add_parser("coco", help="import COCO JSON as YOLO")
     coco_import.add_argument("--json", dest="json_path", required=True)
@@ -295,6 +286,7 @@ def build_parser() -> argparse.ArgumentParser:
     coco_import.add_argument("--task", choices=["detect", "segment"], default="detect")
     coco_import.add_argument("--classes", default=None, help="optional comma-separated class order")
     coco_import.add_argument("--no-copy-images", dest="copy_images", action="store_false")
+    add_runtime_args(coco_import)
     coco_import.set_defaults(handler=handle_import_coco, copy_images=True)
     voc_import = import_sub.add_parser("voc", help="import Pascal VOC XML directory as YOLO")
     voc_import.add_argument("--annotations-dir", required=True)
@@ -302,6 +294,7 @@ def build_parser() -> argparse.ArgumentParser:
     voc_import.add_argument("--out", required=True)
     voc_import.add_argument("--classes", default=None, help="optional comma-separated class order")
     voc_import.add_argument("--keep-difficult", dest="skip_difficult", action="store_false")
+    add_runtime_args(voc_import)
     voc_import.set_defaults(handler=handle_import_voc, skip_difficult=True)
     mask_import = import_sub.add_parser("mask", help="import semantic segmentation masks as YOLO segmentation")
     mask_import.add_argument("--images-dir", required=True)
@@ -311,6 +304,7 @@ def build_parser() -> argparse.ArgumentParser:
     mask_import.add_argument("--background", default="0", help="background mask value or color")
     mask_import.add_argument("--min-area", type=int, default=1, help="minimum connected-component area in pixels")
     mask_import.add_argument("--no-copy-images", dest="copy_images", action="store_false")
+    add_runtime_args(mask_import)
     mask_import.set_defaults(handler=handle_import_mask, copy_images=True)
 
     convert = subparsers.add_parser("convert", help="convert dataset task/form")
@@ -338,6 +332,7 @@ def build_parser() -> argparse.ArgumentParser:
     compare.add_argument("--layout", choices=["auto", "flat", "split_dirs", "image_list", "mixed"], default="auto")
     compare.add_argument("--images-dir", default="images")
     compare.add_argument("--labels-dir", default="labels")
+    add_runtime_args(compare)
     compare.set_defaults(handler=handle_eval_compare)
     review = eval_sub.add_parser("review-pack", help="write FP/FN review package from GT and predictions")
     review.add_argument("--gt-root", required=True)
@@ -351,6 +346,7 @@ def build_parser() -> argparse.ArgumentParser:
     review.add_argument("--layout", choices=["auto", "flat", "split_dirs", "image_list", "mixed"], default="auto")
     review.add_argument("--images-dir", default="images")
     review.add_argument("--labels-dir", default="labels")
+    add_runtime_args(review)
     review.set_defaults(handler=handle_eval_review_pack)
     error_analysis = eval_sub.add_parser(
         "error-analysis",
@@ -368,7 +364,7 @@ def build_parser() -> argparse.ArgumentParser:
     error_analysis.add_argument("--names", dest="class_file", default=None, help="alias of --class-file")
     error_analysis.add_argument("--review", action="store_true", help="write visual review images and box crops grouped by error type")
     error_analysis.add_argument("--crop-padding", type=int, default=12, help="pixel padding around review crops")
-    error_analysis.add_argument("--review-workers", type=int, default=1, help="number of worker threads for review visualization")
+    error_analysis.add_argument("--review-workers", type=int, default=None, help="legacy alias for review visualization workers; defaults to --workers")
     error_analysis.add_argument("--review-progress", action="store_true", help="show progress while writing review visualization")
     error_analysis.add_argument("--review-progress-leave", action="store_true", help="keep review progress bar after completion")
     error_analysis.add_argument("--copy-pred-txt", action="store_true", help="copy prediction txt files into review/pred_txt")
@@ -376,6 +372,7 @@ def build_parser() -> argparse.ArgumentParser:
     error_analysis.add_argument("--layout", choices=["auto", "flat", "split_dirs", "image_list", "mixed"], default="auto")
     error_analysis.add_argument("--images-dir", default="images")
     error_analysis.add_argument("--labels-dir", default="labels")
+    add_runtime_args(error_analysis)
     error_analysis.set_defaults(handler=handle_eval_error_analysis)
 
     return parser
@@ -390,6 +387,16 @@ def add_dataset_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--task", choices=["auto", "detect", "segment"], default="auto")
     parser.add_argument("--split-file", default=None)
     parser.add_argument("--layout", choices=["auto", "flat", "split_dirs", "image_list", "mixed"], default="flat")
+    add_runtime_args(parser)
+
+
+def add_runtime_args(parser: argparse.ArgumentParser, *, workers: bool = True) -> None:
+    if workers:
+        parser.add_argument("--workers", type=int, default=8, help="worker threads for supported loading/processing steps")
+    parser.add_argument("--progress", dest="progress", action="store_true", help="show temporary tqdm progress bars")
+    parser.add_argument("--no-progress", dest="progress", action="store_false", help="hide tqdm progress bars")
+    parser.add_argument("--progress-leave", action="store_true", help="keep progress bars after completion")
+    parser.set_defaults(progress=True, progress_leave=False)
 
 
 def add_write_args(parser: argparse.ArgumentParser) -> None:
@@ -401,7 +408,7 @@ def add_write_args(parser: argparse.ArgumentParser) -> None:
     parser.set_defaults(copy_images=True, keep_empty_labels=True)
 
 
-def load_from_args(args: argparse.Namespace, *, progress: bool = False, progress_leave: bool = False):
+def load_from_args(args: argparse.Namespace, *, progress: bool | None = None, progress_leave: bool | None = None):
     return load_yolo_dataset(
         root=args.root,
         images_dir=args.images_dir,
@@ -411,8 +418,9 @@ def load_from_args(args: argparse.Namespace, *, progress: bool = False, progress
         task=args.task,
         split_file=args.split_file,
         layout=args.layout,
-        progress=progress,
-        progress_leave=progress_leave,
+        workers=getattr(args, "workers", 8),
+        progress=getattr(args, "progress", True) if progress is None else progress,
+        progress_leave=getattr(args, "progress_leave", False) if progress_leave is None else progress_leave,
     )
 
 
@@ -502,7 +510,14 @@ def handle_query_attr(args: argparse.Namespace) -> int:
 def handle_dataset_select(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
     selected = select_from_file(dataset, args.file)
-    write_yolo_dataset(selected, args.out, copy_images=args.copy_images)
+    write_yolo_dataset(
+        selected,
+        args.out,
+        copy_images=args.copy_images,
+        workers=args.workers,
+        progress=args.progress,
+        progress_leave=args.progress_leave,
+    )
     print(json.dumps({"images": len(selected.images), "out": args.out}, indent=2, ensure_ascii=False))
     return 0
 
@@ -515,6 +530,9 @@ def handle_dataset_normalize(args: argparse.Namespace) -> int:
             args.out,
             copy_images=args.copy_images,
             keep_empty_labels=args.keep_empty_labels,
+            workers=args.workers,
+            progress=args.progress,
+            progress_leave=args.progress_leave,
         )
     print(json.dumps({"images": len(dataset.images), "annotations": dataset.annotation_count(), "out": None if args.dry_run else args.out}, indent=2, ensure_ascii=False))
     return 0
@@ -572,7 +590,14 @@ def handle_dataset_filter(args: argparse.Namespace) -> int:
     )
     after = filtered.annotation_count()
     if not args.dry_run:
-        write_yolo_dataset(filtered, args.out, copy_images=args.copy_images)
+        write_yolo_dataset(
+            filtered,
+            args.out,
+            copy_images=args.copy_images,
+            workers=args.workers,
+            progress=args.progress,
+            progress_leave=args.progress_leave,
+        )
     print(json.dumps({"before": before, "after": after, "removed": before - after, "out": None if args.dry_run else args.out}, indent=2, ensure_ascii=False))
     return 0
 
@@ -589,7 +614,15 @@ def _read_class_rules(path: str | None) -> dict | None:
 def handle_dataset_merge(args: argparse.Namespace) -> int:
     roots = _split_values(args.roots)
     datasets = [
-        load_yolo_dataset(root, images_dir=args.images_dir, labels_dir=args.labels_dir, task=args.task)
+        load_yolo_dataset(
+            root,
+            images_dir=args.images_dir,
+            labels_dir=args.labels_dir,
+            task=args.task,
+            workers=args.workers,
+            progress=args.progress,
+            progress_leave=args.progress_leave,
+        )
         for root in roots
     ]
     merged, report = merge_datasets(
@@ -599,7 +632,14 @@ def handle_dataset_merge(args: argparse.Namespace) -> int:
         source_prefix=args.source_prefix,
     )
     if not args.dry_run:
-        write_yolo_dataset(merged, args.out, copy_images=args.copy_images)
+        write_yolo_dataset(
+            merged,
+            args.out,
+            copy_images=args.copy_images,
+            workers=args.workers,
+            progress=args.progress,
+            progress_leave=args.progress_leave,
+        )
     print(
         json.dumps(
             {
@@ -618,7 +658,13 @@ def handle_dataset_merge(args: argparse.Namespace) -> int:
 
 def handle_dataset_duplicates(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
-    groups = find_duplicate_images(dataset, algorithm=args.algorithm)
+    groups = find_duplicate_images(
+        dataset,
+        algorithm=args.algorithm,
+        workers=args.workers,
+        progress=args.progress,
+        progress_leave=args.progress_leave,
+    )
     if args.out:
         write_duplicate_image_csv(groups, args.out)
     print(json.dumps({"groups": len(groups), "duplicates": [group.__dict__ for group in groups]}, indent=2, ensure_ascii=False))
@@ -627,7 +673,12 @@ def handle_dataset_duplicates(args: argparse.Namespace) -> int:
 
 def handle_dataset_bad_images(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
-    issues = find_bad_images(dataset)
+    issues = find_bad_images(
+        dataset,
+        workers=args.workers,
+        progress=args.progress,
+        progress_leave=args.progress_leave,
+    )
     if args.out:
         write_image_quality_csv(issues, args.out)
     print(json.dumps({"issues": len(issues), "bad_images": [issue.__dict__ for issue in issues]}, indent=2, ensure_ascii=False))
@@ -671,6 +722,9 @@ def handle_apply_map(args: argparse.Namespace) -> int:
             args.out,
             copy_images=args.copy_images,
             keep_empty_labels=args.keep_empty_labels,
+            workers=args.workers,
+            progress=args.progress,
+            progress_leave=args.progress_leave,
         )
     if args.report:
         rows = []
@@ -720,6 +774,7 @@ def handle_vis_draw(args: argparse.Namespace) -> int:
         filter_no_attributes=args.filter_no_attrs,
         workers=args.workers,
         progress=args.progress,
+        progress_leave=args.progress_leave,
     )
     print(json.dumps({"out": args.out}, indent=2, ensure_ascii=False))
     return 0
@@ -737,6 +792,7 @@ def handle_vis_crop(args: argparse.Namespace) -> int:
         filter_no_attributes=args.filter_no_attrs,
         workers=args.workers,
         progress=args.progress,
+        progress_leave=args.progress_leave,
     )
     print(json.dumps({"saved": saved, "out": args.out}, indent=2, ensure_ascii=False))
     return 0
@@ -751,7 +807,13 @@ def handle_export_coco(args: argparse.Namespace) -> int:
 
 def handle_export_xany(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
-    export_xanylabeling(dataset, args.out)
+    export_xanylabeling(
+        dataset,
+        args.out,
+        workers=args.workers,
+        progress=args.progress,
+        progress_leave=args.progress_leave,
+    )
     print(json.dumps({"out": args.out}, indent=2, ensure_ascii=False))
     return 0
 
@@ -764,6 +826,9 @@ def handle_import_labelme(args: argparse.Namespace) -> int:
         task=args.task,
         class_names=classes,
         attribute_file=args.attribute_file,
+        workers=args.workers,
+        progress=args.progress,
+        progress_leave=args.progress_leave,
     )
     print(json.dumps({"images": len(dataset.images), "annotations": dataset.annotation_count(), "out": args.out}, indent=2, ensure_ascii=False))
     return 0
@@ -778,6 +843,9 @@ def handle_import_coco(args: argparse.Namespace) -> int:
         task=args.task,
         class_names=classes,
         copy_images=args.copy_images,
+        workers=args.workers,
+        progress=args.progress,
+        progress_leave=args.progress_leave,
     )
     print(json.dumps({"images": len(dataset.images), "annotations": dataset.annotation_count(), "out": args.out}, indent=2, ensure_ascii=False))
     return 0
@@ -791,6 +859,9 @@ def handle_import_voc(args: argparse.Namespace) -> int:
         out_root=args.out,
         class_names=classes,
         skip_difficult=args.skip_difficult,
+        workers=args.workers,
+        progress=args.progress,
+        progress_leave=args.progress_leave,
     )
     print(json.dumps({"images": len(dataset.images), "annotations": dataset.annotation_count(), "out": args.out}, indent=2, ensure_ascii=False))
     return 0
@@ -805,6 +876,9 @@ def handle_import_mask(args: argparse.Namespace) -> int:
         background=args.background,
         min_area=args.min_area,
         copy_images=args.copy_images,
+        workers=args.workers,
+        progress=args.progress,
+        progress_leave=args.progress_leave,
     )
     print(json.dumps({"images": len(dataset.images), "annotations": dataset.annotation_count(), "out": args.out}, indent=2, ensure_ascii=False))
     return 0
@@ -818,6 +892,9 @@ def handle_seg2det(args: argparse.Namespace) -> int:
         args.out,
         copy_images=args.copy_images,
         keep_empty_labels=args.keep_empty_labels,
+        workers=args.workers,
+        progress=args.progress,
+        progress_leave=args.progress_leave,
     )
     print(json.dumps({"out": args.out}, indent=2, ensure_ascii=False))
     return 0
@@ -833,6 +910,9 @@ def handle_pseudo(args: argparse.Namespace) -> int:
             copy_images=args.copy_images,
             keep_empty_labels=args.keep_empty_labels,
             include_confidence=not args.drop_confidence,
+            workers=args.workers,
+            progress=args.progress,
+            progress_leave=args.progress_leave,
         )
     print(json.dumps({"annotations": pseudo.annotation_count(), "out": None if args.dry_run else args.out}, indent=2, ensure_ascii=False))
     return 0
@@ -845,6 +925,9 @@ def _eval_load_kwargs(args: argparse.Namespace) -> dict:
         "layout": args.layout,
         "images_dir": args.images_dir,
         "labels_dir": args.labels_dir,
+        "workers": args.workers,
+        "progress": args.progress,
+        "progress_leave": args.progress_leave,
     }
 
 
@@ -865,7 +948,16 @@ def handle_eval_review_pack(args: argparse.Namespace) -> int:
     rows, summary = compare_datasets(gt, pred, iou_threshold=args.iou, confidence_threshold=args.conf)
     if args.csv:
         write_compare_csv(rows, args.csv)
-    counts = write_review_pack(rows, gt, args.out, statuses=set(_split_values(args.status)), pred=pred)
+    counts = write_review_pack(
+        rows,
+        gt,
+        args.out,
+        statuses=set(_split_values(args.status)),
+        pred=pred,
+        workers=args.workers,
+        progress=args.progress,
+        progress_leave=args.progress_leave,
+    )
     print(json.dumps({"summary": summary, "review": counts, "out": args.out}, indent=2, ensure_ascii=False))
     return 0
 
@@ -880,6 +972,9 @@ def handle_eval_error_analysis(args: argparse.Namespace) -> int:
         labels_dir=args.labels_dir,
         class_file=args.class_file,
         stems=stems,
+        workers=args.workers,
+        progress=args.progress,
+        progress_leave=args.progress_leave,
     )
     pred = load_error_analysis_dataset(
         args.pred_root,
@@ -889,6 +984,9 @@ def handle_eval_error_analysis(args: argparse.Namespace) -> int:
         labels_dir=args.labels_dir,
         class_file=args.class_file,
         stems=stems,
+        workers=args.workers,
+        progress=args.progress,
+        progress_leave=args.progress_leave,
     )
     error_rows, summary = analyze_errors(
         gt,
@@ -907,9 +1005,9 @@ def handle_eval_error_analysis(args: argparse.Namespace) -> int:
             pred,
             args.out,
             crop_padding=args.crop_padding,
-            workers=args.review_workers,
-            progress=args.review_progress,
-            progress_leave=args.review_progress_leave,
+            workers=args.review_workers if args.review_workers is not None else args.workers,
+            progress=args.review_progress or args.progress,
+            progress_leave=args.review_progress_leave or args.progress_leave,
         )
         if args.review
         else {}
@@ -939,6 +1037,9 @@ def _write_edit_result(dataset, report, args: argparse.Namespace) -> None:
             args.out,
             copy_images=args.copy_images,
             keep_empty_labels=args.keep_empty_labels,
+            workers=args.workers,
+            progress=args.progress,
+            progress_leave=args.progress_leave,
         )
     if args.report:
         report.write_csv(args.report)

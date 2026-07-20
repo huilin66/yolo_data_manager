@@ -89,9 +89,12 @@ def test_build_python_task_argv():
     assert "--min-size-logic" in filter_argv
     assert "--class-rules" in filter_argv
 
-    vis_argv = build_task_argv("vis.draw", root=Path("dataset"), out="vis", show_id=True, workers=4, progress=True)
+    vis_argv = build_task_argv("vis.draw", root=Path("dataset"), out="vis", show_id=True, workers=4, progress=False)
     assert "--show-id" in vis_argv
-    assert vis_argv[-3:] == ["--workers", "4", "--progress"]
+    assert vis_argv[-3:] == ["--workers", "4", "--no-progress"]
+
+    crop_argv = build_task_argv("vis.crop", root=Path("dataset"), out="crops", progress=False)
+    assert "--no-progress" in crop_argv
 
     error_argv = build_task_argv(
         "eval.error_analysis",

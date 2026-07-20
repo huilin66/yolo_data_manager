@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +10,7 @@ from PIL import Image
 
 from yolo_data_manager.core.models import ClassSchema, Polygon, YoloAnnotation, YoloDataset, YoloImage, is_image_file
 from yolo_data_manager.io.writer import write_yolo_dataset
+from yolo_data_manager.runtime import iter_progress, normalize_workers
 
 
 def import_semantic_mask_dir(
@@ -19,6 +21,9 @@ def import_semantic_mask_dir(
     background: int | str | tuple[int, int, int] = 0,
     min_area: int = 1,
     copy_images: bool = True,
+    workers: int = 8,
+    progress: bool = False,
+    progress_leave: bool = False,
 ) -> YoloDataset:
     """Import semantic segmentation masks as YOLO segmentation polygons.
 
@@ -30,8 +35,7 @@ def import_semantic_mask_dir(
     image_paths = sorted(path for path in image_root.rglob("*") if path.is_file() and is_image_file(path))
     masks_by_stem = {path.stem: path for path in mask_root.rglob("*") if path.is_file() and is_image_file(path)}
 
-    images: list[YoloImage] = []
-    for image_path in image_paths:
+    def build_image(image_path: Path) -> YoloImage:
         mask_path = masks_by_stem.get(image_path.stem)
         width, height = _image_size(image_path)
         annotations: list[YoloAnnotation] = []
@@ -44,14 +48,55 @@ def import_semantic_mask_dir(
                 background=background,
                 min_area=min_area,
             )
-        images.append(YoloImage(path=image_path, width=width, height=height, annotations=annotations))
+        return YoloImage(path=image_path, width=width, height=height, annotations=annotations)
+
+    images = _build_images(
+        image_paths,
+        build_image,
+        workers=workers,
+        progress=progress,
+        progress_leave=progress_leave,
+    )
 
     classes = _classes_from_annotations(class_map, images, background)
     _remap_annotations_to_class_schema(images, classes, class_map, background)
     dataset = YoloDataset(root=Path(out_root or image_root.parent), images=images, classes=classes, task="segment")
     if out_root is not None:
-        write_yolo_dataset(dataset, out_root, copy_images=copy_images)
+        write_yolo_dataset(
+            dataset,
+            out_root,
+            copy_images=copy_images,
+            workers=workers,
+            progress=progress,
+            progress_leave=progress_leave,
+        )
     return dataset
+
+
+def _build_images(
+    image_paths: list[Path],
+    build_image,
+    *,
+    workers: int,
+    progress: bool,
+    progress_leave: bool,
+) -> list[YoloImage]:
+    worker_count = normalize_workers(workers)
+    if worker_count == 1:
+        return [
+            build_image(image_path)
+            for image_path in iter_progress(image_paths, enabled=progress, total=len(image_paths), desc="import mask", leave=progress_leave)
+        ]
+
+    indexed: list[tuple[int, YoloImage]] = []
+    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+        future_to_idx = {
+            executor.submit(build_image, image_path): idx
+            for idx, image_path in enumerate(image_paths)
+        }
+        for future in iter_progress(as_completed(future_to_idx), enabled=progress, total=len(future_to_idx), desc="import mask", leave=progress_leave):
+            indexed.append((future_to_idx[future], future.result()))
+    return [image for _, image in sorted(indexed, key=lambda item: item[0])]
 
 
 def _mask_to_annotations(

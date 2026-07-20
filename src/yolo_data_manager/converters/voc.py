@@ -8,6 +8,7 @@ from PIL import Image
 from yolo_data_manager.core.geometry import xyxy_to_xywhn
 from yolo_data_manager.core.models import Box, ClassSchema, YoloAnnotation, YoloDataset, YoloImage, is_image_file
 from yolo_data_manager.io.writer import write_yolo_dataset
+from yolo_data_manager.runtime import iter_progress
 
 
 def import_voc_dir(
@@ -16,6 +17,9 @@ def import_voc_dir(
     out_root: str | Path | None = None,
     class_names: list[str] | None = None,
     skip_difficult: bool = True,
+    workers: int = 8,
+    progress: bool = False,
+    progress_leave: bool = False,
 ) -> YoloDataset:
     ann_root = Path(annotations_dir)
     img_root = Path(images_dir)
@@ -23,7 +27,8 @@ def import_voc_dir(
     image_by_stem = {path.stem: path for path in img_root.rglob("*") if path.is_file() and is_image_file(path)}
     images: list[YoloImage] = []
 
-    for xml_path in sorted(ann_root.glob("*.xml")):
+    xml_paths = sorted(ann_root.glob("*.xml"))
+    for xml_path in iter_progress(xml_paths, enabled=progress, total=len(xml_paths), desc="import voc", leave=progress_leave):
         tree = ET.parse(xml_path)
         root = tree.getroot()
         file_name = _text(root, "filename") or f"{xml_path.stem}.jpg"
@@ -58,7 +63,14 @@ def import_voc_dir(
 
     dataset = YoloDataset(root=Path(out_root or ann_root.parent), images=images, classes=classes, task="detect")
     if out_root is not None:
-        write_yolo_dataset(dataset, out_root, copy_images=True)
+        write_yolo_dataset(
+            dataset,
+            out_root,
+            copy_images=True,
+            workers=workers,
+            progress=progress,
+            progress_leave=progress_leave,
+        )
     return dataset
 
 

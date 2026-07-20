@@ -102,9 +102,9 @@ def run_task(command: str, **params: Any) -> int:
 
 
 def _boolean_flag(task: str, name: str, value: bool, default_flag: str) -> str | None:
-    if task in {"check", "layout.detect"} and name == "progress":
+    if name == "progress":
         return None if value else "--no-progress"
-    if task in {"check", "layout.detect"} and name == "progress_leave":
+    if name == "progress_leave":
         return "--progress-leave" if value else None
     if name == "compact":
         if task in {"ann.merge_class", "ann.apply_map"}:
@@ -563,6 +563,9 @@ class YoloManager:
         keep_empty_labels: bool = True,
         dry_run: bool = False,
         report: str | None = None,
+        workers: int = 8,
+        progress: bool = True,
+        progress_leave: bool = False,
         **kwargs: Any,
     ) -> int:
         """Delete annotations of given classes (``ydm ann delete-class``)."""
@@ -575,6 +578,9 @@ class YoloManager:
             keep_empty_labels=keep_empty_labels,
             dry_run=dry_run,
             report=report,
+            workers=workers,
+            progress=progress,
+            progress_leave=progress_leave,
             **kwargs,
         )
 
@@ -589,6 +595,9 @@ class YoloManager:
         keep_empty_labels: bool = True,
         dry_run: bool = False,
         report: str | None = None,
+        workers: int = 8,
+        progress: bool = True,
+        progress_leave: bool = False,
         **kwargs: Any,
     ) -> int:
         """Replace source classes with a target class (``ydm ann replace-class``)."""
@@ -616,6 +625,9 @@ class YoloManager:
         keep_empty_labels: bool = True,
         dry_run: bool = False,
         report: str | None = None,
+        workers: int = 8,
+        progress: bool = True,
+        progress_leave: bool = False,
         **kwargs: Any,
     ) -> int:
         """Merge source classes into one (``ydm ann merge-class``)."""
@@ -628,6 +640,9 @@ class YoloManager:
                 keep_empty_labels=keep_empty_labels,
                 dry_run=dry_run,
                 report=report,
+                workers=workers,
+                progress=progress,
+                progress_leave=progress_leave,
             )
         if to is None:
             raise ValueError("to is required when from_ is not a merge mapping")
@@ -641,6 +656,9 @@ class YoloManager:
             keep_empty_labels=keep_empty_labels,
             dry_run=dry_run,
             report=report,
+            workers=workers,
+            progress=progress,
+            progress_leave=progress_leave,
             **kwargs,
         )
 
@@ -654,6 +672,9 @@ class YoloManager:
         keep_empty_labels: bool,
         dry_run: bool,
         report: str | None,
+        workers: int,
+        progress: bool,
+        progress_leave: bool,
     ) -> int:
         import json
 
@@ -670,6 +691,9 @@ class YoloManager:
             task=self.task,
             split_file=self.split_file,
             layout=self.layout,
+            workers=workers,
+            progress=progress,
+            progress_leave=progress_leave,
         )
         current = dataset
         reports: list[EditReport] = []
@@ -696,6 +720,9 @@ class YoloManager:
                 out,
                 copy_images=copy_images,
                 keep_empty_labels=keep_empty_labels,
+                workers=workers,
+                progress=progress,
+                progress_leave=progress_leave,
             )
         if report:
             combined_report.write_csv(report)
@@ -822,8 +849,9 @@ class YoloManager:
         show_attrs: bool = False,
         show_id: bool = False,
         filter_no_attrs: bool = False,
-        workers: int = 1,
+        workers: int = 8,
         progress: bool = True,
+        progress_leave: bool = False,
         **kwargs: Any,
     ) -> int:
         """Draw bounding-boxes / masks on images (``ydm vis draw``)."""
@@ -840,6 +868,7 @@ class YoloManager:
             filter_no_attrs=filter_no_attrs,
             workers=workers,
             progress=progress,
+            progress_leave=progress_leave,
             **kwargs,
         )
 
@@ -852,8 +881,9 @@ class YoloManager:
         conf: float | None = None,
         by_attr: bool = False,
         filter_no_attrs: bool = True,
-        workers: int = 1,
-        progress: bool = False,
+        workers: int = 8,
+        progress: bool = True,
+        progress_leave: bool = False,
         **kwargs: Any,
     ) -> int:
         """Crop annotation regions into class folders (``ydm vis crop``)."""
@@ -867,6 +897,7 @@ class YoloManager:
             filter_no_attrs=filter_no_attrs,
             workers=workers,
             progress=progress,
+            progress_leave=progress_leave,
             **kwargs,
         )
 
@@ -1101,7 +1132,10 @@ class YoloManager:
         class_file: str | None = None,
         review: bool = False,
         crop_padding: int = 12,
-        review_workers: int = 1,
+        workers: int = 8,
+        progress: bool = True,
+        progress_leave: bool = False,
+        review_workers: int | None = None,
         review_progress: bool = False,
         review_progress_leave: bool = False,
         copy_pred_txt: bool = False,
@@ -1127,6 +1161,9 @@ class YoloManager:
             review_workers=review_workers,
             review_progress=review_progress,
             review_progress_leave=review_progress_leave,
+            workers=workers,
+            progress=progress,
+            progress_leave=progress_leave,
             copy_pred_txt=copy_pred_txt,
             task=self.task,
             layout=self.layout,

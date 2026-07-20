@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "yolo-data-manager"
-version = "0.1.0"
+version = "0.2.0"
 description = "A small toolkit for loading, editing, querying, validating, converting, analyzing, and visualizing YOLO datasets."
 readme = "README.md"
 requires-python = ">=3.10"

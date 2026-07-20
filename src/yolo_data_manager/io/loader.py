@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator
-import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import TypeVar
 
 from PIL import Image
 
@@ -26,8 +24,7 @@ from yolo_data_manager.core.schema import (
     read_dataset_class_schema,
 )
 from yolo_data_manager.io.layout import infer_label_path_from_image, read_image_list, resolve_layout
-
-T = TypeVar("T")
+from yolo_data_manager.runtime import iter_progress, normalize_workers, scan_matching_files
 
 
 def load_yolo_dataset(
@@ -40,6 +37,7 @@ def load_yolo_dataset(
     split_file: str | Path | None = None,
     layout: str = "flat",
     read_image_size: bool = True,
+    workers: int = 8,
     progress: bool = False,
     progress_leave: bool = False,
 ) -> YoloDataset:
@@ -68,7 +66,7 @@ def load_yolo_dataset(
         source_lists = [Path(split_file)] if split_file is not None else layout_info.split_files
         image_paths = read_image_list(source_lists, root_path)
     else:
-        image_paths = _scan_matching_files(
+        image_paths = scan_matching_files(
             image_root,
             lambda path: is_image_file(path),
             progress=progress,
@@ -80,7 +78,7 @@ def load_yolo_dataset(
         image_paths = [path for path in image_paths if path.stem in allowed_stems or path.name in allowed_stems]
 
     label_paths = (
-        _scan_matching_files(
+        scan_matching_files(
             label_root,
             lambda path: path.suffix.lower() == ".txt",
             progress=progress,
@@ -92,28 +90,27 @@ def load_yolo_dataset(
     )
     labels_by_stem = {path.stem: path for path in label_paths}
 
-    images: list[YoloImage] = []
-    for image_path in _progress(
-        image_paths,
-        enabled=progress,
-        total=len(image_paths),
-        desc="load parse labels",
-        leave=progress_leave,
-    ):
+    def build_image(image_path: Path) -> YoloImage:
         label_path = infer_label_path_from_image(image_path) if layout_info.layout == "image_list" else labels_by_stem.get(image_path.stem)
         if label_path is not None and not label_path.exists():
             label_path = None
         width, height = _read_image_size(image_path) if read_image_size else (None, None)
         annotations = parse_label_file(label_path, task=task, attributes=attributes) if label_path else []
-        images.append(
-            YoloImage(
-                path=image_path,
-                label_path=label_path,
-                width=width,
-                height=height,
-                annotations=annotations,
-            )
+        return YoloImage(
+            path=image_path,
+            label_path=label_path,
+            width=width,
+            height=height,
+            annotations=annotations,
         )
+
+    images = _load_images(
+        image_paths,
+        build_image,
+        workers=workers,
+        progress=progress,
+        progress_leave=progress_leave,
+    )
 
     image_stems = {path.stem for path in image_paths}
     orphan_labels = [path for path in label_paths if path.stem not in image_stems]
@@ -125,6 +122,44 @@ def load_yolo_dataset(
         task=task,
         orphan_labels=orphan_labels,
     )
+
+
+def _load_images(
+    image_paths: list[Path],
+    build_image,
+    *,
+    workers: int,
+    progress: bool,
+    progress_leave: bool,
+) -> list[YoloImage]:
+    worker_count = normalize_workers(workers)
+    if worker_count == 1:
+        return [
+            build_image(image_path)
+            for image_path in iter_progress(
+                image_paths,
+                enabled=progress,
+                total=len(image_paths),
+                desc="load parse labels",
+                leave=progress_leave,
+            )
+        ]
+
+    indexed_images: list[tuple[int, YoloImage]] = []
+    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+        future_to_idx = {
+            executor.submit(build_image, image_path): idx
+            for idx, image_path in enumerate(image_paths)
+        }
+        for future in iter_progress(
+            as_completed(future_to_idx),
+            enabled=progress,
+            total=len(future_to_idx),
+            desc="load parse labels",
+            leave=progress_leave,
+        ):
+            indexed_images.append((future_to_idx[future], future.result()))
+    return [image for _, image in sorted(indexed_images, key=lambda item: item[0])]
 
 
 def parse_label_file(
@@ -266,70 +301,3 @@ def _read_split_stems(path: str | Path) -> set[str]:
         values.add(Path(text).stem)
         values.add(Path(text).name)
     return values
-
-
-def _scan_matching_files(root: Path, matcher, *, progress: bool, progress_leave: bool, desc: str) -> list[Path]:
-    paths: list[Path] = []
-    progress_bar = _make_dynamic_progress(desc=desc, leave=progress_leave) if progress else None
-    try:
-        for dirpath, _, filenames in os.walk(root):
-            if progress_bar is not None:
-                progress_bar.total = (progress_bar.total or 0) + len(filenames)
-                progress_bar.refresh()
-            for filename in filenames:
-                path = Path(dirpath) / filename
-                if matcher(path):
-                    paths.append(path)
-                if progress_bar is not None:
-                    progress_bar.update(1)
-    finally:
-        if progress_bar is not None:
-            progress_bar.close()
-    return sorted(paths)
-
-
-def _progress(items: Iterable[T], *, enabled: bool, total: int | None, desc: str, leave: bool) -> Iterable[T]:
-    if not enabled:
-        return items
-    try:
-        from tqdm import tqdm
-    except ImportError:
-        return _simple_progress(items, total=total, desc=desc)
-    return tqdm(items, total=total, desc=desc, leave=leave)
-
-
-def _make_dynamic_progress(*, desc: str, leave: bool):
-    try:
-        from tqdm import tqdm
-    except ImportError:
-        return _SimpleDynamicProgress(desc=desc)
-    return tqdm(total=0, desc=desc, leave=leave, unit="file")
-
-
-def _simple_progress(items: Iterable[T], *, total: int | None, desc: str) -> Iterator[T]:
-    step = max(1, (total or 20) // 20)
-    for idx, item in enumerate(items, start=1):
-        if total is None:
-            if idx == 1 or idx % 100 == 0:
-                print(f"{desc}: {idx}")
-        elif idx == 1 or idx == total or idx % step == 0:
-            print(f"{desc}: {idx}/{total}")
-        yield item
-
-
-class _SimpleDynamicProgress:
-    def __init__(self, *, desc: str) -> None:
-        self.desc = desc
-        self.total = 0
-        self.n = 0
-
-    def update(self, value: int) -> None:
-        self.n += value
-        if self.n == 1 or self.n == self.total or self.n % 100 == 0:
-            print(f"{self.desc}: {self.n}/{self.total}")
-
-    def refresh(self) -> None:
-        return None
-
-    def close(self) -> None:
-        return None

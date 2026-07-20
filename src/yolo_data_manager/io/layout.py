@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-import os
 from pathlib import Path
+from dataclasses import dataclass, field
 
 from yolo_data_manager.core.models import is_image_file
 from yolo_data_manager.core.schema import find_class_source, read_dataset_class_schema
+from yolo_data_manager.runtime import count_matching_files
 
 
 @dataclass
@@ -181,9 +181,7 @@ def _image_list_layout(root: Path, split_files: list[Path]) -> LayoutInfo:
 
 
 def _count_images(root: Path, *, progress: bool = False, progress_leave: bool = False, desc: str = "scan images") -> int:
-    if not root.exists():
-        return 0
-    return _count_matching_files(
+    return count_matching_files(
         root,
         lambda path: is_image_file(path),
         progress=progress,
@@ -193,9 +191,7 @@ def _count_images(root: Path, *, progress: bool = False, progress_leave: bool = 
 
 
 def _count_labels(root: Path, *, progress: bool = False, progress_leave: bool = False, desc: str = "scan labels") -> int:
-    if not root.exists():
-        return 0
-    return _count_matching_files(
+    return count_matching_files(
         root,
         lambda path: path.suffix.lower() == ".txt",
         progress=progress,
@@ -207,49 +203,3 @@ def _count_labels(root: Path, *, progress: bool = False, progress_leave: bool = 
 def _resolve_under(root: Path, child: str | Path) -> Path:
     child_path = Path(child)
     return child_path if child_path.is_absolute() else root / child_path
-
-
-def _count_matching_files(root: Path, matcher, *, progress: bool, progress_leave: bool, desc: str) -> int:
-    count = 0
-    progress_bar = _make_dynamic_progress(desc=desc, leave=progress_leave) if progress else None
-    try:
-        for dirpath, _, filenames in os.walk(root):
-            if progress_bar is not None:
-                progress_bar.total = (progress_bar.total or 0) + len(filenames)
-                progress_bar.refresh()
-            for filename in filenames:
-                path = Path(dirpath) / filename
-                if matcher(path):
-                    count += 1
-                if progress_bar is not None:
-                    progress_bar.update(1)
-    finally:
-        if progress_bar is not None:
-            progress_bar.close()
-    return count
-
-
-def _make_dynamic_progress(*, desc: str, leave: bool):
-    try:
-        from tqdm import tqdm
-    except ImportError:
-        return _SimpleDynamicProgress(desc=desc)
-    return tqdm(total=0, desc=desc, leave=leave, unit="file")
-
-
-class _SimpleDynamicProgress:
-    def __init__(self, *, desc: str) -> None:
-        self.desc = desc
-        self.total = 0
-        self.n = 0
-
-    def update(self, value: int) -> None:
-        self.n += value
-        if self.n == 1 or self.n == self.total or self.n % 100 == 0:
-            print(f"{self.desc}: {self.n}/{self.total}")
-
-    def refresh(self) -> None:
-        return None
-
-    def close(self) -> None:
-        return None

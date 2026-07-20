@@ -1,16 +1,13 @@
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TypeVar
 
 from yolo_data_manager.core.geometry import polygon_self_intersects
 from yolo_data_manager.core.models import YoloDataset, YoloImage
 from yolo_data_manager.io.layout import infer_label_path_from_image
-
-T = TypeVar("T")
+from yolo_data_manager.runtime import iter_progress, normalize_workers
 
 
 @dataclass
@@ -90,10 +87,10 @@ def validate_dataset(
             duplicate_image_indices.add(idx)
         seen_image_names.add(image.file_name)
 
-    worker_count = max(1, int(workers))
+    worker_count = normalize_workers(workers)
     class_count = len(dataset.classes)
     if worker_count == 1:
-        for idx, image in _progress(enumerate(dataset.images), enabled=progress, total=len(dataset.images), desc="check", leave=progress_leave):
+        for idx, image in iter_progress(enumerate(dataset.images), enabled=progress, total=len(dataset.images), desc="check", leave=progress_leave):
             report.issues.extend(_validate_image(image, class_count, idx in duplicate_image_indices))
         return report
 
@@ -107,7 +104,7 @@ def validate_dataset(
             for idx, image in enumerate(dataset.images)
         ]
         future_to_idx = {future: idx for idx, future in futures}
-        for future in _progress(as_completed(future_to_idx), enabled=progress, total=len(future_to_idx), desc="check", leave=progress_leave):
+        for future in iter_progress(as_completed(future_to_idx), enabled=progress, total=len(future_to_idx), desc="check", leave=progress_leave):
             indexed_issues.append((future_to_idx[future], future.result()))
     for _, issues in sorted(indexed_issues, key=lambda item: item[0]):
         report.issues.extend(issues)
@@ -240,20 +237,3 @@ def _validate_values(
                 line_no=line_no,
             )
 
-
-def _progress(items: Iterable[T], *, enabled: bool, total: int, desc: str, leave: bool) -> Iterable[T]:
-    if not enabled:
-        return items
-    try:
-        from tqdm import tqdm
-    except ImportError:
-        return _simple_progress(items, total=total, desc=desc)
-    return tqdm(items, total=total, desc=desc, leave=leave)
-
-
-def _simple_progress(items: Iterable[T], *, total: int, desc: str) -> Iterator[T]:
-    step = max(1, total // 20) if total else 1
-    for idx, item in enumerate(items, start=1):
-        if idx == 1 or idx == total or idx % step == 0:
-            print(f"{desc}: {idx}/{total}")
-        yield item

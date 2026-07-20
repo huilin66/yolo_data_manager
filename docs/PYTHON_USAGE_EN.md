@@ -39,7 +39,27 @@ mgr.check(out="validation.json", fill_missing_txt=True)
 mgr.layout_detect()
 ```
 
-`YoloManager(..., layout="auto")` initializes by detecting layout, loading images/labels, and then running check. Layout scanning, loading, and check now show tqdm by default with `leave=False`. `check` writes the full validation report to JSON, while the terminal prints only a red warning/error summary or a green OK summary. If `out` is omitted, the default file is `<root>/check_result.json`. Use `workers=16` to tune check threads, `progress=False` to disable the check bar, and `progress_leave=True` to keep it.
+`YoloManager(..., layout="auto")` initializes by detecting layout, loading images/labels, and then running check.
+
+## Common Runtime Arguments
+
+Most methods that load, write, validate, visualize, or evaluate datasets support the same runtime keyword arguments:
+
+| Argument | Default | Description |
+|---|---|---|
+| `workers` | `8` | Worker threads for supported loading, validation, writing, visualization, and review steps |
+| `progress` | `True` | Show temporary tqdm progress bars |
+| `progress_leave` | `False` | Keep progress bars after completion |
+
+```python
+mgr.check(workers=16)
+mgr.vis_draw(out="images_vis", progress=False)
+mgr.eval_error_analysis(pred_root="pred", out="error_report", review=True, workers=16)
+```
+
+Lower-level functions such as `load_yolo_dataset()` and `validate_dataset()` default to quiet progress-free execution so they are pleasant as library calls. `YoloManager` and the CLI show progress by default.
+
+`check` writes the full validation report to JSON, while the terminal prints only a red warning/error summary or a green OK summary. If `out` is omitted, the default file is `<root>/check_result.json`.
 
 `layout_detect()` prints a layout detection result, not a validation/check result. The output has `report_type: layout_detect` and includes `class_source`, `class_count`, and `classes`.
 
@@ -126,9 +146,10 @@ Write operations output to a new directory. Use `dry_run=True` when you want to 
 mgr.vis_draw(out="images_vis", show_conf=True, show_attrs=True)
 mgr.vis_draw(out="images_vis", conf=0.25, fill_mask=True, mask_alpha=64)
 mgr.vis_draw(out="images_vis", show_id=True)
-mgr.vis_draw(out="images_vis", workers=8, progress=True)
+mgr.vis_draw(out="images_vis", workers=16)
+mgr.vis_draw(out="images_vis", progress=False)
 mgr.vis_crop(out="crops", by_attr=True, min_size=32)
-mgr.vis_crop(out="crops", workers=8, progress=True)
+mgr.vis_crop(out="crops", workers=16)
 ```
 
 `show_id=True` displays the 1-based annotation order from the label txt file.
@@ -176,9 +197,9 @@ mgr.eval_error_analysis(
     conf_thres=0.25,
     duplicate_iou=0.9,
     review=True,
-    review_workers=8,
-    review_progress=True,
-    review_progress_leave=False,
+    workers=8,
+    progress=True,
+    progress_leave=False,
     copy_pred_txt=True,
 )
 ```

@@ -12,6 +12,7 @@ from PIL import Image
 from yolo_data_manager.core.geometry import xyxy_to_xywhn
 from yolo_data_manager.core.models import AttributeSchema, Box, ClassSchema, Polygon, YoloAnnotation, YoloDataset, YoloImage
 from yolo_data_manager.core.schema import read_attribute_schema
+from yolo_data_manager.runtime import iter_progress
 
 
 def import_labelme_dir(
@@ -20,13 +21,17 @@ def import_labelme_dir(
     task: str = "auto",
     class_names: list[str] | None = None,
     attribute_file: str | Path | None = None,
+    workers: int = 8,
+    progress: bool = False,
+    progress_leave: bool = False,
 ) -> YoloDataset:
     root = Path(json_dir)
     classes = ClassSchema(list(class_names or []))
     attributes = read_attribute_schema(attribute_file)
     images: list[YoloImage] = []
 
-    for json_path in sorted(root.glob("*.json")):
+    json_paths = sorted(root.glob("*.json"))
+    for json_path in iter_progress(json_paths, enabled=progress, total=len(json_paths), desc="import labelme", leave=progress_leave):
         data = json.loads(json_path.read_text(encoding="utf-8"))
         image_path = _resolve_or_decode_image(data, json_path, out_root)
         width, height = _image_size(data, image_path)
@@ -62,7 +67,14 @@ def import_labelme_dir(
     if out_root is not None:
         from yolo_data_manager.io.writer import write_yolo_dataset
 
-        write_yolo_dataset(dataset, out_root, copy_images=False)
+        write_yolo_dataset(
+            dataset,
+            out_root,
+            copy_images=False,
+            workers=workers,
+            progress=progress,
+            progress_leave=progress_leave,
+        )
     return dataset
 
 

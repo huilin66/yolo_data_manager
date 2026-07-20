@@ -51,7 +51,7 @@ mgr = YoloManager(r"E:\datasets\my_yolo", layout="auto", init_check=False)
 
 mgr.check(out="validation.json", fill_missing_txt=True)
 mgr.stats(plots_dir="stats", stats_list=["all"])
-mgr.vis_draw(out="vis", show_id=True, show_conf=True, workers=8, progress=True)
+mgr.vis_draw(out="vis", show_id=True, show_conf=True)
 
 mgr.dataset_filter(
     out="filtered",
@@ -68,8 +68,7 @@ mgr.eval_error_analysis(
     pred_root=r"E:\datasets\pred_labels",
     out="error_report",
     review=True,
-    review_workers=8,
-    review_progress=True,
+    workers=8,
     copy_pred_txt=True,
 )
 ```
@@ -79,15 +78,16 @@ mgr.eval_error_analysis(
 ```bash
 ydm check --root path/to/yolo --layout auto --fill-missing-txt --out validation.json
 ydm stats --root path/to/yolo --plots-dir stats --stats-list all
-ydm vis draw --root path/to/yolo --out vis --show-id --show-conf --workers 8 --progress
+ydm vis draw --root path/to/yolo --out vis --show-id --show-conf
 ydm dataset filter --root path/to/yolo --out filtered --min-width 0.01 --min-height 0.01 --min-size-logic and
-ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --out error_report --review --review-workers 8 --review-progress --copy-pred-txt
+ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --out error_report --review --workers 8 --copy-pred-txt
 ```
 
 ## 输出约定
 
 - 写操作默认输出到新目录，不覆盖原数据。
-- `check` 默认使用多线程和 tqdm 进度条，`leave=False`；完整校验结果写入 JSON，终端只输出红色 warning/error 摘要或绿色 OK 摘要。不指定输出路径时默认写到 `<root>/check_result.json`。
+- CLI 和 `YoloManager` 默认使用统一运行参数：`workers=8`、显示临时 tqdm、`leave=False`。可用 `--workers/--no-progress/--progress-leave` 或 Python 的 `workers/progress/progress_leave` 调整。
+- `check` 完整校验结果写入 JSON，终端只输出红色 warning/error 摘要或绿色 OK 摘要。不指定输出路径时默认写到 `<root>/check_result.json`。
 - 标准 YOLO 输出包含 `images/`、`labels/`、`class.txt`、`dataset.yaml`。
 - error analysis 的 review 输出包含 `pred_gt/`、`confusion_matrix.png`、按 `pred_<预测类别>_gt_<真实类别>` 组织的图片和 crop。
 - review crop 文件名使用 `原图名_pred预测txt顺序id_gtGTtxt顺序id`，没有的一侧为 `none`。

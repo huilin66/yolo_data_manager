@@ -38,6 +38,19 @@ Most commands that read a YOLO dataset support:
 | `--attribute-file` | Attribute schema path |
 | `--split-file` | Image list file |
 
+## Common Runtime Arguments
+
+Most commands that load, write, validate, visualize, or evaluate datasets support the same runtime flags:
+
+| Flag | Default | Description |
+|---|---|---|
+| `--workers` | `8` | Worker threads for supported loading, validation, writing, visualization, and review steps |
+| `--progress` | enabled | Show temporary tqdm progress bars |
+| `--no-progress` | disables progress | Hide tqdm progress bars |
+| `--progress-leave` | `False` | Keep progress bars after completion |
+
+The default style is `workers=8`, tqdm enabled, and `leave=False`. A few pure conversion commands do not use threads internally yet, but keep the same CLI style where applicable.
+
 ## Layout and Validation
 
 ```bash
@@ -50,7 +63,7 @@ ydm dataset normalize --root path/to/yolo --layout auto --out normalized_yolo
 
 `layout detect` emits `report_type: layout_detect`. It is a layout detection result, not a dataset validation/check result. The output also includes `class_source`, `class_count`, and `classes` so you can confirm whether classes were read from `class.txt`, `classes.txt`, `dataset.yaml`, or `data.yaml`.
 
-`check` uses multi-threaded validation and a tqdm progress bar by default with `leave=False`. It writes the full validation report to JSON, while the terminal prints only a red warning/error summary or a green OK summary. If `--out` is omitted, the default file is `<root>/check_result.json`. Use `--workers 16` to tune threads, `--no-progress` to disable the bar, `--progress-leave` to keep it, and `--print-full` only when you also want the full JSON printed to the terminal.
+`check` writes the full validation report to JSON, while the terminal prints only a red warning/error summary or a green OK summary. If `--out` is omitted, the default file is `<root>/check_result.json`. Use `--print-full` only when you also want the full JSON printed to the terminal.
 
 `--fill-missing-txt` creates empty label txt files for images without labels and reports the created files in JSON.
 
@@ -149,9 +162,10 @@ box_pos_start, box_pos_center, box_pos_end, attribute, legacy_csv
 ydm vis draw --root path/to/yolo --out images_vis
 ydm vis draw --root path/to/yolo --out images_vis --show-conf --show-attrs --filter-no-attrs
 ydm vis draw --root path/to/yolo --out images_vis --show-id
-ydm vis draw --root path/to/yolo --out images_vis --workers 8 --progress
+ydm vis draw --root path/to/yolo --out images_vis --workers 16
+ydm vis draw --root path/to/yolo --out images_vis --no-progress
 ydm vis crop --root path/to/yolo --out crops --by-attr
-ydm vis crop --root path/to/yolo --out crops --workers 8 --progress
+ydm vis crop --root path/to/yolo --out crops --workers 16
 ```
 
 `--show-id` displays the 1-based annotation order from the label txt file. Crop filenames also use 1-based object ids.
@@ -202,10 +216,12 @@ ydm eval compare --gt-root gt_yolo --pred-root pred_yolo --out compare.csv --iou
 ydm eval review-pack --gt-root gt_yolo --pred-root pred_yolo --out review_pack --iou 0.5
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --out error_report
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --out error_report --match-iou 0.5 --low-iou 0.1 --duplicate-iou 0.9
-ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --out error_report --review --review-workers 8 --review-progress --copy-pred-txt
+ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --out error_report --review --workers 8 --copy-pred-txt
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --val-source val.txt --class-file class.txt --out error_report
 ydm eval error-analysis --gt-root gt_labels --pred-root pred_labels --names class.txt --out error_report
 ```
+
+`eval error-analysis` still accepts legacy `--review-workers`, `--review-progress`, and `--review-progress-leave`. New scripts should prefer the common runtime flags.
 
 Review output:
 
