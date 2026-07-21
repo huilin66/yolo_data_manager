@@ -43,6 +43,7 @@ TASK_COMMANDS: Mapping[str, tuple[str, ...]] = {
     "eval.compare": ("eval", "compare"),
     "eval.review_pack": ("eval", "review-pack"),
     "eval.error_analysis": ("eval", "error-analysis"),
+    "eval.metrics": ("eval", "metrics"),
 }
 
 _PARAMETER_ALIASES = {
@@ -1165,6 +1166,46 @@ class YoloManager:
             progress=progress,
             progress_leave=progress_leave,
             copy_pred_txt=copy_pred_txt,
+            task=self.task,
+            layout=self.layout,
+            images_dir=self.images_dir,
+            labels_dir=self.labels_dir,
+            **kwargs,
+        )
+
+    def eval_metrics(
+        self,
+        pred_root: str,
+        *,
+        gt_root: str | None = None,
+        out: str | None = None,
+        csv: str | None = None,
+        class_: str | list[str] | None = None,
+        conf_thres: float = 0.0,
+        val_source: str | None = None,
+        class_file: str | None = None,
+        workers: int = 8,
+        progress: bool = True,
+        progress_leave: bool = False,
+        **kwargs: Any,
+    ) -> int:
+        """Compute precision/recall/mAP from GT and prediction txt (``ydm eval metrics``)."""
+        resolved_gt_root = gt_root or self.root
+        resolved_val_source = val_source or self.split_file or _default_existing_path(self.root, "val.txt")
+        resolved_class_file = class_file or self.class_file or _default_existing_path(self.root, "class.txt")
+        return run_task(
+            "eval.metrics",
+            gt_root=resolved_gt_root,
+            pred_root=pred_root,
+            out=out,
+            csv=csv,
+            class_=class_,
+            conf_thres=conf_thres,
+            val_source=resolved_val_source,
+            class_file=resolved_class_file,
+            workers=workers,
+            progress=progress,
+            progress_leave=progress_leave,
             task=self.task,
             layout=self.layout,
             images_dir=self.images_dir,

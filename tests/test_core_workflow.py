@@ -31,6 +31,7 @@ from yolo_data_manager.evaluation.error_analysis import (
     write_error_csvs,
     write_error_review_pack,
 )
+from yolo_data_manager.evaluation.metrics import compute_detection_metrics
 from yolo_data_manager.evaluation.review_pack import write_review_pack
 from yolo_data_manager.io.loader import load_yolo_dataset
 from yolo_data_manager.io.layout import detect_layout
@@ -112,6 +113,18 @@ def test_build_python_task_argv():
     assert "--review-progress" in error_argv
     assert "--review-progress-leave" not in error_argv
     assert "--copy-pred-txt" in error_argv
+
+    metrics_argv = build_task_argv(
+        "eval.metrics",
+        gt_root=Path("dataset"),
+        pred_root=Path("pred"),
+        class_=["car", "bus"],
+        conf_thres=0.25,
+        out=Path("metrics.json"),
+    )
+    assert metrics_argv[:2] == ["eval", "metrics"]
+    assert "--class" in metrics_argv
+    assert "car,bus" in metrics_argv
 
     mask_argv = build_task_argv(
         "import.mask",
@@ -716,6 +729,88 @@ def test_compare_datasets(tmp_path):
 
     assert summary == {"tp": 1, "fp": 1, "fn": 2}
     assert len(rows) == 4
+
+
+def test_detection_metrics_supports_selected_classes(tmp_path):
+    gt_root = tmp_path / "gt_metrics"
+    pred_root = tmp_path / "pred_metrics"
+    (gt_root / "images").mkdir(parents=True)
+    (gt_root / "labels").mkdir(parents=True)
+    (pred_root / "images").mkdir(parents=True)
+    (pred_root / "labels").mkdir(parents=True)
+    Image.new("RGB", (100, 100), color="white").save(gt_root / "images" / "a.jpg")
+    Image.new("RGB", (100, 100), color="white").save(pred_root / "images" / "a.jpg")
+    (gt_root / "class.txt").write_text("person\ncar\nbus\ntruck\n", encoding="utf-8")
+    (pred_root / "class.txt").write_text("person\ncar\nbus\ntruck\n", encoding="utf-8")
+    (gt_root / "labels" / "a.txt").write_text(
+        "0 0.2 0.2 0.1 0.1\n"
+        "1 0.7 0.7 0.2 0.2\n",
+        encoding="utf-8",
+    )
+    (pred_root / "labels" / "a.txt").write_text(
+        "1 0.7 0.7 0.2 0.2 0.90\n",
+        encoding="utf-8",
+    )
+    gt = load_yolo_dataset(gt_root, task="detect")
+    pred = load_yolo_dataset(pred_root, task="detect")
+
+    all_metrics = compute_detection_metrics(gt, pred)
+    car_metrics = compute_detection_metrics(gt, pred, class_ids=[1])
+
+    assert round(all_metrics.map50, 6) == 0.4975
+    assert round(all_metrics.map, 6) == 0.4975
+    assert round(car_metrics.map50, 6) == 0.995
+    assert round(car_metrics.map, 6) == 0.995
+    assert round(car_metrics.precision, 6) == 1.0
+    assert round(car_metrics.recall, 6) == 1.0
+    assert car_metrics.selected_class_ids == [1]
+    assert [(row.class_name, row.labels, row.predictions) for row in car_metrics.classes] == [("car", 1, 1)]
+
+
+def test_cli_eval_metrics_writes_json_and_csv(tmp_path, capsys):
+    gt_root = make_dataset(tmp_path / "gt_metrics_cli")
+    pred_labels = tmp_path / "pred_labels_cli"
+    pred_labels.mkdir()
+    names = gt_root / "class.txt"
+    (pred_labels / "a.txt").write_text(
+        "1 0.4 0.4 0.2 0.2 0.95\n"
+        "0 0.5 0.5 0.2 0.3 0.20\n",
+        encoding="utf-8",
+    )
+    (pred_labels / "b.txt").write_text("1 0.1 0.1 0.2 0.1 0.90\n", encoding="utf-8")
+    out = tmp_path / "metrics.json"
+    csv_path = tmp_path / "metrics.csv"
+
+    code = cli_main(
+        [
+            "eval",
+            "metrics",
+            "--gt-root",
+            str(gt_root),
+            "--pred-root",
+            str(pred_labels),
+            "--names",
+            str(names),
+            "--class",
+            "car",
+            "--out",
+            str(out),
+            "--csv",
+            str(csv_path),
+            "--no-progress",
+        ]
+    )
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    captured = capsys.readouterr()
+
+    assert code == 0
+    assert payload["report_type"] == "detection_metrics"
+    assert payload["selected_class_ids"] == [1]
+    assert round(payload["map50"], 6) == 0.995
+    assert round(payload["precision"], 6) == 1.0
+    assert round(payload["recall"], 6) == 1.0
+    assert "car" in csv_path.read_text(encoding="utf-8")
+    assert "detection_metrics" in captured.out
 
 
 def test_pseudo_labels_and_review_pack(tmp_path):

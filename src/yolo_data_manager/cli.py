@@ -44,6 +44,12 @@ from yolo_data_manager.evaluation.error_analysis import (
     write_error_csvs,
     write_error_review_pack,
 )
+from yolo_data_manager.evaluation.metrics import (
+    compute_detection_metrics,
+    resolve_eval_class_ids,
+    write_metrics_csv,
+    write_metrics_json,
+)
 from yolo_data_manager.evaluation.review_pack import write_review_pack
 
 
@@ -374,6 +380,23 @@ def build_parser() -> argparse.ArgumentParser:
     error_analysis.add_argument("--labels-dir", default="labels")
     add_runtime_args(error_analysis)
     error_analysis.set_defaults(handler=handle_eval_error_analysis)
+
+    metrics = eval_sub.add_parser("metrics", help="compute Ultralytics-style precision/recall/mAP from GT and prediction txt")
+    metrics.add_argument("--gt-root", required=True)
+    metrics.add_argument("--pred-root", required=True)
+    metrics.add_argument("--out", default=None, help="optional JSON output path")
+    metrics.add_argument("--csv", default=None, help="optional per-class CSV output path")
+    metrics.add_argument("--class", dest="class_values", default=None, help="class ids/names to evaluate, comma-separated")
+    metrics.add_argument("--conf-thres", type=float, default=0.0, help="confidence threshold for predictions")
+    metrics.add_argument("--val-source", default=None, help="validation image dir or txt list used to limit evaluated stems")
+    metrics.add_argument("--class-file", default=None, help="optional class names file; supports 'id name' or one name per line")
+    metrics.add_argument("--names", dest="class_file", default=None, help="alias of --class-file")
+    metrics.add_argument("--task", choices=["auto", "detect", "segment"], default="detect")
+    metrics.add_argument("--layout", choices=["auto", "flat", "split_dirs", "image_list", "mixed"], default="auto")
+    metrics.add_argument("--images-dir", default="images")
+    metrics.add_argument("--labels-dir", default="labels")
+    add_runtime_args(metrics)
+    metrics.set_defaults(handler=handle_eval_metrics)
 
     return parser
 
@@ -1027,6 +1050,47 @@ def handle_eval_error_analysis(args: argparse.Namespace) -> int:
             ensure_ascii=False,
         )
     )
+    return 0
+
+
+def handle_eval_metrics(args: argparse.Namespace) -> int:
+    stems = collect_stems_from_source(args.val_source)
+    gt = load_error_analysis_dataset(
+        args.gt_root,
+        task=args.task,
+        layout=args.layout,
+        images_dir=args.images_dir,
+        labels_dir=args.labels_dir,
+        class_file=args.class_file,
+        stems=stems,
+        workers=args.workers,
+        progress=args.progress,
+        progress_leave=args.progress_leave,
+    )
+    pred = load_error_analysis_dataset(
+        args.pred_root,
+        task=args.task,
+        layout=args.layout,
+        images_dir=args.images_dir,
+        labels_dir=args.labels_dir,
+        class_file=args.class_file,
+        stems=stems,
+        workers=args.workers,
+        progress=args.progress,
+        progress_leave=args.progress_leave,
+    )
+    class_ids = resolve_eval_class_ids(gt, _split_values(args.class_values) if args.class_values else None)
+    metrics = compute_detection_metrics(
+        gt,
+        pred,
+        class_ids=class_ids,
+        conf_thres=args.conf_thres,
+    )
+    if args.out:
+        write_metrics_json(metrics, args.out)
+    if args.csv:
+        write_metrics_csv(metrics, args.csv)
+    print(json.dumps(metrics.to_dict(), indent=2, ensure_ascii=False))
     return 0
 
 
