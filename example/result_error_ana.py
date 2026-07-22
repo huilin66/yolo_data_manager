@@ -3,7 +3,10 @@ import os
 from yolo_data_manager import YoloManager
 
 
-def yolo_error_ana(input_dir, pred_dir, pred_name, workers=8):
+def yolo_error_ana(input_dir, pred_dir, pred_name, abs_path=False, workers=8):
+    if not abs_path:
+        pred_dir = os.path.join(input_dir, pred_dir, 'labels')
+
     ana_dir = os.path.join(input_dir, "ana", pred_name)
     os.makedirs(ana_dir, exist_ok=True)
 
@@ -27,9 +30,7 @@ def yolo_error_ana(input_dir, pred_dir, pred_name, workers=8):
 
 if __name__ == "__main__":
     pass
-    t_dir = r"/localnvme/data/bdd_hmt/sua_t"
-    t_dir_pred = r"/localnvme/project/ultralytics/runs/detect/val-4/labels"
-    rgb_dir = r"/localnvme/data/bdd_hmt/sua_rgb_merge"
-    rgb_dir_pred = r"/localnvme/project/ultralytics/runs/detect/val-18/labels"
-    # yolo_error_ana(t_dir, t_dir_pred, "val-4")
-    yolo_error_ana(rgb_dir, rgb_dir_pred, "val-18")
+    data_dir = r'/localnvme/project/ultralytics/ultralytics/cfg/datasets_traffic_sign/tf_defect_3.yaml'
+    pred_dir = r"/localnvme/project/ultralytics/runs/detect"
+
+    yolo_error_ana(data_dir, pred_dir, "val-23")
