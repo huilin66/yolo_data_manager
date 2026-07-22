@@ -225,7 +225,7 @@ ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --val-source val
 ydm eval error-analysis --gt-root gt_labels --pred-root pred_labels --names class.txt --out error_report
 ```
 
-`eval metrics` 计算 Precision、Recall、mAP@0.5、mAP@0.5:0.95，并支持 `--class` 只评估指定类别；未选类别的 GT 和预测都会被忽略。小目标过滤可使用 `--min-width`、`--min-height`、`--min-area`、`--min-size-logic`，或按像素使用 `--min-pixels`。加 `--print-table` 可输出接近 Ultralytics 的对齐表格，方便人工对比。
+`eval metrics` 计算 Precision、Recall、mAP@0.5、mAP@0.5:0.95，并支持 `--class` 只评估指定类别；未选类别的 GT 和预测都会被忽略。默认不输出、不计入 `Instances=0` 的类别；如需保留这些空 GT 类用于排查误检，可加 `--include-empty-classes`。小目标过滤可使用 `--min-width`、`--min-height`、`--min-area`、`--min-size-logic`，或按像素使用 `--min-pixels`。加 `--print-table` 可输出接近 Ultralytics 的对齐表格，方便人工对比。
 
 `eval error-analysis` 仍兼容旧参数 `--review-workers`、`--review-progress`、`--review-progress-leave`；新脚本建议直接使用统一运行参数。
 

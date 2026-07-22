@@ -395,6 +395,7 @@ def build_parser() -> argparse.ArgumentParser:
     metrics.add_argument("--min-area", type=float, default=None, help="ignore boxes smaller than this normalized area")
     metrics.add_argument("--min-size-logic", choices=["or", "and"], default="or", help="combine min-width/min-height checks")
     metrics.add_argument("--min-pixels", type=float, default=None, help="ignore boxes whose pixel width or height is smaller than this")
+    metrics.add_argument("--include-empty-classes", dest="ignore_empty_classes", action="store_false", help="include classes with zero GT instances in metrics output")
     metrics.add_argument("--val-source", default=None, help="validation image dir or txt list used to limit evaluated stems")
     metrics.add_argument("--class-file", default=None, help="optional class names file; supports 'id name' or one name per line")
     metrics.add_argument("--names", dest="class_file", default=None, help="alias of --class-file")
@@ -403,7 +404,7 @@ def build_parser() -> argparse.ArgumentParser:
     metrics.add_argument("--images-dir", default="images")
     metrics.add_argument("--labels-dir", default="labels")
     add_runtime_args(metrics)
-    metrics.set_defaults(handler=handle_eval_metrics)
+    metrics.set_defaults(handler=handle_eval_metrics, ignore_empty_classes=True)
 
     return parser
 
@@ -1097,6 +1098,7 @@ def handle_eval_metrics(args: argparse.Namespace) -> int:
         min_area=args.min_area,
         min_size_logic=args.min_size_logic,
         min_pixels=args.min_pixels,
+        ignore_empty_classes=args.ignore_empty_classes,
     )
     if args.out:
         write_metrics_json(metrics, args.out)

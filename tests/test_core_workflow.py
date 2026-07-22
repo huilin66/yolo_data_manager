@@ -129,6 +129,13 @@ def test_build_python_task_argv():
     assert "car,bus" in metrics_argv
     assert "--min-pixels" in metrics_argv
     assert "--min-size-logic" in metrics_argv
+    metrics_include_empty_argv = build_task_argv(
+        "eval.metrics",
+        gt_root=Path("dataset"),
+        pred_root=Path("pred"),
+        ignore_empty_classes=False,
+    )
+    assert "--include-empty-classes" in metrics_include_empty_argv
 
     mask_argv = build_task_argv(
         "import.mask",
@@ -802,6 +809,40 @@ def test_detection_metrics_supports_selected_classes(tmp_path):
     assert "mAP50-95" in table
     assert "all" in table
     assert "car" in table
+
+
+def test_detection_metrics_ignores_empty_instance_classes_by_default(tmp_path):
+    gt_root = tmp_path / "gt_empty_class_metrics"
+    pred_root = tmp_path / "pred_empty_class_metrics"
+    (gt_root / "images").mkdir(parents=True)
+    (gt_root / "labels").mkdir(parents=True)
+    (pred_root / "images").mkdir(parents=True)
+    (pred_root / "labels").mkdir(parents=True)
+    Image.new("RGB", (100, 100), color="white").save(gt_root / "images" / "a.jpg")
+    Image.new("RGB", (100, 100), color="white").save(pred_root / "images" / "a.jpg")
+    (gt_root / "class.txt").write_text("person\ncar\nbus\n", encoding="utf-8")
+    (pred_root / "class.txt").write_text("person\ncar\nbus\n", encoding="utf-8")
+    (gt_root / "labels" / "a.txt").write_text("1 0.7 0.7 0.2 0.2\n", encoding="utf-8")
+    (pred_root / "labels" / "a.txt").write_text(
+        "1 0.7 0.7 0.2 0.2 0.95\n"
+        "2 0.2 0.2 0.2 0.2 0.90\n",
+        encoding="utf-8",
+    )
+    gt = load_yolo_dataset(gt_root, task="detect")
+    pred = load_yolo_dataset(pred_root, task="detect")
+
+    default_metrics = compute_detection_metrics(gt, pred, class_ids=[1, 2])
+    include_empty = compute_detection_metrics(gt, pred, class_ids=[1, 2], ignore_empty_classes=False)
+
+    assert [row.class_name for row in default_metrics.classes] == ["car"]
+    assert default_metrics.predictions == 2
+    assert round(default_metrics.map50, 6) == 0.995
+    assert [row.class_name for row in include_empty.classes] == ["car", "bus"]
+    assert include_empty.classes[1].labels == 0
+    assert include_empty.classes[1].predictions == 1
+    assert round(include_empty.map50, 6) == 0.4975
+    assert "bus" not in format_metrics_table(default_metrics)
+    assert "bus" in format_metrics_table(include_empty)
 
 
 def test_cli_eval_metrics_writes_json_and_csv(tmp_path, capsys):

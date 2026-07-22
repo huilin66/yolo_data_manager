@@ -225,7 +225,7 @@ ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --val-source val
 ydm eval error-analysis --gt-root gt_labels --pred-root pred_labels --names class.txt --out error_report
 ```
 
-`eval metrics` computes Precision, Recall, mAP@0.5, and mAP@0.5:0.95, and supports `--class` for evaluating only selected classes. GT and predictions outside the selected classes are ignored. Small-object filtering supports `--min-width`, `--min-height`, `--min-area`, `--min-size-logic`, or pixel filtering with `--min-pixels`. Add `--print-table` to print an aligned Ultralytics-style table for manual comparison.
+`eval metrics` computes Precision, Recall, mAP@0.5, and mAP@0.5:0.95, and supports `--class` for evaluating only selected classes. GT and predictions outside the selected classes are ignored. Classes with `Instances=0` are omitted from output and mean metrics by default; add `--include-empty-classes` to keep them for false-positive checks. Small-object filtering supports `--min-width`, `--min-height`, `--min-area`, `--min-size-logic`, or pixel filtering with `--min-pixels`. Add `--print-table` to print an aligned Ultralytics-style table for manual comparison.
 
 `eval error-analysis` still accepts legacy `--review-workers`, `--review-progress`, and `--review-progress-leave`. New scripts should prefer the common runtime flags.
 

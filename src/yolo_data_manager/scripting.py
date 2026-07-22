@@ -65,6 +65,7 @@ _FALSE_FLAGS = {
     "fill_mask": "--no-fill-mask",
     "drop_confidence": "--keep-conf",
     "skip_difficult": "--keep-difficult",
+    "ignore_empty_classes": "--include-empty-classes",
 }
 
 
@@ -1239,6 +1240,7 @@ class YoloManager:
         min_area: float | None = None,
         min_size_logic: str = "or",
         min_pixels: float | None = None,
+        ignore_empty_classes: bool = True,
         val_source: str | None = None,
         class_file: str | None = None,
         workers: int = 8,
@@ -1264,6 +1266,7 @@ class YoloManager:
             min_area=min_area,
             min_size_logic=min_size_logic,
             min_pixels=min_pixels,
+            ignore_empty_classes=ignore_empty_classes,
             val_source=resolved_val_source,
             class_file=resolved_class_file,
             workers=workers,

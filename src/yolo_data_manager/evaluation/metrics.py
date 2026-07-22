@@ -43,6 +43,7 @@ class DetectionMetrics:
     selected_class_ids: list[int] | None
     iou_thresholds: list[float]
     size_filter: dict[str, float | str | None]
+    ignore_empty_classes: bool
 
     def to_dict(self) -> dict[str, object]:
         data = asdict(self)
@@ -61,6 +62,7 @@ def compute_detection_metrics(
     min_area: float | None = None,
     min_size_logic: str = "or",
     min_pixels: float | None = None,
+    ignore_empty_classes: bool = True,
     iou_thresholds: Sequence[float] = DEFAULT_IOU_THRESHOLDS,
 ) -> DetectionMetrics:
     """Compute Ultralytics-style detection metrics from YOLO GT/prediction txt.
@@ -168,6 +170,8 @@ def compute_detection_metrics(
         ap=ap,
         ap_class=ap_class,
     )
+    if ignore_empty_classes:
+        class_metrics = [row for row in class_metrics if row.labels > 0]
 
     metric_rows = [row for row in class_metrics if row.labels > 0 or row.predictions > 0]
     if metric_rows:
@@ -199,6 +203,7 @@ def compute_detection_metrics(
             "min_size_logic": min_size_logic,
             "min_pixels": min_pixels,
         },
+        ignore_empty_classes=ignore_empty_classes,
     )
 
 
