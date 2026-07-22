@@ -176,6 +176,34 @@ def test_yolo_manager_methods(tmp_path):
     assert "--keep-no-attrs" in argv
 
 
+def test_yolo_manager_can_initialize_from_dataset_yaml(tmp_path):
+    root = make_dataset(tmp_path / "yaml_yolo")
+    (root / "val.txt").write_text("images/a.jpg\n", encoding="utf-8")
+    (root / "class.txt").unlink()
+    yaml_path = tmp_path / "configs" / "data_fire.yaml"
+    yaml_path.parent.mkdir()
+    yaml_path.write_text(
+        "path: ../yaml_yolo\n"
+        "train: images\n"
+        "val: val.txt\n"
+        "names:\n"
+        "  0: flame\n"
+        "  1: smoke\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "stats.json"
+
+    mgr = YoloManager(yaml_path, layout="flat", task="detect", init_layout=False, init_check=False)
+    code = mgr.stats(out=str(out))
+    payload = json.loads(out.read_text(encoding="utf-8"))
+
+    assert code == 0
+    assert mgr.root == str(root)
+    assert mgr.class_file == str(yaml_path)
+    assert mgr.split_file == str(root / "val.txt")
+    assert payload["class_counts"] == {"flame": 1, "smoke": 1}
+
+
 def test_yolo_manager_check_can_fill_missing_txt(tmp_path):
     root = make_dataset(tmp_path / "yolo")
     (root / "labels" / "b.txt").unlink()
@@ -775,7 +803,13 @@ def test_cli_eval_metrics_writes_json_and_csv(tmp_path, capsys):
     gt_root = make_dataset(tmp_path / "gt_metrics_cli")
     pred_labels = tmp_path / "pred_labels_cli"
     pred_labels.mkdir()
-    names = gt_root / "class.txt"
+    names = tmp_path / "names.yaml"
+    names.write_text(
+        "names:\n"
+        "  0: person\n"
+        "  1: car\n",
+        encoding="utf-8",
+    )
     (pred_labels / "a.txt").write_text(
         "1 0.4 0.4 0.2 0.2 0.95\n"
         "0 0.5 0.5 0.2 0.3 0.20\n",

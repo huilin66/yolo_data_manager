@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+import os
 from pathlib import Path
 import tempfile
 from typing import Any
 
 import yaml
+
+from yolo_data_manager.core.schema import read_dataset_yaml
 
 TASK_COMMANDS: Mapping[str, tuple[str, ...]] = {
     "check": ("check",),
@@ -139,6 +142,53 @@ def _default_existing_path(root: str, name: str) -> str | None:
     return str(path) if path.exists() else None
 
 
+def _resolve_manager_root(root: str | Path) -> tuple[Path, str | None, str | None]:
+    root_path = Path(root)
+    if root_path.suffix.lower() not in {".yaml", ".yml"} or not root_path.is_file():
+        return root_path, None, None
+
+    yaml_path = root_path
+    data = read_dataset_yaml(yaml_path)
+    dataset_root = _resolve_yaml_dataset_root(yaml_path, data.get("path"))
+    split_file = _resolve_yaml_split_file(yaml_path, dataset_root, data.get("val"))
+    return dataset_root, str(yaml_path), split_file
+
+
+def _resolve_yaml_dataset_root(yaml_path: Path, path_value: Any) -> Path:
+    if path_value is None:
+        return yaml_path.parent
+    text = os.path.expandvars(str(path_value)).strip()
+    if not text:
+        return yaml_path.parent
+    path = Path(text).expanduser()
+    if path.is_absolute():
+        return path
+    return (yaml_path.parent / path).resolve()
+
+
+def _resolve_yaml_split_file(yaml_path: Path, dataset_root: Path, val_value: Any) -> str | None:
+    if isinstance(val_value, Sequence) and not isinstance(val_value, (str, bytes, bytearray)):
+        values = [item for item in val_value if item is not None]
+        val_value = values[0] if values else None
+    if val_value is None:
+        return None
+    path = _resolve_yaml_data_path(yaml_path, dataset_root, val_value)
+    if path.suffix.lower() == ".txt" or path.is_file():
+        return str(path)
+    return None
+
+
+def _resolve_yaml_data_path(yaml_path: Path, dataset_root: Path, value: Any) -> Path:
+    text = os.path.expandvars(str(value)).strip()
+    path = Path(text).expanduser()
+    if path.is_absolute():
+        return path
+    candidate = dataset_root / path
+    if candidate.exists():
+        return candidate
+    return (yaml_path.parent / path).resolve()
+
+
 # ---------------------------------------------------------------------------
 # Tasks that accept a --root argument (root is auto-filled by YoloManager)
 # ---------------------------------------------------------------------------
@@ -209,14 +259,15 @@ class YoloManager:
         init_check_progress: bool = True,
         init_check_progress_leave: bool = False,
     ) -> None:
-        self.root = str(root)
+        resolved_root, yaml_class_file, yaml_split_file = _resolve_manager_root(root)
+        self.root = str(resolved_root)
         self.layout = layout
         self.task = task
         self.images_dir = images_dir
         self.labels_dir = labels_dir
-        self.class_file = class_file
+        self.class_file = class_file or yaml_class_file
         self.attribute_file = attribute_file
-        self.split_file = split_file
+        self.split_file = split_file or yaml_split_file
         self.init_layout = init_layout
         self.init_layout_progress = init_layout_progress
         self.init_layout_progress_leave = init_layout_progress_leave

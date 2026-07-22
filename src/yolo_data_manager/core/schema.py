@@ -14,6 +14,9 @@ def read_class_schema(path: Path | str | None) -> ClassSchema:
     class_path = Path(path)
     if not class_path.exists():
         return ClassSchema([])
+    if class_path.suffix.lower() in {".yaml", ".yml"}:
+        data = yaml.safe_load(class_path.read_text(encoding="utf-8")) or {}
+        return _class_schema_from_names(data.get("names"))
     names = [line.strip() for line in class_path.read_text(encoding="utf-8").splitlines()]
     return ClassSchema([name for name in names if name])
 
@@ -96,7 +99,10 @@ def read_dataset_class_schema(root: Path) -> ClassSchema:
     if dataset_yaml is None:
         return ClassSchema([])
     data = yaml.safe_load(dataset_yaml.read_text(encoding="utf-8")) or {}
-    names = data.get("names")
+    return _class_schema_from_names(data.get("names"))
+
+
+def _class_schema_from_names(names: Any) -> ClassSchema:
     if isinstance(names, list):
         return ClassSchema([str(x) for x in names])
     if isinstance(names, dict):

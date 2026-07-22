@@ -25,6 +25,7 @@ python -m pytest -q
 from yolo_data_manager import YoloManager
 
 mgr = YoloManager(r"E:\datasets\my_yolo", layout="auto")
+mgr = YoloManager(r"E:\repository\yolo8\ultralytics\cfg\datasets\data_fire.yaml", layout="auto")
 mgr = YoloManager(r"E:\datasets\my_yolo", layout="flat", init_check=False)
 mgr = YoloManager(r"E:\datasets\my_yolo", layout="flat", init_check=r"E:\datasets\my_yolo\stats\validation.json")
 mgr = YoloManager(r"E:\datasets\my_yolo", layout="flat",
@@ -140,6 +141,8 @@ mgr.import_mask(
 ```
 
 `YoloManager(..., layout="auto")` 初始化时会先做 layout 扫描，再加载图片和 label，最后执行 check。
+
+`YoloManager` 的 `root` 也可以直接传 Ultralytics 风格的 `data.yaml/dataset.yaml`。此时会读取 YAML 的 `path` 作为数据集根目录，读取 `names` 作为类别来源；如果 `val` 指向 `.txt` 文件，会自动作为 `split_file`。
 
 ## 统一运行参数
 

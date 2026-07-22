@@ -48,6 +48,7 @@ python -m pytest -q
 from yolo_data_manager import YoloManager
 
 mgr = YoloManager("datasets/my_yolo", layout="auto", init_check=False)
+mgr_yaml = YoloManager(r"E:\repository\yolo8\ultralytics\cfg\datasets\data_fire.yaml", layout="auto", init_check=False)
 
 mgr.check(out="validation.json", fill_missing_txt=True)
 mgr.stats(plots_dir="stats", stats_list=["all"])

@@ -23,6 +23,7 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 from yolo_data_manager.core.models import ClassSchema, YoloAnnotation, YoloDataset, YoloImage, is_image_file
+from yolo_data_manager.core.schema import read_class_schema
 from yolo_data_manager.io.loader import load_yolo_dataset, parse_label_file
 from yolo_data_manager.runtime import iter_progress, normalize_workers
 
@@ -178,6 +179,8 @@ def read_eval_class_schema(path: str | Path | None) -> ClassSchema:
     class_path = Path(path)
     if not class_path.exists():
         return ClassSchema([])
+    if class_path.suffix.lower() in {".yaml", ".yml"}:
+        return read_class_schema(class_path)
 
     names_by_id: dict[int, str] = {}
     fallback_names: list[str] = []
@@ -1148,4 +1151,3 @@ def _norm_box_to_pixels(box: list[float], width: int, height: int) -> tuple[int,
 
 def _safe_file_name(value: str) -> str:
     return "".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in value)
-

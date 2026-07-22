@@ -25,6 +25,7 @@ python -m pytest -q
 from yolo_data_manager import YoloManager
 
 mgr = YoloManager("datasets/my_yolo", layout="auto", init_check=False)
+mgr = YoloManager(r"E:\repository\yolo8\ultralytics\cfg\datasets\data_fire.yaml", layout="auto")
 mgr = YoloManager(
     "datasets/my_yolo",
     layout="flat",
@@ -40,6 +41,8 @@ mgr.layout_detect()
 ```
 
 `YoloManager(..., layout="auto")` initializes by detecting layout, loading images/labels, and then running check.
+
+`root` may also be an Ultralytics-style `data.yaml/dataset.yaml`. In that case `path` becomes the dataset root, `names` becomes the class source, and a `.txt` `val` entry is used as `split_file`.
 
 ## Common Runtime Arguments
 
