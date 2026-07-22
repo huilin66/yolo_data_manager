@@ -21,6 +21,8 @@ python -m pytest -q
 
 通过 `YoloManager` 类管理数据集：初始化时绑定 `root`，后续调用无需重复传入路径。
 
+下面代码块只展示常用初始化方式和高频方法，不是完整 API；完整方法列表见后面的“方法速查”。
+
 ```python
 from yolo_data_manager import YoloManager
 

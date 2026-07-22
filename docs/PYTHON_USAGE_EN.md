@@ -21,6 +21,8 @@ python -m pytest -q
 
 `YoloManager` stores the dataset root and common loading options. Methods that operate on the current dataset automatically reuse those values.
 
+The code block below shows common initialization patterns and frequent calls, not the complete API. See the method quick-reference section for the full list.
+
 ```python
 from yolo_data_manager import YoloManager
 
