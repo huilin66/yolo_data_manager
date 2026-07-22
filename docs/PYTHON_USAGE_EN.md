@@ -187,7 +187,7 @@ mgr.convert_pseudo(out="pseudo_labels", conf=0.5, drop_confidence=True)
 ```python
 mgr.eval_compare(gt_root="datasets/gt", pred_root="datasets/pred", out="compare.csv", iou=0.5)
 mgr.eval_review_pack(gt_root="datasets/gt", pred_root="datasets/pred", out="review_pack", status=["fp", "fn"])
-mgr.eval_metrics(pred_root="datasets/pred_labels", class_=["car", "bus"], out="metrics.json", csv="metrics.csv")
+mgr.eval_metrics(pred_root="datasets/pred_labels", class_=["car", "bus"], min_pixels=8, out="metrics.json", csv="metrics.csv")
 
 mgr.eval_error_analysis(pred_root="datasets/pred_labels", out="error_report")
 mgr.eval_error_analysis(

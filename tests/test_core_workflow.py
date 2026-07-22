@@ -120,11 +120,15 @@ def test_build_python_task_argv():
         pred_root=Path("pred"),
         class_=["car", "bus"],
         conf_thres=0.25,
+        min_pixels=8,
+        min_size_logic="and",
         out=Path("metrics.json"),
     )
     assert metrics_argv[:2] == ["eval", "metrics"]
     assert "--class" in metrics_argv
     assert "car,bus" in metrics_argv
+    assert "--min-pixels" in metrics_argv
+    assert "--min-size-logic" in metrics_argv
 
     mask_argv = build_task_argv(
         "import.mask",
@@ -811,6 +815,42 @@ def test_cli_eval_metrics_writes_json_and_csv(tmp_path, capsys):
     assert round(payload["recall"], 6) == 1.0
     assert "car" in csv_path.read_text(encoding="utf-8")
     assert "detection_metrics" in captured.out
+
+
+def test_detection_metrics_can_filter_small_targets(tmp_path):
+    gt_root = tmp_path / "gt_small_metrics"
+    pred_root = tmp_path / "pred_small_metrics"
+    (gt_root / "images").mkdir(parents=True)
+    (gt_root / "labels").mkdir(parents=True)
+    (pred_root / "images").mkdir(parents=True)
+    (pred_root / "labels").mkdir(parents=True)
+    Image.new("RGB", (100, 100), color="white").save(gt_root / "images" / "a.jpg")
+    Image.new("RGB", (100, 100), color="white").save(pred_root / "images" / "a.jpg")
+    (gt_root / "class.txt").write_text("obj\n", encoding="utf-8")
+    (pred_root / "class.txt").write_text("obj\n", encoding="utf-8")
+    (gt_root / "labels" / "a.txt").write_text(
+        "0 0.5 0.5 0.2 0.2\n"
+        "0 0.1 0.1 0.02 0.02\n",
+        encoding="utf-8",
+    )
+    (pred_root / "labels" / "a.txt").write_text(
+        "0 0.5 0.5 0.2 0.2 0.95\n"
+        "0 0.8 0.8 0.02 0.02 0.90\n",
+        encoding="utf-8",
+    )
+    gt = load_yolo_dataset(gt_root, task="detect")
+    pred = load_yolo_dataset(pred_root, task="detect")
+
+    unfiltered = compute_detection_metrics(gt, pred)
+    filtered = compute_detection_metrics(gt, pred, min_pixels=5)
+
+    assert unfiltered.labels == 2
+    assert unfiltered.predictions == 2
+    assert filtered.labels == 1
+    assert filtered.predictions == 1
+    assert round(filtered.precision, 6) == 1.0
+    assert round(filtered.recall, 6) == 1.0
+    assert filtered.size_filter["min_pixels"] == 5
 
 
 def test_pseudo_labels_and_review_pack(tmp_path):

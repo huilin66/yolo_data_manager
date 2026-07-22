@@ -41,6 +41,7 @@ class DetectionMetrics:
     classes: list[ClassMetric]
     selected_class_ids: list[int] | None
     iou_thresholds: list[float]
+    size_filter: dict[str, float | str | None]
 
     def to_dict(self) -> dict[str, object]:
         data = asdict(self)
@@ -54,6 +55,11 @@ def compute_detection_metrics(
     *,
     class_ids: Iterable[int] | None = None,
     conf_thres: float = 0.0,
+    min_width: float | None = None,
+    min_height: float | None = None,
+    min_area: float | None = None,
+    min_size_logic: str = "or",
+    min_pixels: float | None = None,
     iou_thresholds: Sequence[float] = DEFAULT_IOU_THRESHOLDS,
 ) -> DetectionMetrics:
     """Compute Ultralytics-style detection metrics from YOLO GT/prediction txt.
@@ -62,6 +68,8 @@ def compute_detection_metrics(
     If *class_ids* is provided, GT and predictions outside that class set are
     ignored before matching and averaging.
     """
+    if min_size_logic not in {"or", "and"}:
+        raise ValueError("min_size_logic must be 'or' or 'and'")
     selected = None if class_ids is None else set(int(class_id) for class_id in class_ids)
     iouv = np.array(iou_thresholds, dtype=np.float64)
     pred_by_stem = {image.stem: image for image in pred.images}
@@ -76,12 +84,33 @@ def compute_detection_metrics(
     for gt_image in gt.images:
         seen_gt_stems.add(gt_image.stem)
         pred_image = pred_by_stem.get(gt_image.stem)
-        gt_anns = _filter_annotations(gt_image.annotations, selected, is_prediction=False, conf_thres=conf_thres)
+        width = gt_image.width if gt_image.width is not None else (pred_image.width if pred_image is not None else None)
+        height = gt_image.height if gt_image.height is not None else (pred_image.height if pred_image is not None else None)
+        gt_anns = _filter_annotations(
+            gt_image.annotations,
+            selected,
+            is_prediction=False,
+            conf_thres=conf_thres,
+            image_width=width,
+            image_height=height,
+            min_width=min_width,
+            min_height=min_height,
+            min_area=min_area,
+            min_size_logic=min_size_logic,
+            min_pixels=min_pixels,
+        )
         pred_anns = _filter_annotations(
             pred_image.annotations if pred_image is not None else [],
             selected,
             is_prediction=True,
             conf_thres=conf_thres,
+            image_width=width,
+            image_height=height,
+            min_width=min_width,
+            min_height=min_height,
+            min_area=min_area,
+            min_size_logic=min_size_logic,
+            min_pixels=min_pixels,
         )
         target_cls_values.extend(ann.class_id for ann in gt_anns)
         for ann in pred_anns:
@@ -96,7 +125,19 @@ def compute_detection_metrics(
     for pred_image in pred.images:
         if pred_image.stem in seen_gt_stems:
             continue
-        pred_anns = _filter_annotations(pred_image.annotations, selected, is_prediction=True, conf_thres=conf_thres)
+        pred_anns = _filter_annotations(
+            pred_image.annotations,
+            selected,
+            is_prediction=True,
+            conf_thres=conf_thres,
+            image_width=pred_image.width,
+            image_height=pred_image.height,
+            min_width=min_width,
+            min_height=min_height,
+            min_area=min_area,
+            min_size_logic=min_size_logic,
+            min_pixels=min_pixels,
+        )
         if not pred_anns:
             continue
         tp_parts.append(np.zeros((len(pred_anns), len(iouv)), dtype=bool))
@@ -146,6 +187,13 @@ def compute_detection_metrics(
         classes=class_metrics,
         selected_class_ids=sorted(selected) if selected is not None else None,
         iou_thresholds=[float(v) for v in iouv],
+        size_filter={
+            "min_width": min_width,
+            "min_height": min_height,
+            "min_area": min_area,
+            "min_size_logic": min_size_logic,
+            "min_pixels": min_pixels,
+        },
     )
 
 
@@ -191,11 +239,76 @@ def _filter_annotations(
     *,
     is_prediction: bool,
     conf_thres: float,
+    image_width: int | None,
+    image_height: int | None,
+    min_width: float | None,
+    min_height: float | None,
+    min_area: float | None,
+    min_size_logic: str,
+    min_pixels: float | None,
 ) -> list[YoloAnnotation]:
     rows = [ann for ann in annotations if selected is None or ann.class_id in selected]
     if not is_prediction or conf_thres <= 0:
-        return rows
-    return [ann for ann in rows if ann.confidence is None or ann.confidence >= conf_thres]
+        return [
+            ann
+            for ann in rows
+            if _keep_by_size(
+                ann,
+                image_width=image_width,
+                image_height=image_height,
+                min_width=min_width,
+                min_height=min_height,
+                min_area=min_area,
+                min_size_logic=min_size_logic,
+                min_pixels=min_pixels,
+            )
+        ]
+    return [
+        ann
+        for ann in rows
+        if (ann.confidence is None or ann.confidence >= conf_thres)
+        and _keep_by_size(
+            ann,
+            image_width=image_width,
+            image_height=image_height,
+            min_width=min_width,
+            min_height=min_height,
+            min_area=min_area,
+            min_size_logic=min_size_logic,
+            min_pixels=min_pixels,
+        )
+    ]
+
+
+def _keep_by_size(
+    annotation: YoloAnnotation,
+    *,
+    image_width: int | None,
+    image_height: int | None,
+    min_width: float | None,
+    min_height: float | None,
+    min_area: float | None,
+    min_size_logic: str,
+    min_pixels: float | None,
+) -> bool:
+    box = annotation.geometry_box()
+    if box is None:
+        return False
+    width_too_small = min_width is not None and box.width < float(min_width)
+    height_too_small = min_height is not None and box.height < float(min_height)
+    if min_size_logic == "and":
+        if width_too_small and height_too_small:
+            return False
+    elif width_too_small or height_too_small:
+        return False
+    if min_area is not None and box.width * box.height < float(min_area):
+        return False
+    if min_pixels is not None and image_width is not None and image_height is not None:
+        pixel_width = box.width * image_width
+        pixel_height = box.height * image_height
+        if pixel_width < float(min_pixels) or pixel_height < float(min_pixels):
+            return False
+    return True
 
 
 def _match_predictions(

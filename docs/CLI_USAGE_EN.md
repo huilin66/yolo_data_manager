@@ -216,6 +216,7 @@ ydm eval compare --gt-root gt_yolo --pred-root pred_yolo --out compare.csv --iou
 ydm eval review-pack --gt-root gt_yolo --pred-root pred_yolo --out review_pack --iou 0.5
 ydm eval metrics --gt-root gt_yolo --pred-root pred_yolo --out metrics.json --csv metrics.csv
 ydm eval metrics --gt-root gt_yolo --pred-root pred_labels --names class.txt --class car,bus --out vehicle_metrics.json
+ydm eval metrics --gt-root gt_yolo --pred-root pred_labels --names class.txt --class car,bus --min-pixels 8 --out vehicle_no_small.json
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --out error_report
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --out error_report --match-iou 0.5 --low-iou 0.1 --duplicate-iou 0.9
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --out error_report --review --workers 8 --copy-pred-txt
@@ -223,7 +224,7 @@ ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --val-source val
 ydm eval error-analysis --gt-root gt_labels --pred-root pred_labels --names class.txt --out error_report
 ```
 
-`eval metrics` computes Precision, Recall, mAP@0.5, and mAP@0.5:0.95, and supports `--class` for evaluating only selected classes. GT and predictions outside the selected classes are ignored.
+`eval metrics` computes Precision, Recall, mAP@0.5, and mAP@0.5:0.95, and supports `--class` for evaluating only selected classes. GT and predictions outside the selected classes are ignored. Small-object filtering supports `--min-width`, `--min-height`, `--min-area`, `--min-size-logic`, or pixel filtering with `--min-pixels`.
 
 `eval error-analysis` still accepts legacy `--review-workers`, `--review-progress`, and `--review-progress-leave`. New scripts should prefer the common runtime flags.
 

@@ -216,6 +216,7 @@ ydm eval compare --gt-root gt_yolo --pred-root pred_yolo --out compare.csv --iou
 ydm eval review-pack --gt-root gt_yolo --pred-root pred_yolo --out review_pack --iou 0.5
 ydm eval metrics --gt-root gt_yolo --pred-root pred_yolo --out metrics.json --csv metrics.csv
 ydm eval metrics --gt-root gt_yolo --pred-root pred_labels --names class.txt --class car,bus --out vehicle_metrics.json
+ydm eval metrics --gt-root gt_yolo --pred-root pred_labels --names class.txt --class car,bus --min-pixels 8 --out vehicle_no_small.json
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --out error_report
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --out error_report --match-iou 0.5 --low-iou 0.1 --duplicate-iou 0.9
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --out error_report --review --workers 8 --copy-pred-txt
@@ -223,7 +224,7 @@ ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --val-source val
 ydm eval error-analysis --gt-root gt_labels --pred-root pred_labels --names class.txt --out error_report
 ```
 
-`eval metrics` 计算 Precision、Recall、mAP@0.5、mAP@0.5:0.95，并支持 `--class` 只评估指定类别；未选类别的 GT 和预测都会被忽略。
+`eval metrics` 计算 Precision、Recall、mAP@0.5、mAP@0.5:0.95，并支持 `--class` 只评估指定类别；未选类别的 GT 和预测都会被忽略。小目标过滤可使用 `--min-width`、`--min-height`、`--min-area`、`--min-size-logic`，或按像素使用 `--min-pixels`。
 
 `eval error-analysis` 仍兼容旧参数 `--review-workers`、`--review-progress`、`--review-progress-leave`；新脚本建议直接使用统一运行参数。
 

@@ -388,6 +388,11 @@ def build_parser() -> argparse.ArgumentParser:
     metrics.add_argument("--csv", default=None, help="optional per-class CSV output path")
     metrics.add_argument("--class", dest="class_values", default=None, help="class ids/names to evaluate, comma-separated")
     metrics.add_argument("--conf-thres", type=float, default=0.0, help="confidence threshold for predictions")
+    metrics.add_argument("--min-width", type=float, default=None, help="ignore boxes narrower than this normalized width")
+    metrics.add_argument("--min-height", type=float, default=None, help="ignore boxes shorter than this normalized height")
+    metrics.add_argument("--min-area", type=float, default=None, help="ignore boxes smaller than this normalized area")
+    metrics.add_argument("--min-size-logic", choices=["or", "and"], default="or", help="combine min-width/min-height checks")
+    metrics.add_argument("--min-pixels", type=float, default=None, help="ignore boxes whose pixel width or height is smaller than this")
     metrics.add_argument("--val-source", default=None, help="validation image dir or txt list used to limit evaluated stems")
     metrics.add_argument("--class-file", default=None, help="optional class names file; supports 'id name' or one name per line")
     metrics.add_argument("--names", dest="class_file", default=None, help="alias of --class-file")
@@ -1085,6 +1090,11 @@ def handle_eval_metrics(args: argparse.Namespace) -> int:
         pred,
         class_ids=class_ids,
         conf_thres=args.conf_thres,
+        min_width=args.min_width,
+        min_height=args.min_height,
+        min_area=args.min_area,
+        min_size_logic=args.min_size_logic,
+        min_pixels=args.min_pixels,
     )
     if args.out:
         write_metrics_json(metrics, args.out)
