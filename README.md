@@ -81,7 +81,7 @@ ydm check --root path/to/yolo --layout auto --fill-missing-txt --out validation.
 ydm stats --root path/to/yolo --plots-dir stats --stats-list all
 ydm vis draw --root path/to/yolo --out vis --show-id --show-conf
 ydm dataset filter --root path/to/yolo --out filtered --min-width 0.01 --min-height 0.01 --min-size-logic and
-ydm eval metrics --gt-root gt_yolo --pred-root pred_labels --names class.txt --class car,bus --min-pixels 8 --out metrics.json --csv metrics.csv
+ydm eval metrics --gt-root gt_yolo --pred-root pred_labels --names class.txt --class car,bus --min-pixels 8 --out metrics.json --csv metrics.csv --print-table
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --out error_report --review --workers 8 --copy-pred-txt
 ```
 

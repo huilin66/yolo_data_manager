@@ -46,6 +46,7 @@ from yolo_data_manager.evaluation.error_analysis import (
 )
 from yolo_data_manager.evaluation.metrics import (
     compute_detection_metrics,
+    format_metrics_table,
     resolve_eval_class_ids,
     write_metrics_csv,
     write_metrics_json,
@@ -386,6 +387,7 @@ def build_parser() -> argparse.ArgumentParser:
     metrics.add_argument("--pred-root", required=True)
     metrics.add_argument("--out", default=None, help="optional JSON output path")
     metrics.add_argument("--csv", default=None, help="optional per-class CSV output path")
+    metrics.add_argument("--print-table", action="store_true", help="print an Ultralytics-style metrics table instead of JSON")
     metrics.add_argument("--class", dest="class_values", default=None, help="class ids/names to evaluate, comma-separated")
     metrics.add_argument("--conf-thres", type=float, default=0.0, help="confidence threshold for predictions")
     metrics.add_argument("--min-width", type=float, default=None, help="ignore boxes narrower than this normalized width")
@@ -1100,7 +1102,10 @@ def handle_eval_metrics(args: argparse.Namespace) -> int:
         write_metrics_json(metrics, args.out)
     if args.csv:
         write_metrics_csv(metrics, args.csv)
-    print(json.dumps(metrics.to_dict(), indent=2, ensure_ascii=False))
+    if args.print_table:
+        print(format_metrics_table(metrics))
+    else:
+        print(json.dumps(metrics.to_dict(), indent=2, ensure_ascii=False))
     return 0
 
 

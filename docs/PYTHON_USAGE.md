@@ -239,6 +239,7 @@ mgr.eval_error_analysis(pred_root="pred", out="error_report", review=True, worke
 | `eval_review_pack(gt_root=..., pred_root=..., out=...)` | `ydm eval review-pack` |
 | `eval_error_analysis(gt_root=..., pred_root=..., out=...)` | `ydm eval error-analysis` |
 | `eval_metrics(pred_root=..., class_=["car", "bus"], min_pixels=8, out=...)` | `ydm eval metrics` |
+| `eval_metrics(pred_root=..., class_=["car", "bus"], print_table=True)` | `ydm eval metrics --print-table` |
 
 所有方法返回 `int` 退出码（0 = 成功），底层调用 `run_task()`。
 

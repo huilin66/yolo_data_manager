@@ -10,7 +10,7 @@ from yolo_data_manager.core.models import (
     YoloImage,
 )
 from yolo_data_manager.io.loader import load_yolo_dataset
-from yolo_data_manager.evaluation.metrics import compute_detection_metrics
+from yolo_data_manager.evaluation.metrics import compute_detection_metrics, format_metrics_table
 from yolo_data_manager.scripting import YoloManager, build_task_argv, run_task
 
 __all__ = [
@@ -23,6 +23,7 @@ __all__ = [
     "YoloImage",
     "YoloManager",
     "compute_detection_metrics",
+    "format_metrics_table",
     "load_yolo_dataset",
     "build_task_argv",
     "run_task",

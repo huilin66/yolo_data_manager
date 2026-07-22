@@ -17,6 +17,7 @@ DEFAULT_IOU_THRESHOLDS = tuple(float(v) for v in np.linspace(0.5, 0.95, 10))
 class ClassMetric:
     class_id: int
     class_name: str
+    images: int
     labels: int
     predictions: int
     precision: float
@@ -79,6 +80,7 @@ def compute_detection_metrics(
     pred_cls_values: list[int] = []
     target_cls_values: list[int] = []
     pred_count_by_class: dict[int, int] = {}
+    image_count_by_class: dict[int, int] = {}
 
     seen_gt_stems: set[str] = set()
     for gt_image in gt.images:
@@ -113,6 +115,8 @@ def compute_detection_metrics(
             min_pixels=min_pixels,
         )
         target_cls_values.extend(ann.class_id for ann in gt_anns)
+        for class_id in {ann.class_id for ann in gt_anns}:
+            image_count_by_class[class_id] = image_count_by_class.get(class_id, 0) + 1
         for ann in pred_anns:
             pred_count_by_class[ann.class_id] = pred_count_by_class.get(ann.class_id, 0) + 1
 
@@ -157,6 +161,7 @@ def compute_detection_metrics(
         selected=selected,
         target_cls=target_cls,
         pred_count_by_class=pred_count_by_class,
+        image_count_by_class=image_count_by_class,
         p=p,
         r=r,
         f1=f1,
@@ -217,6 +222,7 @@ def write_metrics_csv(metrics: DetectionMetrics, path: str | Path) -> None:
     fieldnames = [
         "class_id",
         "class_name",
+        "images",
         "labels",
         "predictions",
         "precision",
@@ -231,6 +237,47 @@ def write_metrics_csv(metrics: DetectionMetrics, path: str | Path) -> None:
         writer.writeheader()
         for row in metrics.classes:
             writer.writerow(asdict(row))
+
+
+def format_metrics_table(metrics: DetectionMetrics, *, precision: int = 3) -> str:
+    """Return an Ultralytics-style metrics table for terminal comparison."""
+    headers = ["Class", "Images", "Instances", "Precision", "Recall", "mAP50", "mAP50-95"]
+    rows: list[list[str]] = [
+        [
+            "all",
+            str(metrics.images),
+            str(metrics.labels),
+            _format_metric(metrics.precision, precision),
+            _format_metric(metrics.recall, precision),
+            _format_metric(metrics.map50, precision),
+            _format_metric(metrics.map, precision),
+        ]
+    ]
+    for row in metrics.classes:
+        if row.labels == 0 and row.predictions == 0:
+            continue
+        rows.append(
+            [
+                row.class_name,
+                str(row.images),
+                str(row.labels),
+                _format_metric(row.precision, precision),
+                _format_metric(row.recall, precision),
+                _format_metric(row.ap50, precision),
+                _format_metric(row.map, precision),
+            ]
+        )
+
+    widths = [
+        max(len(headers[col_idx]), *(len(row[col_idx]) for row in rows))
+        for col_idx in range(len(headers))
+    ]
+    lines = [
+        " ".join(header.rjust(widths[idx]) if idx else header.ljust(widths[idx]) for idx, header in enumerate(headers))
+    ]
+    for row in rows:
+        lines.append(" ".join(value.rjust(widths[idx]) if idx else value.ljust(widths[idx]) for idx, value in enumerate(row)))
+    return "\n".join(lines)
 
 
 def _filter_annotations(
@@ -408,6 +455,7 @@ def _build_class_metrics(
     selected: set[int] | None,
     target_cls: np.ndarray,
     pred_count_by_class: dict[int, int],
+    image_count_by_class: dict[int, int],
     p: np.ndarray,
     r: np.ndarray,
     f1: np.ndarray,
@@ -431,6 +479,7 @@ def _build_class_metrics(
             ClassMetric(
                 class_id=class_id,
                 class_name=dataset.class_name(class_id),
+                images=image_count_by_class.get(class_id, 0),
                 labels=target_count_by_class.get(class_id, 0),
                 predictions=pred_count_by_class.get(class_id, 0),
                 precision=float(p[metric_idx]) if metric_idx is not None else 0.0,
@@ -442,6 +491,10 @@ def _build_class_metrics(
             )
         )
     return rows
+
+
+def _format_metric(value: float, precision: int) -> str:
+    return f"{float(value):.{precision}g}"
 
 
 def _annotation_box_xyxy(annotation: YoloAnnotation) -> list[float]:

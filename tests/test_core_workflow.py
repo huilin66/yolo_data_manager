@@ -31,7 +31,7 @@ from yolo_data_manager.evaluation.error_analysis import (
     write_error_csvs,
     write_error_review_pack,
 )
-from yolo_data_manager.evaluation.metrics import compute_detection_metrics
+from yolo_data_manager.evaluation.metrics import compute_detection_metrics, format_metrics_table
 from yolo_data_manager.evaluation.review_pack import write_review_pack
 from yolo_data_manager.io.loader import load_yolo_dataset
 from yolo_data_manager.io.layout import detect_layout
@@ -796,7 +796,12 @@ def test_detection_metrics_supports_selected_classes(tmp_path):
     assert round(car_metrics.precision, 6) == 1.0
     assert round(car_metrics.recall, 6) == 1.0
     assert car_metrics.selected_class_ids == [1]
-    assert [(row.class_name, row.labels, row.predictions) for row in car_metrics.classes] == [("car", 1, 1)]
+    assert [(row.class_name, row.images, row.labels, row.predictions) for row in car_metrics.classes] == [("car", 1, 1, 1)]
+    table = format_metrics_table(car_metrics)
+    assert "Class" in table
+    assert "mAP50-95" in table
+    assert "all" in table
+    assert "car" in table
 
 
 def test_cli_eval_metrics_writes_json_and_csv(tmp_path, capsys):
@@ -849,6 +854,41 @@ def test_cli_eval_metrics_writes_json_and_csv(tmp_path, capsys):
     assert round(payload["recall"], 6) == 1.0
     assert "car" in csv_path.read_text(encoding="utf-8")
     assert "detection_metrics" in captured.out
+
+
+def test_cli_eval_metrics_can_print_table(tmp_path, capsys):
+    gt_root = make_dataset(tmp_path / "gt_metrics_table")
+    pred_labels = tmp_path / "pred_labels_table"
+    pred_labels.mkdir()
+    names = gt_root / "class.txt"
+    (pred_labels / "a.txt").write_text("1 0.4 0.4 0.2 0.2 0.95\n", encoding="utf-8")
+    (pred_labels / "b.txt").write_text("1 0.1 0.1 0.2 0.1 0.90\n", encoding="utf-8")
+
+    code = cli_main(
+        [
+            "eval",
+            "metrics",
+            "--gt-root",
+            str(gt_root),
+            "--pred-root",
+            str(pred_labels),
+            "--names",
+            str(names),
+            "--class",
+            "car",
+            "--print-table",
+            "--no-progress",
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert code == 0
+    assert "Class" in captured.out
+    assert "Images" in captured.out
+    assert "Instances" in captured.out
+    assert "mAP50-95" in captured.out
+    assert "car" in captured.out
+    assert "detection_metrics" not in captured.out
 
 
 def test_detection_metrics_can_filter_small_targets(tmp_path):
