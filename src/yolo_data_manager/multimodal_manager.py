@@ -44,7 +44,7 @@ class MultiModalYoloManager:
         init_load: bool = False,
         init_check: bool | str | Path = False,
         progress: bool = True,
-        progress_leave: bool = True,
+        progress_leave: bool = False,
     ) -> None:
         self.root = Path(root)
         self.image_dirs = tuple(image_dirs)
