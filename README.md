@@ -37,6 +37,7 @@ python -m pytest -q
 | Dataset operations | select, split, merge, filter, yaml, duplicate/bad-image checks | `train`, `val`, `absolute_paths`, `class_rules` |
 | Statistics | Class distribution, object counts, box shapes, image shapes, attributes, plots | `stats_list`, `plots_dir`, `ann_csv` |
 | Visualization | Draw boxes/masks, show confidence/attributes/txt order id, crop objects | `show_id`, `show_conf`, `workers` |
+| Multimodal (Python API) | Associate image folders by stem/suffix and reuse shared labels for stats, rendering, and crops | `image_dirs`, `image_params`, `label_params` |
 | Import/export | Convert between YOLO and LabelMe/COCO/VOC/masks/x-anylabeling | `class_map`, `background`, `min_area` |
 | Evaluation | Compare GT vs predictions, build FP/FN review packs, error analysis, confusion matrix | `match_iou`, `low_iou`, `review_workers` |
 

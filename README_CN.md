@@ -37,6 +37,7 @@ python -m pytest -q
 | 数据集管理 | select、split、merge、filter、yaml、重复图、坏图检测 | `train`、`val`、`absolute_paths`、`class_rules` |
 | 统计 | 类别分布、目标数、框宽高面积、图片尺寸、属性统计、图表 | `stats_list`、`plots_dir`、`ann_csv` |
 | 可视化 | 画框、画 mask、显示 confidence/属性/txt 顺序号、裁剪目标 | `show_id`、`show_conf`、`workers` |
+| 多模态（Python API） | 多图像目录按 stem/suffix 关联，共享 label 的统计、渲染与 crop | `image_dirs`、`image_params`、`label_params` |
 | 导入导出 | 在 YOLO 与 LabelMe/COCO/VOC/mask/x-anylabeling 之间转换 | `class_map`、`background`、`min_area` |
 | 评估分析 | GT vs pred 对比、FP/FN review、细粒度错误分析、混淆矩阵 | `match_iou`、`low_iou`、`review_workers` |
 

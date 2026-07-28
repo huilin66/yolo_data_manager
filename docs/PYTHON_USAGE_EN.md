@@ -214,6 +214,62 @@ mgr.eval_error_analysis(
 
 When `gt_root`, `val_source`, or `class_file` are omitted, `YoloManager` falls back to the manager root, `val.txt`, and `class.txt` when available.
 
+## Multimodal YOLO Datasets
+
+The multimodal API is for datasets with one shared YOLO label set and multiple aligned image folders. Load the association once with `load_multimodal_yolo_dataset()`, then pass the returned object to the independent statistics, rendering, and crop functions. This avoids reparsing the same label files once per modality. It is a Python API and currently has no CLI command.
+
+Each image or label filename is normalized to a scene stem by removing its extension and its configured source `suffix`. For example, `visible/0001_V.jpg`, `infrared/0001_T.png`, and `labels/0001_gt.txt` all associate with scene `0001`.
+
+```python
+from yolo_data_manager import (
+    compute_multimodal_stats,
+    crop_multimodal_dataset,
+    load_multimodal_yolo_dataset,
+    render_multimodal_dataset,
+    write_multimodal_stats_plots,
+)
+from yolo_data_manager.stats.report import write_json_report
+
+root = r"E:\datasets\mdet_train"
+
+# Empty configuration matches unchanged stems. Extensions may differ.
+dataset = load_multimodal_yolo_dataset(
+    root,
+    image_dirs=["visible", "infrared", "depth"],
+    labels_dir="labels",
+    class_file="class.txt",
+    task="detect",
+)
+
+stats = compute_multimodal_stats(dataset)
+write_json_report(stats, "stats/multimodal_stats.json")
+write_multimodal_stats_plots(dataset, "stats/labels_sta", stats_list=["all"])
+render_multimodal_dataset(dataset, "image_vis", show_txt_id=True, workers=8)
+crop_multimodal_dataset(dataset, "image_vis/crops", workers=8)
+
+print(dataset.alignment_report.to_dict())
+```
+
+Use `image_params` and `label_params` when filenames carry suffixes. The dictionary key is the logical image type and binds to an image folder with the same name by default. Use `dir` when the type and folder name differ.
+
+```python
+dataset = load_multimodal_yolo_dataset(
+    root,
+    image_dirs=["visible", "thermal", "depth_map"],
+    image_params={
+        "rgb": {"dir": "visible", "suffix": "_V"},
+        "infrared": {"dir": "thermal", "suffix": "_T"},
+        "depth": {"dir": "depth_map", "suffix": "_D", "required": False},
+    },
+    labels_dir="labels",
+    label_params={"suffix": "_gt"},
+    class_file="class.txt",
+    task="detect",
+)
+```
+
+The default is for every image type to be required. `required=False` allows a scene to remain usable when that modality is absent. `annotation_stats` counts each shared label once, whereas `modalities.<type>.stats` contains per-modality image and pixel-level box statistics. Rendered outputs are separated by type, for example `image_vis/rgb/` and `image_vis/infrared/`.
+
 ## Functional API
 
 You can call tasks directly with `run_task`.
