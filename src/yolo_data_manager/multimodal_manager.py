@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+import json
 from pathlib import Path
+import sys
 
 from yolo_data_manager.core.models import TASK_AUTO
 from yolo_data_manager.core.multimodal import AlignmentReport, MultimodalYoloDataset
@@ -107,8 +109,9 @@ class MultiModalYoloManager:
             "scene_count": len(dataset.complete_scenes),
             **report.to_dict(),
         }
-        if out is not None:
-            write_json_report(payload, out)
+        report_path = Path(out) if out is not None else self.root / "multimodal_check_result.json"
+        write_json_report(payload, report_path)
+        _print_check_summary(payload, report_path)
         return payload
 
     def stats(
@@ -129,6 +132,7 @@ class MultiModalYoloManager:
             write_json_report(payload, out)
         if plots_dir is not None:
             write_multimodal_stats_plots(dataset, plots_dir, stats_list=stats_list)
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
         return payload
 
     def vis_draw(
@@ -151,8 +155,8 @@ class MultiModalYoloManager:
     ) -> dict[str, int]:
         """Render every selected modality from the shared cached annotations."""
 
-        return render_multimodal_dataset(
-            self.load(reload=reload),
+        counts = render_multimodal_dataset(
+            self.load(reload=reload, progress=progress, progress_leave=progress_leave),
             out,
             modalities=modalities,
             limit=limit,
@@ -167,6 +171,8 @@ class MultiModalYoloManager:
             progress=progress,
             progress_leave=progress_leave,
         )
+        print(json.dumps({"out": str(out), "modalities": counts}, indent=2, ensure_ascii=False))
+        return counts
 
     def vis_crop(
         self,
@@ -185,8 +191,8 @@ class MultiModalYoloManager:
     ) -> dict[str, int]:
         """Write object crops grouped by modality without reparsing labels."""
 
-        return crop_multimodal_dataset(
-            self.load(reload=reload),
+        counts = crop_multimodal_dataset(
+            self.load(reload=reload, progress=progress, progress_leave=progress_leave),
             out,
             modalities=modalities,
             keep_shape=keep_shape,
@@ -198,3 +204,29 @@ class MultiModalYoloManager:
             progress=progress,
             progress_leave=progress_leave,
         )
+        print(json.dumps({"out": str(out), "crops": counts}, indent=2, ensure_ascii=False))
+        return counts
+
+
+def _print_check_summary(payload: dict[str, object], report_path: Path) -> None:
+    summary = payload.get("summary", {})
+    counts = summary if isinstance(summary, dict) else {}
+    error_count = sum(count for key, count in counts.items() if str(key).startswith("error:"))
+    warning_count = sum(count for key, count in counts.items() if str(key).startswith("warning:"))
+    scene_count = payload.get("scene_count", 0)
+    if error_count or warning_count:
+        color = "\033[31m"
+        reset = "\033[0m"
+        print(
+            f"{color}[MULTIMODAL CHECK WARNING] complete_scenes={scene_count}, "
+            f"errors={error_count}, warnings={warning_count}. Full report: {report_path}{reset}",
+            file=sys.stderr,
+        )
+        for key, count in sorted(counts.items()):
+            print(f"{color}  {key}: {count}{reset}", file=sys.stderr)
+        return
+    print(
+        f"\033[32m[MULTIMODAL CHECK OK] complete_scenes={scene_count}. "
+        f"Full report: {report_path}\033[0m",
+        file=sys.stderr,
+    )

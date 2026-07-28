@@ -240,7 +240,7 @@ stats = mgr.stats(out="stats/multimodal_stats.json", plots_dir="stats/labels_sta
 mgr.vis_draw("image_vis", show_id=True, workers=8)
 mgr.vis_crop("image_vis/crops", workers=8)
 
-print(mgr.check())
+mgr.check()  # prints a compact summary and writes multimodal_check_result.json
 ```
 
 Use `image_params` and `label_params` when filenames carry suffixes. The dictionary key is the logical image type and binds to an image folder with the same name by default. Use `dir` when the type and folder name differ.

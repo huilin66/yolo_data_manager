@@ -340,7 +340,7 @@ mgr.vis_draw("image_vis", show_id=True, workers=8)
 mgr.vis_crop("image_vis/crops", workers=8)
 
 # 检查未关联文件、缺失模态、suffix 不匹配或重复场景图。
-print(mgr.check())
+mgr.check()  # 终端输出简洁摘要；完整报告默认写入 multimodal_check_result.json
 ```
 
 若文件名有模态后缀，使用 `image_params` 和 `label_params` 配置。字典 key 是逻辑图像 type；默认它绑定到同名的图像目录。若 type 和目录名不同，可用 `dir` 显式绑定。

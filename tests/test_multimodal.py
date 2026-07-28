@@ -94,7 +94,7 @@ def test_multimodal_loader_reports_duplicate_normalized_images(tmp_path):
     assert dataset.alignment_report.summary()["error:duplicate_scene_image"] == 1
 
 
-def test_multimodal_manager_caches_one_load_for_stats_check_and_visualization(tmp_path, monkeypatch):
+def test_multimodal_manager_caches_one_load_for_stats_check_and_visualization(tmp_path, monkeypatch, capsys):
     root = _make_multimodal_dataset(tmp_path / "manager")
     import yolo_data_manager.multimodal_manager as manager_module
 
@@ -125,6 +125,10 @@ def test_multimodal_manager_caches_one_load_for_stats_check_and_visualization(tm
     assert check["ok"] is True
     assert rendered == {"rgb": 1, "infrared": 1}
     assert (tmp_path / "manager_vis" / "rgb" / "a_V.jpg").exists()
+    captured = capsys.readouterr()
+    assert '"report_type": "multimodal_stats"' in captured.out
+    assert '"out":' in captured.out
+    assert "[MULTIMODAL CHECK WARNING]" in captured.err
 
 
 def _make_multimodal_dataset(root: Path) -> Path:
