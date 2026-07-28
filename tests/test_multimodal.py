@@ -3,6 +3,7 @@ from pathlib import Path
 from PIL import Image
 
 from yolo_data_manager import (
+    MultiModalYoloManager,
     compute_multimodal_stats,
     load_multimodal_yolo_dataset,
     render_multimodal_dataset,
@@ -89,6 +90,39 @@ def test_multimodal_loader_reports_duplicate_normalized_images(tmp_path):
 
     assert dataset.complete_scenes == []
     assert dataset.alignment_report.summary()["error:duplicate_scene_image"] == 1
+
+
+def test_multimodal_manager_caches_one_load_for_stats_check_and_visualization(tmp_path, monkeypatch):
+    root = _make_multimodal_dataset(tmp_path / "manager")
+    import yolo_data_manager.multimodal_manager as manager_module
+
+    real_loader = manager_module.load_multimodal_yolo_dataset
+    calls = []
+
+    def tracked_loader(*args, **kwargs):
+        calls.append((args, kwargs))
+        return real_loader(*args, **kwargs)
+
+    monkeypatch.setattr(manager_module, "load_multimodal_yolo_dataset", tracked_loader)
+    manager = MultiModalYoloManager(
+        root,
+        image_dirs=["rgb", "infrared"],
+        image_params={"rgb": {"suffix": "_V"}, "infrared": {"suffix": "_T"}},
+        label_params={"suffix": "_gt"},
+        class_file="class.txt",
+        task="detect",
+        progress=False,
+    )
+
+    stats = manager.stats()
+    check = manager.check()
+    rendered = manager.vis_draw(tmp_path / "manager_vis", workers=1, progress=False)
+
+    assert len(calls) == 1
+    assert stats["scene_count"] == 1
+    assert check["ok"] is True
+    assert rendered == {"rgb": 1, "infrared": 1}
+    assert (tmp_path / "manager_vis" / "rgb" / "a_V.jpg").exists()
 
 
 def _make_multimodal_dataset(root: Path) -> Path:

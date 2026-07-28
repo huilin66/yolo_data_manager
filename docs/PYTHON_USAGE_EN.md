@@ -216,24 +216,19 @@ When `gt_root`, `val_source`, or `class_file` are omitted, `YoloManager` falls b
 
 ## Multimodal YOLO Datasets
 
-The multimodal API is for datasets with one shared YOLO label set and multiple aligned image folders. Load the association once with `load_multimodal_yolo_dataset()`, then pass the returned object to the independent statistics, rendering, and crop functions. This avoids reparsing the same label files once per modality. It is a Python API and currently has no CLI command.
+`MultiModalYoloManager` is for datasets with one shared YOLO label set and multiple aligned image folders. It is parallel to the single-modal `YoloManager` and currently supports multimodal association checks, statistics, rendering, and crops. Methods whose all-modality write semantics are not yet defined, such as edit, split, and merge, are intentionally not exposed. It is a Python API and currently has no CLI command.
 
 Each image or label filename is normalized to a scene stem by removing its extension and its configured source `suffix`. For example, `visible/0001_V.jpg`, `infrared/0001_T.png`, and `labels/0001_gt.txt` all associate with scene `0001`.
 
 ```python
 from yolo_data_manager import (
-    compute_multimodal_stats,
-    crop_multimodal_dataset,
-    load_multimodal_yolo_dataset,
-    render_multimodal_dataset,
-    write_multimodal_stats_plots,
+    MultiModalYoloManager,
 )
-from yolo_data_manager.stats.report import write_json_report
 
 root = r"E:\datasets\mdet_train"
 
 # Empty configuration matches unchanged stems. Extensions may differ.
-dataset = load_multimodal_yolo_dataset(
+mgr = MultiModalYoloManager(
     root,
     image_dirs=["visible", "infrared", "depth"],
     labels_dir="labels",
@@ -241,19 +236,17 @@ dataset = load_multimodal_yolo_dataset(
     task="detect",
 )
 
-stats = compute_multimodal_stats(dataset)
-write_json_report(stats, "stats/multimodal_stats.json")
-write_multimodal_stats_plots(dataset, "stats/labels_sta", stats_list=["all"])
-render_multimodal_dataset(dataset, "image_vis", show_txt_id=True, workers=8)
-crop_multimodal_dataset(dataset, "image_vis/crops", workers=8)
+stats = mgr.stats(out="stats/multimodal_stats.json", plots_dir="stats/labels_sta", stats_list=["all"])
+mgr.vis_draw("image_vis", show_id=True, workers=8)
+mgr.vis_crop("image_vis/crops", workers=8)
 
-print(dataset.alignment_report.to_dict())
+print(mgr.check())
 ```
 
 Use `image_params` and `label_params` when filenames carry suffixes. The dictionary key is the logical image type and binds to an image folder with the same name by default. Use `dir` when the type and folder name differ.
 
 ```python
-dataset = load_multimodal_yolo_dataset(
+mgr = MultiModalYoloManager(
     root,
     image_dirs=["visible", "thermal", "depth_map"],
     image_params={

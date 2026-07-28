@@ -313,25 +313,20 @@ for issue in report.issues:
 
 ## 多模态 YOLO 数据集
 
-多模态 API 面向“一份共享 YOLO label，多个对齐图像目录”的数据集。它不是 `YoloManager` 的扩展，也不提供 CLI 命令；先调用一次 `load_multimodal_yolo_dataset()`，再将返回对象分别传给统计、可视化或 crop 函数，即可避免为每个图像目录重复读取和解析 label。
+`MultiModalYoloManager` 面向“一份共享 YOLO label，多个对齐图像目录”的数据集。它与单模态 `YoloManager` 并行，当前正式支持多模态关联检查、统计、绘制和 crop；尚未定义全模态写入语义的查询、编辑、split、merge 等方法不会静默退化为只处理某一路图像。它目前不提供 CLI 命令。
 
 图像关联使用场景 stem：每个图像或 label 文件先去扩展名，再去掉其 source 配置的 `suffix`，得到同一个 `scene_stem`。例如 `visible/0001_V.jpg`、`infrared/0001_T.png` 和 `labels/0001_gt.txt` 可关联为场景 `0001`。
 
 ```python
 from yolo_data_manager import (
-    compute_multimodal_stats,
-    crop_multimodal_dataset,
-    load_multimodal_yolo_dataset,
-    render_multimodal_dataset,
-    write_multimodal_stats_plots,
+    MultiModalYoloManager,
 )
-from yolo_data_manager.stats.report import write_json_report
 
 root = r"E:\datasets\mdet_train"
 
 # 空配置：visible/0001.jpg、infrared/0001.png、depth/0001.tif、labels/0001.txt
 # 会按相同 stem 自动关联。图像扩展名可以不同。
-dataset = load_multimodal_yolo_dataset(
+mgr = MultiModalYoloManager(
     root,
     image_dirs=["visible", "infrared", "depth"],
     labels_dir="labels",
@@ -339,22 +334,19 @@ dataset = load_multimodal_yolo_dataset(
     task="detect",
 )
 
-# 共享标注只在上面的加载步骤解析一次；以下操作均复用 dataset。
-stats = compute_multimodal_stats(dataset)
-write_json_report(stats, "stats/multimodal_stats.json")
-write_multimodal_stats_plots(dataset, "stats/labels_sta", stats_list=["all"])
-
-render_multimodal_dataset(dataset, "image_vis", show_txt_id=True, workers=8)
-crop_multimodal_dataset(dataset, "image_vis/crops", workers=8)
+# Manager 首次使用时加载并缓存；以下操作均复用同一份关联结果。
+stats = mgr.stats(out="stats/multimodal_stats.json", plots_dir="stats/labels_sta", stats_list=["all"])
+mgr.vis_draw("image_vis", show_id=True, workers=8)
+mgr.vis_crop("image_vis/crops", workers=8)
 
 # 检查未关联文件、缺失模态、suffix 不匹配或重复场景图。
-print(dataset.alignment_report.to_dict())
+print(mgr.check())
 ```
 
 若文件名有模态后缀，使用 `image_params` 和 `label_params` 配置。字典 key 是逻辑图像 type；默认它绑定到同名的图像目录。若 type 和目录名不同，可用 `dir` 显式绑定。
 
 ```python
-dataset = load_multimodal_yolo_dataset(
+mgr = MultiModalYoloManager(
     root,
     image_dirs=["visible", "thermal", "depth_map"],
     image_params={
