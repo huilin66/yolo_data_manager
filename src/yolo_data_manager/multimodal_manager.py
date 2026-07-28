@@ -1,16 +1,22 @@
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
 import json
-from pathlib import Path
 import sys
+from collections.abc import Mapping, Sequence
+from pathlib import Path
 
 from yolo_data_manager.core.models import TASK_AUTO
 from yolo_data_manager.core.multimodal import AlignmentReport, MultimodalYoloDataset
 from yolo_data_manager.io.multimodal import load_multimodal_yolo_dataset
-from yolo_data_manager.stats.multimodal import compute_multimodal_stats, write_multimodal_stats_plots
+from yolo_data_manager.stats.multimodal import (
+    compute_multimodal_stats,
+    write_multimodal_stats_plots,
+)
 from yolo_data_manager.stats.report import write_json_report
-from yolo_data_manager.vis.multimodal import crop_multimodal_dataset, render_multimodal_dataset
+from yolo_data_manager.vis.multimodal import (
+    crop_multimodal_dataset,
+    render_multimodal_dataset,
+)
 
 
 class MultiModalYoloManager:
@@ -38,7 +44,7 @@ class MultiModalYoloManager:
         init_load: bool = False,
         init_check: bool | str | Path = False,
         progress: bool = True,
-        progress_leave: bool = False,
+        progress_leave: bool = True,
     ) -> None:
         self.root = Path(root)
         self.image_dirs = tuple(image_dirs)
@@ -87,7 +93,9 @@ class MultiModalYoloManager:
                 task=self.task,
                 read_image_size=self.read_image_size,
                 progress=self.progress if progress is None else progress,
-                progress_leave=self.progress_leave if progress_leave is None else progress_leave,
+                progress_leave=self.progress_leave
+                if progress_leave is None
+                else progress_leave,
             )
         return self._dataset
 
@@ -101,7 +109,9 @@ class MultiModalYoloManager:
     ) -> dict[str, object]:
         """Return the multimodal association report without rereading cached data."""
 
-        dataset = self.load(reload=reload, progress=progress, progress_leave=progress_leave)
+        dataset = self.load(
+            reload=reload, progress=progress, progress_leave=progress_leave
+        )
         report = dataset.alignment_report
         payload = {
             "report_type": "multimodal_check",
@@ -109,7 +119,9 @@ class MultiModalYoloManager:
             "scene_count": len(dataset.complete_scenes),
             **report.to_dict(),
         }
-        report_path = Path(out) if out is not None else self.root / "multimodal_check_result.json"
+        report_path = (
+            Path(out) if out is not None else self.root / "multimodal_check_result.json"
+        )
         write_json_report(payload, report_path)
         _print_check_summary(payload, report_path)
         return payload
@@ -126,7 +138,9 @@ class MultiModalYoloManager:
     ) -> dict[str, object]:
         """Compute shared annotation statistics plus per-modality image statistics."""
 
-        dataset = self.load(reload=reload, progress=progress, progress_leave=progress_leave)
+        dataset = self.load(
+            reload=reload, progress=progress, progress_leave=progress_leave
+        )
         payload = compute_multimodal_stats(dataset)
         if out is not None:
             write_json_report(payload, out)
@@ -171,7 +185,11 @@ class MultiModalYoloManager:
             progress=progress,
             progress_leave=progress_leave,
         )
-        print(json.dumps({"out": str(out), "modalities": counts}, indent=2, ensure_ascii=False))
+        print(
+            json.dumps(
+                {"out": str(out), "modalities": counts}, indent=2, ensure_ascii=False
+            )
+        )
         return counts
 
     def vis_crop(
@@ -204,15 +222,21 @@ class MultiModalYoloManager:
             progress=progress,
             progress_leave=progress_leave,
         )
-        print(json.dumps({"out": str(out), "crops": counts}, indent=2, ensure_ascii=False))
+        print(
+            json.dumps({"out": str(out), "crops": counts}, indent=2, ensure_ascii=False)
+        )
         return counts
 
 
 def _print_check_summary(payload: dict[str, object], report_path: Path) -> None:
     summary = payload.get("summary", {})
     counts = summary if isinstance(summary, dict) else {}
-    error_count = sum(count for key, count in counts.items() if str(key).startswith("error:"))
-    warning_count = sum(count for key, count in counts.items() if str(key).startswith("warning:"))
+    error_count = sum(
+        count for key, count in counts.items() if str(key).startswith("error:")
+    )
+    warning_count = sum(
+        count for key, count in counts.items() if str(key).startswith("warning:")
+    )
     scene_count = payload.get("scene_count", 0)
     if error_count or warning_count:
         color = "\033[31m"

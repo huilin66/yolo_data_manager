@@ -49,7 +49,7 @@ def test_multimodal_loader_associates_suffixes_and_parses_labels_once(tmp_path, 
     assert calls == [root / "labels" / "a_gt.txt"]
 
 
-def test_multimodal_loader_defaults_to_identical_stems_and_visualizes_each_type(tmp_path):
+def test_multimodal_loader_defaults_to_identical_stems_and_visualizes_each_type(tmp_path, capsys):
     root = tmp_path / "default_names"
     for name in ("rgb", "depth", "labels"):
         (root / name).mkdir(parents=True)
@@ -72,6 +72,10 @@ def test_multimodal_loader_defaults_to_identical_stems_and_visualizes_each_type(
     assert counts == {"rgb": 1, "depth": 1}
     assert (tmp_path / "rendered" / "rgb" / "scene.jpg").exists()
     assert (tmp_path / "rendered" / "depth" / "scene.png").exists()
+    progress_output = capsys.readouterr().err
+    assert "load read rgb metadata..." in progress_output
+    assert "load scan labels..." in progress_output
+    assert "load associate scenes and parse labels..." in progress_output
 
 
 def test_multimodal_loader_reports_duplicate_normalized_images(tmp_path):

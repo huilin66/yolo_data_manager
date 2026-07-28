@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable, Iterator
 import os
 from pathlib import Path
+import sys
 from typing import TypeVar
 
 DEFAULT_WORKERS = 8
@@ -16,6 +17,18 @@ def normalize_workers(workers: int | None) -> int:
     return max(1, int(workers if workers is not None else DEFAULT_WORKERS))
 
 
+def progress_stage(desc: str, *, enabled: bool) -> None:
+    """Emit a persistent phase label before a potentially long operation.
+
+    Live progress bars commonly use ``leave=False`` to keep terminal output
+    compact.  The phase label deliberately remains visible so users are never
+    left with an unexplained blank interval between operations.
+    """
+
+    if enabled:
+        print(f"{desc}...", file=sys.stderr, flush=True)
+
+
 def iter_progress(
     items: Iterable[T],
     *,
@@ -26,6 +39,7 @@ def iter_progress(
 ) -> Iterable[T]:
     if not enabled:
         return items
+    progress_stage(desc, enabled=True)
     try:
         from tqdm import tqdm
     except ImportError:
@@ -41,6 +55,7 @@ def scan_matching_files(
     progress_leave: bool = DEFAULT_PROGRESS_LEAVE,
     desc: str = "scan files",
 ) -> list[Path]:
+    progress_stage(desc, enabled=progress)
     if not root.exists():
         return []
 

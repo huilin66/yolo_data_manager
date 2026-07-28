@@ -15,7 +15,7 @@ from yolo_data_manager.core.multimodal import (
 )
 from yolo_data_manager.core.schema import find_attribute_file, read_attribute_schema, read_class_schema, read_dataset_class_schema
 from yolo_data_manager.io.loader import parse_label_file
-from yolo_data_manager.runtime import iter_progress, scan_matching_files
+from yolo_data_manager.runtime import iter_progress, progress_stage, scan_matching_files
 
 
 def load_multimodal_yolo_dataset(
@@ -41,12 +41,14 @@ def load_multimodal_yolo_dataset(
     ``extension``; without it labels use the standard ``<stem>.txt`` rule.
     """
 
+    progress_stage("load resolve multimodal configuration", enabled=progress)
     root_path = Path(root)
     modalities = _resolve_modalities(root_path, image_dirs, image_params)
     label_root = _resolve_under(root_path, labels_dir)
     label_config = _resolve_label_config(label_params)
     report = AlignmentReport()
 
+    progress_stage("load read dataset schema", enabled=progress)
     classes = _read_classes(root_path, class_file)
     attr_path = _resolve_under(root_path, attribute_file) if attribute_file is not None else find_attribute_file(root_path)
     attributes = read_attribute_schema(attr_path)
@@ -74,13 +76,15 @@ def load_multimodal_yolo_dataset(
     for index in image_indexes.values():
         all_stems.update(index)
 
+    progress_stage("load prepare scene association", enabled=progress)
+    scene_stems = sorted(all_stems)
     scenes: dict[str, MultimodalScene] = {}
     required_modalities = {name for name, config in modalities.items() if config.required}
     for stem in iter_progress(
-        sorted(all_stems),
+        scene_stems,
         enabled=progress,
-        total=len(all_stems),
-        desc="load associate scenes",
+        total=len(scene_stems),
+        desc="load associate scenes and parse labels",
         leave=progress_leave,
     ):
         label_paths = label_index.get(stem, [])

@@ -17,19 +17,16 @@ LABEL_PARAMS = {
 
 
 def load_mdet_manager(input_dir):
-    return MultiModalYoloManager(
+    return
+
+
+def yolo_sta(input_dir):
+    mgr = MultiModalYoloManager(
         input_dir,
         image_dirs=[os.path.join(input_dir, name) for name in IMAGE_DIR_NAMES],
-        image_params=IMAGE_PARAMS,
         labels_dir=os.path.join(input_dir, "labels"),
-        label_params=LABEL_PARAMS,
         class_file=os.path.join(input_dir, "class.txt"),
-        task="detect",
-        progress=True,
     )
-
-
-def yolo_sta(mgr, input_dir):
     sta_dir = os.path.join(input_dir, "stats", "labels_sta")
     os.makedirs(sta_dir, exist_ok=True)
     return mgr.stats(
@@ -39,7 +36,13 @@ def yolo_sta(mgr, input_dir):
     )
 
 
-def yolo_vis(mgr, input_dir, crop=False):
+def yolo_vis(input_dir, crop=False):
+    mgr = MultiModalYoloManager(
+        input_dir,
+        image_dirs=[os.path.join(input_dir, name) for name in IMAGE_DIR_NAMES],
+        labels_dir=os.path.join(input_dir, "labels"),
+        class_file=os.path.join(input_dir, "class.txt"),
+    )
     vis_dir = os.path.join(input_dir, "image_vis")
     os.makedirs(vis_dir, exist_ok=True)
     rendered = mgr.vis_draw(vis_dir, workers=8, show_id=True)
@@ -51,6 +54,5 @@ def yolo_vis(mgr, input_dir, crop=False):
 if __name__ == "__main__":
     t_all_dir = r"\\158.132.186.40\isds\huilin\tp\aic_mdet\phase1\train"
 
-    mdet_mgr = load_mdet_manager(t_all_dir)
-    yolo_sta(mdet_mgr, t_all_dir)
-    # yolo_vis(mdet_mgr, t_all_dir, crop=False)
+    yolo_sta(t_all_dir)
+    yolo_vis(t_all_dir, crop=False)
