@@ -2,7 +2,7 @@
 
 [中文文档](README_CN.md)
 
-YOLO Data Manager is a Python package and CLI for managing YOLO datasets. It normalizes different dataset sources into one internal model, then provides loading, validation, import/export, dataset operations, annotation query/edit, statistics, visualization, and prediction error analysis on top of that model.
+YOLO Data Manager is a Python package and CLI for managing single-modal YOLO datasets, plus a Python manager for multi-modal YOLO datasets with shared labels and aligned image modalities. It normalizes different dataset sources into one internal model, then provides loading, validation, import/export, dataset operations, annotation query/edit, statistics, visualization, and prediction error analysis on top of that model.
 
 ## Documentation
 
@@ -42,6 +42,14 @@ python -m pytest -q
 | Evaluation | Compare GT vs predictions, build FP/FN review packs, error analysis, confusion matrix | `match_iou`, `low_iou`, `review_workers` |
 
 `layout detect` output is a layout detection result, not a validation/check result. It includes `report_type`, `class_source`, `class_count`, and `classes`.
+
+## Multimodal Loading and Validation
+
+`MultiModalYoloManager` associates a shared YOLO label folder with multiple image folders. It derives a common scene stem from each filename, optionally removing a per-type suffix: for example, `visible/0001_V.jpg`, `infrared/0001_T.png`, and `labels/0001_gt.txt` associate with scene `0001`.
+
+With empty image and label configuration, matching uses identical filename stems and standard `labels/<stem>.txt` labels. `image_params` and `label_params` configure modality/label suffixes when names differ. `check()` reports missing modalities, orphan images or labels, suffix mismatches, and duplicate scene images. The manager caches the associated dataset, so `stats()`, `vis_draw()`, and `vis_crop()` reuse parsed labels rather than loading once per image folder.
+
+Multimodal support is currently a Python API; use `MultiModalYoloManager`. Its first supported operations are `check`, `stats`, `vis_draw`, and `vis_crop`. Full parameters and examples are in [Python Usage](docs/PYTHON_USAGE_EN.md#multimodal-yolo-datasets).
 
 ## Python Quick Demo
 

@@ -2,7 +2,7 @@
 
 [English README](README.md)
 
-YOLO Data Manager 是一个用于管理 YOLO 数据集的 Python 工具包和命令行工具。它把不同来源的数据先读成统一内部模型，然后在同一套接口上完成加载校验、导入导出、数据集管理、标注查询修改、统计、可视化和预测错误分析。
+YOLO Data Manager 是一个用于管理单模态 YOLO 数据集的 Python 工具包和命令行工具，同时提供面向“共享 label、多个对齐图像模态”的多模态 Python manager。它把不同来源的数据先读成统一内部模型，然后在同一套接口上完成加载校验、导入导出、数据集管理、标注查询修改、统计、可视化和预测错误分析。
 
 ## 文档入口
 
@@ -42,6 +42,14 @@ python -m pytest -q
 | 评估分析 | GT vs pred 对比、FP/FN review、细粒度错误分析、混淆矩阵 | `match_iou`、`low_iou`、`review_workers` |
 
 `layout detect` 输出是布局检测结果，不是 `check` 校验结果；结果中会包含 `report_type`、`class_source`、`class_count`、`classes`。
+
+## 多模态加载与校验
+
+`MultiModalYoloManager` 用于将一份共享 YOLO label 目录关联到多个图像目录。它从每个文件名得到共同的场景 stem，并可去除每个 type 的 suffix：例如 `visible/0001_V.jpg`、`infrared/0001_T.png` 与 `labels/0001_gt.txt` 会关联为场景 `0001`。
+
+当图像和 label 配置为空时，按相同文件 stem 关联，标签默认使用 `labels/<stem>.txt`。图像名或标签名带后缀时，可用 `image_params`、`label_params` 配置。`check()` 会报告缺失模态、孤儿图像或 label、suffix 不匹配和重复 scene 图像。manager 会缓存关联结果，因此连续调用 `stats()`、`vis_draw()`、`vis_crop()` 不会针对每个图像目录重复读取和解析 label。
+
+多模态当前为 Python API，入口是 `MultiModalYoloManager`；首期支持 `check`、`stats`、`vis_draw`、`vis_crop`。完整参数与示例见 [Python 详细使用](docs/PYTHON_USAGE.md#多模态-yolo-数据集)。
 
 ## Python 快速 Demo
 

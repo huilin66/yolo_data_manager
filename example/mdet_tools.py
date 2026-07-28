@@ -2,7 +2,6 @@ import os
 
 from yolo_data_manager import MultiModalYoloManager
 
-
 IMAGE_DIR_NAMES = ["visible", "infrared", "depth"]
 
 # Empty configuration means that matching uses the unchanged filename stem.
@@ -53,5 +52,5 @@ if __name__ == "__main__":
     t_all_dir = r"\\158.132.186.40\isds\huilin\tp\aic_mdet\phase1\train"
 
     mdet_mgr = load_mdet_manager(t_all_dir)
-    # yolo_sta(mdet_mgr, t_all_dir)
-    yolo_vis(mdet_mgr, t_all_dir, crop=False)
+    yolo_sta(mdet_mgr, t_all_dir)
+    # yolo_vis(mdet_mgr, t_all_dir, crop=False)
