@@ -63,6 +63,8 @@ def test_multimodal_loader_defaults_to_identical_stems_and_visualizes_each_type(
         image_dirs=["rgb", "depth"],
         class_file="class.txt",
         task="detect",
+        progress=True,
+        progress_leave=False,
     )
     counts = render_multimodal_dataset(dataset, tmp_path / "rendered", show_txt_id=True, workers=1, progress=False)
 

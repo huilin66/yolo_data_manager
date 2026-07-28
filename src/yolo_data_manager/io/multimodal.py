@@ -15,7 +15,7 @@ from yolo_data_manager.core.multimodal import (
 )
 from yolo_data_manager.core.schema import find_attribute_file, read_attribute_schema, read_class_schema, read_dataset_class_schema
 from yolo_data_manager.io.loader import parse_label_file
-from yolo_data_manager.runtime import scan_matching_files
+from yolo_data_manager.runtime import iter_progress, scan_matching_files
 
 
 def load_multimodal_yolo_dataset(
@@ -76,7 +76,13 @@ def load_multimodal_yolo_dataset(
 
     scenes: dict[str, MultimodalScene] = {}
     required_modalities = {name for name, config in modalities.items() if config.required}
-    for stem in sorted(all_stems):
+    for stem in iter_progress(
+        sorted(all_stems),
+        enabled=progress,
+        total=len(all_stems),
+        desc="load associate scenes",
+        leave=progress_leave,
+    ):
         label_paths = label_index.get(stem, [])
         images_by_modality = {name: index.get(stem, []) for name, index in image_indexes.items()}
         duplicate_modalities = {name for name, paths in images_by_modality.items() if len(paths) > 1}
@@ -255,7 +261,13 @@ def _scan_images(
     if not paths:
         report.add("warning", "empty_modality", "modality folder contains no supported images", modality=config.type, path=config.path)
     indexed: dict[str, list[MultimodalImage]] = {}
-    for path in paths:
+    for path in iter_progress(
+        paths,
+        enabled=progress,
+        total=len(paths),
+        desc=f"load read {config.type} metadata",
+        leave=progress_leave,
+    ):
         source_stem = path.stem
         scene_stem, suffix_matched = _scene_stem(source_stem, config.suffix)
         if config.suffix and not suffix_matched:
@@ -301,7 +313,13 @@ def _scan_labels(
     if not paths:
         report.add("warning", "empty_labels", "label folder contains no matching label files", modality="label", path=label_root)
     indexed: dict[str, list[Path]] = {}
-    for path in paths:
+    for path in iter_progress(
+        paths,
+        enabled=progress,
+        total=len(paths),
+        desc="load index labels",
+        leave=progress_leave,
+    ):
         scene_stem, suffix_matched = _scene_stem(path.stem, suffix)
         if suffix and not suffix_matched:
             report.add(
