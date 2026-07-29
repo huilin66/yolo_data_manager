@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+import sys
 
 from PIL import Image, ImageDraw
 
@@ -62,10 +63,29 @@ def render_dataset(
             save_image(image)
         return
 
-    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+    executor = ThreadPoolExecutor(max_workers=worker_count)
+    progress_items = None
+    try:
         futures = [executor.submit(save_image, image) for image in images]
-        for future in iter_progress(as_completed(futures), enabled=progress, total=len(futures), desc="vis draw", leave=progress_leave):
+        progress_items = iter_progress(
+            as_completed(futures),
+            enabled=progress,
+            total=len(futures),
+            desc="vis draw",
+            leave=progress_leave,
+        )
+        for future in progress_items:
             future.result()
+    except KeyboardInterrupt:
+        _close_progress(progress_items)
+        _cancel_parallel_work(executor, operation="vis draw")
+        raise
+    except BaseException:
+        _close_progress(progress_items)
+        executor.shutdown(wait=False, cancel_futures=True)
+        raise
+    else:
+        executor.shutdown(wait=True)
 
 
 def crop_dataset(
@@ -103,11 +123,48 @@ def crop_dataset(
         )
 
     saved = 0
-    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+    executor = ThreadPoolExecutor(max_workers=worker_count)
+    progress_items = None
+    try:
         futures = [executor.submit(crop_image, image) for image in dataset.images]
-        for future in iter_progress(as_completed(futures), enabled=progress, total=len(futures), desc="vis crop", leave=progress_leave):
+        progress_items = iter_progress(
+            as_completed(futures),
+            enabled=progress,
+            total=len(futures),
+            desc="vis crop",
+            leave=progress_leave,
+        )
+        for future in progress_items:
             saved += future.result()
+    except KeyboardInterrupt:
+        _close_progress(progress_items)
+        _cancel_parallel_work(executor, operation="vis crop")
+        raise
+    except BaseException:
+        _close_progress(progress_items)
+        executor.shutdown(wait=False, cancel_futures=True)
+        raise
+    else:
+        executor.shutdown(wait=True)
     return saved
+
+
+def _close_progress(progress_items: object | None) -> None:
+    close = getattr(progress_items, "close", None)
+    if callable(close):
+        close()
+
+
+def _cancel_parallel_work(executor: ThreadPoolExecutor, *, operation: str) -> None:
+    """Stop queued visualization jobs after Ctrl+C without waiting for all work."""
+
+    executor.shutdown(wait=False, cancel_futures=True)
+    print(
+        f"\n{operation} cancelled; pending work was stopped. "
+        "Completed files remain in the output directory.",
+        file=sys.stderr,
+        flush=True,
+    )
 
 
 def render_image(

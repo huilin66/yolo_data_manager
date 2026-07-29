@@ -7,6 +7,7 @@ from pathlib import Path
 
 from yolo_data_manager.core.models import TASK_AUTO
 from yolo_data_manager.core.multimodal import AlignmentReport, MultimodalYoloDataset
+from yolo_data_manager.io.image_conversion import convert_multimodal_images_to_uint8
 from yolo_data_manager.io.multimodal import load_multimodal_yolo_dataset
 from yolo_data_manager.stats.multimodal import (
     compute_multimodal_stats,
@@ -24,7 +25,8 @@ class MultiModalYoloManager:
 
     The manager lazily loads and caches one :class:`MultimodalYoloDataset`.
     At present it intentionally exposes only multimodal-safe operations:
-    alignment check, statistics, annotation rendering, and object crops.
+    alignment check, statistics, uint8 conversion, annotation rendering, and
+    object crops.
     Other ``YoloManager`` operations need explicit all-modality write semantics
     before they can be added safely.
     """
@@ -117,6 +119,7 @@ class MultiModalYoloManager:
             "report_type": "multimodal_check",
             "ok": not any(issue.level == "error" for issue in report.issues),
             "scene_count": len(dataset.complete_scenes),
+            "image_type_summary": dataset.image_type_summary,
             **report.to_dict(),
         }
         report_path = (
@@ -146,6 +149,44 @@ class MultiModalYoloManager:
             write_json_report(payload, out)
         if plots_dir is not None:
             write_multimodal_stats_plots(dataset, plots_dir, stats_list=stats_list)
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return payload
+
+    def convert_to_uint8(
+        self,
+        out: str | Path,
+        *,
+        modalities: Sequence[str] | None = None,
+        stretch: bool = True,
+        value_range: tuple[float, float] | None = None,
+        preserve_zero: bool = True,
+        overwrite: bool = False,
+        workers: int = 8,
+        progress: bool = True,
+        progress_leave: bool = False,
+        reload: bool = False,
+    ) -> dict[str, object]:
+        """Write selected modalities as uint8 images without changing the source data.
+
+        Existing uint8 files are copied unchanged. Other dtypes are written as
+        PNG after optional linear stretching; use ``value_range`` for one fixed
+        mapping across images, such as ``(0, 20000)`` for depth values.
+        """
+
+        payload = convert_multimodal_images_to_uint8(
+            self.load(
+                reload=reload, progress=progress, progress_leave=progress_leave
+            ),
+            out,
+            modalities=modalities,
+            stretch=stretch,
+            value_range=value_range,
+            preserve_zero=preserve_zero,
+            overwrite=overwrite,
+            workers=workers,
+            progress=progress,
+            progress_leave=progress_leave,
+        )
         print(json.dumps(payload, indent=2, ensure_ascii=False))
         return payload
 
@@ -238,6 +279,7 @@ def _print_check_summary(payload: dict[str, object], report_path: Path) -> None:
         count for key, count in counts.items() if str(key).startswith("warning:")
     )
     scene_count = payload.get("scene_count", 0)
+    _print_image_type_summary(payload.get("image_type_summary"))
     if error_count or warning_count:
         color = "\033[31m"
         reset = "\033[0m"
@@ -254,3 +296,34 @@ def _print_check_summary(payload: dict[str, object], report_path: Path) -> None:
         f"Full report: {report_path}\033[0m",
         file=sys.stderr,
     )
+
+
+def _print_image_type_summary(value: object) -> None:
+    if not isinstance(value, dict):
+        return
+    print("[MULTIMODAL IMAGE TYPES]", file=sys.stderr)
+    for modality, raw_summary in value.items():
+        if not isinstance(raw_summary, dict):
+            continue
+        image_count = raw_summary.get("image_count", 0)
+        type_count = raw_summary.get("type_count", 0)
+        print(
+            f"  {modality}: {image_count} source image(s), {type_count} type(s)",
+            file=sys.stderr,
+        )
+        raw_types = raw_summary.get("types", [])
+        if not isinstance(raw_types, list):
+            continue
+        for raw_type in raw_types:
+            if not isinstance(raw_type, dict):
+                continue
+            print(
+                "    "
+                f"{raw_type.get('count', 0)} x "
+                f"{raw_type.get('format', 'unknown')}/"
+                f"{raw_type.get('mode', 'unknown')}/"
+                f"{raw_type.get('dtype', 'unknown')}/"
+                f"{raw_type.get('channels', '?')}ch "
+                f"{raw_type.get('width', '?')}x{raw_type.get('height', '?')}",
+                file=sys.stderr,
+            )

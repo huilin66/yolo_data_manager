@@ -111,6 +111,8 @@ class MultimodalYoloDataset:
     modalities: dict[str, ModalityConfig]
     scenes: dict[str, MultimodalScene]
     alignment_report: AlignmentReport = field(default_factory=AlignmentReport)
+    source_images: dict[str, list[MultimodalImage]] = field(default_factory=dict)
+    image_type_summary: dict[str, dict[str, object]] = field(default_factory=dict)
 
     @property
     def required_modalities(self) -> tuple[str, ...]:

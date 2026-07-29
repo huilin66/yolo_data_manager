@@ -1,9 +1,8 @@
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-
-from PIL import Image
 
 from yolo_data_manager.core.models import TASK_AUTO, AttributeSchema, ClassSchema, is_image_file
 from yolo_data_manager.core.multimodal import (
@@ -14,6 +13,7 @@ from yolo_data_manager.core.multimodal import (
     MultimodalYoloDataset,
 )
 from yolo_data_manager.core.schema import find_attribute_file, read_attribute_schema, read_class_schema, read_dataset_class_schema
+from yolo_data_manager.io.image_types import read_image_type
 from yolo_data_manager.io.loader import parse_label_file
 from yolo_data_manager.runtime import iter_progress, progress_stage, scan_matching_files
 
@@ -54,8 +54,10 @@ def load_multimodal_yolo_dataset(
     attributes = read_attribute_schema(attr_path)
 
     image_indexes: dict[str, dict[str, list[MultimodalImage]]] = {}
+    source_images: dict[str, list[MultimodalImage]] = {}
+    image_type_summary: dict[str, dict[str, object]] = {}
     for modality, config in modalities.items():
-        image_indexes[modality] = _scan_images(
+        image_indexes[modality], source_images[modality], image_type_summary[modality] = _scan_images(
             config,
             report,
             read_image_size=read_image_size,
@@ -165,6 +167,8 @@ def load_multimodal_yolo_dataset(
         modalities=modalities,
         scenes=scenes,
         alignment_report=report,
+        source_images=source_images,
+        image_type_summary=image_type_summary,
     )
 
 
@@ -254,7 +258,11 @@ def _scan_images(
     read_image_size: bool,
     progress: bool,
     progress_leave: bool,
-) -> dict[str, list[MultimodalImage]]:
+) -> tuple[
+    dict[str, list[MultimodalImage]],
+    list[MultimodalImage],
+    dict[str, object],
+]:
     paths = scan_matching_files(
         config.path,
         is_image_file,
@@ -265,6 +273,8 @@ def _scan_images(
     if not paths:
         report.add("warning", "empty_modality", "modality folder contains no supported images", modality=config.type, path=config.path)
     indexed: dict[str, list[MultimodalImage]] = {}
+    source_images: list[MultimodalImage] = []
+    type_counts: Counter[tuple[object, ...]] = Counter()
     for path in iter_progress(
         paths,
         enabled=progress,
@@ -283,19 +293,32 @@ def _scan_images(
                 modality=config.type,
                 path=path,
             )
-        width, height = _read_image_size(path) if read_image_size else (None, None)
-        relative_path = path.relative_to(config.path)
-        indexed.setdefault(scene_stem, []).append(
-            MultimodalImage(
-                path=path,
-                relative_path=relative_path,
-                source_stem=source_stem,
-                scene_stem=scene_stem,
-                width=width,
-                height=height,
+        metadata = _read_image_metadata(path)
+        width = metadata["width"] if read_image_size else None
+        height = metadata["height"] if read_image_size else None
+        type_counts[
+            (
+                metadata["format"],
+                metadata["mode"],
+                metadata["dtype"],
+                metadata["bit_depth"],
+                metadata["channels"],
+                metadata["width"],
+                metadata["height"],
             )
+        ] += 1
+        relative_path = path.relative_to(config.path)
+        image = MultimodalImage(
+            path=path,
+            relative_path=relative_path,
+            source_stem=source_stem,
+            scene_stem=scene_stem,
+            width=width,
+            height=height,
         )
-    return indexed
+        indexed.setdefault(scene_stem, []).append(image)
+        source_images.append(image)
+    return indexed, source_images, _type_summary(type_counts)
 
 
 def _scan_labels(
@@ -353,12 +376,42 @@ def _clean_suffix(value: object, *, extensions: tuple[str, ...] | None) -> str:
     return suffix
 
 
-def _read_image_size(path: Path) -> tuple[int | None, int | None]:
+def _read_image_metadata(path: Path) -> dict[str, object]:
     try:
-        with Image.open(path) as image:
-            return image.size
+        return read_image_type(path)
     except Exception:
-        return None, None
+        return {
+            "format": "unreadable",
+            "mode": "unknown",
+            "dtype": "unknown",
+            "bit_depth": None,
+            "channels": None,
+            "width": None,
+            "height": None,
+        }
+
+
+def _type_summary(counts: Counter[tuple[object, ...]]) -> dict[str, object]:
+    types = []
+    for key, count in sorted(counts.items(), key=lambda item: tuple(str(value) for value in item[0])):
+        format_, mode, dtype, bit_depth, channels, width, height = key
+        types.append(
+            {
+                "format": format_,
+                "mode": mode,
+                "dtype": dtype,
+                "bit_depth": bit_depth,
+                "channels": channels,
+                "width": width,
+                "height": height,
+                "count": count,
+            }
+        )
+    return {
+        "image_count": sum(counts.values()),
+        "type_count": len(types),
+        "types": types,
+    }
 
 
 def _resolve_under(root: Path, value: str | Path) -> Path:

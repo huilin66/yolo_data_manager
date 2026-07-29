@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import numpy as np
 from PIL import Image
 
 from yolo_data_manager import (
@@ -46,6 +47,7 @@ def test_multimodal_loader_associates_suffixes_and_parses_labels_once(tmp_path, 
     assert stats["annotation_stats"]["annotation_count"] == 1
     assert stats["modalities"]["rgb"]["stats"]["image_width"]["max"] == 100
     assert stats["modalities"]["infrared"]["stats"]["image_width"]["max"] == 40
+    assert stats["modalities"]["rgb"]["image_type_summary"]["types"][0]["dtype"] == "uint8"
     assert calls == [root / "labels" / "a_gt.txt"]
 
 
@@ -133,6 +135,60 @@ def test_multimodal_manager_caches_one_load_for_stats_check_and_visualization(tm
     assert '"report_type": "multimodal_stats"' in captured.out
     assert '"out":' in captured.out
     assert "[MULTIMODAL CHECK WARNING]" in captured.err
+
+
+def test_multimodal_check_reports_image_types_and_uint8_conversion(tmp_path, capsys):
+    root = tmp_path / "uint8_conversion"
+    for name in ("rgb", "depth", "labels"):
+        (root / name).mkdir(parents=True)
+    Image.new("RGB", (2, 2), color="white").save(root / "rgb" / "scene.jpg")
+    source_values = np.array([[0, 5000], [10000, 20000]], dtype=np.uint16)
+    Image.fromarray(source_values).save(root / "depth" / "scene.png")
+    (root / "labels" / "scene.txt").write_text("0 0.5 0.5 0.4 0.4\n", encoding="utf-8")
+    (root / "class.txt").write_text("object\n", encoding="utf-8")
+
+    manager = MultiModalYoloManager(
+        root,
+        image_dirs=["rgb", "depth"],
+        class_file="class.txt",
+        task="detect",
+        progress=False,
+    )
+    check = manager.check(out=tmp_path / "check.json")
+    depth_types = check["image_type_summary"]["depth"]
+
+    assert depth_types["image_count"] == 1
+    assert depth_types["types"] == [
+        {
+            "format": "PNG",
+            "mode": "I;16",
+            "dtype": "uint16",
+            "bit_depth": 16,
+            "channels": 1,
+            "width": 2,
+            "height": 2,
+            "count": 1,
+        }
+    ]
+
+    converted = manager.convert_to_uint8(
+        tmp_path / "converted",
+        modalities=["depth"],
+        value_range=(0, 20000),
+        workers=1,
+        progress=False,
+    )
+    with Image.open(tmp_path / "converted" / "depth" / "scene.png") as image:
+        converted_values = np.asarray(image)
+    with Image.open(root / "depth" / "scene.png") as image:
+        original_values = np.asarray(image)
+
+    assert converted["modalities"]["depth"]["converted_count"] == 1
+    assert converted_values.dtype == np.uint8
+    assert converted_values[0, 0] == 0
+    assert converted_values[1, 1] == 255
+    assert original_values.dtype == np.uint16
+    assert "depth: 1 source image(s), 1 type(s)" in capsys.readouterr().err
 
 
 def _make_multimodal_dataset(root: Path) -> Path:

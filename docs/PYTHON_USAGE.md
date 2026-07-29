@@ -343,6 +343,24 @@ mgr.vis_crop("image_vis/crops", workers=8)
 mgr.check()  # 终端输出简洁摘要；完整报告默认写入 multimodal_check_result.json
 ```
 
+`check()` 的 `image_type_summary` 同时按每个模态输出源图像总数及 `format / Pillow mode / dtype / 通道数 / 分辨率` 的分组数量。例如可直接发现同一 depth 目录中混有 `JPEG/RGB/uint8` 和 `PNG/I;16/uint16`。
+
+对于非 `uint8` 的原始图像，可写入新的模态图像目录并转换为 8 位 PNG；原图、label 和当前缓存的数据集均不会被修改。已是 `uint8` 的选中图像会原样复制。深度图建议提供固定值域，以便不同图片具有可比较的亮度：
+
+```python
+converted = mgr.convert_to_uint8(
+    "images_uint8",
+    modalities=["depth"],
+    stretch=True,
+    value_range=(0, 20000),  # 将该原始深度范围映射到显示值 0–255
+    preserve_zero=True,      # 保留无效深度 0 为黑色
+    workers=8,
+)
+# 输出：images_uint8/depth/<原相对路径>；非 uint8 文件写为 .png
+```
+
+不传 `value_range` 时，`stretch=True` 按每张非 `uint8` 图像的非零有效值 min-max 拉伸；适合观察细节，但不同图片的亮度不具可比性。`stretch=False` 则仅把原始数值裁剪到 `0–255`，通常不适用于 `uint16` 深度图。默认 `overwrite=False`，若目标文件已存在会中止以避免覆盖。
+
 若文件名有模态后缀，使用 `image_params` 和 `label_params` 配置。字典 key 是逻辑图像 type；默认它绑定到同名的图像目录。若 type 和目录名不同，可用 `dir` 显式绑定。
 
 ```python

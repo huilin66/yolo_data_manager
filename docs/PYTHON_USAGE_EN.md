@@ -243,6 +243,24 @@ mgr.vis_crop("image_vis/crops", workers=8)
 mgr.check()  # prints a compact summary and writes multimodal_check_result.json
 ```
 
+`check()` also returns `image_type_summary`: the source-image count and groups by `format / Pillow mode / dtype / channel count / resolution` for every modality. This makes mixed inputs such as `JPEG/RGB/uint8` and `PNG/I;16/uint16` in one depth folder visible immediately.
+
+Write non-`uint8` images to a new modality output directory as 8-bit PNG without changing source images, labels, or the cached dataset. Selected `uint8` images are copied unchanged. Supply a fixed range for depth images when brightness must remain comparable between files:
+
+```python
+converted = mgr.convert_to_uint8(
+    "images_uint8",
+    modalities=["depth"],
+    stretch=True,
+    value_range=(0, 20000),  # maps this raw depth range to display values 0–255
+    preserve_zero=True,      # keeps invalid depth 0 black
+    workers=8,
+)
+# Output: images_uint8/depth/<original-relative-path>; non-uint8 files become .png
+```
+
+Without `value_range`, `stretch=True` applies a per-image min-max stretch over nonzero valid values. It improves detail but makes brightness incomparable across images. `stretch=False` only clips source values to `0–255`, which is usually unsuitable for `uint16` depth data. `overwrite=False` by default prevents replacing an existing output image.
+
 Use `image_params` and `label_params` when filenames carry suffixes. The dictionary key is the logical image type and binds to an image folder with the same name by default. Use `dir` when the type and folder name differ.
 
 ```python

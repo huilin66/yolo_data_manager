@@ -22,6 +22,7 @@ def compute_multimodal_stats(dataset: MultimodalYoloDataset) -> dict[str, object
         modality_stats[modality] = {
             "image_count": len(view.images),
             "missing_scene_count": len(complete) - len(view.images),
+            "image_type_summary": dataset.image_type_summary.get(modality, {}),
             "stats": compute_stats(view),
         }
 

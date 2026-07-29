@@ -18,6 +18,7 @@ from yolo_data_manager.core.multimodal import (
     MultimodalYoloDataset,
 )
 from yolo_data_manager.io.loader import load_yolo_dataset
+from yolo_data_manager.io.image_conversion import convert_multimodal_images_to_uint8
 from yolo_data_manager.io.multimodal import load_multimodal_yolo_dataset
 from yolo_data_manager.evaluation.metrics import compute_detection_metrics, format_metrics_table
 from yolo_data_manager.multimodal_manager import MultiModalYoloManager
@@ -42,6 +43,7 @@ __all__ = [
     "MultiModalYoloManager",
     "YoloManager",
     "compute_multimodal_stats",
+    "convert_multimodal_images_to_uint8",
     "compute_detection_metrics",
     "crop_multimodal_dataset",
     "format_metrics_table",
