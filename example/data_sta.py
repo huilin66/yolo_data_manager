@@ -12,8 +12,8 @@ def yolo_sta(input_dir):
     # split
     mgr.stats(plots_dir=sta_dir, stats_list=["all"])
 
+
 if __name__ == "__main__":
-    pass
-    t_all_dir = r"/localnvme/data/bdd_hmt/sua_t"
+    t_all_dir = r"\\158.132.186.40\isds\huilin\traffic_sign\defect\detection\data_seg_1_damaged-guardrails"
 
     yolo_sta(t_all_dir)
