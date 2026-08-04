@@ -54,10 +54,11 @@ def test_convert_tt100k_writes_yolo_detection_dataset(tmp_path: Path) -> None:
     assert stats.images == 2
     assert stats.instances == 2
     assert stats.clipped_boxes == 1
-    assert (output / "images" / "train" / "1.jpg").exists()
-    assert (output / "images" / "test" / "2.jpg").exists()
-    assert (output / "labels" / "train" / "1.txt").read_text(encoding="utf-8") == "0 0.350000 0.562500 0.500000 0.625000\n"
-    assert (output / "labels" / "test" / "2.txt").read_text(encoding="utf-8") == "1 0.500000 0.500000 1.000000 1.000000\n"
+    assert (output / "images" / "1.jpg").exists()
+    assert (output / "images" / "2.jpg").exists()
+    assert (output / "labels" / "1.txt").read_text(encoding="utf-8") == "0 0.350000 0.562500 0.500000 0.625000\n"
+    assert (output / "labels" / "2.txt").read_text(encoding="utf-8") == "1 0.500000 0.500000 1.000000 1.000000\n"
     assert (output / "classes.txt").read_text(encoding="utf-8") == "stop\nwarning\n"
-    assert "train: images/train" in (output / "dataset.yaml").read_text(encoding="utf-8")
-    assert "val: images/test" in (output / "dataset.yaml").read_text(encoding="utf-8")
+    assert not (output / "images" / "train").exists()
+    assert not (output / "images" / "test").exists()
+    assert not (output / "dataset.yaml").exists()

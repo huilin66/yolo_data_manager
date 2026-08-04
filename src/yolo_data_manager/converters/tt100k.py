@@ -10,6 +10,7 @@ also be used from the small command-line wrapper in ``scripts/``.
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 import math
 import shutil
@@ -44,17 +45,18 @@ def convert_tt100k(
     annotation_file: str | Path | None = None,
     splits: Iterable[str] | None = None,
     copy_images: bool = True,
+    workers: int = 8,
     progress: bool = True,
 ) -> TT100KConversionStats:
     """Convert a TT100K directory to a YOLO detection dataset.
 
-    The output layout is the conventional Ultralytics layout::
+    The output layout is a flat YOLO layout so the caller can create its own
+    train/validation/test split::
 
         output/
-          images/{train,test,other}/...
-          labels/{train,test,other}/...txt
+          images/...
+          labels/...txt
           classes.txt
-          dataset.yaml
 
     Only images listed in the TT100K JSON are written.  Bounding boxes are
     clipped to the actual image dimensions and normalized to the YOLO range
@@ -89,6 +91,8 @@ def convert_tt100k(
     if not isinstance(image_items, dict):
         raise TT100KFormatError("Expected the TT100K JSON field 'imgs' to be an object")
 
+    if workers < 1:
+        raise TT100KFormatError("workers must be at least 1")
     requested_splits = {str(split) for split in splits} if splits is not None else None
     output.mkdir(parents=True, exist_ok=True)
     (output / "images").mkdir(parents=True, exist_ok=True)
@@ -97,16 +101,12 @@ def convert_tt100k(
     stats = TT100KConversionStats()
     split_instance_counts: Counter[str] = Counter()
     split_image_counts: Counter[str] = Counter()
+    destination_sources: dict[str, str] = {}
 
-    entries = sorted(image_items.items())
-    progress_items = tqdm(
-        entries,
-        total=len(entries),
-        desc="convert TT100K",
-        unit="image",
-        disable=not progress,
-    )
-    for image_key, image_item in progress_items:
+    # Validate paths and detect flattening collisions before starting worker
+    # threads.  This prevents two workers from writing the same destination.
+    selected_entries: list[tuple[str, dict[str, Any], Path, str]] = []
+    for image_key, image_item in sorted(image_items.items()):
         if not isinstance(image_item, dict):
             raise TT100KFormatError(f"Image entry {image_key!r} is not an object")
 
@@ -115,57 +115,113 @@ def convert_tt100k(
         if requested_splits is not None and split not in requested_splits:
             continue
 
-        source_image = source.joinpath(*relative_image.parts)
-        if not source_image.exists():
-            raise FileNotFoundError(f"Image listed in annotations is missing: {source_image}")
-
-        try:
-            with Image.open(source_image) as image:
-                width, height = image.size
-        except Exception as exc:  # Pillow uses several exception types for bad files.
-            raise TT100KFormatError(f"Cannot read image dimensions for {source_image}: {exc}") from exc
-        if width <= 0 or height <= 0:
-            raise TT100KFormatError(f"Image has invalid dimensions ({width}x{height}): {source_image}")
-
-        objects = image_item.get("objects", [])
-        if not isinstance(objects, list):
-            raise TT100KFormatError(f"Image entry {image_key!r} has a non-list 'objects' field")
-        label_lines: list[str] = []
-        for object_index, obj in enumerate(objects, start=1):
-            line, was_clipped = _object_to_yolo_line(
-                obj,
-                class_names=class_names,
-                width=width,
-                height=height,
-                image_key=str(image_key),
-                object_index=object_index,
+        destination_name = relative_image.name
+        previous_source = destination_sources.get(destination_name)
+        if previous_source is not None:
+            raise TT100KFormatError(
+                "Cannot flatten TT100K splits because image name "
+                f"{destination_name!r} occurs in both {previous_source!r} and "
+                f"{str(relative_image)!r}"
             )
-            label_lines.append(line)
-            if was_clipped:
-                stats.clipped_boxes += 1
+        destination_sources[destination_name] = str(relative_image)
+        selected_entries.append((str(image_key), image_item, relative_image, split))
 
-        destination_image = output / "images" / relative_image
-        destination_label = output / "labels" / relative_image.with_suffix(".txt")
-        destination_image.parent.mkdir(parents=True, exist_ok=True)
-        destination_label.parent.mkdir(parents=True, exist_ok=True)
-        if copy_images:
-            shutil.copy2(source_image, destination_image)
-        destination_label.write_text(
-            "\n".join(label_lines) + ("\n" if label_lines else ""),
-            encoding="utf-8",
-        )
-
-        stats.images += 1
-        stats.instances += len(label_lines)
-        split_image_counts[split] += 1
-        split_instance_counts[split] += len(label_lines)
-    progress_items.close()
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = [
+            executor.submit(
+                _convert_entry,
+                source=source,
+                output=output,
+                image_key=image_key,
+                image_item=image_item,
+                relative_image=relative_image,
+                split=split,
+                class_names=class_names,
+                copy_images=copy_images,
+            )
+            for image_key, image_item, relative_image, split in selected_entries
+        ]
+        with tqdm(
+            as_completed(futures),
+            total=len(futures),
+            desc="convert TT100K",
+            unit="image",
+            disable=not progress,
+        ) as progress_items:
+            for future in progress_items:
+                result = future.result()
+                stats.images += 1
+                stats.instances += result.instances
+                stats.clipped_boxes += result.clipped_boxes
+                split_image_counts[result.split] += 1
+                split_instance_counts[result.split] += result.instances
 
     stats.split_images = dict(sorted(split_image_counts.items()))
     stats.split_instances = dict(sorted(split_instance_counts.items()))
     _write_class_files(output, class_names)
-    _write_dataset_yaml(output, class_names, stats.split_images)
     return stats
+
+
+@dataclass(frozen=True)
+class _ConvertedEntry:
+    split: str
+    instances: int
+    clipped_boxes: int
+
+
+def _convert_entry(
+    *,
+    source: Path,
+    output: Path,
+    image_key: str,
+    image_item: dict[str, Any],
+    relative_image: Path,
+    split: str,
+    class_names: list[str],
+    copy_images: bool,
+) -> _ConvertedEntry:
+    source_image = source.joinpath(*relative_image.parts)
+    if not source_image.exists():
+        raise FileNotFoundError(f"Image listed in annotations is missing: {source_image}")
+
+    try:
+        with Image.open(source_image) as image:
+            width, height = image.size
+    except Exception as exc:  # Pillow uses several exception types for bad files.
+        raise TT100KFormatError(f"Cannot read image dimensions for {source_image}: {exc}") from exc
+    if width <= 0 or height <= 0:
+        raise TT100KFormatError(f"Image has invalid dimensions ({width}x{height}): {source_image}")
+
+    objects = image_item.get("objects", [])
+    if not isinstance(objects, list):
+        raise TT100KFormatError(f"Image entry {image_key!r} has a non-list 'objects' field")
+    label_lines: list[str] = []
+    clipped_boxes = 0
+    for object_index, obj in enumerate(objects, start=1):
+        line, was_clipped = _object_to_yolo_line(
+            obj,
+            class_names=class_names,
+            width=width,
+            height=height,
+            image_key=image_key,
+            object_index=object_index,
+        )
+        label_lines.append(line)
+        if was_clipped:
+            clipped_boxes += 1
+
+    destination_name = relative_image.name
+    destination_image = output / "images" / destination_name
+    destination_label = output / "labels" / Path(destination_name).with_suffix(".txt")
+    destination_image.parent.mkdir(parents=True, exist_ok=True)
+    destination_label.parent.mkdir(parents=True, exist_ok=True)
+    if copy_images:
+        shutil.copy2(source_image, destination_image)
+    destination_label.write_text(
+        "\n".join(label_lines) + ("\n" if label_lines else ""),
+        encoding="utf-8",
+    )
+    return _ConvertedEntry(split=split, instances=len(label_lines), clipped_boxes=clipped_boxes)
 
 
 def _read_class_names(data: dict[str, Any]) -> list[str]:
@@ -245,28 +301,6 @@ def _write_class_files(output: Path, class_names: list[str]) -> None:
     (output / "classes.txt").write_text("\n".join(class_names) + "\n", encoding="utf-8")
 
 
-def _write_dataset_yaml(output: Path, class_names: list[str], split_images: dict[str, int]) -> None:
-    # JSON arrays are valid YAML and avoid adding a second serialization
-    # dependency to the standalone converter script.
-    available = set(split_images)
-    train = "images/train" if "train" in available else "images"
-    val = "images/test" if "test" in available else train
-    lines = [
-        "path: .",
-        f"train: {train}",
-        f"val: {val}",
-    ]
-    if "other" in available:
-        lines.append("test: images/other")
-    lines.extend(
-        [
-            f"nc: {len(class_names)}",
-            f"names: {json.dumps(class_names, ensure_ascii=False)}",
-        ]
-    )
-    (output / "dataset.yaml").write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Convert TT100K custom annotations_all.json to YOLO detection format"
@@ -289,6 +323,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="write labels and metadata without copying image files",
     )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=8,
+        help="number of worker threads for image reading/copying (default: 8)",
+    )
     parser.add_argument("--quiet", action="store_true", help="suppress progress messages")
     return parser
 
@@ -303,6 +343,7 @@ def main(argv: list[str] | None = None) -> int:
             annotation_file=args.annotation,
             splits=args.splits,
             copy_images=not args.no_copy_images,
+            workers=args.workers,
             progress=not args.quiet,
         )
     except (OSError, TT100KFormatError) as exc:
