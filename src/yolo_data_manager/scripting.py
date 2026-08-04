@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
 import json
 import os
-from pathlib import Path
 import tempfile
+from collections.abc import Mapping, Sequence
+from pathlib import Path
 from typing import Any
 
 import yaml
@@ -171,8 +171,12 @@ def _resolve_yaml_dataset_root(yaml_path: Path, path_value: Any) -> Path:
     return (yaml_path.parent / path).resolve()
 
 
-def _resolve_yaml_split_file(yaml_path: Path, dataset_root: Path, val_value: Any) -> str | None:
-    if isinstance(val_value, Sequence) and not isinstance(val_value, (str, bytes, bytearray)):
+def _resolve_yaml_split_file(
+    yaml_path: Path, dataset_root: Path, val_value: Any
+) -> str | None:
+    if isinstance(val_value, Sequence) and not isinstance(
+        val_value, (str, bytes, bytearray)
+    ):
         values = [item for item in val_value if item is not None]
         val_value = values[0] if values else None
     if val_value is None:
@@ -289,7 +293,10 @@ class YoloManager:
 
     def _warmup_(self) -> None:
         if self.init_layout:
-            self.layout_detect(progress=self.init_layout_progress, progress_leave=self.init_layout_progress_leave)
+            self.layout_detect(
+                progress=self.init_layout_progress,
+                progress_leave=self.init_layout_progress_leave,
+            )
         check_kwargs = {
             "fill_missing_txt": self.init_check_fill_missing_txt,
             "workers": self.init_check_workers,
@@ -307,7 +314,9 @@ class YoloManager:
         """Invoke *task* via ``run_task``, auto-filling common parameters."""
         if task in _ROOT_TASKS:
             requested_only_val = params.pop("only_val", None)
-            only_val = self.only_val if requested_only_val is None else requested_only_val
+            only_val = (
+                self.only_val if requested_only_val is None else requested_only_val
+            )
             params.setdefault("root", self.root)
             params.setdefault("layout", self.layout)
             params.setdefault("images_dir", self.images_dir)
@@ -382,9 +391,16 @@ class YoloManager:
 
     # -- layout -------------------------------------------------------------
 
-    def layout_detect(self, *, progress: bool = True, progress_leave: bool = False) -> int:
+    def layout_detect(
+        self, *, progress: bool = True, progress_leave: bool = False
+    ) -> int:
         """Detect the YOLO layout under the manager root."""
-        return run_task("layout.detect", root=self.root, progress=progress, progress_leave=progress_leave)
+        return run_task(
+            "layout.detect",
+            root=self.root,
+            progress=progress,
+            progress_leave=progress_leave,
+        )
 
     # -- query --------------------------------------------------------------
 
@@ -532,8 +548,12 @@ class YoloManager:
     ) -> int:
         """Filter annotations by geometry/confidence (``ydm dataset filter``)."""
         if isinstance(class_rules, Mapping):
-            with tempfile.NamedTemporaryFile("w", suffix=".yaml", encoding="utf-8", delete=False) as f:
-                yaml.safe_dump(dict(class_rules), f, allow_unicode=True, sort_keys=False)
+            with tempfile.NamedTemporaryFile(
+                "w", suffix=".yaml", encoding="utf-8", delete=False
+            ) as f:
+                yaml.safe_dump(
+                    dict(class_rules), f, allow_unicode=True, sort_keys=False
+                )
                 class_rules_path = f.name
             try:
                 return self.dataset_filter(
@@ -756,7 +776,9 @@ class YoloManager:
         from yolo_data_manager.io.writer import write_yolo_dataset
 
         requested_only_val = self.only_val if only_val is None else only_val
-        split_file = self.split_file if requested_only_val else self._explicit_split_file
+        split_file = (
+            self.split_file if requested_only_val else self._explicit_split_file
+        )
         dataset = load_yolo_dataset(
             self.root,
             images_dir=self.images_dir,
@@ -802,7 +824,13 @@ class YoloManager:
             )
         if report:
             combined_report.write_csv(report)
-        print(json.dumps({"changed": len(combined_report.rows), "out": None if dry_run else out}, indent=2, ensure_ascii=False))
+        print(
+            json.dumps(
+                {"changed": len(combined_report.rows), "out": None if dry_run else out},
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
         return 0
 
     def ann_rename_class(
@@ -1070,7 +1098,9 @@ class YoloManager:
     ) -> int:
         """Import semantic segmentation masks as YOLO segmentation (``ydm import mask``)."""
         if isinstance(class_map, Mapping):
-            with tempfile.NamedTemporaryFile("w", suffix=".yaml", encoding="utf-8", delete=False) as f:
+            with tempfile.NamedTemporaryFile(
+                "w", suffix=".yaml", encoding="utf-8", delete=False
+            ) as f:
                 yaml.safe_dump(dict(class_map), f, allow_unicode=True, sort_keys=False)
                 class_map_path = f.name
             try:
@@ -1217,7 +1247,7 @@ class YoloManager:
         progress: bool = True,
         progress_leave: bool = False,
         review_workers: int | None = None,
-        review_progress: bool = False,
+        review_progress: bool = True,
         review_progress_leave: bool = False,
         copy_pred_txt: bool = False,
         **kwargs: Any,
@@ -1227,8 +1257,14 @@ class YoloManager:
         requested_only_val = self.only_val if only_val is None else only_val
         resolved_val_source = val_source
         if resolved_val_source is None and requested_only_val:
-            resolved_val_source = self.split_file or _default_existing_path(self.root, "val.txt")
-        resolved_class_file = class_file or self.class_file or _default_existing_path(self.root, "class.txt")
+            resolved_val_source = self.split_file or _default_existing_path(
+                self.root, "val.txt"
+            )
+        resolved_class_file = (
+            class_file
+            or self.class_file
+            or _default_existing_path(self.root, "class.txt")
+        )
         return run_task(
             "eval.error_analysis",
             gt_root=resolved_gt_root,
@@ -1268,7 +1304,10 @@ class YoloManager:
         show_original: bool = False,
         class_: str | list[str] | None = None,
         exclude_class_: str | list[str] | None = None,
-        merge_class_map: Mapping[str | int, str | int | Sequence[str | int]] | str | Path | None = None,
+        merge_class_map: Mapping[str | int, str | int | Sequence[str | int]]
+        | str
+        | Path
+        | None = None,
         conf_thres: float = 0.0,
         min_width: float | None = None,
         min_height: float | None = None,
@@ -1289,8 +1328,14 @@ class YoloManager:
         requested_only_val = self.only_val if only_val is None else only_val
         resolved_val_source = val_source
         if resolved_val_source is None and requested_only_val:
-            resolved_val_source = self.split_file or _default_existing_path(self.root, "val.txt")
-        resolved_class_file = class_file or self.class_file or _default_existing_path(self.root, "class.txt")
+            resolved_val_source = self.split_file or _default_existing_path(
+                self.root, "val.txt"
+            )
+        resolved_class_file = (
+            class_file
+            or self.class_file
+            or _default_existing_path(self.root, "class.txt")
+        )
         return run_task(
             "eval.metrics",
             gt_root=resolved_gt_root,
