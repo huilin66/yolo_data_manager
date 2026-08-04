@@ -44,7 +44,7 @@ mgr.layout_detect()
 
 `YoloManager(..., layout="auto")` initializes by detecting layout, loading images/labels, and then running check.
 
-`root` may also be an Ultralytics-style `data.yaml/dataset.yaml`. In that case `path` becomes the dataset root, `names` becomes the class source, and a `.txt` `val` entry is used as `split_file`.
+`root` may also be an Ultralytics-style `data.yaml/dataset.yaml`. In that case `path` becomes the dataset root and `names` becomes the class source. Dataset operations process all data by default; set `only_val=True` explicitly to use the YAML `val` entry (or `val.txt`/a `val` directory under the dataset root).
 
 ## Common Runtime Arguments
 
@@ -55,9 +55,11 @@ Most methods that load, write, validate, visualize, or evaluate datasets support
 | `workers` | `8` | Worker threads for supported loading, validation, writing, visualization, and review steps |
 | `progress` | `True` | Show temporary tqdm progress bars |
 | `progress_leave` | `False` | Keep progress bars after completion |
+| `only_val` | `False` | Process only the validation split; default is all data |
 
 ```python
 mgr.check(workers=16)
+mgr.stats(only_val=True)
 mgr.vis_draw(out="images_vis", progress=False)
 mgr.eval_error_analysis(pred_root="pred", out="error_report", review=True, workers=16)
 ```
@@ -219,8 +221,9 @@ mgr.eval_error_analysis(
 ```
 
 `eval_metrics` uses `class_` to select classes and the independent `exclude_class_` parameter to exclude classes; both can be supplied together. `merge_class_map` accepts a target-to-source mapping such as `{"vehicle": ["car", "truck"]}` and applies it to GT and predictions before class selection, matching, and aggregation. Class selection and exclusion use the merged target class names. With `show_original=True`, when class, merge, or `min_pixels` filters are supplied, the original metrics are output before the final metrics; JSON output contains `original` and `final`, while the `out` file still stores the final metrics.
+Statistics, visualization, and evaluation process all data by default; set `only_val=True` or provide `val_source` explicitly to limit processing to validation data.
 
-When `gt_root`, `val_source`, or `class_file` are omitted, `YoloManager` falls back to the manager root, `val.txt`, and `class.txt` when available.
+When `gt_root` or `class_file` is omitted, `YoloManager` falls back to the manager root and `class.txt` when available. Evaluation uses all data by default; set `only_val=True` or provide `val_source` to limit it to validation data.
 
 ## Multimodal YOLO Datasets
 

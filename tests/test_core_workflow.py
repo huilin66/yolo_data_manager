@@ -75,8 +75,10 @@ def test_build_python_task_argv():
         root=Path("dataset"),
         plots_dir=Path("stats_plots"),
         stats_list=["image_shape", "box_pos_center"],
+        only_val=True,
     )
-    assert stats_argv[-2:] == ["--stats-list", "image_shape,box_pos_center"]
+    assert stats_argv[-3:-1] == ["--stats-list", "image_shape,box_pos_center"]
+    assert "--only-val" in stats_argv
 
     filter_argv = build_task_argv(
         "dataset.filter",
@@ -221,6 +223,7 @@ def test_yolo_manager_can_initialize_from_dataset_yaml(tmp_path):
         encoding="utf-8",
     )
     out = tmp_path / "stats.json"
+    val_out = tmp_path / "val_stats.json"
 
     mgr = YoloManager(yaml_path, layout="flat", task="detect", init_layout=False, init_check=False)
     code = mgr.stats(out=str(out))
@@ -230,7 +233,14 @@ def test_yolo_manager_can_initialize_from_dataset_yaml(tmp_path):
     assert mgr.root == str(root)
     assert mgr.class_file == str(yaml_path)
     assert mgr.split_file == str(root / "val.txt")
-    assert payload["class_counts"] == {"flame": 1, "smoke": 1}
+    assert payload["image_count"] == 2
+    assert payload["class_counts"] == {"flame": 1, "smoke": 2}
+
+    code = mgr.stats(out=str(val_out), only_val=True)
+    val_payload = json.loads(val_out.read_text(encoding="utf-8"))
+    assert code == 0
+    assert val_payload["image_count"] == 1
+    assert val_payload["class_counts"] == {"flame": 1, "smoke": 1}
 
 
 def test_yolo_manager_check_can_fill_missing_txt(tmp_path):
@@ -1430,10 +1440,19 @@ def test_yolo_manager_error_analysis_defaults_to_manager_root(tmp_path, monkeypa
     assert captured["command"] == "eval.error_analysis"
     assert captured["gt_root"] == str(root)
     assert captured["pred_root"] == "pred_labels"
-    assert captured["val_source"] == str(root / "val.txt")
+    assert captured["val_source"] is None
+    assert captured["only_val"] is False
     assert captured["class_file"] == str(root / "class.txt")
     assert captured["review"] is True
     assert captured["review_workers"] == 4
     assert captured["review_progress"] is True
     assert captured["review_progress_leave"] is False
     assert captured["copy_pred_txt"] is True
+
+    mgr.eval_error_analysis(
+        pred_root="pred_labels",
+        out="error_report",
+        only_val=True,
+    )
+    assert captured["val_source"] == str(root / "val.txt")
+    assert captured["only_val"] is True

@@ -23,6 +23,7 @@ def yolo_error_ana(input_dir, pred_dir, pred_name, abs_path=False, workers=8):
         review_progress=True,
         review_progress_leave=False,
         copy_pred_txt=True,
+        only_val=True,
         workers=workers,
     )
 

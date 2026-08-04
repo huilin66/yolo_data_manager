@@ -35,6 +35,7 @@ def load_yolo_dataset(
     attribute_file: str | Path | None = None,
     task: str = TASK_AUTO,
     split_file: str | Path | None = None,
+    only_val: bool = False,
     layout: str = "flat",
     read_image_size: bool = True,
     workers: int = 8,
@@ -52,6 +53,9 @@ def load_yolo_dataset(
     )
     image_root = layout_info.images_dir or _resolve_under(root_path, images_dir)
     label_root = layout_info.labels_dir or _resolve_under(root_path, labels_dir)
+    effective_split_file = split_file
+    if only_val and effective_split_file is None:
+        effective_split_file = _find_val_source(root_path, layout_info, image_root)
 
     classes = read_dataset_class_schema(root_path) if class_file is None else read_dataset_class_schema(Path(class_file).parent)
     if class_file is not None:
@@ -63,8 +67,11 @@ def load_yolo_dataset(
     attributes = read_attribute_schema(attr_path)
 
     if layout_info.layout == "image_list":
-        source_lists = [Path(split_file)] if split_file is not None else layout_info.split_files
-        image_paths = read_image_list(source_lists, root_path)
+        if effective_split_file is not None and Path(effective_split_file).is_dir():
+            image_paths = _scan_images(Path(effective_split_file), progress=progress, progress_leave=progress_leave)
+        else:
+            source_lists = [Path(effective_split_file)] if effective_split_file is not None else layout_info.split_files
+            image_paths = read_image_list(source_lists, root_path)
     else:
         image_paths = scan_matching_files(
             image_root,
@@ -73,9 +80,17 @@ def load_yolo_dataset(
             progress_leave=progress_leave,
             desc="load scan images",
         )
-    if split_file is not None:
-        allowed_stems = _read_split_stems(split_file)
-        image_paths = [path for path in image_paths if path.stem in allowed_stems or path.name in allowed_stems]
+    if effective_split_file is not None:
+        split_path = Path(effective_split_file)
+        if split_path.is_dir():
+            allowed_paths = {
+                path.resolve()
+                for path in _scan_images(split_path, progress=False, progress_leave=False)
+            }
+            image_paths = [path for path in image_paths if path.resolve() in allowed_paths]
+        else:
+            allowed_stems = _read_split_stems(effective_split_file)
+            image_paths = [path for path in image_paths if path.stem in allowed_stems or path.name in allowed_stems]
 
     label_paths = (
         scan_matching_files(
@@ -289,6 +304,28 @@ def _read_image_size(path: Path) -> tuple[int | None, int | None]:
 def _resolve_under(root: Path, child: str | Path) -> Path:
     child_path = Path(child)
     return child_path if child_path.is_absolute() else root / child_path
+
+
+def _scan_images(root: Path, *, progress: bool, progress_leave: bool) -> list[Path]:
+    return scan_matching_files(
+        root,
+        lambda path: is_image_file(path),
+        progress=progress,
+        progress_leave=progress_leave,
+        desc="load scan val images",
+    )
+
+
+def _find_val_source(root: Path, layout_info, image_root: Path) -> Path:
+    candidates: list[Path] = [root / "val.txt"]
+    candidates.extend(path for path in layout_info.split_files if path.stem.lower() == "val")
+    candidates.extend((image_root / "val", root / "val"))
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    raise FileNotFoundError(
+        f"only_val=True requires a validation source (val.txt or a val directory) under {root}"
+    )
 
 
 def _read_split_stems(path: str | Path) -> set[str]:

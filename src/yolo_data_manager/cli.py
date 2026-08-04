@@ -366,6 +366,7 @@ def build_parser() -> argparse.ArgumentParser:
     error_analysis.add_argument("--conf-thres", type=float, default=0.0, help="confidence threshold for predictions")
     error_analysis.add_argument("--duplicate-iou", type=float, default=0.9, help="IoU threshold for duplicate GT detection")
     error_analysis.add_argument("--val-source", default=None, help="validation image dir or txt list used to limit evaluated stems")
+    error_analysis.add_argument("--only-val", action="store_true", help="use the dataset validation split; default is all data")
     error_analysis.add_argument("--class-file", default=None, help="optional class names file; supports 'id name' or one name per line")
     error_analysis.add_argument("--names", dest="class_file", default=None, help="alias of --class-file")
     error_analysis.add_argument("--review", action="store_true", help="write visual review images and box crops grouped by error type")
@@ -408,6 +409,7 @@ def build_parser() -> argparse.ArgumentParser:
     metrics.add_argument("--min-pixels", type=float, default=None, help="ignore boxes whose pixel width or height is smaller than this")
     metrics.add_argument("--include-empty-classes", dest="ignore_empty_classes", action="store_false", help="include classes with zero GT instances in metrics output")
     metrics.add_argument("--val-source", default=None, help="validation image dir or txt list used to limit evaluated stems")
+    metrics.add_argument("--only-val", action="store_true", help="use the dataset validation split; default is all data")
     metrics.add_argument("--class-file", default=None, help="optional class names file; supports 'id name' or one name per line")
     metrics.add_argument("--names", dest="class_file", default=None, help="alias of --class-file")
     metrics.add_argument("--task", choices=["auto", "detect", "segment"], default="detect")
@@ -428,6 +430,7 @@ def add_dataset_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--attribute-file", default=None)
     parser.add_argument("--task", choices=["auto", "detect", "segment"], default="auto")
     parser.add_argument("--split-file", default=None)
+    parser.add_argument("--only-val", action="store_true", help="use the dataset validation split; default is all data")
     parser.add_argument("--layout", choices=["auto", "flat", "split_dirs", "image_list", "mixed"], default="flat")
     add_runtime_args(parser)
 
@@ -451,14 +454,28 @@ def add_write_args(parser: argparse.ArgumentParser) -> None:
 
 
 def load_from_args(args: argparse.Namespace, *, progress: bool | None = None, progress_leave: bool | None = None):
+    root = args.root
+    class_file = args.class_file
+    split_file = args.split_file
+    root_path = Path(root)
+    if root_path.suffix.lower() in {".yaml", ".yml"} and root_path.is_file():
+        from yolo_data_manager.scripting import _resolve_manager_root
+
+        resolved_root, yaml_class_file, yaml_split_file = _resolve_manager_root(root_path)
+        root = str(resolved_root)
+        class_file = class_file or yaml_class_file
+        if getattr(args, "only_val", False) and split_file is None:
+            split_file = yaml_split_file
+
     return load_yolo_dataset(
-        root=args.root,
+        root=root,
         images_dir=args.images_dir,
         labels_dir=args.labels_dir,
-        class_file=args.class_file,
+        class_file=class_file,
         attribute_file=args.attribute_file,
         task=args.task,
-        split_file=args.split_file,
+        split_file=split_file,
+        only_val=getattr(args, "only_val", False),
         layout=args.layout,
         workers=getattr(args, "workers", 8),
         progress=getattr(args, "progress", True) if progress is None else progress,
@@ -1005,7 +1022,8 @@ def handle_eval_review_pack(args: argparse.Namespace) -> int:
 
 
 def handle_eval_error_analysis(args: argparse.Namespace) -> int:
-    stems = collect_stems_from_source(args.val_source)
+    val_source = _resolve_eval_val_source(args.gt_root, args.val_source, getattr(args, "only_val", False))
+    stems = collect_stems_from_source(val_source)
     gt = load_error_analysis_dataset(
         args.gt_root,
         task=args.task,
@@ -1073,7 +1091,8 @@ def handle_eval_error_analysis(args: argparse.Namespace) -> int:
 
 
 def handle_eval_metrics(args: argparse.Namespace) -> int:
-    stems = collect_stems_from_source(args.val_source)
+    val_source = _resolve_eval_val_source(args.gt_root, args.val_source, getattr(args, "only_val", False))
+    stems = collect_stems_from_source(val_source)
     gt = load_error_analysis_dataset(
         args.gt_root,
         task=args.task,
@@ -1180,6 +1199,21 @@ def _write_edit_result(dataset, report, args: argparse.Namespace) -> None:
 
 def _split_values(text: str) -> list[str]:
     return [item.strip() for item in text.split(",") if item.strip()]
+
+
+def _resolve_eval_val_source(root: str | Path, val_source: str | None, only_val: bool) -> str | None:
+    if val_source is not None:
+        return val_source
+    if not only_val:
+        return None
+
+    root_path = Path(root)
+    for candidate in (root_path / "val.txt", root_path / "images" / "val", root_path / "val"):
+        if candidate.exists():
+            return str(candidate)
+    raise FileNotFoundError(
+        f"only_val=True requires a validation source (val.txt or a val directory) under {root_path}"
+    )
 
 
 def _load_merge_class_map(value: str | None) -> dict[object, object] | None:

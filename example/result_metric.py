@@ -29,6 +29,7 @@ def yolo_metric(
         csv=os.path.join(ana_dir, "metrics.csv"),
         print_table=True,
         show_original=True,
+        only_val=True,
         workers=workers,
     )
 

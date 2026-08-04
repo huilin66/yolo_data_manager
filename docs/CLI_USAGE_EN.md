@@ -37,6 +37,7 @@ Most commands that read a YOLO dataset support:
 | `--class-file` | Class file path |
 | `--attribute-file` | Attribute schema path |
 | `--split-file` | Image list file |
+| `--only-val` | Process only the validation split; default is all data |
 
 ## Common Runtime Arguments
 

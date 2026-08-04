@@ -37,6 +37,7 @@ python -m yolo_data_manager.cli check --root path/to/yolo
 | `--class-file` | 类别文件路径 |
 | `--attribute-file` | 属性配置路径 |
 | `--split-file` | 图片列表文件路径 |
+| `--only-val` | 仅处理验证集；默认处理全部数据 |
 
 ## 统一运行参数
 

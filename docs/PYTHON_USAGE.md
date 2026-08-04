@@ -151,7 +151,7 @@ mgr.import_mask(
 
 `YoloManager(..., layout="auto")` 初始化时会先做 layout 扫描，再加载图片和 label，最后执行 check。
 
-`YoloManager` 的 `root` 也可以直接传 Ultralytics 风格的 `data.yaml/dataset.yaml`。此时会读取 YAML 的 `path` 作为数据集根目录，读取 `names` 作为类别来源；如果 `val` 指向 `.txt` 文件，会自动作为 `split_file`。
+`YoloManager` 的 `root` 也可以直接传 Ultralytics 风格的 `data.yaml/dataset.yaml`。此时会读取 YAML 的 `path` 作为数据集根目录，读取 `names` 作为类别来源。默认所有数据操作都处理完整数据集；需要只处理验证集时显式设置 `only_val=True`，此时使用 YAML 的 `val`（或数据集目录下的 `val.txt`/`val` 目录）。
 
 ## 统一运行参数
 
@@ -162,9 +162,11 @@ mgr.import_mask(
 | `workers` | `8` | 支持并行的加载、校验、写入、可视化、复核等步骤使用的线程数 |
 | `progress` | `True` | 显示临时 tqdm 进度条 |
 | `progress_leave` | `False` | 任务结束后保留进度条 |
+| `only_val` | `False` | 仅处理验证集；默认处理全部数据 |
 
 ```python
 mgr.check(workers=16)
+mgr.stats(only_val=True)
 mgr.vis_draw(out="images_vis", progress=False)
 mgr.eval_error_analysis(pred_root="pred", out="error_report", review=True, workers=16)
 ```
@@ -184,6 +186,7 @@ mgr.eval_error_analysis(pred_root="pred", out="error_report", review=True, worke
 `eval_error_analysis(review=True)` 会在 `review/pred_gt` 下生成按 `pred_<预测类别>_gt_<真实类别>` 组织的复核图片和 crop，并写出 Ultralytics 风格 `confusion_matrix.png`。`copy_pred_txt=True` 会把参与分析的预测 txt 复制到 `review/pred_txt`。
 
 `eval_metrics` 使用 `class_` 指定只评估的类别，使用独立的 `exclude_class_` 排除类别；两者可以同时传入。`merge_class_map` 接受“目标类别: 原始类别列表”的字典，例如 `{"vehicle": ["car", "truck"]}`，并在 GT 和预测的类别选择、匹配、统计前同时应用。类别选择和排除使用合并后的目标类别名。设置 `show_original=True` 后，如果使用了类别、合并或 `min_pixels` 参数，会在最终结果前输出原始结果；JSON 输出包含 `original` 和 `final`，而 `out` 文件仍保存最终结果。
+统计、可视化和评估默认处理全部数据；设置 `only_val=True` 或显式提供 `val_source` 才限制为验证集。
 
 `import_mask` 用于把语义分割 mask 转成 YOLO segmentation。单通道 mask 使用像素值作为类别 id；RGB mask 可在 `class_map` 中使用 `"#ff0000"` 或 `"255,0,0"` 作为 key。若环境中有 OpenCV，会用轮廓提取；否则退回为外接矩形 polygon。
 
@@ -200,7 +203,8 @@ mgr.eval_error_analysis(pred_root="pred", out="error_report", review=True, worke
 | `labels_dir` | `"labels"` | 标注子目录名 |
 | `class_file` | `None` | class.txt 路径（默认 root/class.txt） |
 | `attribute_file` | `None` | attribute.yaml 路径（默认 root/attribute.yaml） |
-| `split_file` | `None` | split 文件路径 |
+| `split_file` | `None` | 显式指定图片列表时仅处理该列表；YAML 中的 `val` 不会默认生效 |
+| `only_val` | `False` | 是否让后续数据操作默认仅处理验证集 |
 | `init_layout` | `True` | 初始化时是否执行一次 layout detect |
 | `init_layout_progress` | `True` | 初始化 layout detect 是否显示 tqdm 进度条 |
 | `init_layout_progress_leave` | `False` | 初始化 layout detect 是否保留进度条 |

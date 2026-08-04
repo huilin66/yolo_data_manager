@@ -178,7 +178,7 @@ def _resolve_yaml_split_file(yaml_path: Path, dataset_root: Path, val_value: Any
     if val_value is None:
         return None
     path = _resolve_yaml_data_path(yaml_path, dataset_root, val_value)
-    if path.suffix.lower() == ".txt" or path.is_file():
+    if path.suffix.lower() == ".txt" or path.exists():
         return str(path)
     return None
 
@@ -255,6 +255,7 @@ class YoloManager:
         class_file: str | None = None,
         attribute_file: str | None = None,
         split_file: str | None = None,
+        only_val: bool = False,
         init_layout: bool = True,
         init_layout_progress: bool = True,
         init_layout_progress_leave: bool = False,
@@ -273,6 +274,8 @@ class YoloManager:
         self.class_file = class_file or yaml_class_file
         self.attribute_file = attribute_file
         self.split_file = split_file or yaml_split_file
+        self._explicit_split_file = split_file
+        self.only_val = only_val
         self.init_layout = init_layout
         self.init_layout_progress = init_layout_progress
         self.init_layout_progress_leave = init_layout_progress_leave
@@ -303,6 +306,8 @@ class YoloManager:
     def _run(self, task: str, **params: Any) -> int:
         """Invoke *task* via ``run_task``, auto-filling common parameters."""
         if task in _ROOT_TASKS:
+            requested_only_val = params.pop("only_val", None)
+            only_val = self.only_val if requested_only_val is None else requested_only_val
             params.setdefault("root", self.root)
             params.setdefault("layout", self.layout)
             params.setdefault("images_dir", self.images_dir)
@@ -311,8 +316,12 @@ class YoloManager:
                 params.setdefault("class_file", self.class_file)
             if self.attribute_file is not None:
                 params.setdefault("attribute_file", self.attribute_file)
-            if self.split_file is not None:
+            if only_val:
+                params["only_val"] = True
+            if only_val and self.split_file is not None:
                 params.setdefault("split_file", self.split_file)
+            elif not only_val and self._explicit_split_file is not None:
+                params.setdefault("split_file", self._explicit_split_file)
         return run_task(task, **params)
 
     # -- check & stats -----------------------------------------------------
@@ -322,6 +331,7 @@ class YoloManager:
         *,
         out: str | None = None,
         fill_missing_txt: bool = False,
+        only_val: bool | None = None,
         workers: int = 8,
         progress: bool = True,
         progress_leave: bool = False,
@@ -338,6 +348,7 @@ class YoloManager:
             "check",
             out=out,
             fill_missing_txt=fill_missing_txt,
+            only_val=only_val,
             workers=workers,
             progress=progress,
             progress_leave=progress_leave,
@@ -353,6 +364,7 @@ class YoloManager:
         attr_csv: str | None = None,
         plots_dir: str | None = None,
         stats_list: str | list[str] | None = None,
+        only_val: bool | None = None,
         **kwargs: Any,
     ) -> int:
         """Compute dataset statistics (``ydm stats``)."""
@@ -364,6 +376,7 @@ class YoloManager:
             attr_csv=attr_csv,
             plots_dir=plots_dir,
             stats_list=stats_list,
+            only_val=only_val,
             **kwargs,
         )
 
@@ -689,6 +702,7 @@ class YoloManager:
     ) -> int:
         """Merge source classes into one (``ydm ann merge-class``)."""
         if isinstance(from_, Mapping):
+            requested_only_val = kwargs.pop("only_val", None)
             return self._ann_merge_class_map(
                 from_,
                 out=out,
@@ -700,6 +714,7 @@ class YoloManager:
                 workers=workers,
                 progress=progress,
                 progress_leave=progress_leave,
+                only_val=requested_only_val,
             )
         if to is None:
             raise ValueError("to is required when from_ is not a merge mapping")
@@ -732,6 +747,7 @@ class YoloManager:
         workers: int,
         progress: bool,
         progress_leave: bool,
+        only_val: bool | None,
     ) -> int:
         import json
 
@@ -739,6 +755,8 @@ class YoloManager:
         from yolo_data_manager.io.loader import load_yolo_dataset
         from yolo_data_manager.io.writer import write_yolo_dataset
 
+        requested_only_val = self.only_val if only_val is None else only_val
+        split_file = self.split_file if requested_only_val else self._explicit_split_file
         dataset = load_yolo_dataset(
             self.root,
             images_dir=self.images_dir,
@@ -746,7 +764,8 @@ class YoloManager:
             class_file=self.class_file,
             attribute_file=self.attribute_file,
             task=self.task,
-            split_file=self.split_file,
+            split_file=split_file,
+            only_val=requested_only_val,
             layout=self.layout,
             workers=workers,
             progress=progress,
@@ -906,6 +925,7 @@ class YoloManager:
         show_attrs: bool = False,
         show_id: bool = False,
         filter_no_attrs: bool = False,
+        only_val: bool | None = None,
         workers: int = 8,
         progress: bool = True,
         progress_leave: bool = False,
@@ -923,6 +943,7 @@ class YoloManager:
             show_attrs=show_attrs,
             show_id=show_id,
             filter_no_attrs=filter_no_attrs,
+            only_val=only_val,
             workers=workers,
             progress=progress,
             progress_leave=progress_leave,
@@ -938,6 +959,7 @@ class YoloManager:
         conf: float | None = None,
         by_attr: bool = False,
         filter_no_attrs: bool = True,
+        only_val: bool | None = None,
         workers: int = 8,
         progress: bool = True,
         progress_leave: bool = False,
@@ -952,6 +974,7 @@ class YoloManager:
             conf=conf,
             by_attr=by_attr,
             filter_no_attrs=filter_no_attrs,
+            only_val=only_val,
             workers=workers,
             progress=progress,
             progress_leave=progress_leave,
@@ -1186,6 +1209,7 @@ class YoloManager:
         conf_thres: float = 0.0,
         duplicate_iou: float = 0.9,
         val_source: str | None = None,
+        only_val: bool | None = None,
         class_file: str | None = None,
         review: bool = False,
         crop_padding: int = 12,
@@ -1200,7 +1224,10 @@ class YoloManager:
     ) -> int:
         """Fine-grained error analysis of predictions vs GT (``ydm eval error-analysis``)."""
         resolved_gt_root = gt_root or self.root
-        resolved_val_source = val_source or self.split_file or _default_existing_path(self.root, "val.txt")
+        requested_only_val = self.only_val if only_val is None else only_val
+        resolved_val_source = val_source
+        if resolved_val_source is None and requested_only_val:
+            resolved_val_source = self.split_file or _default_existing_path(self.root, "val.txt")
         resolved_class_file = class_file or self.class_file or _default_existing_path(self.root, "class.txt")
         return run_task(
             "eval.error_analysis",
@@ -1212,6 +1239,7 @@ class YoloManager:
             conf_thres=conf_thres,
             duplicate_iou=duplicate_iou,
             val_source=resolved_val_source,
+            only_val=requested_only_val,
             class_file=resolved_class_file,
             review=review,
             crop_padding=crop_padding,
@@ -1249,6 +1277,7 @@ class YoloManager:
         min_pixels: float | None = None,
         ignore_empty_classes: bool = True,
         val_source: str | None = None,
+        only_val: bool | None = None,
         class_file: str | None = None,
         workers: int = 8,
         progress: bool = True,
@@ -1257,7 +1286,10 @@ class YoloManager:
     ) -> int:
         """Compute precision/recall/mAP from GT and prediction txt (``ydm eval metrics``)."""
         resolved_gt_root = gt_root or self.root
-        resolved_val_source = val_source or self.split_file or _default_existing_path(self.root, "val.txt")
+        requested_only_val = self.only_val if only_val is None else only_val
+        resolved_val_source = val_source
+        if resolved_val_source is None and requested_only_val:
+            resolved_val_source = self.split_file or _default_existing_path(self.root, "val.txt")
         resolved_class_file = class_file or self.class_file or _default_existing_path(self.root, "class.txt")
         return run_task(
             "eval.metrics",
@@ -1278,6 +1310,7 @@ class YoloManager:
             min_pixels=min_pixels,
             ignore_empty_classes=ignore_empty_classes,
             val_source=resolved_val_source,
+            only_val=requested_only_val,
             class_file=resolved_class_file,
             workers=workers,
             progress=progress,

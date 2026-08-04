@@ -135,6 +135,7 @@ Supported:
 - review visualization multi-threading and progress bars
 - `eval metrics` supports `--class` inclusion, `--exclude-class` exclusion, and a shared `--merge-class-map` for GT and predictions
 - `eval metrics --show-original` prints the original metrics before class/merge/`min_pixels` filtering for comparison
+- Dataset loading processes all data by default; use `--only-val` or Python `only_val=True` to limit processing to validation data. YAML `val` no longer implicitly limits ordinary statistics or visualization.
 
 ## Package Structure
 
