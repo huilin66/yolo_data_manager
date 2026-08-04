@@ -783,6 +783,15 @@ def test_correct_labels_from_crops_updates_one_based_annotation_and_preserves_ge
     report_text = report_path.read_text(encoding="utf-8")
     assert report_text.count("correct_class_from_crops") == 2
 
+    delete_crops = tmp_path / "delete_crops"
+    delete_crops.mkdir()
+    Image.new("RGB", (10, 10), color="white").save(delete_crops / "a_1.jpg")
+    code = mgr.ann_correct_from_crops(delete_crops, None, progress=False)
+    assert code == 0
+    assert (root / "labels" / "a.txt").read_text(encoding="utf-8").splitlines() == [
+        "0 0.4 0.4 0.2 0.2",
+    ]
+
 
 def test_duplicate_image_hash(tmp_path):
     root = make_dataset(tmp_path / "yolo")

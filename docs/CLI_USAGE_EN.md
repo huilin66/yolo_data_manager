@@ -92,7 +92,7 @@ ydm ann correct-from-crops --root path/to/yolo --crops-dir image_vis/crop/car --
 ```
 
 Write operations target `--out` and do not overwrite the source dataset in place.
-`correct-from-crops` is the exception: it updates the corresponding source label files directly. Use `--dry-run` first when reviewing changes. Standard `vis crop` names use `<image_stem>_<1-based annotation index>.<extension>`.
+`correct-from-crops` is the exception: it updates the corresponding source label files directly. Use `--dry-run` first when reviewing changes. Standard `vis crop` names use `<image_stem>_<1-based annotation index>.<extension>`. Use `--to none` or `--to null` to delete the corresponding annotation.
 
 ## Dataset Operations
 
