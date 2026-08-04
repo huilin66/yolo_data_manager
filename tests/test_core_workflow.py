@@ -118,6 +118,7 @@ def test_build_python_task_argv():
         "eval.metrics",
         gt_root=Path("dataset"),
         pred_root=Path("pred"),
+        show_original=True,
         class_=["car", "bus"],
         exclude_class_=["person"],
         merge_class_map={"vehicle": ["car", "truck"]},
@@ -127,6 +128,7 @@ def test_build_python_task_argv():
         out=Path("metrics.json"),
     )
     assert metrics_argv[:2] == ["eval", "metrics"]
+    assert "--show-original" in metrics_argv
     assert "--class" in metrics_argv
     assert "car,bus" in metrics_argv
     assert "--exclude-class" in metrics_argv
@@ -973,6 +975,40 @@ def test_cli_eval_metrics_writes_json_and_csv(tmp_path, capsys):
     assert "detection_metrics" in captured.out
 
 
+def test_cli_eval_metrics_can_show_original_before_filtered_result(tmp_path, capsys):
+    gt_root = make_dataset(tmp_path / "gt_metrics_original")
+    pred_root = make_dataset(tmp_path / "pred_metrics_original")
+
+    code = cli_main(
+        [
+            "eval",
+            "metrics",
+            "--gt-root",
+            str(gt_root),
+            "--pred-root",
+            str(pred_root),
+            "--names",
+            str(gt_root / "class.txt"),
+            "--class",
+            "car",
+            "--min-pixels",
+            "15",
+            "--show-original",
+            "--no-progress",
+        ]
+    )
+    payload = json.loads(capsys.readouterr().out)
+
+    assert code == 0
+    assert payload["report_type"] == "detection_metrics_comparison"
+    assert payload["original"]["labels"] == 3
+    assert payload["original"]["predictions"] == 3
+    assert payload["original"]["selected_class_ids"] is None
+    assert payload["final"]["selected_class_ids"] == [1]
+    assert payload["final"]["labels"] == 1
+    assert payload["final"]["predictions"] == 1
+
+
 def test_cli_eval_metrics_can_print_table(tmp_path, capsys):
     gt_root = make_dataset(tmp_path / "gt_metrics_table")
     pred_labels = tmp_path / "pred_labels_table"
@@ -994,6 +1030,7 @@ def test_cli_eval_metrics_can_print_table(tmp_path, capsys):
             "--class",
             "car",
             "--print-table",
+            "--show-original",
             "--no-progress",
         ]
     )
@@ -1006,6 +1043,7 @@ def test_cli_eval_metrics_can_print_table(tmp_path, capsys):
     assert "mAP50-95" in captured.out
     assert "car" in captured.out
     assert "detection_metrics" not in captured.out
+    assert captured.out.index("Original metrics:") < captured.out.index("Final metrics:")
 
 
 def test_detection_metrics_can_filter_small_targets(tmp_path):

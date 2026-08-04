@@ -194,6 +194,7 @@ ydm vis crop --root yolo --out crops --by-attr
 - 可复制预测 txt 到 `review/pred_txt`
 - review 图和 crop 支持多线程与进度条
 - `eval metrics` 支持 `--class` 选择类别、`--exclude-class` 排除类别，以及对 GT/预测同时生效的 `--merge-class-map`
+- `eval metrics --show-original` 可在类别/合并/`min_pixels` 过滤结果前输出原始结果用于对比
 
 典型命令：
 

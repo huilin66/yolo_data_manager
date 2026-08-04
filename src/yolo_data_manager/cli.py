@@ -387,6 +387,11 @@ def build_parser() -> argparse.ArgumentParser:
     metrics.add_argument("--out", default=None, help="optional JSON output path")
     metrics.add_argument("--csv", default=None, help="optional per-class CSV output path")
     metrics.add_argument("--print-table", action="store_true", help="print an Ultralytics-style metrics table instead of JSON")
+    metrics.add_argument(
+        "--show-original",
+        action="store_true",
+        help="when class/exclude/min-pixels/merge filters are set, show original metrics before final metrics",
+    )
     metrics.add_argument("--class", dest="class_values", default=None, help="class ids/names to evaluate, comma-separated")
     metrics.add_argument("--exclude-class", dest="exclude_class_values", default=None, help="class ids/names to exclude, comma-separated")
     metrics.add_argument(
@@ -1094,11 +1099,31 @@ def handle_eval_metrics(args: argparse.Namespace) -> int:
         progress_leave=args.progress_leave,
     )
     merge_class_map = _load_merge_class_map(args.merge_class_map)
+    class_values = _split_values(args.class_values) if args.class_values else None
+    exclude_class_values = _split_values(args.exclude_class_values) if args.exclude_class_values else None
+    show_original = args.show_original and (
+        bool(class_values)
+        or bool(exclude_class_values)
+        or args.min_pixels is not None
+        or bool(merge_class_map)
+    )
+    original_metrics = None
+    if show_original:
+        original_metrics = compute_detection_metrics(
+            gt,
+            pred,
+            conf_thres=args.conf_thres,
+            min_width=args.min_width,
+            min_height=args.min_height,
+            min_area=args.min_area,
+            min_size_logic=args.min_size_logic,
+            ignore_empty_classes=args.ignore_empty_classes,
+        )
     metrics = compute_detection_metrics(
         gt,
         pred,
-        class_ids=_split_values(args.class_values) if args.class_values else None,
-        exclude_class_ids=_split_values(args.exclude_class_values) if args.exclude_class_values else None,
+        class_ids=class_values,
+        exclude_class_ids=exclude_class_values,
         merge_class_map=merge_class_map,
         conf_thres=args.conf_thres,
         min_width=args.min_width,
@@ -1112,7 +1137,25 @@ def handle_eval_metrics(args: argparse.Namespace) -> int:
         write_metrics_json(metrics, args.out)
     if args.csv:
         write_metrics_csv(metrics, args.csv)
-    if args.print_table:
+    if original_metrics is not None and args.print_table:
+        print("Original metrics:")
+        print(format_metrics_table(original_metrics))
+        print()
+        print("Final metrics:")
+        print(format_metrics_table(metrics))
+    elif original_metrics is not None:
+        print(
+            json.dumps(
+                {
+                    "report_type": "detection_metrics_comparison",
+                    "original": original_metrics.to_dict(),
+                    "final": metrics.to_dict(),
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+    elif args.print_table:
         print(format_metrics_table(metrics))
     else:
         print(json.dumps(metrics.to_dict(), indent=2, ensure_ascii=False))

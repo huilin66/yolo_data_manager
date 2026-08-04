@@ -117,6 +117,7 @@ mgr.eval_metrics(
     pred_root=r"E:\datasets\pred_labels",
     exclude_class_=["ignore", "background"],
     merge_class_map={"vehicle": ["car", "truck"]},
+    show_original=True,
     out="metrics.json",
 )
 
@@ -182,7 +183,7 @@ mgr.eval_error_analysis(pred_root="pred", out="error_report", review=True, worke
 
 `eval_error_analysis(review=True)` 会在 `review/pred_gt` 下生成按 `pred_<预测类别>_gt_<真实类别>` 组织的复核图片和 crop，并写出 Ultralytics 风格 `confusion_matrix.png`。`copy_pred_txt=True` 会把参与分析的预测 txt 复制到 `review/pred_txt`。
 
-`eval_metrics` 使用 `class_` 指定只评估的类别，使用独立的 `exclude_class_` 排除类别；两者可以同时传入。`merge_class_map` 接受“目标类别: 原始类别列表”的字典，例如 `{"vehicle": ["car", "truck"]}`，并在 GT 和预测的类别选择、匹配、统计前同时应用。类别选择和排除使用合并后的目标类别名。
+`eval_metrics` 使用 `class_` 指定只评估的类别，使用独立的 `exclude_class_` 排除类别；两者可以同时传入。`merge_class_map` 接受“目标类别: 原始类别列表”的字典，例如 `{"vehicle": ["car", "truck"]}`，并在 GT 和预测的类别选择、匹配、统计前同时应用。类别选择和排除使用合并后的目标类别名。设置 `show_original=True` 后，如果使用了类别、合并或 `min_pixels` 参数，会在最终结果前输出原始结果；JSON 输出包含 `original` 和 `final`，而 `out` 文件仍保存最终结果。
 
 `import_mask` 用于把语义分割 mask 转成 YOLO segmentation。单通道 mask 使用像素值作为类别 id；RGB mask 可在 `class_map` 中使用 `"#ff0000"` 或 `"255,0,0"` 作为 key。若环境中有 OpenCV，会用轮廓提取；否则退回为外接矩形 polygon。
 
@@ -249,6 +250,7 @@ mgr.eval_error_analysis(pred_root="pred", out="error_report", review=True, worke
 | `eval_metrics(pred_root=..., class_=["car", "bus"], min_pixels=8, out=...)` | `ydm eval metrics` |
 | `eval_metrics(pred_root=..., class_=["car", "bus"], print_table=True)` | `ydm eval metrics --print-table` |
 | `eval_metrics(pred_root=..., exclude_class_=["ignore"], merge_class_map={"vehicle": ["car", "truck"]})` | `ydm eval metrics --exclude-class ignore --merge-class-map ...` |
+| `eval_metrics(pred_root=..., class_=["car"], min_pixels=15, show_original=True)` | `ydm eval metrics --class car --min-pixels 15 --show-original` |
 | `eval_metrics(pred_root=..., ignore_empty_classes=False)` | `ydm eval metrics --include-empty-classes` |
 
 所有方法返回 `int` 退出码（0 = 成功），底层调用 `run_task()`。

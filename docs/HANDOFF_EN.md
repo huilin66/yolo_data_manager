@@ -134,6 +134,7 @@ Supported:
 - optional prediction txt copy to `review/pred_txt`
 - review visualization multi-threading and progress bars
 - `eval metrics` supports `--class` inclusion, `--exclude-class` exclusion, and a shared `--merge-class-map` for GT and predictions
+- `eval metrics --show-original` prints the original metrics before class/merge/`min_pixels` filtering for comparison
 
 ## Package Structure
 
