@@ -218,6 +218,8 @@ ydm eval metrics --gt-root gt_yolo --pred-root pred_yolo --out metrics.json --cs
 ydm eval metrics --gt-root gt_yolo --pred-root pred_labels --names class.txt --class car,bus --out vehicle_metrics.json
 ydm eval metrics --gt-root gt_yolo --pred-root pred_labels --names class.txt --class car,bus --min-pixels 8 --out vehicle_no_small.json
 ydm eval metrics --gt-root gt_yolo --pred-root pred_labels --names class.txt --class car,bus --print-table
+ydm eval metrics --gt-root gt_yolo --pred-root pred_labels --names class.txt --exclude-class ignore,background
+ydm eval metrics --gt-root gt_yolo --pred-root pred_labels --names class.txt --merge-class-map '{"vehicle":["car","truck"]}'
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --out error_report
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --out error_report --match-iou 0.5 --low-iou 0.1 --duplicate-iou 0.9
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --out error_report --review --workers 8 --copy-pred-txt
@@ -225,7 +227,7 @@ ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --val-source val
 ydm eval error-analysis --gt-root gt_labels --pred-root pred_labels --names class.txt --out error_report
 ```
 
-`eval metrics` 计算 Precision、Recall、mAP@0.5、mAP@0.5:0.95，并支持 `--class` 只评估指定类别；未选类别的 GT 和预测都会被忽略。默认不输出、不计入 `Instances=0` 的类别；如需保留这些空 GT 类用于排查误检，可加 `--include-empty-classes`。小目标过滤可使用 `--min-width`、`--min-height`、`--min-area`、`--min-size-logic`，或按像素使用 `--min-pixels`。加 `--print-table` 可输出接近 Ultralytics 的对齐表格，方便人工对比。
+`eval metrics` 计算 Precision、Recall、mAP@0.5、mAP@0.5:0.95。`--class` 只评估指定类别，`--exclude-class` 单独排除指定类别；两者可同时使用，未选/被排除类别的 GT 和预测都会被忽略。`--merge-class-map` 接受目标类别到原始类别列表的 JSON/YAML 映射，也可以传入映射文件，例如 `{"vehicle":["car","truck"]}`；映射会同时作用于 GT 和预测，并在类别选择、匹配和统计前生效。默认不输出、不计入 `Instances=0` 的类别；如需保留这些空 GT 类用于排查误检，可加 `--include-empty-classes`。小目标过滤可使用 `--min-width`、`--min-height`、`--min-area`、`--min-size-logic`，或按像素使用 `--min-pixels`。加 `--print-table` 可输出接近 Ultralytics 的对齐表格，方便人工对比。
 
 `eval error-analysis` 仍兼容旧参数 `--review-workers`、`--review-progress`、`--review-progress-leave`；新脚本建议直接使用统一运行参数。
 

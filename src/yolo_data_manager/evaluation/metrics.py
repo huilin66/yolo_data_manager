@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
+from copy import deepcopy
 import csv
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -7,6 +9,7 @@ from typing import Iterable, Sequence
 
 import numpy as np
 
+from yolo_data_manager.annotation.edit import merge_classes
 from yolo_data_manager.core.models import YoloAnnotation, YoloDataset
 
 
@@ -41,6 +44,8 @@ class DetectionMetrics:
     images: int
     classes: list[ClassMetric]
     selected_class_ids: list[int] | None
+    excluded_class_ids: list[int] | None
+    merge_class_map: dict[str, list[str]] | None
     iou_thresholds: list[float]
     size_filter: dict[str, float | str | None]
     ignore_empty_classes: bool
@@ -55,7 +60,9 @@ def compute_detection_metrics(
     gt: YoloDataset,
     pred: YoloDataset,
     *,
-    class_ids: Iterable[int] | None = None,
+    class_ids: Iterable[int | str] | int | str | None = None,
+    exclude_class_ids: Iterable[int | str] | int | str | None = None,
+    merge_class_map: Mapping[int | str, int | str | Iterable[int | str]] | None = None,
     conf_thres: float = 0.0,
     min_width: float | None = None,
     min_height: float | None = None,
@@ -69,11 +76,18 @@ def compute_detection_metrics(
 
     Predictions without an explicit confidence are treated as confidence 1.0.
     If *class_ids* is provided, GT and predictions outside that class set are
-    ignored before matching and averaging.
+    ignored before matching and averaging. *exclude_class_ids* removes classes
+    from evaluation even when no inclusion list is provided. If
+    *merge_class_map* is provided, its target-to-source mapping is applied to
+    both datasets before class selection, filtering, matching, and averaging.
     """
     if min_size_logic not in {"or", "and"}:
         raise ValueError("min_size_logic must be 'or' or 'and'")
-    selected = None if class_ids is None else set(int(class_id) for class_id in class_ids)
+    gt, pred, normalized_merge_map = _prepare_eval_datasets(gt, pred, merge_class_map)
+    selected = None if class_ids is None else set(resolve_eval_class_ids(gt, class_ids))
+    excluded = None if exclude_class_ids is None else set(resolve_eval_class_ids(gt, exclude_class_ids))
+    if selected is not None and excluded:
+        selected -= excluded
     iouv = np.array(iou_thresholds, dtype=np.float64)
     pred_by_stem = {image.stem: image for image in pred.images}
 
@@ -93,6 +107,7 @@ def compute_detection_metrics(
         gt_anns = _filter_annotations(
             gt_image.annotations,
             selected,
+            excluded=excluded,
             is_prediction=False,
             conf_thres=conf_thres,
             image_width=width,
@@ -106,6 +121,7 @@ def compute_detection_metrics(
         pred_anns = _filter_annotations(
             pred_image.annotations if pred_image is not None else [],
             selected,
+            excluded=excluded,
             is_prediction=True,
             conf_thres=conf_thres,
             image_width=width,
@@ -134,6 +150,7 @@ def compute_detection_metrics(
         pred_anns = _filter_annotations(
             pred_image.annotations,
             selected,
+            excluded=excluded,
             is_prediction=True,
             conf_thres=conf_thres,
             image_width=pred_image.width,
@@ -161,6 +178,7 @@ def compute_detection_metrics(
     class_metrics = _build_class_metrics(
         gt,
         selected=selected,
+        excluded=excluded,
         target_cls=target_cls,
         pred_count_by_class=pred_count_by_class,
         image_count_by_class=image_count_by_class,
@@ -195,6 +213,8 @@ def compute_detection_metrics(
         images=len(gt.images),
         classes=class_metrics,
         selected_class_ids=sorted(selected) if selected is not None else None,
+        excluded_class_ids=sorted(excluded) if excluded is not None else None,
+        merge_class_map=normalized_merge_map,
         iou_thresholds=[float(v) for v in iouv],
         size_filter={
             "min_width": min_width,
@@ -207,10 +227,69 @@ def compute_detection_metrics(
     )
 
 
-def resolve_eval_class_ids(dataset: YoloDataset, values: Iterable[str] | None) -> list[int] | None:
+def resolve_eval_class_ids(
+    dataset: YoloDataset,
+    values: Iterable[int | str] | int | str | None,
+) -> list[int] | None:
     if values is None:
         return None
+    if isinstance(values, (int, str)):
+        values = [values]
     return [dataset.class_id(value) for value in values]
+
+
+def _prepare_eval_datasets(
+    gt: YoloDataset,
+    pred: YoloDataset,
+    merge_class_map: Mapping[int | str, int | str | Iterable[int | str]] | None,
+) -> tuple[YoloDataset, YoloDataset, dict[str, list[str]] | None]:
+    if merge_class_map is None:
+        return gt, pred, None
+
+    normalized = _normalize_merge_class_map(merge_class_map)
+    if not normalized:
+        return gt, pred, {}
+
+    gt_result = deepcopy(gt)
+    pred_result = deepcopy(pred)
+    if not gt_result.classes.names and pred_result.classes.names:
+        gt_result.classes = deepcopy(pred_result.classes)
+    elif not pred_result.classes.names and gt_result.classes.names:
+        pred_result.classes = deepcopy(gt_result.classes)
+
+    for target, sources in normalized.items():
+        gt_result, _ = merge_classes(gt_result, sources, target, compact=True, add_missing=True)
+        pred_result, _ = merge_classes(pred_result, sources, target, compact=True, add_missing=True)
+
+    return gt_result, pred_result, {
+        str(target): [str(source) for source in sources]
+        for target, sources in normalized.items()
+    }
+
+
+def _normalize_merge_class_map(
+    merge_class_map: Mapping[int | str, int | str | Iterable[int | str]],
+) -> dict[int | str, list[int | str]]:
+    if not isinstance(merge_class_map, Mapping):
+        raise TypeError("merge_class_map must be a mapping of target class to source classes")
+
+    normalized: dict[int | str, list[int | str]] = {}
+    for target, sources in merge_class_map.items():
+        if not isinstance(target, (int, str)):
+            raise TypeError("merge_class_map targets must be class ids or names")
+        if isinstance(sources, (int, str)):
+            source_values = [sources]
+        else:
+            try:
+                source_values = list(sources)
+            except TypeError as exc:
+                raise TypeError("merge_class_map values must be class ids/names or iterables of them") from exc
+        if not source_values:
+            raise ValueError(f"merge_class_map target {target!r} has no source classes")
+        if not all(isinstance(source, (int, str)) for source in source_values):
+            raise TypeError("merge_class_map sources must be class ids or names")
+        normalized[target] = source_values
+    return normalized
 
 
 def write_metrics_json(metrics: DetectionMetrics, path: str | Path) -> None:
@@ -289,6 +368,7 @@ def _filter_annotations(
     annotations: Sequence[YoloAnnotation],
     selected: set[int] | None,
     *,
+    excluded: set[int] | None,
     is_prediction: bool,
     conf_thres: float,
     image_width: int | None,
@@ -299,7 +379,12 @@ def _filter_annotations(
     min_size_logic: str,
     min_pixels: float | None,
 ) -> list[YoloAnnotation]:
-    rows = [ann for ann in annotations if selected is None or ann.class_id in selected]
+    rows = [
+        ann
+        for ann in annotations
+        if (selected is None or ann.class_id in selected)
+        and (excluded is None or ann.class_id not in excluded)
+    ]
     if not is_prediction or conf_thres <= 0:
         return [
             ann
@@ -458,6 +543,7 @@ def _build_class_metrics(
     dataset: YoloDataset,
     *,
     selected: set[int] | None,
+    excluded: set[int] | None,
     target_cls: np.ndarray,
     pred_count_by_class: dict[int, int],
     image_count_by_class: dict[int, int],
@@ -474,7 +560,10 @@ def _build_class_metrics(
     if selected is not None:
         class_ids = sorted(selected)
     else:
-        class_ids = sorted(set(target_count_by_class) | set(pred_count_by_class))
+        class_ids = sorted(
+            (set(target_count_by_class) | set(pred_count_by_class))
+            - (excluded or set())
+        )
     result_by_class = {int(class_id): idx for idx, class_id in enumerate(ap_class)}
     rows: list[ClassMetric] = []
     for class_id in class_ids:

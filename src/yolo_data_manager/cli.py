@@ -47,7 +47,6 @@ from yolo_data_manager.evaluation.error_analysis import (
 from yolo_data_manager.evaluation.metrics import (
     compute_detection_metrics,
     format_metrics_table,
-    resolve_eval_class_ids,
     write_metrics_csv,
     write_metrics_json,
 )
@@ -389,6 +388,13 @@ def build_parser() -> argparse.ArgumentParser:
     metrics.add_argument("--csv", default=None, help="optional per-class CSV output path")
     metrics.add_argument("--print-table", action="store_true", help="print an Ultralytics-style metrics table instead of JSON")
     metrics.add_argument("--class", dest="class_values", default=None, help="class ids/names to evaluate, comma-separated")
+    metrics.add_argument("--exclude-class", dest="exclude_class_values", default=None, help="class ids/names to exclude, comma-separated")
+    metrics.add_argument(
+        "--merge-class-map",
+        dest="merge_class_map",
+        default=None,
+        help="target-to-source class mapping as inline JSON/YAML or a JSON/YAML file",
+    )
     metrics.add_argument("--conf-thres", type=float, default=0.0, help="confidence threshold for predictions")
     metrics.add_argument("--min-width", type=float, default=None, help="ignore boxes narrower than this normalized width")
     metrics.add_argument("--min-height", type=float, default=None, help="ignore boxes shorter than this normalized height")
@@ -1087,11 +1093,13 @@ def handle_eval_metrics(args: argparse.Namespace) -> int:
         progress=args.progress,
         progress_leave=args.progress_leave,
     )
-    class_ids = resolve_eval_class_ids(gt, _split_values(args.class_values) if args.class_values else None)
+    merge_class_map = _load_merge_class_map(args.merge_class_map)
     metrics = compute_detection_metrics(
         gt,
         pred,
-        class_ids=class_ids,
+        class_ids=_split_values(args.class_values) if args.class_values else None,
+        exclude_class_ids=_split_values(args.exclude_class_values) if args.exclude_class_values else None,
+        merge_class_map=merge_class_map,
         conf_thres=args.conf_thres,
         min_width=args.min_width,
         min_height=args.min_height,
@@ -1129,6 +1137,26 @@ def _write_edit_result(dataset, report, args: argparse.Namespace) -> None:
 
 def _split_values(text: str) -> list[str]:
     return [item.strip() for item in text.split(",") if item.strip()]
+
+
+def _load_merge_class_map(value: str | None) -> dict[object, object] | None:
+    if value is None:
+        return None
+
+    try:
+        candidate = Path(value)
+        if candidate.is_file():
+            data = yaml.safe_load(candidate.read_text(encoding="utf-8"))
+        else:
+            data = yaml.safe_load(value)
+    except OSError:
+        data = yaml.safe_load(value)
+
+    if data is None:
+        return {}
+    if not isinstance(data, dict):
+        raise ValueError("merge-class-map must be a mapping of target class to source classes")
+    return data
 
 
 def _emit_json(payload: dict[str, object], out: str | None) -> None:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+import json
 import os
 from pathlib import Path
 import tempfile
@@ -51,6 +52,7 @@ TASK_COMMANDS: Mapping[str, tuple[str, ...]] = {
 
 _PARAMETER_ALIASES = {
     "class_": "class",
+    "exclude_class_": "exclude-class",
     "from_": "from",
     "map_file": "map",
     "json_path": "json",
@@ -125,6 +127,8 @@ def _boolean_flag(task: str, name: str, value: bool, default_flag: str) -> str |
 def _stringify(value: Any) -> str:
     if isinstance(value, Path):
         return str(value)
+    if isinstance(value, Mapping):
+        return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
     if isinstance(value, set):
         return ",".join(str(item) for item in sorted(value, key=str))
     if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
@@ -1234,6 +1238,8 @@ class YoloManager:
         csv: str | None = None,
         print_table: bool = False,
         class_: str | list[str] | None = None,
+        exclude_class_: str | list[str] | None = None,
+        merge_class_map: Mapping[str | int, str | int | Sequence[str | int]] | str | Path | None = None,
         conf_thres: float = 0.0,
         min_width: float | None = None,
         min_height: float | None = None,
@@ -1260,6 +1266,8 @@ class YoloManager:
             csv=csv,
             print_table=print_table,
             class_=class_,
+            exclude_class_=exclude_class_,
+            merge_class_map=merge_class_map,
             conf_thres=conf_thres,
             min_width=min_width,
             min_height=min_height,

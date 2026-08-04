@@ -113,6 +113,12 @@ mgr.eval_compare(gt_root=r"E:\datasets\gt", pred_root=r"E:\datasets\pred",
                  out="compare.csv", iou=0.5)
 mgr.eval_review_pack(gt_root=r"E:\datasets\gt", pred_root=r"E:\datasets\pred",
                      out="review_pack", status=["fp", "fn"])
+mgr.eval_metrics(
+    pred_root=r"E:\datasets\pred_labels",
+    exclude_class_=["ignore", "background"],
+    merge_class_map={"vehicle": ["car", "truck"]},
+    out="metrics.json",
+)
 
 # 细粒度错误分析 —— 7 种错误子类型 + 重复 GT 检测
 mgr.eval_error_analysis(gt_root=r"E:\datasets\gt", pred_root=r"E:\datasets\pred",
@@ -175,6 +181,8 @@ mgr.eval_error_analysis(pred_root="pred", out="error_report", review=True, worke
 `dataset_filter` 中 `min_width` 和 `min_height` 默认按 `or` 逻辑删除小框：`w < min_width` 或 `h < min_height` 即删除。设置 `min_size_logic="and"` 时，只有 `w < min_width` 且 `h < min_height` 才删除。`class_rules` 可以给不同类别设置不同过滤规则；类别没有命中规则时，继续使用全局过滤参数。
 
 `eval_error_analysis(review=True)` 会在 `review/pred_gt` 下生成按 `pred_<预测类别>_gt_<真实类别>` 组织的复核图片和 crop，并写出 Ultralytics 风格 `confusion_matrix.png`。`copy_pred_txt=True` 会把参与分析的预测 txt 复制到 `review/pred_txt`。
+
+`eval_metrics` 使用 `class_` 指定只评估的类别，使用独立的 `exclude_class_` 排除类别；两者可以同时传入。`merge_class_map` 接受“目标类别: 原始类别列表”的字典，例如 `{"vehicle": ["car", "truck"]}`，并在 GT 和预测的类别选择、匹配、统计前同时应用。类别选择和排除使用合并后的目标类别名。
 
 `import_mask` 用于把语义分割 mask 转成 YOLO segmentation。单通道 mask 使用像素值作为类别 id；RGB mask 可在 `class_map` 中使用 `"#ff0000"` 或 `"255,0,0"` 作为 key。若环境中有 OpenCV，会用轮廓提取；否则退回为外接矩形 polygon。
 
@@ -240,6 +248,7 @@ mgr.eval_error_analysis(pred_root="pred", out="error_report", review=True, worke
 | `eval_error_analysis(gt_root=..., pred_root=..., out=...)` | `ydm eval error-analysis` |
 | `eval_metrics(pred_root=..., class_=["car", "bus"], min_pixels=8, out=...)` | `ydm eval metrics` |
 | `eval_metrics(pred_root=..., class_=["car", "bus"], print_table=True)` | `ydm eval metrics --print-table` |
+| `eval_metrics(pred_root=..., exclude_class_=["ignore"], merge_class_map={"vehicle": ["car", "truck"]})` | `ydm eval metrics --exclude-class ignore --merge-class-map ...` |
 | `eval_metrics(pred_root=..., ignore_empty_classes=False)` | `ydm eval metrics --include-empty-classes` |
 
 所有方法返回 `int` 退出码（0 = 成功），底层调用 `run_task()`。

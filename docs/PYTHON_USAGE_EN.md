@@ -194,6 +194,11 @@ mgr.eval_compare(gt_root="datasets/gt", pred_root="datasets/pred", out="compare.
 mgr.eval_review_pack(gt_root="datasets/gt", pred_root="datasets/pred", out="review_pack", status=["fp", "fn"])
 mgr.eval_metrics(pred_root="datasets/pred_labels", class_=["car", "bus"], min_pixels=8, out="metrics.json", csv="metrics.csv")
 mgr.eval_metrics(pred_root="datasets/pred_labels", class_=["car", "bus"], print_table=True)
+mgr.eval_metrics(
+    pred_root="datasets/pred_labels",
+    exclude_class_=["ignore", "background"],
+    merge_class_map={"vehicle": ["car", "truck"]},
+)
 mgr.eval_metrics(pred_root="datasets/pred_labels", ignore_empty_classes=False)
 
 mgr.eval_error_analysis(pred_root="datasets/pred_labels", out="error_report")
@@ -211,6 +216,8 @@ mgr.eval_error_analysis(
     copy_pred_txt=True,
 )
 ```
+
+`eval_metrics` uses `class_` to select classes and the independent `exclude_class_` parameter to exclude classes; both can be supplied together. `merge_class_map` accepts a target-to-source mapping such as `{"vehicle": ["car", "truck"]}` and applies it to GT and predictions before class selection, matching, and aggregation. Class selection and exclusion use the merged target class names.
 
 When `gt_root`, `val_source`, or `class_file` are omitted, `YoloManager` falls back to the manager root, `val.txt`, and `class.txt` when available.
 

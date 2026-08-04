@@ -119,6 +119,8 @@ def test_build_python_task_argv():
         gt_root=Path("dataset"),
         pred_root=Path("pred"),
         class_=["car", "bus"],
+        exclude_class_=["person"],
+        merge_class_map={"vehicle": ["car", "truck"]},
         conf_thres=0.25,
         min_pixels=8,
         min_size_logic="and",
@@ -127,6 +129,10 @@ def test_build_python_task_argv():
     assert metrics_argv[:2] == ["eval", "metrics"]
     assert "--class" in metrics_argv
     assert "car,bus" in metrics_argv
+    assert "--exclude-class" in metrics_argv
+    assert "person" in metrics_argv
+    assert "--merge-class-map" in metrics_argv
+    assert '{"vehicle":["car","truck"]}' in metrics_argv
     assert "--min-pixels" in metrics_argv
     assert "--min-size-logic" in metrics_argv
     metrics_include_empty_argv = build_task_argv(
@@ -181,6 +187,20 @@ def test_yolo_manager_methods(tmp_path):
     argv = build_task_argv("vis.crop", root=str(root), out="crops",
                            filter_no_attrs=False)
     assert "--keep-no-attrs" in argv
+
+    metrics_out = tmp_path / "manager_metrics.json"
+    code = mgr.eval_metrics(
+        pred_root=str(root),
+        exclude_class_=["person"],
+        merge_class_map={"vehicle": ["car"]},
+        out=str(metrics_out),
+        progress=False,
+    )
+    metrics_payload = json.loads(metrics_out.read_text(encoding="utf-8"))
+    assert code == 0
+    assert metrics_payload["excluded_class_ids"] == [0]
+    assert metrics_payload["merge_class_map"] == {"vehicle": ["car"]}
+    assert [row["class_name"] for row in metrics_payload["classes"]] == ["vehicle"]
 
 
 def test_yolo_manager_can_initialize_from_dataset_yaml(tmp_path):
@@ -809,6 +829,62 @@ def test_detection_metrics_supports_selected_classes(tmp_path):
     assert "mAP50-95" in table
     assert "all" in table
     assert "car" in table
+
+
+def test_detection_metrics_supports_excluded_classes_and_merge_map(tmp_path):
+    gt_root = make_dataset(tmp_path / "gt_metrics_options")
+    pred_root = make_dataset(tmp_path / "pred_metrics_options")
+    gt = load_yolo_dataset(gt_root, task="detect")
+    pred = load_yolo_dataset(pred_root, task="detect")
+
+    excluded = compute_detection_metrics(gt, pred, exclude_class_ids=["person"])
+    assert excluded.selected_class_ids is None
+    assert excluded.excluded_class_ids == [0]
+    assert [row.class_name for row in excluded.classes] == ["car"]
+    assert excluded.labels == 2
+
+    merged = compute_detection_metrics(
+        gt,
+        pred,
+        class_ids=["vehicle"],
+        merge_class_map={"vehicle": ["person", "car"]},
+    )
+    assert merged.selected_class_ids == [0]
+    assert merged.merge_class_map == {"vehicle": ["person", "car"]}
+    assert [row.class_name for row in merged.classes] == ["vehicle"]
+    assert merged.labels == 3
+    assert merged.predictions == 3
+    assert gt.classes.names == ["person", "car"]
+
+
+def test_cli_eval_metrics_supports_merge_class_map(tmp_path, capsys):
+    gt_root = make_dataset(tmp_path / "gt_metrics_merge_cli")
+    pred_root = make_dataset(tmp_path / "pred_metrics_merge_cli")
+
+    code = cli_main(
+        [
+            "eval",
+            "metrics",
+            "--gt-root",
+            str(gt_root),
+            "--pred-root",
+            str(pred_root),
+            "--names",
+            str(gt_root / "class.txt"),
+            "--merge-class-map",
+            '{"vehicle":["person","car"]}',
+            "--exclude-class",
+            "vehicle",
+            "--no-progress",
+        ]
+    )
+    payload = json.loads(capsys.readouterr().out)
+
+    assert code == 0
+    assert payload["merge_class_map"] == {"vehicle": ["person", "car"]}
+    assert payload["excluded_class_ids"] == [0]
+    assert payload["labels"] == 0
+    assert payload["predictions"] == 0
 
 
 def test_detection_metrics_ignores_empty_instance_classes_by_default(tmp_path):

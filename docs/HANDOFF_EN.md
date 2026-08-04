@@ -133,6 +133,7 @@ Supported:
 - review crop names: `image_pred<pred_txt_order>_gt<gt_txt_order>`
 - optional prediction txt copy to `review/pred_txt`
 - review visualization multi-threading and progress bars
+- `eval metrics` supports `--class` inclusion, `--exclude-class` exclusion, and a shared `--merge-class-map` for GT and predictions
 
 ## Package Structure
 
