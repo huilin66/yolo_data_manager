@@ -5,7 +5,7 @@ from yolo_data_manager import YoloManager
 
 def yolo_error_ana(input_dir, pred_dir, pred_name, abs_path=False, workers=8):
     if not abs_path:
-        pred_dir = os.path.join(input_dir, pred_dir, "labels")
+        pred_dir = os.path.join(pred_dir, pred_name, "labels")
 
     mgr = YoloManager(input_dir, layout="auto", init_check=False)
 
@@ -32,4 +32,4 @@ if __name__ == "__main__":
     data_dir = r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_t.yaml"
     pred_dir = r"/localnvme/project/aic_mdet/models/ultralytics/runs/detect"
 
-    yolo_error_ana(data_dir, pred_dir, "val-52")
+    yolo_error_ana(data_dir, pred_dir, "predict")
