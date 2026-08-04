@@ -143,9 +143,16 @@ mgr.ann_rename_class(from_="cls_a", to="cls_b", out="yolo_renamed")
 mgr.ann_apply_map(map_file="class_map.yaml", out="yolo_mapped")
 mgr.ann_set_attr(name="defect", value="yes", class_=["sign"], out="yolo_attr")
 mgr.ann_delete_attr(name="quality", value=["bad"], out="yolo_clean")
+mgr.ann_correct_from_crops(
+    crops_dir="image_vis/crop/car",
+    to="defect",
+    only_val=True,
+    report="crop_correction.csv",
+    dry_run=True,
+)
 ```
 
-Write operations output to a new directory. Use `dry_run=True` when you want to inspect the effect first.
+Write operations output to a new directory. `ann_correct_from_crops` is the exception: it updates the source label files identified by crop names. Use `dry_run=True` when you want to inspect the effect first.
 
 ## Visualization
 

@@ -196,6 +196,7 @@ ydm vis crop --root yolo --out crops --by-attr
 - `eval metrics` 支持 `--class` 选择类别、`--exclude-class` 排除类别，以及对 GT/预测同时生效的 `--merge-class-map`
 - `eval metrics --show-original` 可在类别/合并/`min_pixels` 过滤结果前输出原始结果用于对比
 - 数据集加载默认处理全部数据；使用 `--only-val` 或 Python 的 `only_val=True` 才限制到验证集，YAML 的 `val` 不再隐式限制普通统计和可视化
+- 新增 `ann correct-from-crops` / `ann_correct_from_crops`：按 `vis_crop` 的 `<image_stem>_<1-based index>` 文件名定位原始标注行并直接校正类别
 
 典型命令：
 

@@ -88,9 +88,11 @@ ydm ann rename-class --root path/to/yolo --from cls_a --to cls_b --out yolo_rena
 ydm ann apply-map --root path/to/yolo --map class_map.yaml --out yolo_mapped
 ydm ann set-attr --root path/to/yolo --name defect --value yes --class sign --out yolo_attr_fixed
 ydm ann delete-attr --root path/to/yolo --name defect --value yes --out yolo_attr_clean
+ydm ann correct-from-crops --root path/to/yolo --crops-dir image_vis/crop/car --to defect --report crop_correction.csv
 ```
 
 写操作默认输出到 `--out`，不原地覆盖原数据。
+`correct-from-crops` 是按 crop 文件名直接修改源数据对应 label 的例外；建议先使用 `--dry-run`，或保留 `--report` 作为修改记录。`vis crop` 文件名 `<image_stem>_<序号>.<扩展名>` 中的序号从 1 开始。
 
 ## 数据集管理
 

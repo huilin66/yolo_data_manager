@@ -90,6 +90,15 @@ mgr.ann_rename_class(from_="cls_a", to="cls_b", out="yolo_renamed")
 mgr.ann_apply_map(map_file="class_map.yaml", out="yolo_mapped")
 mgr.ann_set_attr(name="defect", value="yes", class_=["sign"], out="yolo_attr")
 mgr.ann_delete_attr(name="quality", value=["bad"], out="yolo_clean")
+mgr.ann_correct_from_crops(
+    crops_dir="image_vis/crop/car",
+    to="defect",
+    only_val=True,
+    report="crop_correction.csv",
+    dry_run=True,
+)
+
+# `ann_correct_from_crops` 会按 `<image_stem>_<1-based annotation index>.<扩展名>` 解析 `vis_crop` 结果，递归处理属性子目录，并直接更新对应源 label；确认无误后去掉 `dry_run=True`。
 
 # 可视化
 mgr.vis_draw(out="images_vis", show_conf=True, show_attrs=True)
@@ -236,6 +245,7 @@ mgr.eval_error_analysis(pred_root="pred", out="error_report", review=True, worke
 | `ann_merge_class(from_=..., to=..., ...)` | `ydm ann merge-class` |
 | `ann_rename_class(from_=..., to=..., out=...)` | `ydm ann rename-class` |
 | `ann_apply_map(map_file=..., out=...)` | `ydm ann apply-map` |
+| `ann_correct_from_crops(crops_dir=..., to=...)` | `ydm ann correct-from-crops` |
 | `ann_set_attr(name=..., value=..., ...)` | `ydm ann set-attr` |
 | `ann_delete_attr(name=..., ...)` | `ydm ann delete-attr` |
 | `vis_draw(out=..., ...)` | `ydm vis draw` |

@@ -32,6 +32,7 @@ TASK_COMMANDS: Mapping[str, tuple[str, ...]] = {
     "ann.merge_class": ("ann", "merge-class"),
     "ann.rename_class": ("ann", "rename-class"),
     "ann.apply_map": ("ann", "apply-map"),
+    "ann.correct_from_crops": ("ann", "correct-from-crops"),
     "ann.set_attr": ("ann", "set-attr"),
     "ann.delete_attr": ("ann", "delete-attr"),
     "vis.draw": ("vis", "draw"),
@@ -219,6 +220,7 @@ _ROOT_TASKS: frozenset[str] = frozenset(
         "ann.merge_class",
         "ann.rename_class",
         "ann.apply_map",
+        "ann.correct_from_crops",
         "ann.set_attr",
         "ann.delete_attr",
         "vis.draw",
@@ -880,6 +882,27 @@ class YoloManager:
             keep_empty_labels=keep_empty_labels,
             dry_run=dry_run,
             report=report,
+            **kwargs,
+        )
+
+    def ann_correct_from_crops(
+        self,
+        crops_dir: str | Path,
+        to: str | int,
+        *,
+        report: str | None = None,
+        dry_run: bool = False,
+        only_val: bool | None = None,
+        **kwargs: Any,
+    ) -> int:
+        """Correct per-instance classes from ``vis crop`` filenames."""
+        return self._run(
+            "ann.correct_from_crops",
+            crops_dir=crops_dir,
+            to=to,
+            report=report,
+            dry_run=dry_run,
+            only_val=only_val,
             **kwargs,
         )
 

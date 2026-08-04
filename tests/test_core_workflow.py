@@ -758,6 +758,32 @@ def test_query_copy_and_crop(tmp_path):
     assert (tmp_path / "crops" / "person" / "a_1.jpg").exists()
 
 
+def test_correct_labels_from_crops_updates_one_based_annotation_and_preserves_geometry(tmp_path):
+    root = make_dataset(tmp_path / "crop_correction")
+    crops = tmp_path / "image_vis" / "crop" / "car" / "material-metal"
+    crops.mkdir(parents=True)
+    Image.new("RGB", (10, 10), color="white").save(crops / "a_2.jpg")
+    Image.new("RGB", (10, 10), color="white").save(crops / "b_1.jpg")
+    (crops / "duplicate").mkdir()
+    Image.new("RGB", (10, 10), color="white").save(crops / "duplicate" / "b_1.jpg")
+    Image.new("RGB", (10, 10), color="white").save(crops / "not_a_crop.jpg")
+
+    mgr = YoloManager(root, layout="flat", task="detect", init_layout=False, init_check=False)
+    report_path = tmp_path / "crop_correction.csv"
+    code = mgr.ann_correct_from_crops(crops, "person", report=str(report_path), progress=False)
+
+    assert code == 0
+    assert (root / "labels" / "a.txt").read_text(encoding="utf-8").splitlines() == [
+        "0 0.5 0.5 0.2 0.3",
+        "0 0.4 0.4 0.2 0.2",
+    ]
+    assert (root / "labels" / "b.txt").read_text(encoding="utf-8").splitlines() == [
+        "0 0.1 0.1 0.2 0.1",
+    ]
+    report_text = report_path.read_text(encoding="utf-8")
+    assert report_text.count("correct_class_from_crops") == 2
+
+
 def test_duplicate_image_hash(tmp_path):
     root = make_dataset(tmp_path / "yolo")
     dataset = load_yolo_dataset(root)

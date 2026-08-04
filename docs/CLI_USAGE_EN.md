@@ -88,9 +88,11 @@ ydm ann rename-class --root path/to/yolo --from cls_a --to cls_b --out yolo_rena
 ydm ann apply-map --root path/to/yolo --map class_map.yaml --out yolo_mapped
 ydm ann set-attr --root path/to/yolo --name defect --value yes --class sign --out yolo_attr_fixed
 ydm ann delete-attr --root path/to/yolo --name defect --value yes --out yolo_attr_clean
+ydm ann correct-from-crops --root path/to/yolo --crops-dir image_vis/crop/car --to defect --report crop_correction.csv
 ```
 
 Write operations target `--out` and do not overwrite the source dataset in place.
+`correct-from-crops` is the exception: it updates the corresponding source label files directly. Use `--dry-run` first when reviewing changes. Standard `vis crop` names use `<image_stem>_<1-based annotation index>.<extension>`.
 
 ## Dataset Operations
 

@@ -21,6 +21,7 @@ from yolo_data_manager.io.loader import load_yolo_dataset
 from yolo_data_manager.io.image_conversion import convert_multimodal_images_to_uint8
 from yolo_data_manager.io.multimodal import load_multimodal_yolo_dataset
 from yolo_data_manager.evaluation.metrics import compute_detection_metrics, format_metrics_table
+from yolo_data_manager.annotation.crop_correction import CropCorrectionResult, correct_labels_from_crops
 from yolo_data_manager.multimodal_manager import MultiModalYoloManager
 from yolo_data_manager.scripting import YoloManager, build_task_argv, run_task
 from yolo_data_manager.stats.multimodal import compute_multimodal_stats, write_multimodal_stats_plots
@@ -45,6 +46,8 @@ __all__ = [
     "compute_multimodal_stats",
     "convert_multimodal_images_to_uint8",
     "compute_detection_metrics",
+    "CropCorrectionResult",
+    "correct_labels_from_crops",
     "crop_multimodal_dataset",
     "format_metrics_table",
     "load_multimodal_yolo_dataset",
