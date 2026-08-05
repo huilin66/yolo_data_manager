@@ -243,181 +243,152 @@ def _run_box_window(
     title: str,
 ) -> tuple[int, int, int, int] | None:
     try:
-        import tkinter as tk
-        from PIL import ImageTk
+        import matplotlib
+        import matplotlib.pyplot as plt
+        from matplotlib.widgets import RectangleSelector
     except ImportError as exc:  # pragma: no cover - depends on the Python install
         raise RuntimeError(
-            "Tkinter is required for manual box drawing; install/enable Tk on this machine"
+            "Matplotlib with an interactive GUI backend is required for manual box drawing"
         ) from exc
 
-    try:
-        window = _ManualBoxWindow(
-            tk,
-            ImageTk,
-            preview,
-            original_size=original_size,
-            display_size=display_size,
-            scale=scale,
-            min_pixels=min_pixels,
-            title=title,
-        )
-        window.root.mainloop()
-        return window.result
-    except tk.TclError as exc:  # pragma: no cover - depends on the display server
+    backend = str(matplotlib.get_backend()).lower()
+    if backend in {"agg", "cairo", "pdf", "pgf", "ps", "svg", "template"} or backend.startswith(
+        "module://matplotlib_inline"
+    ):
         raise RuntimeError(
-            "Tkinter could not open a display; run with a desktop display or X11 forwarding"
-        ) from exc
-
-
-class _ManualBoxWindow:
-    def __init__(
-        self,
-        tk: Any,
-        image_tk: Any,
-        preview: Image.Image,
-        *,
-        original_size: tuple[int, int],
-        display_size: tuple[int, int],
-        scale: float,
-        min_pixels: int,
-        title: str,
-    ) -> None:
-        self.tk = tk
-        self.original_width, self.original_height = original_size
-        self.display_width, self.display_height = display_size
-        self.scale = scale
-        self.min_pixels = min_pixels
-        self.start: tuple[float, float] | None = None
-        self.rectangle: int | None = None
-        self.result: tuple[int, int, int, int] | None = None
-
-        self.root = tk.Tk()
-        self.root.title(title)
-        self.root.resizable(False, False)
-        self.status = tk.StringVar(
-            value="拖拽绘制一个 box；Enter 完成并输出，R 清除重画，Esc 取消"
-        )
-        tk.Label(self.root, textvariable=self.status, anchor="w", justify="left").pack(
-            fill="x", padx=8, pady=(8, 4)
-        )
-        self.canvas = tk.Canvas(
-            self.root,
-            width=self.display_width,
-            height=self.display_height,
-            cursor="crosshair",
-            highlightthickness=0,
-        )
-        self.canvas.pack(padx=8, pady=4)
-        self.photo = image_tk.PhotoImage(image=preview)
-        self.canvas.create_image(0, 0, anchor=tk.NW, image=self.photo)
-
-        controls = tk.Frame(self.root)
-        controls.pack(fill="x", padx=8, pady=(4, 8))
-        tk.Button(controls, text="完成并输出", command=self.finish).pack(side="left")
-        tk.Button(controls, text="清除", command=self.clear).pack(side="left", padx=6)
-        tk.Button(controls, text="取消", command=self.cancel).pack(side="right")
-
-        self.canvas.bind("<ButtonPress-1>", self.on_press)
-        self.canvas.bind("<B1-Motion>", self.on_drag)
-        self.canvas.bind("<ButtonRelease-1>", self.on_release)
-        self.root.bind("<Return>", self._finish_event)
-        self.root.bind("<Escape>", self._cancel_event)
-        self.root.bind("r", self._clear_event)
-        self.root.bind("R", self._clear_event)
-        self.root.protocol("WM_DELETE_WINDOW", self.cancel)
-
-    def on_press(self, event: Any) -> None:
-        self.start = self._clamp_display_point(event.x, event.y)
-        self.result = None
-        if self.rectangle is not None:
-            self.canvas.delete(self.rectangle)
-        x, y = self.start
-        self.rectangle = self.canvas.create_rectangle(
-            x,
-            y,
-            x,
-            y,
-            outline="#ff2020",
-            width=2,
+            f"Matplotlib backend {backend!r} is non-interactive; "
+            "use a GUI backend and a desktop display/X11 forwarding"
         )
 
-    def on_drag(self, event: Any) -> None:
-        if self.start is None or self.rectangle is None:
-            return
-        end = self._clamp_display_point(event.x, event.y)
-        self.canvas.coords(self.rectangle, *self._display_xyxy(self.start, end))
+    state: dict[str, tuple[int, int, int, int] | None] = {"result": None}
+    figure = None
+    try:
+        figure, axes = plt.subplots(
+            figsize=(display_size[0] / 100.0, display_size[1] / 100.0),
+            dpi=100,
+        )
+        axes.imshow(
+            preview,
+            extent=(0, display_size[0], display_size[1], 0),
+            origin="upper",
+        )
+        axes.set_xlim(0, display_size[0])
+        axes.set_ylim(display_size[1], 0)
+        axes.set_aspect("equal", adjustable="box")
+        axes.axis("off")
+        figure.suptitle(
+            f"{title}\nDrag one box, press Enter to save; R redraws; Esc cancels",
+            fontsize=10,
+        )
+        status = figure.text(
+            0.01,
+            0.01,
+            "pixel xyxy: draw a box",
+            ha="left",
+            va="bottom",
+            fontsize=9,
+            color="#cc0000",
+        )
 
-    def on_release(self, event: Any) -> None:
-        if self.start is None:
-            return
-        end = self._clamp_display_point(event.x, event.y)
-        display_xyxy = self._display_xyxy(self.start, end)
-        left, top, right, bottom = self._to_pixel_xyxy(display_xyxy)
-        if right - left < self.min_pixels or bottom - top < self.min_pixels:
-            self.status.set(f"box 太小，至少需要 {self.min_pixels} 像素；请重新拖拽")
-            self.result = None
-            return
-        self.result = (left, top, right, bottom)
-        if self.rectangle is not None:
-            self.canvas.coords(
-                self.rectangle,
-                left * self.scale,
-                top * self.scale,
-                right * self.scale,
-                bottom * self.scale,
+        def on_select(eclick: Any, erelease: Any) -> None:
+            if eclick.xdata is None or eclick.ydata is None:
+                return
+            if erelease.xdata is None or erelease.ydata is None:
+                return
+            display_xyxy = _display_xyxy(
+                eclick.xdata,
+                eclick.ydata,
+                erelease.xdata,
+                erelease.ydata,
             )
-        self.status.set(
-            "pixel xyxy={}；按 Enter 完成，或按 R 清除重画".format(self.result)
+            pixel_xyxy = _display_to_pixel_xyxy(
+                display_xyxy,
+                original_size=original_size,
+                display_size=display_size,
+                scale=scale,
+            )
+            left, top, right, bottom = pixel_xyxy
+            if right - left < min_pixels or bottom - top < min_pixels:
+                state["result"] = None
+                status.set_text(f"box too small; minimum is {min_pixels} pixels")
+            else:
+                state["result"] = pixel_xyxy
+                status.set_text(f"pixel xyxy: {pixel_xyxy}; press Enter to save")
+            figure.canvas.draw_idle()
+
+        def on_key(event: Any) -> None:
+            if event.key in {"enter", "return"}:
+                plt.close(figure)
+            elif event.key in {"escape", "q"}:
+                state["result"] = None
+                plt.close(figure)
+            elif event.key in {"r", "c"}:
+                state["result"] = None
+                status.set_text("pixel xyxy: draw a box")
+                figure.canvas.draw_idle()
+
+        selector = RectangleSelector(
+            axes,
+            on_select,
+            useblit=False,
+            button=[1],
+            minspanx=max(1.0, min_pixels * scale),
+            minspany=max(1.0, min_pixels * scale),
+            spancoords="pixels",
+            interactive=False,
+            props={"facecolor": "none", "edgecolor": "red", "linewidth": 2},
         )
+        figure.canvas.mpl_connect("key_press_event", on_key)
+        # Keep the selector alive for the whole blocking show call.
+        figure._ydm_manual_box_selector = selector  # type: ignore[attr-defined]
+        plt.show(block=True)
+    except (ImportError, OSError, RuntimeError) as exc:  # pragma: no cover - backend/display dependent
+        raise RuntimeError(
+            "Matplotlib could not open an interactive display; "
+            "use a GUI backend with desktop display/X11 forwarding"
+        ) from exc
+    finally:
+        if figure is not None and plt.fignum_exists(figure.number):
+            plt.close(figure)
+    return state["result"]
 
-    def clear(self) -> None:
-        self.start = None
-        self.result = None
-        if self.rectangle is not None:
-            self.canvas.delete(self.rectangle)
-            self.rectangle = None
-        self.status.set("已清除；请重新拖拽绘制一个 box")
 
-    def finish(self) -> None:
-        self.root.destroy()
+def _display_xyxy(
+    x1: float,
+    y1: float,
+    x2: float,
+    y2: float,
+) -> tuple[float, float, float, float]:
+    return (
+        min(x1, x2),
+        min(y1, y2),
+        max(x1, x2),
+        max(y1, y2),
+    )
 
-    def cancel(self) -> None:
-        self.result = None
-        self.root.destroy()
 
-    def _finish_event(self, _event: Any) -> str:
-        self.finish()
-        return "break"
+def _display_to_pixel_xyxy(
+    display_xyxy: tuple[float, float, float, float],
+    *,
+    original_size: tuple[int, int],
+    display_size: tuple[int, int],
+    scale: float,
+) -> tuple[int, int, int, int]:
+    """Convert Matplotlib display coordinates to clamped image pixel bounds."""
 
-    def _cancel_event(self, _event: Any) -> str:
-        self.cancel()
-        return "break"
-
-    def _clear_event(self, _event: Any) -> str:
-        self.clear()
-        return "break"
-
-    def _clamp_display_point(self, x: float, y: float) -> tuple[float, float]:
-        return (
-            max(0.0, min(float(self.display_width), float(x))),
-            max(0.0, min(float(self.display_height), float(y))),
-        )
-
-    @staticmethod
-    def _display_xyxy(
-        start: tuple[float, float], end: tuple[float, float]
-    ) -> tuple[float, float, float, float]:
-        return min(start[0], end[0]), min(start[1], end[1]), max(start[0], end[0]), max(start[1], end[1])
-
-    def _to_pixel_xyxy(
-        self, display_xyxy: tuple[float, float, float, float]
-    ) -> tuple[int, int, int, int]:
-        left, top, right, bottom = display_xyxy
-        pixel_left = max(0, min(self.original_width, round(left / self.scale)))
-        pixel_top = max(0, min(self.original_height, round(top / self.scale)))
-        pixel_right = max(0, min(self.original_width, round(right / self.scale)))
-        pixel_bottom = max(0, min(self.original_height, round(bottom / self.scale)))
-        return pixel_left, pixel_top, pixel_right, pixel_bottom
+    left, top, right, bottom = display_xyxy
+    width, height = original_size
+    display_width, display_height = display_size
+    left = max(0.0, min(float(display_width), left))
+    top = max(0.0, min(float(display_height), top))
+    right = max(0.0, min(float(display_width), right))
+    bottom = max(0.0, min(float(display_height), bottom))
+    return (
+        max(0, min(width, round(left / scale))),
+        max(0, min(height, round(top / scale))),
+        max(0, min(width, round(right / scale))),
+        max(0, min(height, round(bottom / scale))),
+    )
 
 
 def _same_path(left: str | Path, right: str | Path) -> bool:
