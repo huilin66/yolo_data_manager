@@ -11,6 +11,9 @@ from yolo_data_manager.annotation.edit import EditReport, EditRow
 
 
 _CROP_NAME_RE = re.compile(r"^(?P<stem>.+)_(?P<index>[1-9][0-9]*)$")
+_ERROR_CROP_NAME_RE = re.compile(
+    r"^(?P<stem>.+)_pred(?P<pred>none|[1-9][0-9]*)_gt(?P<gt>none|[1-9][0-9]*)$"
+)
 
 
 @dataclass
@@ -75,28 +78,102 @@ def correct_labels_from_crops(
     if not crop_root.is_dir():
         raise FileNotFoundError(f"crop directory not found: {crop_root}")
 
+    targets: dict[tuple[str, int], list[Path]] = {}
+    crop_files = 0
+    invalid_crops: list[str] = []
+    for crop_path in sorted(crop_root.rglob("*")):
+        if not crop_path.is_file() or not is_image_file(crop_path):
+            continue
+        crop_files += 1
+        parsed = _parse_crop_name(crop_path)
+        if parsed is None:
+            invalid_crops.append(str(crop_path))
+            continue
+        targets.setdefault(parsed, []).append(crop_path)
+
+    return _correct_target_map(
+        dataset,
+        targets,
+        target_class,
+        crop_files=crop_files,
+        invalid_crops=invalid_crops,
+        image_key=lambda image: image.stem,
+        dry_run=dry_run,
+    )
+
+
+def correct_gt_labels_from_error_crops(
+    dataset: YoloDataset,
+    crops_dir: str | Path,
+    target_class: int | str | None,
+    *,
+    dry_run: bool = False,
+) -> tuple[CropCorrectionResult, EditReport]:
+    """Correct GT classes from ``eval_error_analysis`` crop filenames.
+
+    A crop named ``image_stem_pred2_gt3.jpg`` maps to the third GT
+    annotation in ``image_stem.txt``. The prediction index is retained in
+    the filename for review context but is not needed for the GT update.
+    Crops with ``gt none`` cannot be used to update a GT annotation.
+    """
+
+    crop_root = Path(crops_dir)
+    if not crop_root.is_dir():
+        raise FileNotFoundError(f"error-analysis crop directory not found: {crop_root}")
+
+    targets: dict[tuple[str, int], list[Path]] = {}
+    crop_files = 0
+    invalid_crops: list[str] = []
+    for crop_path in sorted(crop_root.rglob("*")):
+        if not crop_path.is_file() or not is_image_file(crop_path):
+            continue
+        crop_files += 1
+        parsed = _parse_error_crop_name(crop_path)
+        if parsed is None:
+            invalid_crops.append(str(crop_path))
+            continue
+        stem, gt_index = parsed
+        if gt_index is None:
+            invalid_crops.append(str(crop_path))
+            continue
+        targets.setdefault((stem, gt_index), []).append(crop_path)
+
+    return _correct_target_map(
+        dataset,
+        targets,
+        target_class,
+        crop_files=crop_files,
+        invalid_crops=invalid_crops,
+        image_key=lambda image: _safe_file_name(image.stem),
+        dry_run=dry_run,
+    )
+
+
+def _correct_target_map(
+    dataset: YoloDataset,
+    targets: dict[tuple[str, int], list[Path]],
+    target_class: int | str | None,
+    *,
+    crop_files: int,
+    invalid_crops: list[str],
+    image_key,
+    dry_run: bool,
+) -> tuple[CropCorrectionResult, EditReport]:
     target_id = dataset.class_id(target_class) if target_class is not None else None
     target_name = dataset.class_name(target_id) if target_id is not None else None
-    result = CropCorrectionResult(target_class_id=target_id, target_class_name=target_name)
+    result = CropCorrectionResult(
+        target_class_id=target_id,
+        target_class_name=target_name,
+        crop_files=crop_files,
+        invalid_crops=invalid_crops,
+        unique_targets=len(targets),
+        duplicate_targets=sum(max(0, len(paths) - 1) for paths in targets.values()),
+    )
     edit_report = EditReport()
 
     image_candidates: dict[str, list[YoloImage]] = {}
     for image in dataset.images:
-        image_candidates.setdefault(image.stem, []).append(image)
-
-    targets: dict[tuple[str, int], list[Path]] = {}
-    for crop_path in sorted(crop_root.rglob("*")):
-        if not crop_path.is_file() or not is_image_file(crop_path):
-            continue
-        result.crop_files += 1
-        parsed = _parse_crop_name(crop_path)
-        if parsed is None:
-            result.invalid_crops.append(str(crop_path))
-            continue
-        targets.setdefault(parsed, []).append(crop_path)
-
-    result.unique_targets = len(targets)
-    result.duplicate_targets = sum(max(0, len(paths) - 1) for paths in targets.values())
+        image_candidates.setdefault(image_key(image), []).append(image)
 
     pending: dict[Path, list[tuple[int, int | None]]] = {}
     changed_annotations: list[tuple[YoloImage, YoloAnnotation, int | None]] = []
@@ -160,6 +237,18 @@ def _parse_crop_name(path: Path) -> tuple[str, int] | None:
     if match is None:
         return None
     return match.group("stem"), int(match.group("index"))
+
+
+def _parse_error_crop_name(path: Path) -> tuple[str, int | None] | None:
+    match = _ERROR_CROP_NAME_RE.fullmatch(path.stem)
+    if match is None:
+        return None
+    gt_text = match.group("gt")
+    return match.group("stem"), None if gt_text == "none" else int(gt_text)
+
+
+def _safe_file_name(value: str) -> str:
+    return "".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in value)
 
 
 def _rewrite_label_classes(label_path: Path, changes: list[tuple[int, int | None]]) -> None:

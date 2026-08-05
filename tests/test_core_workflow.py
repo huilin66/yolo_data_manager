@@ -793,6 +793,33 @@ def test_correct_labels_from_crops_updates_one_based_annotation_and_preserves_ge
     ]
 
 
+def test_correct_gt_labels_from_error_crops_uses_gt_index(tmp_path):
+    root = make_dataset(tmp_path / "error_crop_correction")
+    crops = tmp_path / "error_review" / "pred_gt" / "pred_car_gt_person" / "crops"
+    crops.mkdir(parents=True)
+    Image.new("RGB", (10, 10), color="white").save(crops / "a_pred2_gt1.jpg")
+    Image.new("RGB", (10, 10), color="white").save(crops / "a_prednone_gt2.jpg")
+    Image.new("RGB", (10, 10), color="white").save(crops / "a_pred3_gtnone.jpg")
+
+    mgr = YoloManager(root, layout="flat", task="detect", init_layout=False, init_check=False)
+    code = mgr.ann_correct_from_error_crops(crops, "person", progress=False)
+
+    assert code == 0
+    assert (root / "labels" / "a.txt").read_text(encoding="utf-8").splitlines() == [
+        "0 0.5 0.5 0.2 0.3",
+        "0 0.4 0.4 0.2 0.2",
+    ]
+
+    delete_crops = tmp_path / "error_review_delete"
+    delete_crops.mkdir()
+    Image.new("RGB", (10, 10), color="white").save(delete_crops / "a_prednone_gt2.jpg")
+    code = mgr.ann_correct_from_error_crops(delete_crops, None, progress=False)
+    assert code == 0
+    assert (root / "labels" / "a.txt").read_text(encoding="utf-8").splitlines() == [
+        "0 0.5 0.5 0.2 0.3",
+    ]
+
+
 def test_duplicate_image_hash(tmp_path):
     root = make_dataset(tmp_path / "yolo")
     dataset = load_yolo_dataset(root)

@@ -154,6 +154,7 @@ mgr.ann_correct_from_crops(
 
 Write operations output to a new directory. `ann_correct_from_crops` is the exception: it updates the source label files identified by crop names. Use `dry_run=True` when you want to inspect the effect first.
 Pass `to=None` to delete the corresponding annotation instead of assigning a class.
+Use `mgr.ann_correct_from_error_crops(...)` for `eval_error_analysis` crops; in `xxx_predx_gty`, only the 1-based `y` GT index is used for locating the annotation.
 
 ## Visualization
 

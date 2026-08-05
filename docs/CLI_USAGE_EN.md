@@ -89,10 +89,12 @@ ydm ann apply-map --root path/to/yolo --map class_map.yaml --out yolo_mapped
 ydm ann set-attr --root path/to/yolo --name defect --value yes --class sign --out yolo_attr_fixed
 ydm ann delete-attr --root path/to/yolo --name defect --value yes --out yolo_attr_clean
 ydm ann correct-from-crops --root path/to/yolo --crops-dir image_vis/crop/car --to defect --report crop_correction.csv
+ydm ann correct-from-error-crops --root path/to/yolo --crops-dir result_ana/val-52/review/pred_gt --to defect --only-val --report gt_correction.csv
 ```
 
 Write operations target `--out` and do not overwrite the source dataset in place.
 `correct-from-crops` is the exception: it updates the corresponding source label files directly. Use `--dry-run` first when reviewing changes. Standard `vis crop` names use `<image_stem>_<1-based annotation index>.<extension>`. Use `--to none` or `--to null` to delete the corresponding annotation.
+`correct-from-error-crops` uses the `y` in `xxx_predx_gty` to locate the GT annotation; `predx` is review context only. FP crops with `gt none` do not modify GT.
 
 ## Dataset Operations
 

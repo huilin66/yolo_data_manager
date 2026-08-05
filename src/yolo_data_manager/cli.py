@@ -8,7 +8,10 @@ import sys
 import yaml
 
 from yolo_data_manager.annotation.edit import delete_by_attribute, delete_class, merge_classes, rename_class, replace_class, set_attribute
-from yolo_data_manager.annotation.crop_correction import correct_labels_from_crops
+from yolo_data_manager.annotation.crop_correction import (
+    correct_gt_labels_from_error_crops,
+    correct_labels_from_crops,
+)
 from yolo_data_manager.annotation.query import copy_query_result, query_by_attribute, query_by_class
 from yolo_data_manager.annotation.remap import apply_class_map
 from yolo_data_manager.converters.coco import export_coco, import_coco
@@ -232,6 +235,18 @@ def build_parser() -> argparse.ArgumentParser:
     correct_crops.add_argument("--report", default=None, help="optional edit report CSV path")
     correct_crops.add_argument("--dry-run", action="store_true", help="report changes without modifying labels")
     correct_crops.set_defaults(handler=handle_correct_from_crops)
+
+    correct_error_crops = ann_sub.add_parser(
+        "correct-from-error-crops",
+        aliases=["correct-gt-from-error-crops"],
+        help="update GT classes from eval_error_analysis pred_gt filenames",
+    )
+    add_dataset_args(correct_error_crops)
+    correct_error_crops.add_argument("--crops-dir", required=True, help="directory containing pred_gt crop images")
+    correct_error_crops.add_argument("--to", dest="to_value", required=True, help="target class id/name; use none/null to delete the GT annotation")
+    correct_error_crops.add_argument("--report", default=None, help="optional edit report CSV path")
+    correct_error_crops.add_argument("--dry-run", action="store_true", help="report changes without modifying labels")
+    correct_error_crops.set_defaults(handler=handle_correct_from_error_crops)
 
     set_attr = ann_sub.add_parser("set-attr", help="set an attribute value on annotations")
     add_dataset_args(set_attr)
@@ -811,6 +826,23 @@ def handle_apply_map(args: argparse.Namespace) -> int:
 def handle_correct_from_crops(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
     result, edit_report = correct_labels_from_crops(
+        dataset,
+        args.crops_dir,
+        _parse_optional_class_value(args.to_value),
+        dry_run=args.dry_run,
+    )
+    if args.report:
+        edit_report.write_csv(args.report)
+    payload = result.to_dict()
+    payload["dry_run"] = args.dry_run
+    payload["report"] = args.report
+    print(json.dumps(payload, indent=2, ensure_ascii=False))
+    return 0
+
+
+def handle_correct_from_error_crops(args: argparse.Namespace) -> int:
+    dataset = load_from_args(args)
+    result, edit_report = correct_gt_labels_from_error_crops(
         dataset,
         args.crops_dir,
         _parse_optional_class_value(args.to_value),

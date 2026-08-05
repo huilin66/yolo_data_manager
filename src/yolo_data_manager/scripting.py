@@ -33,6 +33,7 @@ TASK_COMMANDS: Mapping[str, tuple[str, ...]] = {
     "ann.rename_class": ("ann", "rename-class"),
     "ann.apply_map": ("ann", "apply-map"),
     "ann.correct_from_crops": ("ann", "correct-from-crops"),
+    "ann.correct_from_error_crops": ("ann", "correct-from-error-crops"),
     "ann.set_attr": ("ann", "set-attr"),
     "ann.delete_attr": ("ann", "delete-attr"),
     "vis.draw": ("vis", "draw"),
@@ -221,6 +222,7 @@ _ROOT_TASKS: frozenset[str] = frozenset(
         "ann.rename_class",
         "ann.apply_map",
         "ann.correct_from_crops",
+        "ann.correct_from_error_crops",
         "ann.set_attr",
         "ann.delete_attr",
         "vis.draw",
@@ -899,6 +901,28 @@ class YoloManager:
         cli_target = "none" if to is None else to
         return self._run(
             "ann.correct_from_crops",
+            crops_dir=crops_dir,
+            to=cli_target,
+            report=report,
+            dry_run=dry_run,
+            only_val=only_val,
+            **kwargs,
+        )
+
+    def ann_correct_from_error_crops(
+        self,
+        crops_dir: str | Path,
+        to: str | int | None,
+        *,
+        report: str | None = None,
+        dry_run: bool = False,
+        only_val: bool | None = None,
+        **kwargs: Any,
+    ) -> int:
+        """Correct GT classes from ``eval_error_analysis`` pred_gt crops."""
+        cli_target = "none" if to is None else to
+        return self._run(
+            "ann.correct_from_error_crops",
             crops_dir=crops_dir,
             to=cli_target,
             report=report,
