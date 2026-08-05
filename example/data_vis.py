@@ -28,5 +28,7 @@ if __name__ == "__main__":
     # yolo_vis(t_all_dir, crop=True)
 
     # data_dir = r"\\158.132.186.40\isds\huilin\traffic_sign\defect\detection\data_seg_1_damaged-guardrails"
-    data_dir = r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_t.yaml"
+    data_dir = (
+        r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_rgb.yaml"
+    )
     yolo_vis(data_dir, crop=True)
