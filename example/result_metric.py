@@ -12,6 +12,7 @@ def yolo_metric(
     class_=None,
     exclude_class_=None,
     merge_class_map=None,
+    min_pixels=None,
 ):
     if not abs_path:
         pred_dir = os.path.join(pred_dir, pred_name, "labels")
@@ -23,8 +24,8 @@ def yolo_metric(
         class_=class_,  # 可选：只评估指定类别；也可用 [0, 1]
         exclude_class_=exclude_class_,
         merge_class_map=merge_class_map,
-        # min_pixels=8,  # 可选：过滤小目标
-        conf_thres=0.001,  # 可选：置信度过滤
+        min_pixels=min_pixels,
+        conf_thres=0.001,
         out=os.path.join(ana_dir, "metrics.json"),
         csv=os.path.join(ana_dir, "metrics.csv"),
         print_table=True,
@@ -35,23 +36,61 @@ def yolo_metric(
 
 
 if __name__ == "__main__":
-    data_dir = r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_t.yaml"
-    pred_dir = r"/localnvme/project/aic_mdet/models/ultralytics/runs/detect"
+    # data_dir = r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_t.yaml"
+    # pred_dir = r"/localnvme/project/aic_mdet/models/ultralytics/runs/detect"
+    # merge_class_map = {
+    #     "Hollow": [
+    #         "Hollow Low Risk",
+    #         "Hollow High Risk",
+    #     ],
+    #     "Temperature": [
+    #         "Temperature Medium Risk",
+    #         "Temperature High Risk",
+    #     ],
+    # }
+    # yolo_metric(
+    #     data_dir,
+    #     pred_dir,
+    #     "val-52",
+    #     merge_class_map=merge_class_map,
+    # )
 
+    data_dir = (
+        r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_rgb.yaml"
+    )
+    pred_dir = r"/localnvme/project/aic_mdet/models/ultralytics/runs/detect"
+    merge_class_map = (
+        {
+            "Broken": [
+                "Broken High Risk",
+            ],
+            "Delamination": [
+                "Delaminated Tile Low Risk",
+                "Delaminate Tile High Risk",
+                "Cracked Tile",
+            ],
+            # "Corrosion": [
+            #     "Corrosion",
+            #     "Spalling",
+            # ],
+            "Efforescene": [
+                "Efforescene Low Gray",
+                "Efflorescene Low Risk",
+                "Efflorescene High Risk",
+                "Broken Low Risk",
+            ],
+        },
+    )
+    # yolo_metric(
+    #     data_dir,
+    #     pred_dir,
+    #     "val-53",
+    #     merge_class_map=merge_class_map,
+    # )
     yolo_metric(
         data_dir,
         pred_dir,
-        "val-52",
-        # class_=["Hollow High Risk Line"],
-        exclude_class_=["Hollow High Risk Line"],
-        merge_class_map={
-            "Hollow": [
-                "Hollow Low Risk",
-                "Hollow High Risk",
-            ],
-            "Temperature": [
-                "Temperature Medium Risk",
-                "Temperature High Risk",
-            ],
-        },
+        "val-141",
+        merge_class_map=merge_class_map,
+        min_pixels=20,
     )

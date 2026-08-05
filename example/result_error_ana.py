@@ -3,7 +3,9 @@ import os
 from yolo_data_manager import YoloManager
 
 
-def yolo_error_ana(input_dir, pred_dir, pred_name, abs_path=False, workers=8):
+def yolo_error_ana(
+    input_dir, pred_dir, pred_name, abs_path=False, only_val=True, workers=8
+):
     if not abs_path:
         pred_dir = os.path.join(pred_dir, pred_name, "labels")
 
@@ -23,13 +25,15 @@ def yolo_error_ana(input_dir, pred_dir, pred_name, abs_path=False, workers=8):
         review_progress=True,
         review_progress_leave=False,
         copy_pred_txt=True,
-        only_val=True,
+        only_val=only_val,
         workers=workers,
     )
 
 
 if __name__ == "__main__":
-    data_dir = r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_t.yaml"
+    data_dir = (
+        r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_rgb.yaml"
+    )
     pred_dir = r"/localnvme/project/aic_mdet/models/ultralytics/runs/detect"
 
-    yolo_error_ana(data_dir, pred_dir, "predict")
+    yolo_error_ana(data_dir, pred_dir, "predict-2", only_val=False)

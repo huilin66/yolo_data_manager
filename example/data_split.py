@@ -27,5 +27,5 @@ if __name__ == "__main__":
     # yolo_split(rgb_merge_v2_dir)
     # yolo_split(t_dir)
 
-    data_dir = r"\\158.132.186.40\isds\huilin\traffic_sign\defect\detection\data_seg_1_damaged-guardrails"
+    data_dir = r"/localnvme/data/bdd_hmt/hmt_t_update_v1"
     yolo_split(data_dir)
