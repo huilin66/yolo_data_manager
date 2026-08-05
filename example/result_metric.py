@@ -13,6 +13,7 @@ def yolo_metric(
     exclude_class_=None,
     merge_class_map=None,
     min_pixels=None,
+    conf_thres=0.001,
 ):
     if not abs_path:
         pred_dir = os.path.join(pred_dir, pred_name, "labels")
@@ -25,7 +26,7 @@ def yolo_metric(
         exclude_class_=exclude_class_,
         merge_class_map=merge_class_map,
         min_pixels=min_pixels,
-        conf_thres=0.001,
+        conf_thres=conf_thres,
         out=os.path.join(ana_dir, "metrics.json"),
         csv=os.path.join(ana_dir, "metrics.csv"),
         print_table=True,
@@ -61,10 +62,11 @@ if __name__ == "__main__":
     pred_dir = r"/localnvme/project/aic_mdet/models/ultralytics/runs/detect"
     merge_class_map = (
         {
-            "Broken": [
-                "Broken High Risk",
-            ],
+            # "Broken": [
+            #     "Broken High Risk",
+            # ],
             "Delamination": [
+                "Broken High Risk",
                 "Delaminated Tile Low Risk",
                 "Delaminate Tile High Risk",
                 "Cracked Tile",
@@ -93,4 +95,5 @@ if __name__ == "__main__":
         "val-141",
         merge_class_map=merge_class_map,
         min_pixels=20,
+        conf_thres=0.25,
     )
