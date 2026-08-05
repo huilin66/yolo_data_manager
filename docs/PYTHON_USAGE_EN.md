@@ -125,6 +125,7 @@ mgr.dataset_filter(
 ```
 
 `min_size_logic="or"` removes boxes when width or height is too small. `min_size_logic="and"` removes boxes only when both width and height are too small.
+Per-class rules also accept the concise form `{"class_name": {"width": 0.03, "height": 0.03, "logic": "or"}}`; `width` and `height` are normalized YOLO dimensions, and `logic` is `or` or `and`.
 
 Merging:
 

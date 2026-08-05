@@ -3,7 +3,23 @@ import os
 from yolo_data_manager import YoloManager
 
 
-def yolo_filter_small(input_dir, filter_ratio=0.01, logic='or', class_rules=None):
+def yolo_filter_small(input_dir, filter_ratio=0.01, logic="or", class_rules=None):
+    """Filter small boxes globally or with per-class width/height rules.
+
+    ``class_rules`` uses normalized YOLO width/height values, for example::
+
+        {
+            "Efflorescene Low Risk": {
+                "width": 0.03,
+                "height": 0.03,
+                "logic": "or",
+            },
+        }
+
+    ``logic="or"`` removes a box when either dimension is too small;
+    ``logic="and"`` removes it only when both dimensions are too small.
+    Classes without a rule use the global ``filter_ratio`` and ``logic``.
+    """
     out_dir = input_dir+f'_filter_{filter_ratio}_{logic.upper()}'
     os.makedirs(out_dir, exist_ok=True)
 
@@ -29,11 +45,11 @@ if __name__ == "__main__":
     # rgb_merge_f02_dir = r"/localnvme/data/bdd_hmt/sua_rgb_merge_filter_0.02_AND"
     # yolo_filter_small(rgb_merge_f02_dir, filter_ratio=0.0, logic='or',
     #     class_rules={
-    #         'Efflorescene Low Risk':{
-    #                             "min_width": 0.03,
-    #                             "min_height": 0.03,
-    #                             "min_size_logic": "or",
-    #                         },
+    #         "Efflorescene Low Risk": {
+    #             "width": 0.03,
+    #             "height": 0.03,
+    #             "logic": "or",
+    #         },
 
     #     }
     # )

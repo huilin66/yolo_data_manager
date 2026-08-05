@@ -5,7 +5,7 @@ from yolo_data_manager import YoloManager
 
 def yolo_vis(input_dir, crop=False):
 
-    mgr = YoloManager(input_dir, layout="flat", init_check=False, init_layout=False)
+    mgr = YoloManager(input_dir, layout="auto", init_check=False, init_layout=False)
     vis_dir = os.path.join(mgr.root, "image_vis")
     full_dir = os.path.join(vis_dir, "full")
     crop_dir = os.path.join(vis_dir, "crop")

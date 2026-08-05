@@ -575,10 +575,15 @@ def test_filter_by_geometry(tmp_path):
             }
         },
     )
+    filtered_short_rules = filter_by_geometry(
+        size_dataset,
+        class_rules={"obj": {"width": 0.01, "height": 0.01, "logic": "and"}},
+    )
 
     assert filtered_or.annotation_count() == 0
     assert filtered_and.annotation_count() == 2
     assert filtered_rules.annotation_count() == 2
+    assert filtered_short_rules.annotation_count() == 2
 
     class_root = tmp_path / "class_rules"
     (class_root / "images").mkdir(parents=True)

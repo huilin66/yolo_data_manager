@@ -62,9 +62,11 @@ def _keep_by_rule(annotation: YoloAnnotation, rule: dict[str, Any]) -> bool:
     if box is None:
         return False
     area = box.width * box.height
-    min_width = rule.get("min_width")
-    min_height = rule.get("min_height")
-    min_size_logic = rule.get("min_size_logic", "or")
+    # Per-class rules accept the concise ``width``/``height``/``logic`` form
+    # as well as the canonical global-parameter names.
+    min_width = rule.get("min_width", rule.get("width"))
+    min_height = rule.get("min_height", rule.get("height"))
+    min_size_logic = rule.get("min_size_logic", rule.get("logic", "or"))
     if min_size_logic not in {"or", "and"}:
         raise ValueError("min_size_logic must be 'or' or 'and'")
     width_too_small = min_width is not None and box.width < float(min_width)
