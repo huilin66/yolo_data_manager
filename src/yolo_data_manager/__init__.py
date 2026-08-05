@@ -30,6 +30,7 @@ from yolo_data_manager.multimodal_manager import MultiModalYoloManager
 from yolo_data_manager.scripting import YoloManager, build_task_argv, run_task
 from yolo_data_manager.stats.multimodal import compute_multimodal_stats, write_multimodal_stats_plots
 from yolo_data_manager.vis.multimodal import crop_multimodal_dataset, render_multimodal_dataset
+from yolo_data_manager.vis.manual_box import ManualBoxResult, draw_manual_box, format_yolo_line
 
 __all__ = [
     "AttributeSchema",
@@ -46,6 +47,7 @@ __all__ = [
     "MultimodalScene",
     "MultimodalYoloDataset",
     "MultiModalYoloManager",
+    "ManualBoxResult",
     "YoloManager",
     "compute_multimodal_stats",
     "convert_multimodal_images_to_uint8",
@@ -53,8 +55,10 @@ __all__ = [
     "CropCorrectionResult",
     "correct_labels_from_crops",
     "correct_gt_labels_from_error_crops",
+    "draw_manual_box",
     "crop_multimodal_dataset",
     "format_metrics_table",
+    "format_yolo_line",
     "load_multimodal_yolo_dataset",
     "load_yolo_dataset",
     "render_multimodal_dataset",

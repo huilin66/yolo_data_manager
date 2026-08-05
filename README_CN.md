@@ -36,7 +36,7 @@ python -m pytest -q
 | 标注修改 | 删除、替换、合并、重命名类别，设置或删除属性 | `compact`、`dry_run`、`report` |
 | 数据集管理 | select、split、merge、filter、yaml、重复图、坏图检测 | `train`、`val`、`absolute_paths`、`class_rules` |
 | 统计 | 类别分布、目标数、框宽高面积、图片尺寸、属性统计、图表 | `stats_list`、`plots_dir`、`ann_csv` |
-| 可视化 | 画框、画 mask、显示 confidence/属性/txt 顺序号、裁剪目标 | `show_id`、`show_conf`、`workers` |
+| 可视化 | 画框、画 mask、显示 confidence/属性/txt 顺序号、裁剪目标、临时手动画框 | `show_id`、`show_conf`、`workers` |
 | 多模态（Python API） | 多图像目录按 stem/suffix 关联，共享 label 的统计、渲染与 crop | `image_dirs`、`image_params`、`label_params` |
 | 导入导出 | 在 YOLO 与 LabelMe/COCO/VOC/mask/x-anylabeling 之间转换 | `class_map`、`background`、`min_area` |
 | 评估分析 | GT vs pred 对比、FP/FN review、细粒度错误分析、混淆矩阵 | `match_iou`、`low_iou`、`review_workers` |
@@ -89,6 +89,7 @@ mgr.eval_error_analysis(
 ydm check --root path/to/yolo --layout auto --fill-missing-txt --out validation.json
 ydm stats --root path/to/yolo --plots-dir stats --stats-list all
 ydm vis draw --root path/to/yolo --out vis --show-id --show-conf
+ydm vis manual-box --root path/to/yolo --image images/0001.jpg --class-id 5
 ydm dataset filter --root path/to/yolo --out filtered --min-width 0.01 --min-height 0.01 --min-size-logic and
 ydm eval metrics --gt-root gt_yolo --pred-root pred_labels --names class.txt --class car,bus --min-pixels 8 --show-original --out metrics.json --csv metrics.csv --print-table
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --out error_report --review --workers 8 --copy-pred-txt

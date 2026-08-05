@@ -35,6 +35,7 @@ from yolo_data_manager.io.writer import write_split_file, write_yolo_dataset
 from yolo_data_manager.stats.compute import compute_stats
 from yolo_data_manager.stats.export import write_annotation_csv, write_attribute_csv, write_stats_plots
 from yolo_data_manager.stats.report import write_class_counts_csv, write_json_report
+from yolo_data_manager.vis.manual_box import draw_manual_box, find_dataset_image
 from yolo_data_manager.vis.renderer import crop_dataset, render_dataset
 from yolo_data_manager.evaluation.compare import compare_datasets, write_compare_csv
 from yolo_data_manager.evaluation.error_analysis import (
@@ -290,6 +291,33 @@ def build_parser() -> argparse.ArgumentParser:
     crop.add_argument("--keep-no-attrs", dest="filter_no_attrs", action="store_false")
     crop.set_defaults(filter_no_attrs=True)
     crop.set_defaults(handler=handle_vis_crop)
+    manual_box = vis_sub.add_parser(
+        "manual-box",
+        help="preview one image/label and draw one temporary box without editing the label",
+    )
+    add_dataset_args(manual_box)
+    manual_box.add_argument(
+        "--image",
+        required=True,
+        help="image filename, path relative to --root, or absolute image path",
+    )
+    manual_box.add_argument(
+        "--label",
+        default=None,
+        help="optional label path; defaults to the label paired with the image",
+    )
+    manual_box.add_argument(
+        "--class-id",
+        type=int,
+        default=None,
+        help="optional class id used to print a complete YOLO row",
+    )
+    manual_box.add_argument("--max-width", type=int, default=1400)
+    manual_box.add_argument("--max-height", type=int, default=900)
+    manual_box.add_argument("--min-pixels", type=int, default=2)
+    manual_box.add_argument("--precision", type=int, default=6)
+    manual_box.add_argument("--out", default=None, help="optional JSON output path")
+    manual_box.set_defaults(handler=handle_vis_manual_box)
 
     export = subparsers.add_parser("export", help="export to another format")
     export_sub = export.add_subparsers(dest="export_command", required=True)
@@ -915,6 +943,53 @@ def handle_vis_crop(args: argparse.Namespace) -> int:
         progress_leave=args.progress_leave,
     )
     print(json.dumps({"saved": saved, "out": args.out}, indent=2, ensure_ascii=False))
+    return 0
+
+
+def handle_vis_manual_box(args: argparse.Namespace) -> int:
+    try:
+        dataset = load_from_args(args, progress=False, progress_leave=False)
+        image = find_dataset_image(dataset, args.image)
+        label_path = Path(args.label) if args.label is not None else image.label_path
+        if label_path is not None and not label_path.is_absolute():
+            root_label_path = dataset.root / label_path
+            if root_label_path.exists() or not label_path.exists():
+                label_path = root_label_path
+        if args.out is not None:
+            output_path = Path(args.out).resolve()
+            protected_paths = {image.path.resolve()}
+            if label_path is not None:
+                protected_paths.add(label_path.resolve())
+            if output_path in protected_paths:
+                raise ValueError("--out must be a separate JSON path, not the source image or label")
+
+        result = draw_manual_box(
+            image.path,
+            label_path=label_path,
+            class_id=args.class_id,
+            class_names=dataset.classes.names,
+            max_width=args.max_width,
+            max_height=args.max_height,
+            min_pixels=args.min_pixels,
+            precision=args.precision,
+        )
+    except (FileNotFoundError, RuntimeError, ValueError) as exc:
+        print(f"ydm vis manual-box failed: {exc}", file=sys.stderr)
+        return 2
+
+    if result is None:
+        payload = {"cancelled": True, "image": str(image.path)}
+    else:
+        payload = result.to_dict()
+
+    if args.out is not None:
+        output_path = Path(args.out)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+    print(json.dumps(payload, indent=2, ensure_ascii=False))
     return 0
 
 

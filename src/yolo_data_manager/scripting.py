@@ -38,6 +38,7 @@ TASK_COMMANDS: Mapping[str, tuple[str, ...]] = {
     "ann.delete_attr": ("ann", "delete-attr"),
     "vis.draw": ("vis", "draw"),
     "vis.crop": ("vis", "crop"),
+    "vis.manual_box": ("vis", "manual-box"),
     "export.coco": ("export", "coco"),
     "export.xany": ("export", "xany"),
     "import.labelme": ("import", "labelme"),
@@ -227,6 +228,7 @@ _ROOT_TASKS: frozenset[str] = frozenset(
         "ann.delete_attr",
         "vis.draw",
         "vis.crop",
+        "vis.manual_box",
         "export.coco",
         "export.xany",
         "convert.seg2det",
@@ -1054,6 +1056,35 @@ class YoloManager:
             workers=workers,
             progress=progress,
             progress_leave=progress_leave,
+            **kwargs,
+        )
+
+    def vis_manual_box(
+        self,
+        image: str | Path,
+        *,
+        label: str | Path | None = None,
+        class_id: int | None = None,
+        max_width: int = 1400,
+        max_height: int = 900,
+        min_pixels: int = 2,
+        precision: int = 6,
+        out: str | Path | None = None,
+        only_val: bool | None = None,
+        **kwargs: Any,
+    ) -> int:
+        """Draw one temporary box without changing the source label."""
+        return self._run(
+            "vis.manual_box",
+            image=image,
+            label=label,
+            class_id=class_id,
+            max_width=max_width,
+            max_height=max_height,
+            min_pixels=min_pixels,
+            precision=precision,
+            out=out,
+            only_val=only_val,
             **kwargs,
         )
 

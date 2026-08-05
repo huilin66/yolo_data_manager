@@ -36,7 +36,7 @@ python -m pytest -q
 | Annotation edits | Delete, replace, merge, rename classes; set/delete attributes | `compact`, `dry_run`, `report` |
 | Dataset operations | select, split, merge, filter, yaml, duplicate/bad-image checks | `train`, `val`, `absolute_paths`, `class_rules` |
 | Statistics | Class distribution, object counts, box shapes, image shapes, attributes, plots | `stats_list`, `plots_dir`, `ann_csv` |
-| Visualization | Draw boxes/masks, show confidence/attributes/txt order id, crop objects | `show_id`, `show_conf`, `workers` |
+| Visualization | Draw boxes/masks, show confidence/attributes/txt order id, crop objects, temporary manual boxes | `show_id`, `show_conf`, `workers` |
 | Multimodal (Python API) | Associate image folders by stem/suffix and reuse shared labels for stats, rendering, and crops | `image_dirs`, `image_params`, `label_params` |
 | Import/export | Convert between YOLO and LabelMe/COCO/VOC/masks/x-anylabeling | `class_map`, `background`, `min_area` |
 | Evaluation | Compare GT vs predictions, build FP/FN review packs, error analysis, confusion matrix | `match_iou`, `low_iou`, `review_workers` |
@@ -89,6 +89,7 @@ mgr.eval_error_analysis(
 ydm check --root path/to/yolo --layout auto --fill-missing-txt --out validation.json
 ydm stats --root path/to/yolo --plots-dir stats --stats-list all
 ydm vis draw --root path/to/yolo --out vis --show-id --show-conf
+ydm vis manual-box --root path/to/yolo --image images/0001.jpg --class-id 5
 ydm dataset filter --root path/to/yolo --out filtered --min-width 0.01 --min-height 0.01 --min-size-logic and
 ydm eval metrics --gt-root gt_yolo --pred-root pred_labels --names class.txt --class car,bus --min-pixels 8 --show-original --out metrics.json --csv metrics.csv --print-table
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --out error_report --review --workers 8 --copy-pred-txt

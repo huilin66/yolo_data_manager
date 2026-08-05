@@ -171,9 +171,11 @@ ydm vis draw --root path/to/yolo --out images_vis --workers 16
 ydm vis draw --root path/to/yolo --out images_vis --no-progress
 ydm vis crop --root path/to/yolo --out crops --by-attr
 ydm vis crop --root path/to/yolo --out crops --workers 16
+ydm vis manual-box --root path/to/yolo --image images/0001.jpg --class-id 5 --out manual_box.json
 ```
 
 `--show-id` 显示 txt 中从 1 开始的标注顺序号。crop 文件名也从 1 开始。
+`vis manual-box` 只读取并显示指定 image 与同名 txt，鼠标拖拽一个临时框后按 Enter 输出像素坐标和 YOLO 归一化坐标；它不会修改 label。指定 `--class-id` 时还会输出可手动粘贴的完整 YOLO 行，`--out` 只写独立 JSON。
 
 ## 导入导出
 

@@ -171,9 +171,11 @@ ydm vis draw --root path/to/yolo --out images_vis --workers 16
 ydm vis draw --root path/to/yolo --out images_vis --no-progress
 ydm vis crop --root path/to/yolo --out crops --by-attr
 ydm vis crop --root path/to/yolo --out crops --workers 16
+ydm vis manual-box --root path/to/yolo --image images/0001.jpg --class-id 5 --out manual_box.json
 ```
 
 `--show-id` displays the 1-based annotation order from the label txt file. Crop filenames also use 1-based object ids.
+`vis manual-box` only reads and displays the selected image and matching txt file. Drag one temporary box and press Enter to print pixel and normalized YOLO coordinates; the label is never modified. With `--class-id`, it also prints a complete YOLO row for manual insertion. `--out` writes a separate JSON file only.
 
 ## Import and Export
 
