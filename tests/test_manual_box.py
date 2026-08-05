@@ -1,10 +1,18 @@
 from pathlib import Path
 
+import matplotlib
+
+matplotlib.use("Agg", force=True)
+import matplotlib.pyplot as plt
 from PIL import Image
 
-from yolo_data_manager.io.loader import load_yolo_dataset
+from yolo_data_manager.io.loader import load_yolo_dataset, parse_yolo_line
 from yolo_data_manager.scripting import YoloManager, build_task_argv
-from yolo_data_manager.vis.manual_box import draw_manual_box, find_dataset_image
+from yolo_data_manager.vis.manual_box import (
+    _add_existing_annotation_artists,
+    draw_manual_box,
+    find_dataset_image,
+)
 import yolo_data_manager.vis.manual_box as manual_box_module
 
 
@@ -54,6 +62,35 @@ def test_manual_box_finds_relative_dataset_image_and_builds_cli_argv(tmp_path):
     assert "--class-id" in argv
     assert "--out" in argv
 
+    hidden_argv = build_task_argv(
+        "vis.manual_box",
+        root=Path("dataset"),
+        image="sample.jpg",
+        show_existing=False,
+    )
+    assert "--hide-existing" in hidden_argv
+    assert "--show-existing" not in hidden_argv
+
+
+def test_existing_annotation_artists_can_be_toggled():
+    figure, axes = plt.subplots()
+    annotation = parse_yolo_line("2 0.5 0.5 0.4 0.2", line_no=1)
+    artists = _add_existing_annotation_artists(
+        axes,
+        [annotation],
+        original_size=(100, 80),
+        display_size=(100, 80),
+        scale=1.0,
+        class_names=["background", "person", "car"],
+    )
+
+    assert len(artists) == 2
+    assert all(artist.get_visible() for artist in artists)
+    for artist in artists:
+        artist.set_visible(False)
+    assert not any(artist.get_visible() for artist in artists)
+    plt.close(figure)
+
 
 def test_yolo_manager_manual_box_delegates_without_write_options(tmp_path, monkeypatch):
     captured = {}
@@ -76,4 +113,5 @@ def test_yolo_manager_manual_box_delegates_without_write_options(tmp_path, monke
     assert captured["command"] == "vis.manual_box"
     assert captured["image"] == "images/sample.jpg"
     assert captured["class_id"] == 4
+    assert captured["show_existing"] is True
     assert "out" in captured

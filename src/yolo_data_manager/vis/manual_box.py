@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
 
-from PIL import Image, ImageDraw
+from PIL import Image
 
 from yolo_data_manager.core.geometry import xywhn_to_xyxy, xyxy_to_xywhn
 from yolo_data_manager.core.models import YoloDataset, YoloImage
@@ -131,13 +131,15 @@ def draw_manual_box(
     max_height: int = 900,
     min_pixels: int = 2,
     precision: int = 6,
+    show_existing: bool = True,
     title: str | None = None,
 ) -> ManualBoxResult | None:
     """Show one image and let the user draw one temporary detection box.
 
-    Existing YOLO annotations are drawn as a preview. The returned box is never
-    written to ``label_path``. ``None`` means that the window was cancelled or
-    closed without a completed box.
+    Existing YOLO annotations are shown as independent Matplotlib artists and
+    can be toggled with the ``L`` key. The returned box is never written to
+    ``label_path``. ``None`` means that the window was cancelled or closed
+    without a completed box.
     """
 
     image_path = Path(image_path)
@@ -162,16 +164,12 @@ def draw_manual_box(
     display_width = max(1, int(round(width * scale)))
     display_height = max(1, int(round(height * scale)))
     preview = source_image.resize((display_width, display_height), Image.Resampling.LANCZOS)
-    _draw_existing_annotations(
-        preview,
-        annotations,
-        original_size=(width, height),
-        scale=scale,
-        class_names=class_names,
-    )
 
     pixel_box = _run_box_window(
         preview,
+        annotations=annotations,
+        class_names=class_names,
+        show_existing=show_existing,
         original_size=(width, height),
         display_size=(display_width, display_height),
         scale=scale,
@@ -193,49 +191,73 @@ def draw_manual_box(
     )
 
 
-def _draw_existing_annotations(
-    preview: Image.Image,
+def _add_existing_annotation_artists(
+    axes: Any,
     annotations: Sequence[Any],
     *,
     original_size: tuple[int, int],
     scale: float,
     class_names: Sequence[str] | None,
-) -> None:
+    display_size: tuple[int, int],
+) -> list[Any]:
+    from matplotlib.patches import Rectangle
+
     width, height = original_size
-    draw = ImageDraw.Draw(preview, "RGBA")
+    display_width, display_height = display_size
+    artists: list[Any] = []
     for index, annotation in enumerate(annotations, start=1):
         box = annotation.geometry_box()
         if box is None:
             continue
         xyxy = xywhn_to_xyxy(box.as_tuple(), width, height)
-        left = max(0.0, min(preview.width, xyxy.x1 * scale))
-        top = max(0.0, min(preview.height, xyxy.y1 * scale))
-        right = max(0.0, min(preview.width, xyxy.x2 * scale))
-        bottom = max(0.0, min(preview.height, xyxy.y2 * scale))
+        left = max(0.0, min(display_width, xyxy.x1 * scale))
+        top = max(0.0, min(display_height, xyxy.y1 * scale))
+        right = max(0.0, min(display_width, xyxy.x2 * scale))
+        bottom = max(0.0, min(display_height, xyxy.y2 * scale))
         color = _PREVIEW_COLORS[(annotation.class_id or 0) % len(_PREVIEW_COLORS)]
-        draw.rectangle((left, top, right, bottom), outline=(*color, 255), width=2)
+        color_float = tuple(channel / 255.0 for channel in color)
+        rectangle = Rectangle(
+            (left, top),
+            right - left,
+            bottom - top,
+            fill=False,
+            edgecolor=color_float,
+            linewidth=1.5,
+            zorder=3,
+        )
+        axes.add_patch(rectangle)
+        artists.append(rectangle)
 
         class_name = str(annotation.class_id)
         if class_names is not None and 0 <= annotation.class_id < len(class_names):
             class_name = f"{annotation.class_id}:{class_names[annotation.class_id]}"
         text = f"{annotation.line_no or index} {class_name}"
-        text_box = draw.textbbox((left, top), text)
-        pad = 2
-        draw.rectangle(
-            (
-                text_box[0] - pad,
-                text_box[1] - pad,
-                text_box[2] + pad,
-                text_box[3] + pad,
-            ),
-            fill=(*color, 220),
+        label = axes.text(
+            left,
+            top,
+            text,
+            color="black",
+            fontsize=8,
+            va="top",
+            ha="left",
+            zorder=4,
+            bbox={
+                "facecolor": color_float,
+                "edgecolor": "none",
+                "alpha": 0.85,
+                "pad": 2,
+            },
         )
-        draw.text((left, top), text, fill=(0, 0, 0, 255))
+        artists.append(label)
+    return artists
 
 
 def _run_box_window(
     preview: Image.Image,
     *,
+    annotations: Sequence[Any],
+    class_names: Sequence[str] | None,
+    show_existing: bool,
     original_size: tuple[int, int],
     display_size: tuple[int, int],
     scale: float,
@@ -276,14 +298,25 @@ def _run_box_window(
         axes.set_ylim(display_size[1], 0)
         axes.set_aspect("equal", adjustable="box")
         axes.axis("off")
+        existing_artists = _add_existing_annotation_artists(
+            axes,
+            annotations,
+            original_size=original_size,
+            scale=scale,
+            class_names=class_names,
+            display_size=display_size,
+        )
+        existing_state = {"visible": bool(show_existing)}
+        for artist in existing_artists:
+            artist.set_visible(existing_state["visible"])
         figure.suptitle(
-            f"{title}\nDrag one box, press Enter to save; R redraws; Esc cancels",
+            f"{title}\nDrag one box, Enter saves; L toggles existing labels; R redraws; Esc cancels",
             fontsize=10,
         )
         status = figure.text(
             0.01,
             0.01,
-            "pixel xyxy: draw a box",
+            _status_text(existing_state["visible"]),
             ha="left",
             va="bottom",
             fontsize=9,
@@ -324,7 +357,13 @@ def _run_box_window(
                 plt.close(figure)
             elif event.key in {"r", "c"}:
                 state["result"] = None
-                status.set_text("pixel xyxy: draw a box")
+                status.set_text(_status_text(existing_state["visible"]))
+                figure.canvas.draw_idle()
+            elif event.key in {"l", "L"}:
+                existing_state["visible"] = not existing_state["visible"]
+                for artist in existing_artists:
+                    artist.set_visible(existing_state["visible"])
+                status.set_text(_status_text(existing_state["visible"]))
                 figure.canvas.draw_idle()
 
         selector = RectangleSelector(
@@ -351,6 +390,11 @@ def _run_box_window(
         if figure is not None and plt.fignum_exists(figure.number):
             plt.close(figure)
     return state["result"]
+
+
+def _status_text(show_existing: bool) -> str:
+    existing = "shown" if show_existing else "hidden"
+    return f"pixel xyxy: draw a box | existing labels: {existing} (L toggles)"
 
 
 def _display_xyxy(

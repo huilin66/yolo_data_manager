@@ -316,8 +316,14 @@ def build_parser() -> argparse.ArgumentParser:
     manual_box.add_argument("--max-height", type=int, default=900)
     manual_box.add_argument("--min-pixels", type=int, default=2)
     manual_box.add_argument("--precision", type=int, default=6)
+    manual_box.add_argument(
+        "--hide-existing",
+        dest="show_existing",
+        action="store_false",
+        help="start with existing txt annotations hidden; press L to toggle them",
+    )
     manual_box.add_argument("--out", default=None, help="optional JSON output path")
-    manual_box.set_defaults(handler=handle_vis_manual_box)
+    manual_box.set_defaults(handler=handle_vis_manual_box, show_existing=True)
 
     export = subparsers.add_parser("export", help="export to another format")
     export_sub = export.add_subparsers(dest="export_command", required=True)
@@ -972,6 +978,7 @@ def handle_vis_manual_box(args: argparse.Namespace) -> int:
             max_height=args.max_height,
             min_pixels=args.min_pixels,
             precision=args.precision,
+            show_existing=args.show_existing,
         )
     except (FileNotFoundError, RuntimeError, ValueError) as exc:
         print(f"ydm vis manual-box failed: {exc}", file=sys.stderr)

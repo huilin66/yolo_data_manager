@@ -122,8 +122,13 @@ mgr.vis_crop(out="crops", workers=16)
 mgr.vis_manual_box(
     image="images/0001.jpg",
     class_id=5,
+    show_existing=False,
     out="manual_box.json",
 )
+
+# 交互窗口中按 L 可切换已有标注显示/隐藏；临时框始终独立显示
+
+# 已有标注默认显示；show_existing=False 可在启动时隐藏已有标注。
 
 # 导出
 mgr.export_coco(out="instances.json")

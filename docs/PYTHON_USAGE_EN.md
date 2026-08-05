@@ -166,13 +166,19 @@ mgr.vis_draw(out="images_vis", workers=16)
 mgr.vis_draw(out="images_vis", progress=False)
 mgr.vis_crop(out="crops", by_attr=True, min_size=32)
 mgr.vis_crop(out="crops", workers=16)
-mgr.vis_manual_box(image="images/0001.jpg", class_id=5, out="manual_box.json")
+mgr.vis_manual_box(
+    image="images/0001.jpg",
+    class_id=5,
+    show_existing=False,
+    out="manual_box.json",
+)
 ```
 
 `vis_manual_box` displays the selected image and its matching YOLO txt, then
 lets the user draw one temporary box. It prints pixel and normalized YOLO
 coordinates (and a complete row when `class_id` is provided) without changing
-the source label file.
+the source label file. Existing annotations are shown by default; press `L` to
+toggle them, or pass `show_existing=False` to start hidden.
 
 `show_id=True` displays the 1-based annotation order from the label txt file.
 

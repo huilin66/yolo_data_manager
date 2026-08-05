@@ -114,6 +114,8 @@ def run_task(command: str, **params: Any) -> int:
 def _boolean_flag(task: str, name: str, value: bool, default_flag: str) -> str | None:
     if name == "progress":
         return None if value else "--no-progress"
+    if name == "show_existing" and task == "vis.manual_box":
+        return None if value else "--hide-existing"
     if name == "progress_leave":
         return "--progress-leave" if value else None
     if name == "compact":
@@ -1069,6 +1071,7 @@ class YoloManager:
         max_height: int = 900,
         min_pixels: int = 2,
         precision: int = 6,
+        show_existing: bool = True,
         out: str | Path | None = None,
         only_val: bool | None = None,
         **kwargs: Any,
@@ -1083,6 +1086,7 @@ class YoloManager:
             max_height=max_height,
             min_pixels=min_pixels,
             precision=precision,
+            show_existing=show_existing,
             out=out,
             only_val=only_val,
             **kwargs,
