@@ -179,6 +179,7 @@ lets the user draw one temporary box. It prints pixel and normalized YOLO
 coordinates (and a complete row when `class_id` is provided) without changing
 the source label file. Existing annotations are shown by default; press `L` to
 toggle them, or pass `show_existing=False` to start hidden.
+Use the mouse wheel or `+/-` to zoom and `0` to reset the view.
 
 `show_id=True` displays the 1-based annotation order from the label txt file.
 

@@ -10,6 +10,8 @@ from yolo_data_manager.io.loader import load_yolo_dataset, parse_yolo_line
 from yolo_data_manager.scripting import YoloManager, build_task_argv
 from yolo_data_manager.vis.manual_box import (
     _add_existing_annotation_artists,
+    _zoom_axes,
+    _zoom_interval,
     draw_manual_box,
     find_dataset_image,
 )
@@ -89,6 +91,19 @@ def test_existing_annotation_artists_can_be_toggled():
     for artist in artists:
         artist.set_visible(False)
     assert not any(artist.get_visible() for artist in artists)
+    plt.close(figure)
+
+
+def test_manual_box_zoom_stays_inside_image_bounds():
+    assert _zoom_interval(2, 20, 100) == (0.0, 20.0)
+    assert _zoom_interval(98, 20, 100) == (80.0, 100.0)
+
+    figure, axes = plt.subplots()
+    axes.set_xlim(0, 100)
+    axes.set_ylim(80, 0)
+    _zoom_axes(axes, factor=0.5, center=(25, 20), bounds=(100, 80))
+    assert axes.get_xlim() == (0.0, 50.0)
+    assert axes.get_ylim() == (40.0, 0.0)
     plt.close(figure)
 
 

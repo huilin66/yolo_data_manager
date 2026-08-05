@@ -176,7 +176,7 @@ ydm vis manual-box --root path/to/yolo --image images/0001.jpg --hide-existing
 ```
 
 `--show-id` 显示 txt 中从 1 开始的标注顺序号。crop 文件名也从 1 开始。
-`vis manual-box` 只读取并显示指定 image 与同名 txt，鼠标拖拽一个临时框后按 Enter 输出像素坐标和 YOLO 归一化坐标；它不会修改 label。已有标注默认显示，按 `L` 可切换显示/隐藏，也可用 `--hide-existing` 启动时隐藏。指定 `--class-id` 时还会输出可手动粘贴的完整 YOLO 行，`--out` 只写独立 JSON。
+`vis manual-box` 只读取并显示指定 image 与同名 txt，鼠标拖拽一个临时框后按 Enter 输出像素坐标和 YOLO 归一化坐标；它不会修改 label。滚轮或 `+/-` 可缩放，按 `0` 恢复整图。已有标注默认显示，按 `L` 可切换显示/隐藏，也可用 `--hide-existing` 启动时隐藏。指定 `--class-id` 时还会输出可手动粘贴的完整 YOLO 行，`--out` 只写独立 JSON。
 
 ## 导入导出
 

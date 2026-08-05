@@ -310,7 +310,7 @@ def _run_box_window(
         for artist in existing_artists:
             artist.set_visible(existing_state["visible"])
         figure.suptitle(
-            f"{title}\nDrag one box, Enter saves; L toggles existing labels; R redraws; Esc cancels",
+            f"{title}\nDrag box; wheel/+/- zoom; 0 reset; L labels; Enter save; R redraw; Esc cancel",
             fontsize=10,
         )
         status = figure.text(
@@ -322,6 +322,20 @@ def _run_box_window(
             fontsize=9,
             color="#cc0000",
         )
+
+        def reset_view() -> None:
+            axes.set_xlim(0, display_size[0])
+            axes.set_ylim(display_size[1], 0)
+            figure.canvas.draw_idle()
+
+        def zoom_at(x: float | None, y: float | None, factor: float) -> None:
+            _zoom_axes(
+                axes,
+                factor=factor,
+                center=(x, y) if x is not None and y is not None else None,
+                bounds=display_size,
+            )
+            figure.canvas.draw_idle()
 
         def on_select(eclick: Any, erelease: Any) -> None:
             if eclick.xdata is None or eclick.ydata is None:
@@ -365,6 +379,18 @@ def _run_box_window(
                     artist.set_visible(existing_state["visible"])
                 status.set_text(_status_text(existing_state["visible"]))
                 figure.canvas.draw_idle()
+            elif event.key in {"+", "="}:
+                zoom_at(None, None, 0.8)
+            elif event.key in {"-", "_"}:
+                zoom_at(None, None, 1.25)
+            elif event.key == "0":
+                reset_view()
+
+        def on_scroll(event: Any) -> None:
+            if event.inaxes is not axes:
+                return
+            factor = 0.8 if event.button == "up" else 1.25
+            zoom_at(event.xdata, event.ydata, factor)
 
         selector = RectangleSelector(
             axes,
@@ -378,6 +404,7 @@ def _run_box_window(
             props={"facecolor": "none", "edgecolor": "red", "linewidth": 2},
         )
         figure.canvas.mpl_connect("key_press_event", on_key)
+        figure.canvas.mpl_connect("scroll_event", on_scroll)
         # Keep the selector alive for the whole blocking show call.
         figure._ydm_manual_box_selector = selector  # type: ignore[attr-defined]
         plt.show(block=True)
@@ -394,7 +421,50 @@ def _run_box_window(
 
 def _status_text(show_existing: bool) -> str:
     existing = "shown" if show_existing else "hidden"
-    return f"pixel xyxy: draw a box | existing labels: {existing} (L toggles)"
+    return f"pixel xyxy: draw a box | labels: {existing} (L) | wheel/+/- zoom | 0 reset"
+
+
+def _zoom_axes(
+    axes: Any,
+    *,
+    factor: float,
+    center: tuple[float | None, float | None] | None,
+    bounds: tuple[int, int],
+) -> None:
+    """Zoom an image axes while keeping its coordinates in display pixels."""
+
+    if factor <= 0:
+        raise ValueError("zoom factor must be positive")
+    width, height = bounds
+    current_x = axes.get_xlim()
+    current_y = axes.get_ylim()
+    x_low, x_high = sorted(current_x)
+    y_low, y_high = sorted(current_y)
+    center_x = (x_low + x_high) / 2.0
+    center_y = (y_low + y_high) / 2.0
+    if center is not None:
+        if center[0] is not None:
+            center_x = float(center[0])
+        if center[1] is not None:
+            center_y = float(center[1])
+
+    x_low, x_high = _zoom_interval(center_x, (x_high - x_low) * factor, width)
+    y_low, y_high = _zoom_interval(center_y, (y_high - y_low) * factor, height)
+    axes.set_xlim(x_low, x_high)
+    axes.set_ylim(y_high, y_low)
+
+
+def _zoom_interval(center: float, span: float, limit: int) -> tuple[float, float]:
+    span = min(float(limit), max(1.0, float(span)))
+    low = center - span / 2.0
+    high = center + span / 2.0
+    if low < 0:
+        high -= low
+        low = 0.0
+    if high > limit:
+        low -= high - limit
+        high = float(limit)
+    return max(0.0, low), min(float(limit), high)
 
 
 def _display_xyxy(
