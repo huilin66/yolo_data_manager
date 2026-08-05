@@ -888,7 +888,7 @@ class YoloManager:
     def ann_correct_from_crops(
         self,
         crops_dir: str | Path,
-        to: str | int,
+        to: str | int | None,
         *,
         report: str | None = None,
         dry_run: bool = False,
@@ -896,10 +896,11 @@ class YoloManager:
         **kwargs: Any,
     ) -> int:
         """Correct per-instance classes from ``vis crop`` filenames."""
+        cli_target = "none" if to is None else to
         return self._run(
             "ann.correct_from_crops",
             crops_dir=crops_dir,
-            to=to,
+            to=cli_target,
             report=report,
             dry_run=dry_run,
             only_val=only_val,

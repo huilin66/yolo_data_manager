@@ -99,6 +99,7 @@ mgr.ann_correct_from_crops(
 )
 
 # `ann_correct_from_crops` 会按 `<image_stem>_<1-based annotation index>.<扩展名>` 解析 `vis_crop` 结果，递归处理属性子目录，并直接更新对应源 label；确认无误后去掉 `dry_run=True`。
+# 将 `to=None` 传入时，会删除对应的整条标注。
 
 # 可视化
 mgr.vis_draw(out="images_vis", show_conf=True, show_attrs=True)

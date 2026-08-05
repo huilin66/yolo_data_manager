@@ -228,7 +228,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add_dataset_args(correct_crops)
     correct_crops.add_argument("--crops-dir", required=True, help="directory containing vis-crop images")
-    correct_crops.add_argument("--to", dest="to_value", required=True, help="target class id/name")
+    correct_crops.add_argument("--to", dest="to_value", required=True, help="target class id/name; use none/null to delete the annotation")
     correct_crops.add_argument("--report", default=None, help="optional edit report CSV path")
     correct_crops.add_argument("--dry-run", action="store_true", help="report changes without modifying labels")
     correct_crops.set_defaults(handler=handle_correct_from_crops)
@@ -813,7 +813,7 @@ def handle_correct_from_crops(args: argparse.Namespace) -> int:
     result, edit_report = correct_labels_from_crops(
         dataset,
         args.crops_dir,
-        args.to_value,
+        _parse_optional_class_value(args.to_value),
         dry_run=args.dry_run,
     )
     if args.report:
@@ -1228,6 +1228,12 @@ def _write_edit_result(dataset, report, args: argparse.Namespace) -> None:
 
 def _split_values(text: str) -> list[str]:
     return [item.strip() for item in text.split(",") if item.strip()]
+
+
+def _parse_optional_class_value(value: str | None) -> str | None:
+    if value is None or value.strip().lower() in {"none", "null"}:
+        return None
+    return value
 
 
 def _resolve_eval_val_source(root: str | Path, val_source: str | None, only_val: bool) -> str | None:

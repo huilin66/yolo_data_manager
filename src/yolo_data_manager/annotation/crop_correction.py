@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 import re
 
-from yolo_data_manager.core.models import YoloDataset, is_image_file
+from yolo_data_manager.core.models import YoloAnnotation, YoloDataset, YoloImage, is_image_file
 from yolo_data_manager.annotation.edit import EditReport, EditRow
 
 
@@ -17,11 +17,12 @@ _CROP_NAME_RE = re.compile(r"^(?P<stem>.+)_(?P<index>[1-9][0-9]*)$")
 class CropCorrectionResult:
     """Summary of a crop-driven class correction operation."""
 
-    target_class_id: int
-    target_class_name: str
+    target_class_id: int | None
+    target_class_name: str | None
     crop_files: int = 0
     unique_targets: int = 0
     changed: int = 0
+    deleted: int = 0
     unchanged: int = 0
     duplicate_targets: int = 0
     invalid_crops: list[str] = field(default_factory=list)
@@ -37,6 +38,7 @@ class CropCorrectionResult:
             "crop_files": self.crop_files,
             "unique_targets": self.unique_targets,
             "changed": self.changed,
+            "deleted": self.deleted,
             "unchanged": self.unchanged,
             "duplicate_targets": self.duplicate_targets,
             "invalid_crops": self.invalid_crops,
@@ -57,7 +59,7 @@ class CropCorrectionResult:
 def correct_labels_from_crops(
     dataset: YoloDataset,
     crops_dir: str | Path,
-    target_class: int | str,
+    target_class: int | str | None,
     *,
     dry_run: bool = False,
 ) -> tuple[CropCorrectionResult, EditReport]:
@@ -65,19 +67,20 @@ def correct_labels_from_crops(
 
     A crop named ``image_stem_3.jpg`` maps to the third annotation in
     ``image_stem.txt``. The crop directory is searched recursively, so both
-    class folders and ``by_attribute`` subfolders are supported.
+    class folders and ``by_attribute`` subfolders are supported. When
+    ``target_class`` is ``None``, the mapped annotation line is deleted.
     """
 
     crop_root = Path(crops_dir)
     if not crop_root.is_dir():
         raise FileNotFoundError(f"crop directory not found: {crop_root}")
 
-    target_id = dataset.class_id(target_class)
-    target_name = dataset.class_name(target_id)
+    target_id = dataset.class_id(target_class) if target_class is not None else None
+    target_name = dataset.class_name(target_id) if target_id is not None else None
     result = CropCorrectionResult(target_class_id=target_id, target_class_name=target_name)
     edit_report = EditReport()
 
-    image_candidates: dict[str, list] = {}
+    image_candidates: dict[str, list[YoloImage]] = {}
     for image in dataset.images:
         image_candidates.setdefault(image.stem, []).append(image)
 
@@ -95,8 +98,8 @@ def correct_labels_from_crops(
     result.unique_targets = len(targets)
     result.duplicate_targets = sum(max(0, len(paths) - 1) for paths in targets.values())
 
-    pending: dict[Path, list[tuple[int, int]]] = {}
-    changed_annotations: list[tuple[object, int]] = []
+    pending: dict[Path, list[tuple[int, int | None]]] = {}
+    changed_annotations: list[tuple[YoloImage, YoloAnnotation, int | None]] = []
     for (stem, crop_index), crop_paths in sorted(targets.items()):
         candidates = image_candidates.get(stem, [])
         if not candidates:
@@ -116,7 +119,7 @@ def correct_labels_from_crops(
 
         annotation = image.annotations[crop_index - 1]
         line_no = annotation.line_no or crop_index
-        if annotation.class_id == target_id:
+        if target_id is not None and annotation.class_id == target_id:
             result.unchanged += 1
             continue
 
@@ -131,17 +134,23 @@ def correct_labels_from_crops(
                 old_class_name=dataset.class_name(old_id),
                 new_class_id=target_id,
                 new_class_name=target_name,
+                action="delete" if target_id is None else "update",
             )
         )
         pending.setdefault(image.label_path, []).append((line_no, target_id))
-        changed_annotations.append((annotation, target_id))
+        changed_annotations.append((image, annotation, target_id))
         result.changed += 1
+        if target_id is None:
+            result.deleted += 1
 
     if not dry_run:
         for label_path, changes in pending.items():
             _rewrite_label_classes(label_path, changes)
-        for annotation, new_class_id in changed_annotations:
-            annotation.class_id = new_class_id
+        for image, annotation, new_class_id in changed_annotations:
+            if new_class_id is None:
+                image.annotations = [item for item in image.annotations if item is not annotation]
+            else:
+                annotation.class_id = new_class_id
 
     return result, edit_report
 
@@ -153,15 +162,18 @@ def _parse_crop_name(path: Path) -> tuple[str, int] | None:
     return match.group("stem"), int(match.group("index"))
 
 
-def _rewrite_label_classes(label_path: Path, changes: list[tuple[int, int]]) -> None:
+def _rewrite_label_classes(label_path: Path, changes: list[tuple[int, int | None]]) -> None:
     with label_path.open("r", encoding="utf-8", newline="") as fp:
         lines = fp.read().splitlines(keepends=True)
 
-    for line_no, target_class_id in changes:
+    for line_no, target_class_id in sorted(changes, key=lambda item: item[0], reverse=True):
         line_index = line_no - 1
         if not 0 <= line_index < len(lines):
             continue
-        lines[line_index] = _replace_class_token(lines[line_index], target_class_id)
+        if target_class_id is None:
+            del lines[line_index]
+        else:
+            lines[line_index] = _replace_class_token(lines[line_index], target_class_id)
 
     with label_path.open("w", encoding="utf-8", newline="") as fp:
         fp.write("".join(lines))

@@ -92,7 +92,7 @@ ydm ann correct-from-crops --root path/to/yolo --crops-dir image_vis/crop/car --
 ```
 
 写操作默认输出到 `--out`，不原地覆盖原数据。
-`correct-from-crops` 是按 crop 文件名直接修改源数据对应 label 的例外；建议先使用 `--dry-run`，或保留 `--report` 作为修改记录。`vis crop` 文件名 `<image_stem>_<序号>.<扩展名>` 中的序号从 1 开始。
+`correct-from-crops` 是按 crop 文件名直接修改源数据对应 label 的例外；建议先使用 `--dry-run`，或保留 `--report` 作为修改记录。`vis crop` 文件名 `<image_stem>_<序号>.<扩展名>` 中的序号从 1 开始。`--to none` 或 `--to null` 会删除对应标注。
 
 ## 数据集管理
 
