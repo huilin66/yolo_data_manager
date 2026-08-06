@@ -66,23 +66,20 @@ if __name__ == "__main__":
             #     "Broken High Risk",
             # ],
             "Delamination": [
-                "Broken High Risk",
-                "Delaminated Tile Low Risk",
+                # "Broken High Risk",
+                # "Delaminated Tile Low Risk",
                 "Delaminate Tile High Risk",
                 "Cracked Tile",
             ],
-            # "Corrosion": [
-            #     "Corrosion",
-            #     "Spalling",
-            # ],
             "Efforescene": [
                 "Efforescene Low Gray",
                 "Efflorescene Low Risk",
                 "Efflorescene High Risk",
-                "Broken Low Risk",
+                # "Broken Low Risk",
             ],
         },
     )
+    exclude_class_ = ["Broken Low Risk", "Delaminated Tile Low Risk"]
     # yolo_metric(
     #     data_dir,
     #     pred_dir,
@@ -92,8 +89,9 @@ if __name__ == "__main__":
     yolo_metric(
         data_dir,
         pred_dir,
-        "val-141",
+        "val-144",
         merge_class_map=merge_class_map,
+        exclude_class_=exclude_class_,
         min_pixels=20,
-        conf_thres=0.25,
+        conf_thres=0.20,
     )

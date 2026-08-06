@@ -1340,7 +1340,7 @@ class YoloManager:
         review_workers: int | None = None,
         review_progress: bool = True,
         review_progress_leave: bool = False,
-        copy_pred_txt: bool = False,
+        copy_pred_txt: bool = True,
         **kwargs: Any,
     ) -> int:
         """Fine-grained error analysis of predictions vs GT (``ydm eval error-analysis``)."""
