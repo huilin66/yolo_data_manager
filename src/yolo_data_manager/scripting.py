@@ -1332,7 +1332,7 @@ class YoloManager:
         min_area: float | None = None,
         min_size_logic: str = "or",
         min_pixels: float | None = None,
-        review: bool = False,
+        review: bool = True,
         crop_padding: int = 12,
         workers: int = 8,
         progress: bool = True,

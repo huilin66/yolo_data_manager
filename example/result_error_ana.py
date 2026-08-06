@@ -10,14 +10,12 @@ def yolo_error_ana(
     abs_path=False,
     only_val=True,
     workers=8,
+    conf_thres=0.001,
     class_=None,
     exclude_class_=None,
-    min_width=None,
-    min_height=None,
-    min_area=None,
-    min_size_logic="or",
     min_pixels=None,
     class_rules=None,
+    **kwargs,
 ):
     if not abs_path:
         pred_dir = os.path.join(pred_dir, pred_name, "labels")
@@ -28,26 +26,16 @@ def yolo_error_ana(
     mgr.eval_error_analysis(
         pred_root=pred_dir,
         out=ana_dir,
-        conf_thres=0.01,
-        # match_iou=0.5,
-        # low_iou=0.1,
-        # duplicate_iou=0.9,
-        review=True,
+        conf_thres=conf_thres,
         crop_padding=12,
         review_workers=workers,
-        review_progress=True,
-        review_progress_leave=False,
-        copy_pred_txt=True,
         only_val=only_val,
         class_=class_,
         exclude_class_=exclude_class_,
-        min_width=min_width,
-        min_height=min_height,
-        min_area=min_area,
-        min_size_logic=min_size_logic,
         min_pixels=min_pixels,
         class_rules=class_rules,
         workers=workers,
+        **kwargs,
     )
 
 
