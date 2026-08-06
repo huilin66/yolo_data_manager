@@ -921,12 +921,13 @@ class YoloManager:
         pred_dir: str | Path | None = None,
         dedup_iou: float | None = 0.5,
         delete_pred_none: bool = False,
+        replace_gt_from_pred: bool = False,
         report: str | None = None,
         dry_run: bool = False,
         only_val: bool | None = None,
         **kwargs: Any,
     ) -> int:
-        """Correct GT classes and optionally add predictions from error crops."""
+        """Correct GT classes, replace GT rows, and optionally add predictions from error crops."""
         cli_target = "none" if to is None else to
         return self._run(
             "ann.correct_from_error_crops",
@@ -934,6 +935,7 @@ class YoloManager:
             pred_dir=pred_dir,
             dedup_iou=dedup_iou,
             delete_pred_none=delete_pred_none,
+            replace_gt_from_pred=replace_gt_from_pred,
             to=cli_target,
             report=report,
             dry_run=dry_run,

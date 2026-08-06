@@ -250,7 +250,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--pred-labels-dir",
         dest="pred_dir",
         default=None,
-        help="prediction txt directory used to append crops whose GT is none",
+        help="prediction txt directory used for gtnone append or GT replacement",
     )
     correct_error_crops.add_argument(
         "--dedup-iou",
@@ -262,6 +262,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--delete-pred-none",
         action="store_true",
         help="delete GT annotation y for prednone_gty crops",
+    )
+    correct_error_crops.add_argument(
+        "--replace-gt-from-pred",
+        action="store_true",
+        help="replace GT y with prediction x for predx_gty crops",
     )
     correct_error_crops.add_argument("--to", dest="to_value", required=True, help="target class id/name; use none/null to delete the GT annotation")
     correct_error_crops.add_argument("--report", default=None, help="optional edit report CSV path")
@@ -910,6 +915,7 @@ def handle_correct_from_error_crops(args: argparse.Namespace) -> int:
         pred_labels_dir=getattr(args, "pred_dir", None),
         dedup_iou=getattr(args, "dedup_iou", 0.5),
         delete_pred_none=getattr(args, "delete_pred_none", False),
+        replace_gt_from_pred=getattr(args, "replace_gt_from_pred", False),
         dry_run=args.dry_run,
     )
     if args.report:

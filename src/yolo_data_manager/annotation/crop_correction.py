@@ -28,6 +28,7 @@ class CropCorrectionResult:
     unique_targets: int = 0
     changed: int = 0
     added: int = 0
+    replaced: int = 0
     deduplicated: int = 0
     deleted: int = 0
     unchanged: int = 0
@@ -50,6 +51,7 @@ class CropCorrectionResult:
             "unique_targets": self.unique_targets,
             "changed": self.changed,
             "added": self.added,
+            "replaced": self.replaced,
             "deduplicated": self.deduplicated,
             "deleted": self.deleted,
             "unchanged": self.unchanged,
@@ -129,19 +131,24 @@ def correct_gt_labels_from_error_crops(
     pred_labels_dir: str | Path | None = None,
     dedup_iou: float | None = 0.5,
     delete_pred_none: bool = False,
+    replace_gt_from_pred: bool = False,
     dry_run: bool = False,
 ) -> tuple[CropCorrectionResult, EditReport]:
     """Correct GT classes from ``eval_error_analysis`` crop filenames.
 
     A crop named ``image_stem_pred2_gt3.jpg`` maps to the third GT
-    annotation in ``image_stem.txt``. The prediction index is retained in
-    the filename for review context but is not needed for the GT update.
+    annotation in ``image_stem.txt``. By default, the prediction index is
+    retained in the filename for review context but is not needed for the GT
+    class update.
     When ``pred_labels_dir`` is supplied, a crop with ``gt none`` appends the
     corresponding prediction annotation selected by ``predx`` to the GT
     label. Prediction confidence is omitted from the appended GT line.
     When ``delete_pred_none`` is true, ``prednone_gty`` crops force deletion
     of GT annotation ``y`` even if ``target_class`` is otherwise an update
     class.
+    When ``replace_gt_from_pred`` is true, ``predx_gty`` crops replace the
+    complete GT line with prediction ``x`` (class and geometry), while
+    ``prednone_gty`` crops are deleted and ``predx_gtnone`` crops are appended.
     """
 
     crop_root = Path(crops_dir)
@@ -152,6 +159,7 @@ def correct_gt_labels_from_error_crops(
 
     targets: dict[tuple[str, int], list[Path]] = {}
     prediction_targets: dict[tuple[str, int], list[Path]] = {}
+    replacement_targets: dict[tuple[str, int], list[tuple[int, Path]]] = {}
     forced_delete_targets: set[tuple[str, int]] = set()
     crop_files = 0
     invalid_crops: list[str] = []
@@ -170,7 +178,12 @@ def correct_gt_labels_from_error_crops(
             else:
                 prediction_targets.setdefault((stem, pred_index), []).append(crop_path)
             continue
-        if delete_pred_none and pred_index is None:
+        if replace_gt_from_pred and pred_index is not None:
+            replacement_targets.setdefault((stem, gt_index), []).append(
+                (pred_index, crop_path)
+            )
+            continue
+        if (delete_pred_none or replace_gt_from_pred) and pred_index is None:
             forced_delete_targets.add((stem, gt_index))
         targets.setdefault((stem, gt_index), []).append(crop_path)
 
@@ -181,6 +194,9 @@ def correct_gt_labels_from_error_crops(
         crop_files=crop_files,
         invalid_crops=invalid_crops,
         image_key=lambda image: _safe_file_name(image.stem),
+        replacement_targets=replacement_targets,
+        pred_labels_dir=pred_labels_dir,
+        dedup_iou=dedup_iou,
         forced_delete_targets=forced_delete_targets,
         dry_run=dry_run,
     )
@@ -209,6 +225,9 @@ def _correct_target_map(
     invalid_crops: list[str],
     image_key,
     dry_run: bool,
+    replacement_targets: dict[tuple[str, int], list[tuple[int, Path]]] | None = None,
+    pred_labels_dir: str | Path | None = None,
+    dedup_iou: float | None = None,
     forced_delete_targets: set[tuple[str, int]] | None = None,
 ) -> tuple[CropCorrectionResult, EditReport]:
     target_id = dataset.class_id(target_class) if target_class is not None else None
@@ -218,8 +237,11 @@ def _correct_target_map(
         target_class_name=target_name,
         crop_files=crop_files,
         invalid_crops=invalid_crops,
-        unique_targets=len(targets),
-        duplicate_targets=sum(max(0, len(paths) - 1) for paths in targets.values()),
+        unique_targets=len(targets) + len(replacement_targets or {}),
+        duplicate_targets=(
+            sum(max(0, len(paths) - 1) for paths in targets.values())
+            + sum(max(0, len(paths) - 1) for paths in (replacement_targets or {}).values())
+        ),
     )
     edit_report = EditReport()
 
@@ -230,6 +252,16 @@ def _correct_target_map(
     pending: dict[Path, list[tuple[int, int | None]]] = {}
     changed_annotations: list[tuple[YoloImage, YoloAnnotation, int | None]] = []
     forced_delete_targets = forced_delete_targets or set()
+    _replace_target_map_from_predictions(
+        dataset,
+        replacement_targets or {},
+        pred_labels_dir,
+        result,
+        edit_report,
+        image_key=image_key,
+        dedup_iou=dedup_iou,
+        dry_run=dry_run,
+    )
     for (stem, crop_index), crop_paths in sorted(targets.items()):
         candidates = image_candidates.get(stem, [])
         if not candidates:
@@ -290,6 +322,215 @@ def _correct_target_map(
                 annotation.class_id = new_class_id
 
     return result, edit_report
+
+
+def _replace_target_map_from_predictions(
+    dataset: YoloDataset,
+    targets: dict[tuple[str, int], list[tuple[int, Path]]],
+    pred_labels_dir: str | Path | None,
+    result: CropCorrectionResult,
+    edit_report: EditReport,
+    *,
+    image_key,
+    dedup_iou: float | None,
+    dry_run: bool,
+) -> None:
+    """Replace existing GT rows with prediction rows selected by crop names."""
+    if not targets:
+        return
+    if pred_labels_dir is None:
+        result.missing_prediction_labels.extend(
+            f"{stem}_pred{pred_index}_gt{gt_index}"
+            for (stem, gt_index), candidates in sorted(targets.items())
+            for pred_index, _crop_path in candidates[:1]
+        )
+        return
+
+    pred_root = Path(pred_labels_dir)
+    if not pred_root.is_dir():
+        raise FileNotFoundError(f"prediction label directory not found: {pred_root}")
+
+    prediction_files: dict[str, list[Path]] = {}
+    for path in sorted(pred_root.rglob("*.txt")):
+        prediction_files.setdefault(path.stem, []).append(path)
+
+    image_candidates: dict[str, list[YoloImage]] = {}
+    for image in dataset.images:
+        image_candidates.setdefault(image_key(image), []).append(image)
+
+    parsed_cache: dict[Path, list[YoloAnnotation] | None] = {}
+    resolved: list[tuple[YoloImage, YoloAnnotation, YoloAnnotation, int, int, int]] = []
+
+    for (stem, gt_index), candidates_for_target in sorted(targets.items()):
+        candidates = image_candidates.get(stem, [])
+        if not candidates:
+            result.missing_images.append(stem)
+            continue
+        if len(candidates) > 1:
+            result.ambiguous_images.append(stem)
+            continue
+
+        image = candidates[0]
+        if image.label_path is None or not image.label_path.is_file():
+            result.missing_labels.append(stem)
+            continue
+        if gt_index > len(image.annotations):
+            result.invalid_indices.append(f"{stem}_{gt_index}")
+            continue
+
+        annotation = image.annotations[gt_index - 1]
+        line_no = annotation.line_no or gt_index
+        predictions_for_target: list[tuple[YoloAnnotation, int]] = []
+        for pred_index in sorted({pred_index for pred_index, _path in candidates_for_target}):
+            pred_candidates: list[Path] = []
+            for key in dict.fromkeys((stem, _safe_file_name(stem))):
+                pred_candidates.extend(prediction_files.get(key, []))
+            pred_candidates = list(dict.fromkeys(pred_candidates))
+            if not pred_candidates:
+                result.missing_prediction_labels.append(f"{stem}_pred{pred_index}_gt{gt_index}")
+                continue
+            if len(pred_candidates) > 1:
+                result.ambiguous_prediction_labels.append(f"{stem}_pred{pred_index}_gt{gt_index}")
+                continue
+
+            pred_path = pred_candidates[0]
+            if pred_path not in parsed_cache:
+                try:
+                    parsed_cache[pred_path] = parse_label_file(
+                        pred_path,
+                        task=dataset.task,
+                        attributes=dataset.attributes,
+                    )
+                except (OSError, ValueError):
+                    parsed_cache[pred_path] = None
+                    result.invalid_prediction_labels.append(str(pred_path))
+            predictions = parsed_cache[pred_path]
+            if predictions is None:
+                continue
+
+            prediction = _prediction_at_index(predictions, pred_index)
+            if prediction is None:
+                result.invalid_prediction_indices.append(f"{stem}_pred{pred_index}_gt{gt_index}")
+                continue
+            predictions_for_target.append((prediction, pred_index))
+
+        if not predictions_for_target:
+            continue
+        prediction, pred_index = max(
+            predictions_for_target,
+            key=lambda item: (
+                1.0 if item[0].confidence is None else float(item[0].confidence),
+                -item[1],
+            ),
+        )
+        result.deduplicated += max(0, len(predictions_for_target) - 1)
+        resolved.append((image, annotation, prediction, line_no, pred_index, gt_index))
+
+    kept, suppressed = _deduplicate_replacement_candidates(
+        resolved,
+        dedup_iou=dedup_iou,
+        result=result,
+    )
+    pending: dict[Path, list[tuple[int, str | None]]] = {}
+    changed_annotations: list[tuple[YoloImage, YoloAnnotation, YoloAnnotation | None]] = []
+    for image, annotation, prediction, line_no, _pred_index, _gt_index in kept:
+        replacement = copy(prediction)
+        replacement.confidence = None
+        replacement.line_no = line_no
+        if not replacement.attributes and annotation.attributes:
+            replacement.attributes = list(annotation.attributes)
+        line = replacement.to_yolo_line(include_confidence=False)
+        replacement.source_line = line
+        pending.setdefault(image.label_path, []).append((line_no, line))
+        changed_annotations.append((image, annotation, replacement))
+        edit_report.add(
+            EditRow(
+                operation="replace_gt_from_prediction",
+                image=image.file_name,
+                label_path=str(image.label_path),
+                line_no=line_no,
+                old_class_id=annotation.class_id,
+                old_class_name=dataset.class_name(annotation.class_id),
+                new_class_id=replacement.class_id,
+                new_class_name=dataset.class_name(replacement.class_id),
+                action="replace",
+            )
+        )
+        result.changed += 1
+        result.replaced += 1
+
+    for image, annotation, _prediction, line_no, _pred_index, _gt_index in suppressed:
+        pending.setdefault(image.label_path, []).append((line_no, None))
+        changed_annotations.append((image, annotation, None))
+        edit_report.add(
+            EditRow(
+                operation="delete_duplicate_gt_after_prediction_replacement",
+                image=image.file_name,
+                label_path=str(image.label_path),
+                line_no=line_no,
+                old_class_id=annotation.class_id,
+                old_class_name=dataset.class_name(annotation.class_id),
+                action="delete",
+            )
+        )
+        result.changed += 1
+        result.deleted += 1
+
+    if dry_run:
+        return
+    for label_path, changes in pending.items():
+        _rewrite_label_annotations(label_path, changes)
+    for image, annotation, replacement in changed_annotations:
+        if replacement is None:
+            image.annotations = [item for item in image.annotations if item is not annotation]
+            continue
+        for index, current in enumerate(image.annotations):
+            if current is annotation:
+                image.annotations[index] = replacement
+                break
+
+
+def _deduplicate_replacement_candidates(
+    candidates: list[tuple[YoloImage, YoloAnnotation, YoloAnnotation, int, int, int]],
+    *,
+    dedup_iou: float | None,
+    result: CropCorrectionResult,
+) -> tuple[
+    list[tuple[YoloImage, YoloAnnotation, YoloAnnotation, int, int, int]],
+    list[tuple[YoloImage, YoloAnnotation, YoloAnnotation, int, int, int]],
+]:
+    """Deduplicate overlapping prediction-backed GT replacements."""
+    if dedup_iou is None or len(candidates) < 2:
+        return candidates, []
+
+    ordered = sorted(
+        candidates,
+        key=lambda item: (
+            -(
+                1.0
+                if item[2].confidence is None
+                else float(item[2].confidence)
+            ),
+            item[5],
+            item[4],
+        ),
+    )
+    kept: list[tuple[YoloImage, YoloAnnotation, YoloAnnotation, int, int, int]] = []
+    suppressed: list[tuple[YoloImage, YoloAnnotation, YoloAnnotation, int, int, int]] = []
+    for candidate in ordered:
+        prediction = candidate[2]
+        is_duplicate = any(
+            prediction.class_id == existing[2].class_id
+            and _annotation_iou(prediction, existing[2]) >= float(dedup_iou)
+            for existing in kept
+            if existing[0].label_path == candidate[0].label_path
+        )
+        if is_duplicate:
+            result.deduplicated += 1
+            suppressed.append(candidate)
+        else:
+            kept.append(candidate)
+    return kept, suppressed
 
 
 def _append_prediction_targets(
@@ -535,6 +776,27 @@ def _rewrite_label_classes(label_path: Path, changes: list[tuple[int, int | None
             del lines[line_index]
         else:
             lines[line_index] = _replace_class_token(lines[line_index], target_class_id)
+
+    with label_path.open("w", encoding="utf-8", newline="") as fp:
+        fp.write("".join(lines))
+
+
+def _rewrite_label_annotations(label_path: Path, changes: list[tuple[int, str | None]]) -> None:
+    """Replace complete label lines by original 1-based line number."""
+    with label_path.open("r", encoding="utf-8", newline="") as fp:
+        lines = fp.read().splitlines(keepends=True)
+
+    for line_no, replacement in sorted(changes, key=lambda item: item[0], reverse=True):
+        line_index = line_no - 1
+        if not 0 <= line_index < len(lines):
+            continue
+        if replacement is None:
+            del lines[line_index]
+            continue
+        old_line = lines[line_index]
+        body = old_line.rstrip("\r\n")
+        ending = old_line[len(body) :]
+        lines[line_index] = replacement.rstrip("\r\n") + ending
 
     with label_path.open("w", encoding="utf-8", newline="") as fp:
         fp.write("".join(lines))

@@ -112,6 +112,7 @@ mgr.ann_correct_from_error_crops(
 )
 # error-analysis crop 使用 `xxx_predx_gty`；提供 pred_dir 后，gtnone 会按 predx 从预测 txt 追加到 GT。
 # delete_pred_none=True 时，prednone_gty 会删除第 y 条 GT，即使 to 设置为更新类别。
+# replace_gt_from_pred=True 时，predx_gty 会用预测第 x 条完整替换 GT 第 y 条（类别和 geometry），并按 dedup_iou 对同图同类替换框去重；被抑制的重复 GT 会删除。
 
 # 可视化
 mgr.vis_draw(out="images_vis", show_conf=True, show_attrs=True)

@@ -199,6 +199,7 @@ ydm vis crop --root yolo --out crops --by-attr
 - 新增 `ann correct-from-crops` / `ann_correct_from_crops`：按 `vis_crop` 的 `<image_stem>_<1-based index>` 文件名定位原始标注行并直接校正类别；`to=None`（CLI 使用 `--to none`）时删除该标注
 - 新增 `ann correct-from-error-crops` / `ann_correct_from_error_crops`：按 `eval_error_analysis` 的 `xxx_predx_gty` 文件名中的 y 定位 GT 行并校正或删除，`predx` 只用于复核上下文
 - `ann correct-from-error-crops` / `ann_correct_from_error_crops` 支持 `--delete-pred-none` / `delete_pred_none=True`：对 `prednone_gty` 强制删除第 y 条 GT，即使 `--to` / `to` 是更新类别
+- 支持 `--replace-gt-from-pred` / `replace_gt_from_pred=True`：结合预测 txt，用 `predx_gty` 的预测 x 完整替换 GT y（类别和 geometry），同图同类替换框按 `dedup_iou` 去重并删除被抑制的重复 GT；`prednone_gty` 删除，`predx_gtnone` 追加
 
 典型命令：
 

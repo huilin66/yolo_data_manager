@@ -159,6 +159,7 @@ Write operations output to a new directory. `ann_correct_from_crops` is the exce
 Pass `to=None` to delete the corresponding annotation instead of assigning a class.
 Use `mgr.ann_correct_from_error_crops(...)` for `eval_error_analysis` crops; in `xxx_predx_gty`, the 1-based `y` locates the GT annotation. Provide `pred_dir` to append prediction txt record `x` for `gtnone` crops, without prediction confidence. Added predictions use same-class IoU deduplication (default `dedup_iou=0.5`) and keep the higher-confidence candidate.
 Set `delete_pred_none=True` to delete the GT row `y` for `prednone_gty` crops even when `to` is an update class. For deletion-only crops, pass `to=None` and `delete_pred_none=True`.
+Set `replace_gt_from_pred=True` with `pred_dir` to replace GT row `y` completely with prediction row `x` for `predx_gty` crops; same-class overlapping replacements use `dedup_iou` and keep the higher-confidence prediction, while the suppressed duplicate GT row is deleted. `prednone_gty` is deleted and `predx_gtnone` is appended.
 
 ## Visualization
 

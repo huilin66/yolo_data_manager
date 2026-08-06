@@ -139,6 +139,7 @@ Supported:
 - Added `ann correct-from-crops` / `ann_correct_from_crops`: locate source annotation rows from `vis_crop` filenames (`<image_stem>_<1-based index>`) and correct their classes in place; `to=None` (CLI `--to none`) deletes the annotation.
 - Added `ann correct-from-error-crops` / `ann_correct_from_error_crops`: use the y index in `xxx_predx_gty` filenames to locate and correct or delete GT rows; `predx` is review context only.
 - Added `--delete-pred-none` / `delete_pred_none=True`: force deletion of GT row y for `prednone_gty` crops, even when `--to` / `to` is an update class.
+- Added `--replace-gt-from-pred` / `replace_gt_from_pred=True`: with prediction txt, replace GT row y completely with prediction x for `predx_gty`; same-image same-class replacements use `dedup_iou` and delete suppressed duplicate GT rows; delete `prednone_gty` and append `predx_gtnone`.
 
 ## Package Structure
 

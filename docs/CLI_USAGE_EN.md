@@ -95,8 +95,8 @@ ydm ann correct-from-error-crops --root path/to/yolo --crops-dir result_ana/val-
 Write operations target `--out` and do not overwrite the source dataset in place.
 `correct-from-crops` is the exception: it updates the corresponding source label files directly. Use `--dry-run` first when reviewing changes. Standard `vis crop` names use `<image_stem>_<1-based annotation index>.<extension>`. Use `--to none` or `--to null` to delete the corresponding annotation.
 `correct-from-error-crops` uses the `y` in `xxx_predx_gty` to locate the GT annotation. When `--pred-dir` is provided, a crop with `gt none` appends prediction txt record `x` to the corresponding GT label, omitting prediction confidence. Without `--pred-dir`, `gt none` crops are skipped.
-Added predictions are deduplicated by same-class IoU on the same image; overlapping candidates keep the higher-confidence prediction. Use `--dedup-iou` to change the default `0.5` threshold.
-With `--delete-pred-none`, `prednone_gty` deletes GT annotation `y` even when `--to` names an update class. For deletion-only review crops, use `--to none --delete-pred-none`; `predx_gty` continues to follow `--to`.
+Added predictions and `--replace-gt-from-pred` replacement boxes are deduplicated by same-class IoU on the same image; overlapping candidates keep the higher-confidence prediction, and a suppressed replacement deletes its duplicate GT row. Use `--dedup-iou` to change the default `0.5` threshold.
+With `--delete-pred-none`, `prednone_gty` deletes GT annotation `y` even when `--to` names an update class. For deletion-only review crops, use `--to none --delete-pred-none`; `predx_gty` continues to follow `--to`. With `--replace-gt-from-pred` and `--pred-dir`, `predx_gty` replaces GT row `y` completely with prediction row `x` (class and geometry), `prednone_gty` deletes, and `predx_gtnone` appends.
 
 ## Dataset Operations
 

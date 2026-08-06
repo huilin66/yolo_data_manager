@@ -142,11 +142,13 @@ def test_build_python_task_argv():
         pred_dir=Path("pred_labels"),
         dedup_iou=0.5,
         delete_pred_none=True,
+        replace_gt_from_pred=True,
         to="none",
     )
     assert "--pred-dir" in correction_argv
     assert "--dedup-iou" in correction_argv
     assert "--delete-pred-none" in correction_argv
+    assert "--replace-gt-from-pred" in correction_argv
 
     metrics_argv = build_task_argv(
         "eval.metrics",
@@ -937,6 +939,80 @@ def test_correct_gt_labels_from_error_crops_deletes_pred_none_with_update_target
     assert report.rows[0].action == "delete"
     assert (root / "labels" / "a.txt").read_text(encoding="utf-8").splitlines() == [
         "1 0.4 0.4 0.2 0.2",
+    ]
+
+
+def test_correct_gt_labels_from_error_crops_replaces_gt_from_prediction(tmp_path):
+    root = make_dataset(tmp_path / "error_crop_replace_prediction")
+    pred_labels = tmp_path / "pred_labels"
+    pred_labels.mkdir()
+    (pred_labels / "a.txt").write_text(
+        "1 0.6 0.6 0.1 0.1 0.90\n"
+        "0 0.2 0.2 0.3 0.4 0.80\n",
+        encoding="utf-8",
+    )
+    crops = tmp_path / "error_review" / "crops"
+    crops.mkdir(parents=True)
+    Image.new("RGB", (10, 10), color="white").save(crops / "a_pred1_gt1.jpg")
+    Image.new("RGB", (10, 10), color="white").save(crops / "a_prednone_gt2.jpg")
+    Image.new("RGB", (10, 10), color="white").save(crops / "a_pred2_gtnone.jpg")
+
+    dataset = load_yolo_dataset(root, task="detect")
+    result, report = correct_gt_labels_from_error_crops(
+        dataset,
+        crops,
+        None,
+        pred_labels_dir=pred_labels,
+        replace_gt_from_pred=True,
+    )
+
+    assert result.replaced == 1
+    assert result.deleted == 1
+    assert result.added == 1
+    assert result.changed == 3
+    assert {row.operation for row in report.rows} == {
+        "replace_gt_from_prediction",
+        "delete_gt_from_missing_prediction",
+        "add_prediction_from_error_crops",
+    }
+    assert (root / "labels" / "a.txt").read_text(encoding="utf-8").splitlines() == [
+        "1 0.6 0.6 0.1 0.1",
+        "0 0.2 0.2 0.3 0.4",
+    ]
+
+
+def test_correct_gt_labels_from_error_crops_deduplicates_replacements(tmp_path):
+    root = make_dataset(tmp_path / "error_crop_deduplicate_replacements")
+    pred_labels = tmp_path / "pred_labels"
+    pred_labels.mkdir()
+    (pred_labels / "a.txt").write_text(
+        "1 0.4 0.4 0.2 0.2 0.80\n"
+        "1 0.405 0.405 0.2 0.2 0.95\n",
+        encoding="utf-8",
+    )
+    crops = tmp_path / "error_review" / "crops"
+    crops.mkdir(parents=True)
+    Image.new("RGB", (10, 10), color="white").save(crops / "a_pred1_gt1.jpg")
+    Image.new("RGB", (10, 10), color="white").save(crops / "a_pred2_gt2.jpg")
+
+    dataset = load_yolo_dataset(root, task="detect")
+    result, report = correct_gt_labels_from_error_crops(
+        dataset,
+        crops,
+        None,
+        pred_labels_dir=pred_labels,
+        replace_gt_from_pred=True,
+    )
+
+    assert result.replaced == 1
+    assert result.deleted == 1
+    assert result.deduplicated == 1
+    assert {row.operation for row in report.rows} == {
+        "replace_gt_from_prediction",
+        "delete_duplicate_gt_after_prediction_replacement",
+    }
+    assert (root / "labels" / "a.txt").read_text(encoding="utf-8").splitlines() == [
+        "1 0.405 0.405 0.2 0.2",
     ]
 
 
