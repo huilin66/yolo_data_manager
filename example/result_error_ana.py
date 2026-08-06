@@ -46,5 +46,5 @@ if __name__ == "__main__":
     pred_dir = r"/localnvme/project/aic_mdet/models/ultralytics/runs/detect"
 
     yolo_error_ana(
-        data_dir, pred_dir, "predict-5", only_val=False, min_pixels=10, conf_thres=0.10
+        data_dir, pred_dir, "val-158", only_val=False, min_pixels=10, conf_thres=0.10
     )

@@ -7,7 +7,9 @@ def yolo_merge_class(input_dir, output_dir, merge_dict):
 
 
 if __name__ == "__main__":
-    data_dir = r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_t.yaml"
+    data_dir = (
+        r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_rgb.yaml"
+    )
     data_update_dir = r"/localnvme/data/bdd_hmt/hmt_t_update_v1"
     merge_class_map = {
         "Hollow": [

@@ -59,12 +59,13 @@ if __name__ == "__main__":
     data_dir = (
         r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_rgb.yaml"
     )
+    data_update_dir = r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_rgb_update.yaml"
     pred_dir = r"/localnvme/project/aic_mdet/models/ultralytics/runs/detect"
     merge_class_map = (
         {
-            # "Broken": [
-            #     "Broken High Risk",
-            # ],
+            "Broken high": [
+                "Broken High Risk",
+            ],
             "Delamination": [
                 # "Broken High Risk",
                 "Delaminated Tile Low Risk",
@@ -73,9 +74,13 @@ if __name__ == "__main__":
             ],
             "Efforescene": [
                 "Efforescene Low Gray",
-                "Efflorescene Low Risk",
+                # "Efflorescene Low Risk",
                 "Efflorescene High Risk",
                 # "Broken Low Risk",
+            ],
+            "Broken": [
+                # "Broken Low Risk",
+                "Efflorescene Low Risk",
             ],
         },
     )
@@ -92,9 +97,18 @@ if __name__ == "__main__":
     yolo_metric(
         data_dir,
         pred_dir,
-        "val-148",
+        "val-158",
         merge_class_map=merge_class_map,
         exclude_class_=exclude_class_,
         min_pixels=20,
-        conf_thres=0.10,
+        # conf_thres=0.10,
     )
+    # yolo_metric(
+    #     data_update_dir,
+    #     pred_dir,
+    #     "val-157",
+    #     merge_class_map=merge_class_map,
+    #     # exclude_class_=exclude_class_,
+    #     min_pixels=20,
+    #     conf_thres=0.20,
+    # )
