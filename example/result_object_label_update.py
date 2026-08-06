@@ -20,9 +20,7 @@ if __name__ == "__main__":
     )
     crops_map = {
         "/localnvme/data/bdd_hmt/sua_rgb/result_ana/crop_change/b_low_2_e_low": "Efflorescene Low Risk",
-        "/localnvme/data/bdd_hmt/sua_rgb/result_ana/crop_change/d_high_2_low": "Delaminated Tile Low Risk",
-        "/localnvme/data/bdd_hmt/sua_rgb/result_ana/crop_change/e_high_2_low": "Efflorescene Low Risk",
-        "/localnvme/data/bdd_hmt/sua_rgb/result_ana/crop_change/e_low_2_high": "Efflorescene High Risk",
+        "/localnvme/data/bdd_hmt/sua_rgb/result_ana/crop_change/e_low_2_b_low": "Broken Low Risk",
     }
 
     for k, v in crops_map.items():

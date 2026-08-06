@@ -38,10 +38,8 @@ if __name__ == "__main__":
         r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_rgb.yaml"
     )
     crops_map = {
-        "/localnvme/data/bdd_hmt/sua_rgb/image_vis/crop_change/delaminate_high_2_low": "Delaminated Tile Low Risk",
-        "/localnvme/data/bdd_hmt/sua_rgb/image_vis/crop_change/delaminate_low_2_eff_low": "Efflorescene Low Risk",
-        "/localnvme/data/bdd_hmt/sua_rgb/image_vis/crop_change/delaminate_low_2_high": "Delaminate Tile High Risk",
-        "/localnvme/data/bdd_hmt/sua_rgb/image_vis/crop_change/eff_low_2_gray": "Efforescene Low Gray",
+        "/localnvme/data/bdd_hmt/sua_rgb/image_vis/crop_change/c_2_b_low": "Broken Low Risk",
+        "/localnvme/data/bdd_hmt/sua_rgb/image_vis/crop_change/c_2_d_high": "Delaminate Tile High Risk",
     }
 
     for k, v in crops_map.items():

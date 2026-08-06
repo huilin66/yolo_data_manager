@@ -27,5 +27,5 @@ if __name__ == "__main__":
     # yolo_split(rgb_merge_v2_dir)
     # yolo_split(t_dir)
 
-    data_dir = r"/localnvme/data/bdd_hmt/hmt_t_update_v1"
+    data_dir = r"/localnvme/data/bdd_hmt/sua_rgb"
     yolo_split(data_dir)
