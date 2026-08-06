@@ -918,16 +918,20 @@ class YoloManager:
         crops_dir: str | Path,
         to: str | int | None,
         *,
+        pred_dir: str | Path | None = None,
+        dedup_iou: float | None = 0.5,
         report: str | None = None,
         dry_run: bool = False,
         only_val: bool | None = None,
         **kwargs: Any,
     ) -> int:
-        """Correct GT classes from ``eval_error_analysis`` pred_gt crops."""
+        """Correct GT classes and optionally add predictions from error crops."""
         cli_target = "none" if to is None else to
         return self._run(
             "ann.correct_from_error_crops",
             crops_dir=crops_dir,
+            pred_dir=pred_dir,
+            dedup_iou=dedup_iou,
             to=cli_target,
             report=report,
             dry_run=dry_run,

@@ -4,6 +4,7 @@ import json
 from PIL import Image
 
 from yolo_data_manager.annotation.edit import delete_by_attribute, merge_classes, set_attribute
+from yolo_data_manager.annotation.crop_correction import correct_gt_labels_from_error_crops
 from yolo_data_manager.annotation.query import copy_query_result, query_by_attribute, query_by_class
 from yolo_data_manager.converters.coco import import_coco
 from yolo_data_manager.converters.labelme import import_labelme_dir
@@ -133,6 +134,17 @@ def test_build_python_task_argv():
     assert "--min-size-logic" in error_argv
     assert "--min-pixels" in error_argv
     assert "--class-rules" in error_argv
+
+    correction_argv = build_task_argv(
+        "ann.correct_from_error_crops",
+        root=Path("dataset"),
+        crops_dir=Path("error_crops"),
+        pred_dir=Path("pred_labels"),
+        dedup_iou=0.5,
+        to="none",
+    )
+    assert "--pred-dir" in correction_argv
+    assert "--dedup-iou" in correction_argv
 
     metrics_argv = build_task_argv(
         "eval.metrics",
@@ -841,6 +853,41 @@ def test_correct_gt_labels_from_error_crops_uses_gt_index(tmp_path):
     assert (root / "labels" / "a.txt").read_text(encoding="utf-8").splitlines() == [
         "0 0.5 0.5 0.2 0.3",
     ]
+
+
+def test_correct_gt_labels_from_error_crops_appends_prediction_for_gt_none(tmp_path):
+    root = make_dataset(tmp_path / "error_crop_add_prediction")
+    pred_labels = tmp_path / "pred_labels"
+    pred_labels.mkdir()
+    (pred_labels / "a.txt").write_text(
+        "1 0.2 0.2 0.1 0.1 0.80\n"
+        "1 0.205 0.205 0.1 0.1 0.95\n",
+        encoding="utf-8",
+    )
+    crops = tmp_path / "error_review" / "crops"
+    crops.mkdir(parents=True)
+    Image.new("RGB", (10, 10), color="white").save(crops / "a_pred1_gtnone.jpg")
+    (crops / "duplicate").mkdir()
+    Image.new("RGB", (10, 10), color="white").save(crops / "duplicate" / "a_pred1_gtnone.jpg")
+    Image.new("RGB", (10, 10), color="white").save(crops / "a_pred2_gtnone.jpg")
+
+    dataset = load_yolo_dataset(root, task="detect")
+    result, report = correct_gt_labels_from_error_crops(
+        dataset,
+        crops,
+        "person",
+        pred_labels_dir=pred_labels,
+    )
+
+    assert result.added == 1
+    assert result.changed == 1
+    assert result.deduplicated == 1
+    assert result.duplicate_targets == 1
+    assert len(report.rows) == 1
+    assert report.rows[0].action == "add"
+    assert (root / "labels" / "a.txt").read_text(encoding="utf-8").splitlines()[-1] == (
+        "1 0.205 0.205 0.1 0.1"
+    )
 
 
 def test_duplicate_image_hash(tmp_path):
@@ -1614,6 +1661,8 @@ def test_yolo_manager_error_analysis_defaults_to_manager_root(tmp_path, monkeypa
         min_size_logic="and",
         min_pixels=8,
         class_rules={"car": {"width": 0.03, "height": 0.03, "logic": "or"}},
+        pred_dir="prediction_txt",
+        dedup_iou=0.6,
     )
     assert captured["class_"] == ["car"]
     assert captured["exclude_class_"] == ["person"]
@@ -1623,6 +1672,8 @@ def test_yolo_manager_error_analysis_defaults_to_manager_root(tmp_path, monkeypa
     assert captured["min_size_logic"] == "and"
     assert captured["min_pixels"] == 8
     assert captured["class_rules"].endswith(".yaml")
+    assert captured["pred_dir"] == "prediction_txt"
+    assert captured["dedup_iou"] == 0.6
 
     mgr.eval_error_analysis(
         pred_root="pred_labels",

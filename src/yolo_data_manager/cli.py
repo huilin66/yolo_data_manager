@@ -245,6 +245,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add_dataset_args(correct_error_crops)
     correct_error_crops.add_argument("--crops-dir", required=True, help="directory containing pred_gt crop images")
+    correct_error_crops.add_argument(
+        "--pred-dir",
+        "--pred-labels-dir",
+        dest="pred_dir",
+        default=None,
+        help="prediction txt directory used to append crops whose GT is none",
+    )
+    correct_error_crops.add_argument(
+        "--dedup-iou",
+        type=float,
+        default=0.5,
+        help="IoU threshold for same-class overlapping predictions; default 0.5",
+    )
     correct_error_crops.add_argument("--to", dest="to_value", required=True, help="target class id/name; use none/null to delete the GT annotation")
     correct_error_crops.add_argument("--report", default=None, help="optional edit report CSV path")
     correct_error_crops.add_argument("--dry-run", action="store_true", help="report changes without modifying labels")
@@ -889,6 +902,8 @@ def handle_correct_from_error_crops(args: argparse.Namespace) -> int:
         dataset,
         args.crops_dir,
         _parse_optional_class_value(args.to_value),
+        pred_labels_dir=getattr(args, "pred_dir", None),
+        dedup_iou=getattr(args, "dedup_iou", 0.5),
         dry_run=args.dry_run,
     )
     if args.report:
