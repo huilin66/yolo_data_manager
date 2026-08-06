@@ -104,12 +104,14 @@ mgr.ann_correct_from_error_crops(
     crops_dir="result_ana/val-52/review/pred_gt/pred_car_gt_background/crops",
     pred_dir="result_ana/val-52/review/pred_txt",
     dedup_iou=0.5,
+    delete_pred_none=True,
     to="defect",
     only_val=True,
     report="gt_correction.csv",
     dry_run=True,
 )
 # error-analysis crop 使用 `xxx_predx_gty`；提供 pred_dir 后，gtnone 会按 predx 从预测 txt 追加到 GT。
+# delete_pred_none=True 时，prednone_gty 会删除第 y 条 GT，即使 to 设置为更新类别。
 
 # 可视化
 mgr.vis_draw(out="images_vis", show_conf=True, show_attrs=True)

@@ -128,6 +128,7 @@ def correct_gt_labels_from_error_crops(
     *,
     pred_labels_dir: str | Path | None = None,
     dedup_iou: float | None = 0.5,
+    delete_pred_none: bool = False,
     dry_run: bool = False,
 ) -> tuple[CropCorrectionResult, EditReport]:
     """Correct GT classes from ``eval_error_analysis`` crop filenames.
@@ -138,6 +139,9 @@ def correct_gt_labels_from_error_crops(
     When ``pred_labels_dir`` is supplied, a crop with ``gt none`` appends the
     corresponding prediction annotation selected by ``predx`` to the GT
     label. Prediction confidence is omitted from the appended GT line.
+    When ``delete_pred_none`` is true, ``prednone_gty`` crops force deletion
+    of GT annotation ``y`` even if ``target_class`` is otherwise an update
+    class.
     """
 
     crop_root = Path(crops_dir)
@@ -148,6 +152,7 @@ def correct_gt_labels_from_error_crops(
 
     targets: dict[tuple[str, int], list[Path]] = {}
     prediction_targets: dict[tuple[str, int], list[Path]] = {}
+    forced_delete_targets: set[tuple[str, int]] = set()
     crop_files = 0
     invalid_crops: list[str] = []
     for crop_path in sorted(crop_root.rglob("*")):
@@ -165,6 +170,8 @@ def correct_gt_labels_from_error_crops(
             else:
                 prediction_targets.setdefault((stem, pred_index), []).append(crop_path)
             continue
+        if delete_pred_none and pred_index is None:
+            forced_delete_targets.add((stem, gt_index))
         targets.setdefault((stem, gt_index), []).append(crop_path)
 
     result, edit_report = _correct_target_map(
@@ -174,6 +181,7 @@ def correct_gt_labels_from_error_crops(
         crop_files=crop_files,
         invalid_crops=invalid_crops,
         image_key=lambda image: _safe_file_name(image.stem),
+        forced_delete_targets=forced_delete_targets,
         dry_run=dry_run,
     )
     result.unique_targets += len(prediction_targets)
@@ -201,6 +209,7 @@ def _correct_target_map(
     invalid_crops: list[str],
     image_key,
     dry_run: bool,
+    forced_delete_targets: set[tuple[str, int]] | None = None,
 ) -> tuple[CropCorrectionResult, EditReport]:
     target_id = dataset.class_id(target_class) if target_class is not None else None
     target_name = dataset.class_name(target_id) if target_id is not None else None
@@ -220,6 +229,7 @@ def _correct_target_map(
 
     pending: dict[Path, list[tuple[int, int | None]]] = {}
     changed_annotations: list[tuple[YoloImage, YoloAnnotation, int | None]] = []
+    forced_delete_targets = forced_delete_targets or set()
     for (stem, crop_index), crop_paths in sorted(targets.items()):
         candidates = image_candidates.get(stem, [])
         if not candidates:
@@ -239,28 +249,35 @@ def _correct_target_map(
 
         annotation = image.annotations[crop_index - 1]
         line_no = annotation.line_no or crop_index
-        if target_id is not None and annotation.class_id == target_id:
+        force_delete = (stem, crop_index) in forced_delete_targets
+        new_class_id = None if force_delete else target_id
+        new_class_name = None if force_delete else target_name
+        if not force_delete and target_id is not None and annotation.class_id == target_id:
             result.unchanged += 1
             continue
 
         old_id = annotation.class_id
         edit_report.add(
             EditRow(
-                operation="correct_class_from_crops",
+                operation=(
+                    "delete_gt_from_missing_prediction"
+                    if force_delete
+                    else "correct_class_from_crops"
+                ),
                 image=image.file_name,
                 label_path=str(image.label_path),
                 line_no=line_no,
                 old_class_id=old_id,
                 old_class_name=dataset.class_name(old_id),
-                new_class_id=target_id,
-                new_class_name=target_name,
-                action="delete" if target_id is None else "update",
+                new_class_id=new_class_id,
+                new_class_name=new_class_name,
+                action="delete" if new_class_id is None else "update",
             )
         )
-        pending.setdefault(image.label_path, []).append((line_no, target_id))
-        changed_annotations.append((image, annotation, target_id))
+        pending.setdefault(image.label_path, []).append((line_no, new_class_id))
+        changed_annotations.append((image, annotation, new_class_id))
         result.changed += 1
-        if target_id is None:
+        if new_class_id is None:
             result.deleted += 1
 
     if not dry_run:
@@ -366,9 +383,8 @@ def _append_prediction_targets(
         )
         if not additions:
             continue
-        existing_lines = label_path.read_text(
-            encoding="utf-8", newline=""
-        ).splitlines(keepends=True)
+        with label_path.open("r", encoding="utf-8", newline="") as fp:
+            existing_lines = fp.read().splitlines(keepends=True)
         next_line_no = len(existing_lines) + 1
         append_lines: list[str] = []
         for image, prediction, line, _pred_index in additions:
@@ -474,11 +490,13 @@ def _append_label_lines(label_path: Path, lines_to_append: list[str]) -> None:
     """Append normalised YOLO lines while preserving existing line endings."""
     if not lines_to_append:
         return
-    lines = label_path.read_text(encoding="utf-8", newline="").splitlines(keepends=True)
+    with label_path.open("r", encoding="utf-8", newline="") as fp:
+        lines = fp.read().splitlines(keepends=True)
     if lines and not lines[-1].endswith(("\n", "\r")):
         lines[-1] += "\n"
     lines.extend(line.rstrip("\r\n") + "\n" for line in lines_to_append)
-    label_path.write_text("".join(lines), encoding="utf-8", newline="")
+    with label_path.open("w", encoding="utf-8", newline="") as fp:
+        fp.write("".join(lines))
 
 
 def _parse_crop_name(path: Path) -> tuple[str, int] | None:

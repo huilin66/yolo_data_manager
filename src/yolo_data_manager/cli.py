@@ -258,6 +258,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=0.5,
         help="IoU threshold for same-class overlapping predictions; default 0.5",
     )
+    correct_error_crops.add_argument(
+        "--delete-pred-none",
+        action="store_true",
+        help="delete GT annotation y for prednone_gty crops",
+    )
     correct_error_crops.add_argument("--to", dest="to_value", required=True, help="target class id/name; use none/null to delete the GT annotation")
     correct_error_crops.add_argument("--report", default=None, help="optional edit report CSV path")
     correct_error_crops.add_argument("--dry-run", action="store_true", help="report changes without modifying labels")
@@ -904,6 +909,7 @@ def handle_correct_from_error_crops(args: argparse.Namespace) -> int:
         _parse_optional_class_value(args.to_value),
         pred_labels_dir=getattr(args, "pred_dir", None),
         dedup_iou=getattr(args, "dedup_iou", 0.5),
+        delete_pred_none=getattr(args, "delete_pred_none", False),
         dry_run=args.dry_run,
     )
     if args.report:

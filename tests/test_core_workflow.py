@@ -141,10 +141,12 @@ def test_build_python_task_argv():
         crops_dir=Path("error_crops"),
         pred_dir=Path("pred_labels"),
         dedup_iou=0.5,
+        delete_pred_none=True,
         to="none",
     )
     assert "--pred-dir" in correction_argv
     assert "--dedup-iou" in correction_argv
+    assert "--delete-pred-none" in correction_argv
 
     metrics_argv = build_task_argv(
         "eval.metrics",
@@ -888,6 +890,30 @@ def test_correct_gt_labels_from_error_crops_appends_prediction_for_gt_none(tmp_p
     assert (root / "labels" / "a.txt").read_text(encoding="utf-8").splitlines()[-1] == (
         "1 0.205 0.205 0.1 0.1"
     )
+
+
+def test_correct_gt_labels_from_error_crops_deletes_pred_none_with_update_target(tmp_path):
+    root = make_dataset(tmp_path / "error_crop_delete_missing_prediction")
+    crops = tmp_path / "error_review" / "crops"
+    crops.mkdir(parents=True)
+    Image.new("RGB", (10, 10), color="white").save(crops / "a_prednone_gt1.jpg")
+
+    dataset = load_yolo_dataset(root, task="detect")
+    result, report = correct_gt_labels_from_error_crops(
+        dataset,
+        crops,
+        "car",
+        delete_pred_none=True,
+    )
+
+    assert result.changed == 1
+    assert result.deleted == 1
+    assert len(report.rows) == 1
+    assert report.rows[0].operation == "delete_gt_from_missing_prediction"
+    assert report.rows[0].action == "delete"
+    assert (root / "labels" / "a.txt").read_text(encoding="utf-8").splitlines() == [
+        "1 0.4 0.4 0.2 0.2",
+    ]
 
 
 def test_duplicate_image_hash(tmp_path):

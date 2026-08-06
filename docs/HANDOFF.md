@@ -198,6 +198,7 @@ ydm vis crop --root yolo --out crops --by-attr
 - 数据集加载默认处理全部数据；使用 `--only-val` 或 Python 的 `only_val=True` 才限制到验证集，YAML 的 `val` 不再隐式限制普通统计和可视化
 - 新增 `ann correct-from-crops` / `ann_correct_from_crops`：按 `vis_crop` 的 `<image_stem>_<1-based index>` 文件名定位原始标注行并直接校正类别；`to=None`（CLI 使用 `--to none`）时删除该标注
 - 新增 `ann correct-from-error-crops` / `ann_correct_from_error_crops`：按 `eval_error_analysis` 的 `xxx_predx_gty` 文件名中的 y 定位 GT 行并校正或删除，`predx` 只用于复核上下文
+- `ann correct-from-error-crops` / `ann_correct_from_error_crops` 支持 `--delete-pred-none` / `delete_pred_none=True`：对 `prednone_gty` 强制删除第 y 条 GT，即使 `--to` / `to` 是更新类别
 
 典型命令：
 
