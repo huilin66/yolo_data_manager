@@ -4,7 +4,19 @@ from yolo_data_manager import YoloManager
 
 
 def yolo_error_ana(
-    input_dir, pred_dir, pred_name, abs_path=False, only_val=True, workers=8
+    input_dir,
+    pred_dir,
+    pred_name,
+    abs_path=False,
+    only_val=True,
+    workers=8,
+    class_=None,
+    exclude_class_=None,
+    min_width=None,
+    min_height=None,
+    min_area=None,
+    min_size_logic="or",
+    min_pixels=None,
 ):
     if not abs_path:
         pred_dir = os.path.join(pred_dir, pred_name, "labels")
@@ -26,6 +38,13 @@ def yolo_error_ana(
         review_progress_leave=False,
         copy_pred_txt=True,
         only_val=only_val,
+        class_=class_,
+        exclude_class_=exclude_class_,
+        min_width=min_width,
+        min_height=min_height,
+        min_area=min_area,
+        min_size_logic=min_size_logic,
+        min_pixels=min_pixels,
         workers=workers,
     )
 

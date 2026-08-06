@@ -160,6 +160,12 @@ mgr.eval_error_analysis(gt_root=r"E:\datasets\gt", pred_root=r"E:\datasets\pred"
 mgr.eval_error_analysis(gt_root=r"E:\datasets\gt", pred_root=r"E:\datasets\pred",
                         out="error_report", val_source=r"E:\datasets\val.txt",
                         class_file=r"E:\datasets\class.txt")
+mgr.eval_error_analysis(
+    gt_root=r"E:\datasets\gt", pred_root=r"E:\datasets\pred",
+    out="error_report", class_=["car", "bus"],
+    exclude_class_=["ignore"], min_width=0.01, min_height=0.01,
+    min_area=0.0005, min_size_logic="and", min_pixels=8,
+)
 mgr.eval_error_analysis(pred_root=r"E:\datasets\pred", out="error_report",
                         review=True, crop_padding=12)
 mgr.eval_error_analysis(pred_root=r"E:\datasets\pred", out="error_report",
@@ -216,6 +222,8 @@ mgr.eval_error_analysis(pred_root="pred", out="error_report", review=True, worke
 类别规则也支持简写字段：`{"类别": {"width": 0.03, "height": 0.03, "logic": "or"}}`，其中 `width`/`height` 是归一化 YOLO 尺寸，`logic` 为 `or` 或 `and`。
 
 `eval_error_analysis(review=True)` 会在 `review/pred_gt` 下生成按 `pred_<预测类别>_gt_<真实类别>` 组织的复核图片和 crop，并写出 Ultralytics 风格 `confusion_matrix.png`。`copy_pred_txt=True` 会把参与分析的预测 txt 复制到 `review/pred_txt`。
+
+`eval_error_analysis` 的 `class_` 只保留指定类别，`exclude_class_` 独立排除类别；两者可以同时使用。`min_width`、`min_height`、`min_area` 和 `min_pixels` 会同时过滤 GT 与预测，宽高/面积使用归一化 YOLO 尺寸，`min_pixels` 按像素宽度或高度判断；`min_size_logic` 支持 `"or"` 或 `"and"`，语义与 `dataset_filter` 一致。
 
 `eval_metrics` 使用 `class_` 指定只评估的类别，使用独立的 `exclude_class_` 排除类别；两者可以同时传入。`merge_class_map` 接受“目标类别: 原始类别列表”的字典，例如 `{"vehicle": ["car", "truck"]}`，并在 GT 和预测的类别选择、匹配、统计前同时应用。类别选择和排除使用合并后的目标类别名。设置 `show_original=True` 后，如果使用了类别、合并或 `min_pixels` 参数，会在最终结果前输出原始结果；JSON 输出包含 `original` 和 `final`，而 `out` 文件仍保存最终结果。
 统计、可视化和评估默认处理全部数据；设置 `only_val=True` 或显式提供 `val_source` 才限制为验证集。

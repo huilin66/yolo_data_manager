@@ -241,12 +241,25 @@ mgr.eval_error_analysis(
     progress_leave=False,
     copy_pred_txt=True,
 )
+mgr.eval_error_analysis(
+    pred_root="datasets/pred_labels",
+    out="error_report",
+    class_=["car", "bus"],
+    exclude_class_=["ignore"],
+    min_width=0.01,
+    min_height=0.01,
+    min_area=0.0005,
+    min_size_logic="and",
+    min_pixels=8,
+)
 ```
 
 `eval_metrics` uses `class_` to select classes and the independent `exclude_class_` parameter to exclude classes; both can be supplied together. `merge_class_map` accepts a target-to-source mapping such as `{"vehicle": ["car", "truck"]}` and applies it to GT and predictions before class selection, matching, and aggregation. Class selection and exclusion use the merged target class names. With `show_original=True`, when class, merge, or `min_pixels` filters are supplied, the original metrics are output before the final metrics; JSON output contains `original` and `final`, while the `out` file still stores the final metrics.
 Statistics, visualization, and evaluation process all data by default; set `only_val=True` or provide `val_source` explicitly to limit processing to validation data.
 
 When `gt_root` or `class_file` is omitted, `YoloManager` falls back to the manager root and `class.txt` when available. Evaluation uses all data by default; set `only_val=True` or provide `val_source` to limit it to validation data.
+
+`eval_error_analysis` supports the same class and size filters: `class_` selects classes, `exclude_class_` excludes classes, and `min_width`, `min_height`, `min_area`, `min_size_logic`, and `min_pixels` filter both GT and predictions. Width and height/area use normalized YOLO coordinates; `min_pixels` checks pixel width or height.
 
 ## Multimodal YOLO Datasets
 

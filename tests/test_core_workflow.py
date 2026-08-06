@@ -25,6 +25,7 @@ from yolo_data_manager.evaluation.error_analysis import (
     collect_stems_from_source,
     copy_prediction_txt_to_review,
     find_duplicate_gt,
+    filter_error_analysis_datasets,
     load_error_analysis_dataset,
     _ultralytics_confusion_matrix_data,
     write_duplicate_gt_csv,
@@ -109,12 +110,27 @@ def test_build_python_task_argv():
         review_progress=True,
         review_progress_leave=False,
         copy_pred_txt=True,
+        class_=["car", "bus"],
+        exclude_class_=["ignore"],
+        min_width=0.01,
+        min_height=0.02,
+        min_area=0.0005,
+        min_size_logic="and",
+        min_pixels=8,
     )
     assert "--review" in error_argv
     assert "--review-workers" in error_argv
     assert "--review-progress" in error_argv
     assert "--review-progress-leave" not in error_argv
     assert "--copy-pred-txt" in error_argv
+    assert "--class" in error_argv
+    assert "car,bus" in error_argv
+    assert "--exclude-class" in error_argv
+    assert "--min-width" in error_argv
+    assert "--min-height" in error_argv
+    assert "--min-area" in error_argv
+    assert "--min-size-logic" in error_argv
+    assert "--min-pixels" in error_argv
 
     metrics_argv = build_task_argv(
         "eval.metrics",
@@ -1479,6 +1495,44 @@ def test_error_analysis_label_dirs_val_source_and_id_names(tmp_path):
     assert rows[0].class_name == "person"
 
 
+def test_error_analysis_class_and_size_filters_preserve_source_indices(tmp_path):
+    root = make_dataset(tmp_path / "filtered_error_analysis")
+    gt = load_yolo_dataset(root, task="detect")
+    pred = load_yolo_dataset(root, task="detect")
+
+    filtered_gt, filtered_pred = filter_error_analysis_datasets(
+        gt,
+        pred,
+        class_ids=["car"],
+        exclude_class_ids=["person"],
+        min_width=0.21,
+        min_height=0.15,
+        min_area=0.03,
+        min_size_logic="and",
+        min_pixels=15,
+    )
+
+    assert [image.stem for image in filtered_gt.images] == ["a", "b"]
+    assert [len(image.annotations) for image in filtered_gt.images] == [1, 0]
+    assert filtered_gt.images[0].annotations[0].line_no == 2
+    assert filtered_pred.images[0].annotations[0].line_no == 2
+
+    rows, summary = analyze_errors(
+        gt,
+        pred,
+        class_ids=["car"],
+        exclude_class_ids=["person"],
+        min_width=0.21,
+        min_height=0.15,
+        min_area=0.03,
+        min_size_logic="and",
+        min_pixels=15,
+    )
+    assert summary == {"tp": 1}
+    assert rows[0].pred_idx == 2
+    assert rows[0].gt_idx == 2
+
+
 def test_yolo_manager_error_analysis_defaults_to_manager_root(tmp_path, monkeypatch):
     root = make_dataset(tmp_path / "yolo")
     (root / "val.txt").write_text("images/a.jpg\n", encoding="utf-8")
@@ -1515,6 +1569,25 @@ def test_yolo_manager_error_analysis_defaults_to_manager_root(tmp_path, monkeypa
     assert captured["review_progress"] is True
     assert captured["review_progress_leave"] is False
     assert captured["copy_pred_txt"] is True
+
+    mgr.eval_error_analysis(
+        pred_root="pred_labels",
+        out="error_report",
+        class_=["car"],
+        exclude_class_=["person"],
+        min_width=0.01,
+        min_height=0.02,
+        min_area=0.0005,
+        min_size_logic="and",
+        min_pixels=8,
+    )
+    assert captured["class_"] == ["car"]
+    assert captured["exclude_class_"] == ["person"]
+    assert captured["min_width"] == 0.01
+    assert captured["min_height"] == 0.02
+    assert captured["min_area"] == 0.0005
+    assert captured["min_size_logic"] == "and"
+    assert captured["min_pixels"] == 8
 
     mgr.eval_error_analysis(
         pred_root="pred_labels",

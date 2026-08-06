@@ -15,6 +15,8 @@ import json
 import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import Counter
+from collections.abc import Iterable, Mapping
+from copy import copy as shallow_copy
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -23,6 +25,7 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 from yolo_data_manager.core.models import ClassSchema, YoloAnnotation, YoloDataset, YoloImage, is_image_file
+from yolo_data_manager.core.errors import ClassNotFoundError
 from yolo_data_manager.core.schema import read_class_schema
 from yolo_data_manager.io.loader import load_yolo_dataset, parse_label_file
 from yolo_data_manager.runtime import iter_progress, normalize_workers
@@ -342,6 +345,173 @@ def _filter_dataset_by_stems(dataset: YoloDataset, stems: set[str] | None) -> Yo
     )
 
 
+def _resolve_filter_class_ids(
+    dataset: YoloDataset,
+    values: int | str | Iterable[int | str] | None,
+) -> set[int] | None:
+    """Resolve numeric ids or class names for an analysis filter."""
+    if values is None:
+        return None
+    if isinstance(values, (int, str)):
+        values = [values]
+    resolved: set[int] = set()
+    for value in values:
+        if isinstance(value, int):
+            resolved.add(value)
+        elif str(value).strip().lstrip("-").isdigit():
+            resolved.add(int(str(value).strip()))
+        else:
+            resolved.add(dataset.class_id(value))
+    return resolved
+
+
+def _materialize_filter_values(
+    values: int | str | Iterable[int | str] | None,
+) -> int | str | list[int | str] | None:
+    if values is None or isinstance(values, (int, str)):
+        return values
+    return list(values)
+
+
+def _resolve_shared_filter_class_ids(
+    gt: YoloDataset,
+    pred: YoloDataset,
+    values: int | str | Iterable[int | str] | None,
+) -> set[int] | None:
+    """Resolve names against GT first, falling back to prediction names."""
+    values = _materialize_filter_values(values)
+    try:
+        return _resolve_filter_class_ids(gt, values)
+    except ClassNotFoundError:
+        return _resolve_filter_class_ids(pred, values)
+
+
+def filter_error_analysis_dataset(
+    dataset: YoloDataset,
+    *,
+    class_ids: int | str | Iterable[int | str] | None = None,
+    exclude_class_ids: int | str | Iterable[int | str] | None = None,
+    min_width: float | None = None,
+    min_height: float | None = None,
+    min_area: float | None = None,
+    min_size_logic: str = "or",
+    min_pixels: float | None = None,
+    image_sizes: Mapping[str, tuple[int | None, int | None]] | None = None,
+) -> YoloDataset:
+    """Return a filtered copy of an error-analysis dataset.
+
+    Width, height and area use normalised YOLO coordinates.  ``min_pixels``
+    uses image dimensions when available.  An optional ``image_sizes`` map is
+    useful for prediction label directories that do not contain the source
+    images; its keys are image stems.
+    """
+    if min_size_logic not in {"or", "and"}:
+        raise ValueError("min_size_logic must be 'or' or 'and'")
+
+    included = _resolve_filter_class_ids(dataset, class_ids)
+    excluded = _resolve_filter_class_ids(dataset, exclude_class_ids) or set()
+    if included is not None:
+        included -= excluded
+
+    def keep(annotation: YoloAnnotation, image: YoloImage) -> bool:
+        if included is not None and annotation.class_id not in included:
+            return False
+        if annotation.class_id in excluded:
+            return False
+
+        box = annotation.geometry_box()
+        if box is None:
+            return False
+        width = float(box.width)
+        height = float(box.height)
+
+        width_too_small = min_width is not None and width < float(min_width)
+        height_too_small = min_height is not None and height < float(min_height)
+        if min_size_logic == "and":
+            if width_too_small and height_too_small:
+                return False
+        elif width_too_small or height_too_small:
+            return False
+        if min_area is not None and width * height < min_area:
+            return False
+
+        if min_pixels is not None:
+            image_width, image_height = image.width, image.height
+            if image_width is None or image_height is None:
+                fallback = image_sizes.get(image.stem) if image_sizes is not None else None
+                if fallback is not None:
+                    image_width, image_height = fallback
+            if image_width is not None and image_height is not None:
+                pixel_width = width * image_width
+                pixel_height = height * image_height
+                if pixel_width < float(min_pixels) or pixel_height < float(min_pixels):
+                    return False
+        return True
+
+    filtered_images: list[YoloImage] = []
+    for image in dataset.images:
+        filtered_image = shallow_copy(image)
+        filtered_image.annotations = [
+            annotation
+            for annotation in image.annotations
+            if keep(annotation, image)
+        ]
+        filtered_images.append(filtered_image)
+
+    return YoloDataset(
+        root=dataset.root,
+        images=filtered_images,
+        classes=dataset.classes,
+        attributes=dataset.attributes,
+        task=dataset.task,
+        orphan_labels=list(dataset.orphan_labels),
+    )
+
+
+def filter_error_analysis_datasets(
+    gt: YoloDataset,
+    pred: YoloDataset,
+    *,
+    class_ids: int | str | Iterable[int | str] | None = None,
+    exclude_class_ids: int | str | Iterable[int | str] | None = None,
+    min_width: float | None = None,
+    min_height: float | None = None,
+    min_area: float | None = None,
+    min_size_logic: str = "or",
+    min_pixels: float | None = None,
+) -> tuple[YoloDataset, YoloDataset]:
+    """Apply the same logical filters to GT and prediction datasets."""
+    class_ids = _materialize_filter_values(class_ids)
+    exclude_class_ids = _materialize_filter_values(exclude_class_ids)
+    shared_class_ids = _resolve_shared_filter_class_ids(gt, pred, class_ids)
+    shared_excluded_class_ids = _resolve_shared_filter_class_ids(gt, pred, exclude_class_ids)
+    image_sizes: dict[str, tuple[int | None, int | None]] = {}
+    for dataset in (gt, pred):
+        for image in dataset.images:
+            if image.width is not None and image.height is not None:
+                image_sizes.setdefault(image.stem, (image.width, image.height))
+
+    filter_kwargs = {
+        "class_ids": shared_class_ids,
+        "exclude_class_ids": shared_excluded_class_ids,
+        "min_width": min_width,
+        "min_height": min_height,
+        "min_area": min_area,
+        "min_size_logic": min_size_logic,
+        "min_pixels": min_pixels,
+        "image_sizes": image_sizes,
+    }
+    return (
+        filter_error_analysis_dataset(gt, **filter_kwargs),
+        filter_error_analysis_dataset(pred, **filter_kwargs),
+    )
+
+
+def _annotation_index(annotation: YoloAnnotation, fallback: int) -> int:
+    """Return the original 1-based label-file index when available."""
+    return annotation.line_no if annotation.line_no is not None else fallback
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -353,6 +523,14 @@ def analyze_errors(
     match_iou: float = 0.5,
     low_iou: float = 0.1,
     conf_thres: float = 0.0,
+    *,
+    class_ids: int | str | Iterable[int | str] | None = None,
+    exclude_class_ids: int | str | Iterable[int | str] | None = None,
+    min_width: float | None = None,
+    min_height: float | None = None,
+    min_area: float | None = None,
+    min_size_logic: str = "or",
+    min_pixels: float | None = None,
 ) -> tuple[list[ErrorDetail], dict[str, int]]:
     """Compare predictions against ground-truth with fine-grained error typing.
 
@@ -370,6 +548,13 @@ def analyze_errors(
     conf_thres:
         Minimum confidence for a prediction to be considered (predictions
         with ``confidence is None`` are always kept).
+    class_ids / exclude_class_ids:
+        Optional class ids or names to include or exclude.
+    min_width / min_height / min_area / min_pixels:
+        Optional size filters.  Width, height and area are normalised YOLO
+        values; ``min_pixels`` is evaluated from image dimensions.
+    min_size_logic:
+        Whether width and height thresholds use ``"or"`` or ``"and"``.
 
     Returns
     -------
@@ -378,6 +563,30 @@ def analyze_errors(
     summary:
         Dict mapping error-type string to count.
     """
+    has_filters = any(
+        value is not None
+        for value in (
+            class_ids,
+            exclude_class_ids,
+            min_width,
+            min_height,
+            min_area,
+            min_pixels,
+        )
+    )
+    if has_filters:
+        gt, pred = filter_error_analysis_datasets(
+            gt,
+            pred,
+            class_ids=class_ids,
+            exclude_class_ids=exclude_class_ids,
+            min_width=min_width,
+            min_height=min_height,
+            min_area=min_area,
+            min_size_logic=min_size_logic,
+            min_pixels=min_pixels,
+        )
+
     pred_by_stem: dict[str, list[YoloAnnotation]] = {}
     pred_lines_by_stem: dict[str, list[str]] = {}
     for image in pred.images:
@@ -449,8 +658,8 @@ def analyze_errors(
                         gt_box_xyxy=_serialise_box(_annotation_box_norm(g_ann)),
                         pred_line=p_ann.source_line,
                         gt_line=g_ann.source_line,
-                        pred_idx=pi + 1,
-                        gt_idx=gi + 1,
+                        pred_idx=_annotation_index(p_ann, pi + 1),
+                        gt_idx=_annotation_index(g_ann, gi + 1),
                     )
                 )
                 type_counter[TP] += 1
@@ -521,8 +730,12 @@ def analyze_errors(
                     ),
                     pred_line=p_ann.source_line,
                     gt_line=best_gt.source_line if best_gt is not None else None,
-                    pred_idx=pi + 1,
-                    gt_idx=best_gi + 1 if best_gi >= 0 else None,
+                    pred_idx=_annotation_index(p_ann, pi + 1),
+                    gt_idx=(
+                        _annotation_index(best_gt, best_gi + 1)
+                        if best_gi >= 0 and best_gt is not None
+                        else None
+                    ),
                 )
             )
             type_counter[error_type] += 1
@@ -578,8 +791,12 @@ def analyze_errors(
                     gt_box_xyxy=_serialise_box(_annotation_box_norm(g_ann)),
                     pred_line=best_pred.source_line if best_pred is not None else None,
                     gt_line=g_ann.source_line,
-                    pred_idx=best_pi + 1 if best_pi >= 0 else None,
-                    gt_idx=gi + 1,
+                    pred_idx=(
+                        _annotation_index(best_pred, best_pi + 1)
+                        if best_pi >= 0 and best_pred is not None
+                        else None
+                    ),
+                    gt_idx=_annotation_index(g_ann, gi + 1),
                 )
             )
             type_counter[error_type] += 1
@@ -606,7 +823,7 @@ def analyze_errors(
                     best_iou=0.0,
                     pred_box_xyxy=_serialise_box(_annotation_box_norm(p_ann)),
                     pred_line=p_ann.source_line,
-                    pred_idx=pi + 1,
+                    pred_idx=_annotation_index(p_ann, pi + 1),
                 )
             )
             type_counter[BACKGROUND_FP] += 1
@@ -649,8 +866,8 @@ def find_duplicate_gt(
                     rows.append(
                         DuplicateGt(
                             image=image.stem,
-                            gt_idx_i=i + 1,
-                            gt_idx_j=j + 1,
+                            gt_idx_i=_annotation_index(anns[i], i + 1),
+                            gt_idx_j=_annotation_index(anns[j], j + 1),
                             iou=float(ious[i, j]),
                             cls_i=anns[i].class_id,
                             name_i=dataset.class_name(anns[i].class_id),

@@ -43,6 +43,7 @@ from yolo_data_manager.evaluation.error_analysis import (
     collect_stems_from_source,
     copy_prediction_txt_to_review,
     find_duplicate_gt,
+    filter_error_analysis_datasets,
     load_error_analysis_dataset,
     print_error_summary,
     write_duplicate_gt_csv,
@@ -426,6 +427,13 @@ def build_parser() -> argparse.ArgumentParser:
     error_analysis.add_argument("--low-iou", type=float, default=0.1)
     error_analysis.add_argument("--conf-thres", type=float, default=0.0, help="confidence threshold for predictions")
     error_analysis.add_argument("--duplicate-iou", type=float, default=0.9, help="IoU threshold for duplicate GT detection")
+    error_analysis.add_argument("--class", dest="class_values", default=None, help="class ids/names to evaluate, comma-separated")
+    error_analysis.add_argument("--exclude-class", dest="exclude_class_values", default=None, help="class ids/names to exclude, comma-separated")
+    error_analysis.add_argument("--min-width", type=float, default=None, help="ignore boxes narrower than this normalized width")
+    error_analysis.add_argument("--min-height", type=float, default=None, help="ignore boxes shorter than this normalized height")
+    error_analysis.add_argument("--min-area", type=float, default=None, help="ignore boxes smaller than this normalized area")
+    error_analysis.add_argument("--min-size-logic", choices=["or", "and"], default="or", help="combine min-width/min-height checks")
+    error_analysis.add_argument("--min-pixels", type=float, default=None, help="ignore boxes whose pixel width or height is smaller than this")
     error_analysis.add_argument("--val-source", default=None, help="validation image dir or txt list used to limit evaluated stems")
     error_analysis.add_argument("--only-val", action="store_true", help="use the dataset validation split; default is all data")
     error_analysis.add_argument("--class-file", default=None, help="optional class names file; supports 'id name' or one name per line")
@@ -1191,6 +1199,39 @@ def handle_eval_error_analysis(args: argparse.Namespace) -> int:
         progress=args.progress,
         progress_leave=args.progress_leave,
     )
+    class_values = _split_values(args.class_values) if getattr(args, "class_values", None) else None
+    exclude_class_values = (
+        _split_values(args.exclude_class_values)
+        if getattr(args, "exclude_class_values", None)
+        else None
+    )
+    min_width = getattr(args, "min_width", None)
+    min_height = getattr(args, "min_height", None)
+    min_area = getattr(args, "min_area", None)
+    min_size_logic = getattr(args, "min_size_logic", "or")
+    min_pixels = getattr(args, "min_pixels", None)
+    if any(
+        value is not None
+        for value in (
+            class_values,
+            exclude_class_values,
+            min_width,
+            min_height,
+            min_area,
+            min_pixels,
+        )
+    ):
+        gt, pred = filter_error_analysis_datasets(
+            gt,
+            pred,
+            class_ids=class_values,
+            exclude_class_ids=exclude_class_values,
+            min_width=min_width,
+            min_height=min_height,
+            min_area=min_area,
+            min_size_logic=min_size_logic,
+            min_pixels=min_pixels,
+        )
     error_rows, summary = analyze_errors(
         gt,
         pred,
