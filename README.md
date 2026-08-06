@@ -94,6 +94,7 @@ ydm dataset filter --root path/to/yolo --out filtered --min-width 0.01 --min-hei
 ydm eval metrics --gt-root gt_yolo --pred-root pred_labels --names class.txt --class car,bus --min-pixels 8 --show-original --out metrics.json --csv metrics.csv --print-table
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --out error_report --review --workers 8 --copy-pred-txt
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --names class.txt --class car,bus --exclude-class ignore --min-width 0.01 --min-height 0.01 --min-size-logic and --min-pixels 8 --out error_report
+ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --names class.txt --class-rules error_rules.yaml --out error_report
 ```
 
 ## Output Conventions

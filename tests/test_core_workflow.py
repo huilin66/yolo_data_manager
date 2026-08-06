@@ -117,6 +117,7 @@ def test_build_python_task_argv():
         min_area=0.0005,
         min_size_logic="and",
         min_pixels=8,
+        class_rules=Path("rules.yaml"),
     )
     assert "--review" in error_argv
     assert "--review-workers" in error_argv
@@ -131,6 +132,7 @@ def test_build_python_task_argv():
     assert "--min-area" in error_argv
     assert "--min-size-logic" in error_argv
     assert "--min-pixels" in error_argv
+    assert "--class-rules" in error_argv
 
     metrics_argv = build_task_argv(
         "eval.metrics",
@@ -1533,6 +1535,37 @@ def test_error_analysis_class_and_size_filters_preserve_source_indices(tmp_path)
     assert rows[0].gt_idx == 2
 
 
+def test_error_analysis_class_rules_override_global_size_rule(tmp_path):
+    root = make_dataset(tmp_path / "class_rule_error_analysis")
+    gt = load_yolo_dataset(root, task="detect")
+    pred = load_yolo_dataset(root, task="detect")
+
+    class_rules = {
+        "person": {"width": 0.19, "height": 0.29, "logic": "or"},
+        "car": {"width": 0.21, "height": 0.15, "logic": "and"},
+    }
+    filtered_gt, filtered_pred = filter_error_analysis_datasets(
+        gt,
+        pred,
+        min_width=0.0,
+        min_height=0.0,
+        class_rules=class_rules,
+    )
+
+    # The person and the first car remain; the second car is below both
+    # per-class thresholds and is removed by the class-specific ``and`` rule.
+    assert [len(image.annotations) for image in filtered_gt.images] == [2, 0]
+    assert [len(image.annotations) for image in filtered_pred.images] == [2, 0]
+
+    rows, summary = analyze_errors(
+        gt,
+        pred,
+        class_rules=class_rules,
+    )
+    assert summary == {"tp": 2}
+    assert len(rows) == 2
+
+
 def test_yolo_manager_error_analysis_defaults_to_manager_root(tmp_path, monkeypatch):
     root = make_dataset(tmp_path / "yolo")
     (root / "val.txt").write_text("images/a.jpg\n", encoding="utf-8")
@@ -1580,6 +1613,7 @@ def test_yolo_manager_error_analysis_defaults_to_manager_root(tmp_path, monkeypa
         min_area=0.0005,
         min_size_logic="and",
         min_pixels=8,
+        class_rules={"car": {"width": 0.03, "height": 0.03, "logic": "or"}},
     )
     assert captured["class_"] == ["car"]
     assert captured["exclude_class_"] == ["person"]
@@ -1588,6 +1622,7 @@ def test_yolo_manager_error_analysis_defaults_to_manager_root(tmp_path, monkeypa
     assert captured["min_area"] == 0.0005
     assert captured["min_size_logic"] == "and"
     assert captured["min_pixels"] == 8
+    assert captured["class_rules"].endswith(".yaml")
 
     mgr.eval_error_analysis(
         pred_root="pred_labels",

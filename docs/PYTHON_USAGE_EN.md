@@ -251,6 +251,10 @@ mgr.eval_error_analysis(
     min_area=0.0005,
     min_size_logic="and",
     min_pixels=8,
+    class_rules={
+        "Efflorescene Low Risk": {"width": 0.03, "height": 0.03, "logic": "or"},
+        "Broken High Risk": {"width": 0.01, "height": 0.02, "logic": "and"},
+    },
 )
 ```
 
@@ -260,6 +264,7 @@ Statistics, visualization, and evaluation process all data by default; set `only
 When `gt_root` or `class_file` is omitted, `YoloManager` falls back to the manager root and `class.txt` when available. Evaluation uses all data by default; set `only_val=True` or provide `val_source` to limit it to validation data.
 
 `eval_error_analysis` supports the same class and size filters: `class_` selects classes, `exclude_class_` excludes classes, and `min_width`, `min_height`, `min_area`, `min_size_logic`, and `min_pixels` filter both GT and predictions. Width and height/area use normalized YOLO coordinates; `min_pixels` checks pixel width or height.
+`class_rules` overrides the global size rule per class using `width`, `height`, and `logic`; classes without a rule continue to use the global parameters.
 
 ## Multimodal YOLO Datasets
 

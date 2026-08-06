@@ -386,6 +386,50 @@ def _resolve_shared_filter_class_ids(
         return _resolve_filter_class_ids(pred, values)
 
 
+def _resolve_filter_class_rules(
+    dataset: YoloDataset,
+    class_rules: Mapping[int | str, Mapping[str, Any]] | None,
+) -> dict[int, dict[str, Any]]:
+    """Resolve per-class rule keys against one dataset's class schema."""
+    if not class_rules:
+        return {}
+    resolved: dict[int, dict[str, Any]] = {}
+    for class_value, rule in class_rules.items():
+        if not isinstance(rule, Mapping):
+            raise TypeError(
+                f"class_rules[{class_value!r}] must be a mapping of filter options"
+            )
+        class_ids = _resolve_filter_class_ids(dataset, class_value)
+        if class_ids is None or len(class_ids) != 1:
+            raise ValueError(f"class_rules key must identify one class: {class_value!r}")
+        resolved[next(iter(class_ids))] = dict(rule)
+    return resolved
+
+
+def _resolve_shared_filter_class_rules(
+    gt: YoloDataset,
+    pred: YoloDataset,
+    class_rules: Mapping[int | str, Mapping[str, Any]] | None,
+) -> dict[int, dict[str, Any]]:
+    """Resolve per-class rules against GT, falling back to prediction names."""
+    if not class_rules:
+        return {}
+    resolved: dict[int, dict[str, Any]] = {}
+    for class_value, rule in class_rules.items():
+        if not isinstance(rule, Mapping):
+            raise TypeError(
+                f"class_rules[{class_value!r}] must be a mapping of filter options"
+            )
+        try:
+            class_ids = _resolve_filter_class_ids(gt, class_value)
+        except ClassNotFoundError:
+            class_ids = _resolve_filter_class_ids(pred, class_value)
+        if class_ids is None or len(class_ids) != 1:
+            raise ValueError(f"class_rules key must identify one class: {class_value!r}")
+        resolved[next(iter(class_ids))] = dict(rule)
+    return resolved
+
+
 def filter_error_analysis_dataset(
     dataset: YoloDataset,
     *,
@@ -396,20 +440,24 @@ def filter_error_analysis_dataset(
     min_area: float | None = None,
     min_size_logic: str = "or",
     min_pixels: float | None = None,
+    class_rules: Mapping[int | str, Mapping[str, Any]] | None = None,
     image_sizes: Mapping[str, tuple[int | None, int | None]] | None = None,
 ) -> YoloDataset:
     """Return a filtered copy of an error-analysis dataset.
 
     Width, height and area use normalised YOLO coordinates.  ``min_pixels``
-    uses image dimensions when available.  An optional ``image_sizes`` map is
-    useful for prediction label directories that do not contain the source
-    images; its keys are image stems.
+    uses image dimensions when available.  A matching ``class_rules`` entry
+    replaces the global size rule for that class; unmatched classes use the
+    global rule.  An optional ``image_sizes`` map is useful for prediction
+    label directories that do not contain the source images; its keys are
+    image stems.
     """
     if min_size_logic not in {"or", "and"}:
         raise ValueError("min_size_logic must be 'or' or 'and'")
 
     included = _resolve_filter_class_ids(dataset, class_ids)
     excluded = _resolve_filter_class_ids(dataset, exclude_class_ids) or set()
+    resolved_rules = _resolve_filter_class_rules(dataset, class_rules)
     if included is not None:
         included -= excluded
 
@@ -425,17 +473,39 @@ def filter_error_analysis_dataset(
         width = float(box.width)
         height = float(box.height)
 
-        width_too_small = min_width is not None and width < float(min_width)
-        height_too_small = min_height is not None and height < float(min_height)
-        if min_size_logic == "and":
+        rule = resolved_rules.get(annotation.class_id)
+        rule_width = (
+            rule.get("min_width", rule.get("width"))
+            if rule is not None
+            else min_width
+        )
+        rule_height = (
+            rule.get("min_height", rule.get("height"))
+            if rule is not None
+            else min_height
+        )
+        rule_logic = (
+            rule.get("min_size_logic", rule.get("logic", "or"))
+            if rule is not None
+            else min_size_logic
+        )
+        if rule_logic not in {"or", "and"}:
+            raise ValueError(
+                f"class rule for class {annotation.class_id} has invalid logic: {rule_logic!r}"
+            )
+        width_too_small = rule_width is not None and width < float(rule_width)
+        height_too_small = rule_height is not None and height < float(rule_height)
+        if rule_logic == "and":
             if width_too_small and height_too_small:
                 return False
         elif width_too_small or height_too_small:
             return False
-        if min_area is not None and width * height < min_area:
+        rule_area = rule.get("min_area") if rule is not None else min_area
+        if rule_area is not None and width * height < float(rule_area):
             return False
 
-        if min_pixels is not None:
+        rule_pixels = rule.get("min_pixels") if rule is not None else min_pixels
+        if rule_pixels is not None:
             image_width, image_height = image.width, image.height
             if image_width is None or image_height is None:
                 fallback = image_sizes.get(image.stem) if image_sizes is not None else None
@@ -444,7 +514,7 @@ def filter_error_analysis_dataset(
             if image_width is not None and image_height is not None:
                 pixel_width = width * image_width
                 pixel_height = height * image_height
-                if pixel_width < float(min_pixels) or pixel_height < float(min_pixels):
+                if pixel_width < float(rule_pixels) or pixel_height < float(rule_pixels):
                     return False
         return True
 
@@ -479,10 +549,12 @@ def filter_error_analysis_datasets(
     min_area: float | None = None,
     min_size_logic: str = "or",
     min_pixels: float | None = None,
+    class_rules: Mapping[int | str, Mapping[str, Any]] | None = None,
 ) -> tuple[YoloDataset, YoloDataset]:
     """Apply the same logical filters to GT and prediction datasets."""
     class_ids = _materialize_filter_values(class_ids)
     exclude_class_ids = _materialize_filter_values(exclude_class_ids)
+    shared_class_rules = _resolve_shared_filter_class_rules(gt, pred, class_rules)
     shared_class_ids = _resolve_shared_filter_class_ids(gt, pred, class_ids)
     shared_excluded_class_ids = _resolve_shared_filter_class_ids(gt, pred, exclude_class_ids)
     image_sizes: dict[str, tuple[int | None, int | None]] = {}
@@ -499,6 +571,7 @@ def filter_error_analysis_datasets(
         "min_area": min_area,
         "min_size_logic": min_size_logic,
         "min_pixels": min_pixels,
+        "class_rules": shared_class_rules,
         "image_sizes": image_sizes,
     }
     return (
@@ -531,6 +604,7 @@ def analyze_errors(
     min_area: float | None = None,
     min_size_logic: str = "or",
     min_pixels: float | None = None,
+    class_rules: Mapping[int | str, Mapping[str, Any]] | None = None,
 ) -> tuple[list[ErrorDetail], dict[str, int]]:
     """Compare predictions against ground-truth with fine-grained error typing.
 
@@ -555,6 +629,10 @@ def analyze_errors(
         values; ``min_pixels`` is evaluated from image dimensions.
     min_size_logic:
         Whether width and height thresholds use ``"or"`` or ``"and"``.
+    class_rules:
+        Optional mapping from class ids/names to per-class size rules.  A
+        matched rule replaces the global size rule for that class; unmatched
+        classes use the global parameters.
 
     Returns
     -------
@@ -572,6 +650,7 @@ def analyze_errors(
             min_height,
             min_area,
             min_pixels,
+            class_rules,
         )
     )
     if has_filters:
@@ -585,6 +664,7 @@ def analyze_errors(
             min_area=min_area,
             min_size_logic=min_size_logic,
             min_pixels=min_pixels,
+            class_rules=class_rules,
         )
 
     pred_by_stem: dict[str, list[YoloAnnotation]] = {}

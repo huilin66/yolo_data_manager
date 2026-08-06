@@ -1324,6 +1324,7 @@ class YoloManager:
         val_source: str | None = None,
         only_val: bool | None = None,
         class_file: str | None = None,
+        class_rules: str | Path | Mapping[int | str, Mapping[str, Any]] | None = None,
         class_: str | list[str] | None = None,
         exclude_class_: str | list[str] | None = None,
         min_width: float | None = None,
@@ -1355,40 +1356,56 @@ class YoloManager:
             or self.class_file
             or _default_existing_path(self.root, "class.txt")
         )
-        return run_task(
-            "eval.error_analysis",
-            gt_root=resolved_gt_root,
-            pred_root=pred_root,
-            out=out,
-            match_iou=match_iou,
-            low_iou=low_iou,
-            conf_thres=conf_thres,
-            duplicate_iou=duplicate_iou,
-            val_source=resolved_val_source,
-            only_val=requested_only_val,
-            class_file=resolved_class_file,
-            class_=class_,
-            exclude_class_=exclude_class_,
-            min_width=min_width,
-            min_height=min_height,
-            min_area=min_area,
-            min_size_logic=min_size_logic,
-            min_pixels=min_pixels,
-            review=review,
-            crop_padding=crop_padding,
-            review_workers=review_workers,
-            review_progress=review_progress,
-            review_progress_leave=review_progress_leave,
-            workers=workers,
-            progress=progress,
-            progress_leave=progress_leave,
-            copy_pred_txt=copy_pred_txt,
-            task=self.task,
-            layout=self.layout,
-            images_dir=self.images_dir,
-            labels_dir=self.labels_dir,
-            **kwargs,
-        )
+        temporary_class_rules_path: str | None = None
+        class_rules_path: str | Path | None = class_rules
+        if isinstance(class_rules, Mapping):
+            with tempfile.NamedTemporaryFile(
+                "w", suffix=".yaml", encoding="utf-8", delete=False
+            ) as f:
+                yaml.safe_dump(
+                    dict(class_rules), f, allow_unicode=True, sort_keys=False
+                )
+                temporary_class_rules_path = f.name
+            class_rules_path = temporary_class_rules_path
+        try:
+            return run_task(
+                "eval.error_analysis",
+                gt_root=resolved_gt_root,
+                pred_root=pred_root,
+                out=out,
+                match_iou=match_iou,
+                low_iou=low_iou,
+                conf_thres=conf_thres,
+                duplicate_iou=duplicate_iou,
+                val_source=resolved_val_source,
+                only_val=requested_only_val,
+                class_file=resolved_class_file,
+                class_rules=class_rules_path,
+                class_=class_,
+                exclude_class_=exclude_class_,
+                min_width=min_width,
+                min_height=min_height,
+                min_area=min_area,
+                min_size_logic=min_size_logic,
+                min_pixels=min_pixels,
+                review=review,
+                crop_padding=crop_padding,
+                review_workers=review_workers,
+                review_progress=review_progress,
+                review_progress_leave=review_progress_leave,
+                workers=workers,
+                progress=progress,
+                progress_leave=progress_leave,
+                copy_pred_txt=copy_pred_txt,
+                task=self.task,
+                layout=self.layout,
+                images_dir=self.images_dir,
+                labels_dir=self.labels_dir,
+                **kwargs,
+            )
+        finally:
+            if temporary_class_rules_path is not None:
+                Path(temporary_class_rules_path).unlink(missing_ok=True)
 
     def eval_metrics(
         self,

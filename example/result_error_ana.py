@@ -17,6 +17,7 @@ def yolo_error_ana(
     min_area=None,
     min_size_logic="or",
     min_pixels=None,
+    class_rules=None,
 ):
     if not abs_path:
         pred_dir = os.path.join(pred_dir, pred_name, "labels")
@@ -45,6 +46,7 @@ def yolo_error_ana(
         min_area=min_area,
         min_size_logic=min_size_logic,
         min_pixels=min_pixels,
+        class_rules=class_rules,
         workers=workers,
     )
 

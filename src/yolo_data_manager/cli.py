@@ -434,6 +434,7 @@ def build_parser() -> argparse.ArgumentParser:
     error_analysis.add_argument("--min-area", type=float, default=None, help="ignore boxes smaller than this normalized area")
     error_analysis.add_argument("--min-size-logic", choices=["or", "and"], default="or", help="combine min-width/min-height checks")
     error_analysis.add_argument("--min-pixels", type=float, default=None, help="ignore boxes whose pixel width or height is smaller than this")
+    error_analysis.add_argument("--class-rules", default=None, help="YAML/JSON per-class size filter rules")
     error_analysis.add_argument("--val-source", default=None, help="validation image dir or txt list used to limit evaluated stems")
     error_analysis.add_argument("--only-val", action="store_true", help="use the dataset validation split; default is all data")
     error_analysis.add_argument("--class-file", default=None, help="optional class names file; supports 'id name' or one name per line")
@@ -1210,6 +1211,7 @@ def handle_eval_error_analysis(args: argparse.Namespace) -> int:
     min_area = getattr(args, "min_area", None)
     min_size_logic = getattr(args, "min_size_logic", "or")
     min_pixels = getattr(args, "min_pixels", None)
+    class_rules = _read_class_rules(getattr(args, "class_rules", None))
     if any(
         value is not None
         for value in (
@@ -1219,6 +1221,7 @@ def handle_eval_error_analysis(args: argparse.Namespace) -> int:
             min_height,
             min_area,
             min_pixels,
+            class_rules,
         )
     ):
         gt, pred = filter_error_analysis_datasets(
@@ -1231,6 +1234,7 @@ def handle_eval_error_analysis(args: argparse.Namespace) -> int:
             min_area=min_area,
             min_size_logic=min_size_logic,
             min_pixels=min_pixels,
+            class_rules=class_rules,
         )
     error_rows, summary = analyze_errors(
         gt,
