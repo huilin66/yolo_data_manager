@@ -122,6 +122,12 @@ def normalize_stats_list(stats_list: str | Iterable[str] | None) -> set[str]:
 
 
 def write_stats_plots(dataset: YoloDataset, out_dir: str | Path, stats_list: str | Iterable[str] | None = None) -> None:
+    """Write the selected aggregate and per-class statistics plots.
+
+    In addition to the legacy aggregate plots, the shape, aspect-ratio,
+    width-ratio, and height-ratio outputs are grouped by class. Width and
+    height selections also write class-comparison boxplots.
+    """
     try:
         import matplotlib.pyplot as plt
     except ImportError as exc:
@@ -152,6 +158,13 @@ def write_stats_plots(dataset: YoloDataset, out_dir: str | Path, stats_list: str
                 value_text = str(attr_value)
                 attribute_counts[attr_name][value_text] = attribute_counts[attr_name].get(value_text, 0) + 1
 
+    annotation_rows = _annotation_rows(dataset)
+    rows_by_class: dict[str, list[dict[str, object]]] = {
+        class_name: [] for class_name in dataset.classes.names
+    }
+    for row in annotation_rows:
+        rows_by_class.setdefault(str(row["category"]), []).append(row)
+
     if selected & {"legacy_csv", "box_shape", "box_shape_pix", "box_shape_rate", "box_pos_start", "box_pos_center", "box_pos_end"}:
         write_legacy_box_csv(dataset, output / "sta_box.csv")
     if selected & {"legacy_csv", "attribute"} and dataset.attributes is not None:
@@ -165,25 +178,68 @@ def write_stats_plots(dataset: YoloDataset, out_dir: str | Path, stats_list: str
         _box_number_plot(plt, objects_per_image, output / "box_number.png")
     if "box_width" in selected:
         _hist_plot(plt, widths, output / "box_width.png", "Box Width", "normalized width")
+        _write_class_hist_plots(
+            plt,
+            rows_by_class,
+            value_key="width",
+            output_dir=output / "width_image_ratio",
+            title_prefix="Box Width",
+            xlabel="normalized width",
+        )
+        _class_boxplot(
+            plt,
+            _class_values(rows_by_class, "width"),
+            output / "box_width_boxplot.png",
+            "Box Width Distribution by Class",
+            "normalized width",
+        )
     if "box_height" in selected:
         _hist_plot(plt, heights, output / "box_height.png", "Box Height", "normalized height")
+        _write_class_hist_plots(
+            plt,
+            rows_by_class,
+            value_key="height",
+            output_dir=output / "height_image_ratio",
+            title_prefix="Box Height",
+            xlabel="normalized height",
+        )
+        _class_boxplot(
+            plt,
+            _class_values(rows_by_class, "height"),
+            output / "box_height_boxplot.png",
+            "Box Height Distribution by Class",
+            "normalized height",
+        )
     if "box_shape" in selected:
-        _box_shape_plot(plt, _annotation_rows(dataset), output / "box_shape.png")
+        _box_shape_plot(plt, annotation_rows, output / "box_shape.png")
+        _write_class_shape_plots(
+            plt,
+            rows_by_class,
+            output / "box_shape_ratios",
+            pixel=False,
+        )
     if "box_area" in selected:
         _hist_plot(plt, areas, output / "box_area.png", "Box Area", "normalized area")
     if "image_shape" in selected:
         write_image_shape_csv(dataset, output / "image_shape.csv")
         _image_shape_plot(plt, dataset, output / "image_shape.png")
     if "box_shape_pix" in selected:
-        _box_shape_pix_plot(plt, _annotation_rows(dataset), output / "box_shape_pix.png")
+        _box_shape_pix_plot(plt, annotation_rows, output / "box_shape_pix.png")
+        _write_class_shape_plots(
+            plt,
+            rows_by_class,
+            output / "box_shape_pixels",
+            pixel=True,
+        )
     if "box_shape_rate" in selected:
-        _box_shape_rate_plot(plt, _annotation_rows(dataset), output / "box_shape_rate.png")
+        _box_shape_rate_plot(plt, annotation_rows, output / "box_shape_rate.png")
+        _write_class_aspect_ratio_plots(plt, rows_by_class, output / "aspect_ratio")
     if "box_pos_start" in selected:
-        _box_position_plot(plt, _annotation_rows(dataset), "start_x", "start_y", output / "box_pos_start.png", "Box Start Position")
+        _box_position_plot(plt, annotation_rows, "start_x", "start_y", output / "box_pos_start.png", "Box Start Position")
     if "box_pos_center" in selected:
-        _box_position_plot(plt, _annotation_rows(dataset), "center_x", "center_y", output / "box_pos_center.png", "Box Center Position")
+        _box_position_plot(plt, annotation_rows, "center_x", "center_y", output / "box_pos_center.png", "Box Center Position")
     if "box_pos_end" in selected:
-        _box_position_plot(plt, _annotation_rows(dataset), "end_x", "end_y", output / "box_pos_end.png", "Box End Position")
+        _box_position_plot(plt, annotation_rows, "end_x", "end_y", output / "box_pos_end.png", "Box End Position")
     if "attribute" in selected:
         for attr_name, counts in attribute_counts.items():
             _bar_plot(plt, counts, output / f"attribute_{_safe_name(attr_name)}.png", f"Attribute: {attr_name}", "value", "count")
@@ -282,6 +338,116 @@ def _hist_plot(plt, values: list[float | int], path: Path, title: str, xlabel: s
     plt.close()
 
 
+def _class_values(
+    rows_by_class: dict[str, list[dict[str, object]]],
+    value_key: str,
+) -> dict[str, list[float]]:
+    return {
+        class_name: [
+            float(row[value_key])
+            for row in rows
+            if row.get(value_key) is not None
+        ]
+        for class_name, rows in rows_by_class.items()
+    }
+
+
+def _write_class_hist_plots(
+    plt,
+    rows_by_class: dict[str, list[dict[str, object]]],
+    *,
+    value_key: str,
+    output_dir: Path,
+    title_prefix: str,
+    xlabel: str,
+) -> None:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    for class_name, values in _class_values(rows_by_class, value_key).items():
+        _hist_plot(
+            plt,
+            values,
+            output_dir / f"{_safe_name(class_name)}.png",
+            f"{title_prefix}: {class_name}",
+            xlabel,
+        )
+
+
+def _class_boxplot(
+    plt,
+    values_by_class: dict[str, list[float]],
+    path: Path,
+    title: str,
+    ylabel: str,
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    classes = [class_name for class_name, values in values_by_class.items() if values]
+    plt.figure(figsize=(max(8, len(classes) * 0.7), 6))
+    if classes:
+        plt.boxplot(
+            [values_by_class[class_name] for class_name in classes],
+            showfliers=True,
+        )
+        plt.xticks(range(1, len(classes) + 1), classes, rotation=30, ha="right")
+    plt.title(title)
+    plt.xlabel("class")
+    plt.ylabel(ylabel)
+    plt.tight_layout()
+    plt.savefig(path, dpi=200)
+    plt.close()
+
+
+def _write_class_shape_plots(
+    plt,
+    rows_by_class: dict[str, list[dict[str, object]]],
+    output_dir: Path,
+    *,
+    pixel: bool,
+) -> None:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    for class_name, rows in rows_by_class.items():
+        safe_class_name = _safe_name(class_name)
+        if pixel:
+            filtered = [
+                row
+                for row in rows
+                if row["width_pix"] is not None and row["height_pix"] is not None
+            ]
+            _hexbin_plot(
+                plt,
+                [float(row["height_pix"]) for row in filtered],
+                [float(row["width_pix"]) for row in filtered],
+                output_dir / f"{safe_class_name}.png",
+                f"Box Shape Pixels: {class_name}",
+                "box height (px)",
+                "box width (px)",
+            )
+        else:
+            _hexbin_plot(
+                plt,
+                [float(row["height"]) for row in rows],
+                [float(row["width"]) for row in rows],
+                output_dir / f"{safe_class_name}.png",
+                f"Box Shape Ratios: {class_name}",
+                "normalized height",
+                "normalized width",
+            )
+
+
+def _write_class_aspect_ratio_plots(
+    plt,
+    rows_by_class: dict[str, list[dict[str, object]]],
+    output_dir: Path,
+) -> None:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    for class_name, rows in rows_by_class.items():
+        _box_shape_rate_plot(
+            plt,
+            rows,
+            output_dir / f"{_safe_name(class_name)}.png",
+            title=f"Box Shape Rate: {class_name}",
+        )
+
+
 def _hexbin_plot(plt, x_values: list[float], y_values: list[float], path: Path, title: str, xlabel: str, ylabel: str, invert_y: bool = False) -> None:
     plt.figure(figsize=(8, 6))
     if x_values and y_values:
@@ -370,7 +536,13 @@ def _image_shape_plot(plt, dataset: YoloDataset, path: Path) -> None:
     _hexbin_plot(plt, widths, heights, path, "Image Shape", "image width", "image height")
 
 
-def _box_shape_rate_plot(plt, rows: list[dict[str, object]], path: Path) -> None:
+def _box_shape_rate_plot(
+    plt,
+    rows: list[dict[str, object]],
+    path: Path,
+    *,
+    title: str = "Box Shape Rate",
+) -> None:
     rates = [float(row["shape_rate"]) for row in rows if row["shape_rate"] is not None]
     counts = {f"({SHAPE_RATE_BINS[idx]}, {SHAPE_RATE_BINS[idx + 1]}]": 0 for idx in range(len(SHAPE_RATE_BINS) - 1)}
     for rate in rates:
@@ -380,7 +552,7 @@ def _box_shape_rate_plot(plt, rows: list[dict[str, object]], path: Path) -> None
             if (idx == 0 and left <= rate <= right) or left < rate <= right:
                 counts[f"({left}, {right}]"] += 1
                 break
-    _bar_plot(plt, counts, path, "Box Shape Rate", "width / height", "count")
+    _bar_plot(plt, counts, path, title, "width / height", "count")
 
 
 def _box_number_plot(plt, values: list[int], path: Path) -> None:

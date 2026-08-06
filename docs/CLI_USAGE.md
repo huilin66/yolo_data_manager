@@ -163,6 +163,8 @@ image_shape, box_shape, box_shape_pix, box_shape_rate,
 box_pos_start, box_pos_center, box_pos_end, attribute, legacy_csv
 ```
 
+选择 `box_shape`、`box_shape_pix`、`box_shape_rate`、`box_width`、`box_height` 时，还会按类别生成 `box_shape_ratios/`、`box_shape_pixels/`、`aspect_ratio/`、`width_image_ratio/`、`height_image_ratio/` 五个目录；`box_width` 和 `box_height` 还会生成按类别比较的 `box_width_boxplot.png` 和 `box_height_boxplot.png`。
+
 ## 可视化与裁剪
 
 ```bash

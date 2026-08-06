@@ -645,13 +645,37 @@ def test_stats_list_outputs_legacy_plots_and_csv(tmp_path):
     dataset = load_yolo_dataset(root)
     out_dir = tmp_path / "plots"
 
-    write_stats_plots(dataset, out_dir, stats_list=["image_shape", "box_shape_pix", "box_pos_center", "legacy_csv"])
+    write_stats_plots(
+        dataset,
+        out_dir,
+        stats_list=[
+            "image_shape",
+            "box_width",
+            "box_height",
+            "box_shape",
+            "box_shape_pix",
+            "box_shape_rate",
+            "box_pos_center",
+            "legacy_csv",
+        ],
+    )
     stats = compute_stats(dataset)
 
     assert (out_dir / "image_shape.png").exists()
     assert (out_dir / "image_shape.csv").exists()
+    assert (out_dir / "box_width_boxplot.png").exists()
+    assert (out_dir / "box_height_boxplot.png").exists()
     assert (out_dir / "box_shape_pix.png").exists()
     assert (out_dir / "box_pos_center.png").exists()
+    for folder in (
+        "box_shape_pixels",
+        "box_shape_ratios",
+        "aspect_ratio",
+        "width_image_ratio",
+        "height_image_ratio",
+    ):
+        assert (out_dir / folder / "person.png").exists()
+        assert (out_dir / folder / "car.png").exists()
     assert (out_dir / "sta_box.csv").exists()
     assert stats["box_width_pix"]["count"] == 3
     assert stats["box_pos_center_x"]["count"] == 3

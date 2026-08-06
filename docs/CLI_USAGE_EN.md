@@ -163,6 +163,8 @@ image_shape, box_shape, box_shape_pix, box_shape_rate,
 box_pos_start, box_pos_center, box_pos_end, attribute, legacy_csv
 ```
 
+Selecting `box_shape`, `box_shape_pix`, `box_shape_rate`, `box_width`, or `box_height` also creates the per-class folders `box_shape_ratios/`, `box_shape_pixels/`, `aspect_ratio/`, `width_image_ratio/`, and `height_image_ratio/`. The `box_width` and `box_height` selections additionally create the class-comparison boxplots `box_width_boxplot.png` and `box_height_boxplot.png`.
+
 ## Visualization and Cropping
 
 ```bash
