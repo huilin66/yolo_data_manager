@@ -3,7 +3,7 @@ import os
 from yolo_data_manager import YoloManager
 
 
-def yolo_vis(input_dir, crop=False):
+def yolo_vis(input_dir, crop=True):
 
     mgr = YoloManager(input_dir, layout="auto", init_check=False, init_layout=False)
     vis_dir = os.path.join(mgr.root, "image_vis")
@@ -29,6 +29,6 @@ if __name__ == "__main__":
 
     # data_dir = r"\\158.132.186.40\isds\huilin\traffic_sign\defect\detection\data_seg_1_damaged-guardrails"
     data_dir = (
-        r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_rgb.yaml"
+        r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_bp_cube.yaml"
     )
-    yolo_vis(data_dir, crop=True)
+    yolo_vis(data_dir)

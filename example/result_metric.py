@@ -56,59 +56,72 @@ if __name__ == "__main__":
     #     merge_class_map=merge_class_map,
     # )
 
-    data_dir = (
-        r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_rgb.yaml"
-    )
-    data_update_dir = r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_rgb_update.yaml"
-    pred_dir = r"/localnvme/project/aic_mdet/models/ultralytics/runs/detect"
-    merge_class_map = (
-        {
-            "Broken high": [
-                "Broken High Risk",
-            ],
-            "Delamination": [
-                # "Broken High Risk",
-                "Delaminated Tile Low Risk",
-                "Delaminate Tile High Risk",
-                "Cracked Tile",
-            ],
-            "Efforescene": [
-                "Efforescene Low Gray",
-                # "Efflorescene Low Risk",
-                "Efflorescene High Risk",
-                # "Broken Low Risk",
-            ],
-            "Broken": [
-                # "Broken Low Risk",
-                "Efflorescene Low Risk",
-            ],
-        },
-    )
-    exclude_class_ = [
-        "Broken Low Risk",
-        # "Delaminated Tile Low Risk"
-    ]
+    # data_dir = (
+    #     r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_rgb.yaml"
+    # )
+    # data_update_dir = r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_rgb_update.yaml"
+    # pred_dir = r"/localnvme/project/aic_mdet/models/ultralytics/runs/detect"
+    # merge_class_map = (
+    #     {
+    #         "Broken high": [
+    #             "Broken High Risk",
+    #         ],
+    #         "Delamination": [
+    #             # "Broken High Risk",
+    #             "Delaminated Tile Low Risk",
+    #             "Delaminate Tile High Risk",
+    #             "Cracked Tile",
+    #         ],
+    #         "Efforescene": [
+    #             "Efforescene Low Gray",
+    #             # "Efflorescene Low Risk",
+    #             "Efflorescene High Risk",
+    #             # "Broken Low Risk",
+    #         ],
+    #         "Broken": [
+    #             # "Broken Low Risk",
+    #             "Efflorescene Low Risk",
+    #         ],
+    #     },
+    # )
+    # exclude_class_ = [
+    #     "Broken Low Risk",
+    #     # "Delaminated Tile Low Risk"
+    # ]
+    # # yolo_metric(
+    # #     data_dir,
+    # #     pred_dir,
+    # #     "val-53",
+    # #     merge_class_map=merge_class_map,
+    # # )
     # yolo_metric(
     #     data_dir,
     #     pred_dir,
-    #     "val-53",
+    #     "val-158",
     #     merge_class_map=merge_class_map,
+    #     exclude_class_=exclude_class_,
+    #     min_pixels=20,
+    #     # conf_thres=0.10,
     # )
+    # # yolo_metric(
+    # #     data_update_dir,
+    # #     pred_dir,
+    # #     "val-157",
+    # #     merge_class_map=merge_class_map,
+    # #     # exclude_class_=exclude_class_,
+    # #     min_pixels=20,
+    # #     conf_thres=0.20,
+    # # )
+    data_dir = (
+        r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_bp_cube.yaml"
+    )
+    pred_dir = r"/localnvme/project/aic_mdet/models/ultralytics/runs/detect"
     yolo_metric(
         data_dir,
         pred_dir,
-        "val-158",
-        merge_class_map=merge_class_map,
-        exclude_class_=exclude_class_,
+        "val-159",
+        # merge_class_map=merge_class_map,
+        # # exclude_class_=exclude_class_,
         min_pixels=20,
-        # conf_thres=0.10,
+        # conf_thres=0.20,
     )
-    # yolo_metric(
-    #     data_update_dir,
-    #     pred_dir,
-    #     "val-157",
-    #     merge_class_map=merge_class_map,
-    #     # exclude_class_=exclude_class_,
-    #     min_pixels=20,
-    #     conf_thres=0.20,
-    # )

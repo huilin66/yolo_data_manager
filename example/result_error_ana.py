@@ -41,10 +41,9 @@ def yolo_error_ana(
 
 if __name__ == "__main__":
     data_dir = (
-        r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_rgb.yaml"
+        r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_bp_cube.yaml"
     )
     pred_dir = r"/localnvme/project/aic_mdet/models/ultralytics/runs/detect"
 
-    yolo_error_ana(
-        data_dir, pred_dir, "val-158", only_val=False, min_pixels=10, conf_thres=0.10
-    )
+    # yolo_error_ana(data_dir, pred_dir, "predict-6", only_val=False)
+    yolo_error_ana(data_dir, pred_dir, "val-159", only_val=True)

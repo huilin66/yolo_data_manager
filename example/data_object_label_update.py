@@ -35,11 +35,10 @@ if __name__ == "__main__":
     # )
 
     data_dir = (
-        r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_rgb.yaml"
+        r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_bp_cube.yaml"
     )
     crops_map = {
-        "/localnvme/data/bdd_hmt/sua_rgb/image_vis/crop_change/2_b_low": "Broken Low Risk",
-        "/localnvme/data/bdd_hmt/sua_rgb/image_vis/crop_change/2_e_low": "Efflorescene Low Risk",
+        "/localnvme/data/bdd_hmt/bp_cube/image_vis/crop_change/2_p": "peeling",
     }
 
     for k, v in crops_map.items():
