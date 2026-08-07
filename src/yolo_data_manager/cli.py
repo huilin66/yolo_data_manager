@@ -123,6 +123,11 @@ def build_parser() -> argparse.ArgumentParser:
     add_dataset_args(dataset_select)
     dataset_select.add_argument("--file", required=True, help="selection file containing image paths/names/stems")
     dataset_select.add_argument("--out", required=True, help="output dataset root")
+    dataset_select.add_argument(
+        "--backup-dir",
+        default=None,
+        help="backup directory; default is <dataset-root>/labels_backup",
+    )
     dataset_select.add_argument("--no-copy-images", dest="copy_images", action="store_false")
     dataset_select.set_defaults(handler=handle_dataset_select, copy_images=True)
 
@@ -152,6 +157,11 @@ def build_parser() -> argparse.ArgumentParser:
     dataset_filter = dataset_sub.add_parser("filter", help="filter annotations by class/geometry/confidence")
     add_dataset_args(dataset_filter)
     dataset_filter.add_argument("--out", required=True, help="output dataset root")
+    dataset_filter.add_argument(
+        "--backup-dir",
+        default=None,
+        help="backup directory; default is <dataset-root>/labels_backup",
+    )
     dataset_filter.add_argument("--class", dest="class_values", default=None, help="class id/name, comma-separated allowed")
     dataset_filter.add_argument("--min-width", type=float, default=None)
     dataset_filter.add_argument("--min-height", type=float, default=None)
@@ -167,6 +177,11 @@ def build_parser() -> argparse.ArgumentParser:
     dataset_merge = dataset_sub.add_parser("merge", help="merge multiple YOLO datasets with class-name alignment")
     dataset_merge.add_argument("--roots", required=True, help="comma-separated dataset roots")
     dataset_merge.add_argument("--out", required=True, help="output dataset root")
+    dataset_merge.add_argument(
+        "--backup-dir",
+        default=None,
+        help="backup directory; default is <dataset-root>/labels_backup",
+    )
     dataset_merge.add_argument("--task", choices=["auto", "detect", "segment"], default="auto")
     dataset_merge.add_argument("--images-dir", default="images")
     dataset_merge.add_argument("--labels-dir", default="labels")
@@ -233,6 +248,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add_dataset_args(correct_crops)
     correct_crops.add_argument("--crops-dir", required=True, help="directory containing vis-crop images")
+    correct_crops.add_argument(
+        "--backup-dir",
+        default=None,
+        help="backup directory; default is <dataset-root>/labels_backup",
+    )
     correct_crops.add_argument("--to", dest="to_value", required=True, help="target class id/name; use none/null to delete the annotation")
     correct_crops.add_argument("--report", default=None, help="optional edit report CSV path")
     correct_crops.add_argument("--dry-run", action="store_true", help="report changes without modifying labels")
@@ -245,6 +265,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     add_dataset_args(correct_error_crops)
     correct_error_crops.add_argument("--crops-dir", required=True, help="directory containing pred_gt crop images")
+    correct_error_crops.add_argument(
+        "--backup-dir",
+        default=None,
+        help="backup directory; default is <dataset-root>/labels_backup",
+    )
     correct_error_crops.add_argument(
         "--pred-dir",
         "--pred-labels-dir",
@@ -545,6 +570,11 @@ def add_runtime_args(parser: argparse.ArgumentParser, *, workers: bool = True) -
 
 def add_write_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--out", required=True, help="output dataset root")
+    parser.add_argument(
+        "--backup-dir",
+        default=None,
+        help="backup directory; default is <dataset-root>/labels_backup",
+    )
     parser.add_argument("--report", default=None, help="optional edit report CSV path")
     parser.add_argument("--no-copy-images", dest="copy_images", action="store_false", help="do not copy image files")
     parser.add_argument("--drop-empty-labels", dest="keep_empty_labels", action="store_false", help="do not write empty label files")
@@ -675,6 +705,7 @@ def handle_dataset_select(args: argparse.Namespace) -> int:
         workers=args.workers,
         progress=args.progress,
         progress_leave=args.progress_leave,
+        backup_dir=args.backup_dir,
     )
     print(json.dumps({"images": len(selected.images), "out": args.out}, indent=2, ensure_ascii=False))
     return 0
@@ -691,6 +722,7 @@ def handle_dataset_normalize(args: argparse.Namespace) -> int:
             workers=args.workers,
             progress=args.progress,
             progress_leave=args.progress_leave,
+            backup_dir=args.backup_dir,
         )
     print(json.dumps({"images": len(dataset.images), "annotations": dataset.annotation_count(), "out": None if args.dry_run else args.out}, indent=2, ensure_ascii=False))
     return 0
@@ -755,6 +787,7 @@ def handle_dataset_filter(args: argparse.Namespace) -> int:
             workers=args.workers,
             progress=args.progress,
             progress_leave=args.progress_leave,
+            backup_dir=args.backup_dir,
         )
     print(json.dumps({"before": before, "after": after, "removed": before - after, "out": None if args.dry_run else args.out}, indent=2, ensure_ascii=False))
     return 0
@@ -780,6 +813,7 @@ def handle_dataset_merge(args: argparse.Namespace) -> int:
             workers=args.workers,
             progress=args.progress,
             progress_leave=args.progress_leave,
+            backup_dir=args.backup_dir,
         )
         for root in roots
     ]
@@ -797,6 +831,7 @@ def handle_dataset_merge(args: argparse.Namespace) -> int:
             workers=args.workers,
             progress=args.progress,
             progress_leave=args.progress_leave,
+            backup_dir=args.backup_dir,
         )
     print(
         json.dumps(
@@ -883,6 +918,7 @@ def handle_apply_map(args: argparse.Namespace) -> int:
             workers=args.workers,
             progress=args.progress,
             progress_leave=args.progress_leave,
+            backup_dir=args.backup_dir,
         )
     if args.report:
         rows = []
@@ -901,6 +937,7 @@ def handle_correct_from_crops(args: argparse.Namespace) -> int:
         dataset,
         args.crops_dir,
         _parse_optional_class_value(args.to_value),
+        backup_dir=getattr(args, "backup_dir", None),
         dry_run=args.dry_run,
     )
     if args.report:
@@ -922,6 +959,7 @@ def handle_correct_from_error_crops(args: argparse.Namespace) -> int:
         dedup_iou=getattr(args, "dedup_iou", 0.5),
         delete_pred_none=getattr(args, "delete_pred_none", False),
         replace_gt_from_pred=getattr(args, "replace_gt_from_pred", False),
+        backup_dir=getattr(args, "backup_dir", None),
         dry_run=args.dry_run,
     )
     if args.report:
@@ -1140,6 +1178,7 @@ def handle_seg2det(args: argparse.Namespace) -> int:
         workers=args.workers,
         progress=args.progress,
         progress_leave=args.progress_leave,
+        backup_dir=args.backup_dir,
     )
     print(json.dumps({"out": args.out}, indent=2, ensure_ascii=False))
     return 0
@@ -1158,6 +1197,7 @@ def handle_pseudo(args: argparse.Namespace) -> int:
             workers=args.workers,
             progress=args.progress,
             progress_leave=args.progress_leave,
+            backup_dir=args.backup_dir,
         )
     print(json.dumps({"annotations": pseudo.annotation_count(), "out": None if args.dry_run else args.out}, indent=2, ensure_ascii=False))
     return 0
@@ -1413,6 +1453,7 @@ def _write_edit_result(dataset, report, args: argparse.Namespace) -> None:
             workers=args.workers,
             progress=args.progress,
             progress_leave=args.progress_leave,
+            backup_dir=args.backup_dir,
         )
     if args.report:
         report.write_csv(args.report)

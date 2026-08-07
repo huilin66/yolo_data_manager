@@ -88,8 +88,10 @@ ydm ann rename-class --root path/to/yolo --from cls_a --to cls_b --out yolo_rena
 ydm ann apply-map --root path/to/yolo --map class_map.yaml --out yolo_mapped
 ydm ann set-attr --root path/to/yolo --name defect --value yes --class sign --out yolo_attr_fixed
 ydm ann delete-attr --root path/to/yolo --name defect --value yes --out yolo_attr_clean
-ydm ann correct-from-crops --root path/to/yolo --crops-dir image_vis/crop/car --to defect --report crop_correction.csv
-ydm ann correct-from-error-crops --root path/to/yolo --crops-dir result_ana/val-52/review/pred_gt/pred_car_gt_background/crops --pred-dir result_ana/val-52/review/pred_txt --dedup-iou 0.5 --to defect --delete-pred-none --only-val --report gt_correction.csv
+ydm dataset filter --root path/to/yolo --min-area 0.001 --out yolo_filtered --backup-dir label_backups
+ydm ann merge-class --root path/to/yolo --from crack,break --to defect --out yolo_merged --backup-dir label_backups
+ydm ann correct-from-crops --root path/to/yolo --crops-dir image_vis/crop/car --to defect --backup-dir label_backups --report crop_correction.csv
+ydm ann correct-from-error-crops --root path/to/yolo --crops-dir result_ana/val-52/review/pred_gt/pred_car_gt_background/crops --pred-dir result_ana/val-52/review/pred_txt --dedup-iou 0.5 --to defect --delete-pred-none --backup-dir label_backups --only-val --report gt_correction.csv
 ```
 
 写操作默认输出到 `--out`，不原地覆盖原数据。
@@ -97,6 +99,7 @@ ydm ann correct-from-error-crops --root path/to/yolo --crops-dir result_ana/val-
 `correct-from-error-crops` 使用 `xxx_predx_gty` 文件名中的 `y` 定位 GT 标注序号。提供 `--pred-dir` 后，`gt none` 的 crop 会使用预测 txt 中第 `x` 条记录追加到对应 GT label；追加时会去掉 prediction confidence。未提供 `--pred-dir` 时，`gt none` crop 会跳过。
 追加预测以及 `--replace-gt-from-pred` 产生的替换框，默认按同一类别、同一图片的 IoU `0.5` 去重，重叠候选保留置信度更高的预测；替换框被去重时，对应的重复 GT 也会删除。可用 `--dedup-iou` 调整阈值。
 指定 `--delete-pred-none` 后，`prednone_gty` 会删除对应的第 `y` 条 GT 标注，即使 `--to` 设置了目标类别。只处理删除时可使用 `--to none --delete-pred-none`；`predx_gty` 仍按 `--to` 执行类别更新或删除。指定 `--replace-gt-from-pred` 后，需要同时提供 `--pred-dir`，`predx_gty` 会用预测第 `x` 条记录完整替换 GT 第 `y` 条（类别和 geometry），`prednone_gty` 删除，`predx_gtnone` 追加。
+会写出 GT label txt 的命令（包括 `dataset filter`、`dataset merge` 和 `ann` 编辑命令）都支持 `--backup-dir`：写出前先备份当前输入 label。未指定时默认使用 `<数据集根目录>/labels_backup`，指定后可覆盖默认路径。crop 校正只备份实际修改的 txt。每次运行会在备份目录下创建 `YYYYMMDD_HHMMSS_microseconds` 时间戳子目录，并保留相对于数据集根目录的路径；同一 txt 在一次运行中只备份一次。`--dry-run` 不会创建备份。
 
 ## 数据集管理
 

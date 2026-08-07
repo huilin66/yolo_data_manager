@@ -10,6 +10,7 @@ import re
 from yolo_data_manager.core.models import YoloAnnotation, YoloDataset, YoloImage, is_image_file
 from yolo_data_manager.annotation.edit import EditReport, EditRow
 from yolo_data_manager.io.loader import parse_label_file
+from yolo_data_manager.io.backup import LabelBackup
 
 
 _CROP_NAME_RE = re.compile(r"^(?P<stem>.+)_(?P<index>[1-9][0-9]*)$")
@@ -42,6 +43,9 @@ class CropCorrectionResult:
     ambiguous_prediction_labels: list[str] = field(default_factory=list)
     invalid_prediction_labels: list[str] = field(default_factory=list)
     invalid_prediction_indices: list[str] = field(default_factory=list)
+    backup_dir: str | None = None
+    backup_timestamp: str | None = None
+    backup_files: int = 0
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -65,6 +69,9 @@ class CropCorrectionResult:
             "ambiguous_prediction_labels": self.ambiguous_prediction_labels,
             "invalid_prediction_labels": self.invalid_prediction_labels,
             "invalid_prediction_indices": self.invalid_prediction_indices,
+            "backup_dir": self.backup_dir,
+            "backup_timestamp": self.backup_timestamp,
+            "backup_files": self.backup_files,
             "skipped": (
                 len(self.invalid_crops)
                 + len(self.missing_images)
@@ -85,6 +92,7 @@ def correct_labels_from_crops(
     crops_dir: str | Path,
     target_class: int | str | None,
     *,
+    backup_dir: str | Path | None = None,
     dry_run: bool = False,
 ) -> tuple[CropCorrectionResult, EditReport]:
     """Update label classes identified by standard ``vis crop`` filenames.
@@ -112,15 +120,23 @@ def correct_labels_from_crops(
             continue
         targets.setdefault(parsed, []).append(crop_path)
 
-    return _correct_target_map(
+    backup = LabelBackup(dataset.root, backup_dir) if not dry_run else None
+    result, edit_report = _correct_target_map(
         dataset,
         targets,
         target_class,
         crop_files=crop_files,
         invalid_crops=invalid_crops,
         image_key=lambda image: image.stem,
+        backup=backup,
         dry_run=dry_run,
     )
+    if backup is not None:
+        if backup.count:
+            result.backup_dir = str(backup.snapshot_dir)
+            result.backup_timestamp = backup.timestamp
+            result.backup_files = backup.count
+    return result, edit_report
 
 
 def correct_gt_labels_from_error_crops(
@@ -132,6 +148,7 @@ def correct_gt_labels_from_error_crops(
     dedup_iou: float | None = 0.5,
     delete_pred_none: bool = False,
     replace_gt_from_pred: bool = False,
+    backup_dir: str | Path | None = None,
     dry_run: bool = False,
 ) -> tuple[CropCorrectionResult, EditReport]:
     """Correct GT classes from ``eval_error_analysis`` crop filenames.
@@ -187,6 +204,7 @@ def correct_gt_labels_from_error_crops(
             forced_delete_targets.add((stem, gt_index))
         targets.setdefault((stem, gt_index), []).append(crop_path)
 
+    backup = LabelBackup(dataset.root, backup_dir) if not dry_run else None
     result, edit_report = _correct_target_map(
         dataset,
         targets,
@@ -197,6 +215,7 @@ def correct_gt_labels_from_error_crops(
         replacement_targets=replacement_targets,
         pred_labels_dir=pred_labels_dir,
         dedup_iou=dedup_iou,
+        backup=backup,
         forced_delete_targets=forced_delete_targets,
         dry_run=dry_run,
     )
@@ -211,8 +230,14 @@ def correct_gt_labels_from_error_crops(
         result,
         edit_report,
         dedup_iou=dedup_iou,
+        backup=backup,
         dry_run=dry_run,
     )
+    if backup is not None:
+        if backup.count:
+            result.backup_dir = str(backup.snapshot_dir)
+            result.backup_timestamp = backup.timestamp
+            result.backup_files = backup.count
     return result, edit_report
 
 
@@ -228,6 +253,7 @@ def _correct_target_map(
     replacement_targets: dict[tuple[str, int], list[tuple[int, Path]]] | None = None,
     pred_labels_dir: str | Path | None = None,
     dedup_iou: float | None = None,
+    backup: LabelBackup | None = None,
     forced_delete_targets: set[tuple[str, int]] | None = None,
 ) -> tuple[CropCorrectionResult, EditReport]:
     target_id = dataset.class_id(target_class) if target_class is not None else None
@@ -260,6 +286,7 @@ def _correct_target_map(
         edit_report,
         image_key=image_key,
         dedup_iou=dedup_iou,
+        backup=backup,
         dry_run=dry_run,
     )
     for (stem, crop_index), crop_paths in sorted(targets.items()):
@@ -314,6 +341,8 @@ def _correct_target_map(
 
     if not dry_run:
         for label_path, changes in pending.items():
+            if backup is not None:
+                backup.backup(label_path)
             _rewrite_label_classes(label_path, changes)
         for image, annotation, new_class_id in changed_annotations:
             if new_class_id is None:
@@ -333,6 +362,7 @@ def _replace_target_map_from_predictions(
     *,
     image_key,
     dedup_iou: float | None,
+    backup: LabelBackup | None,
     dry_run: bool,
 ) -> None:
     """Replace existing GT rows with prediction rows selected by crop names."""
@@ -479,6 +509,8 @@ def _replace_target_map_from_predictions(
     if dry_run:
         return
     for label_path, changes in pending.items():
+        if backup is not None:
+            backup.backup(label_path)
         _rewrite_label_annotations(label_path, changes)
     for image, annotation, replacement in changed_annotations:
         if replacement is None:
@@ -541,6 +573,7 @@ def _append_prediction_targets(
     edit_report: EditReport,
     *,
     dedup_iou: float | None,
+    backup: LabelBackup | None,
     dry_run: bool,
 ) -> None:
     """Append prediction annotations selected by ``gtnone`` crops."""
@@ -650,6 +683,8 @@ def _append_prediction_targets(
 
         if dry_run:
             continue
+        if backup is not None:
+            backup.backup(label_path)
         _append_label_lines(label_path, append_lines)
         for image, prediction, line, _pred_index in additions:
             appended = copy(prediction)

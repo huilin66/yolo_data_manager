@@ -61,7 +61,7 @@ mgr.query_attr(name="quality", nonzero=True)
 mgr.dataset_normalize(out=r"E:\datasets\normalized_yolo")
 mgr.dataset_split(train=0.8, val=0.1, test=0.1, seed=233)
 mgr.dataset_split(train=0.8, val=0.1, test=0.1, seed=233, absolute_paths=True)
-mgr.dataset_filter(out="filtered", min_area=0.001, class_=["car", "truck"])
+mgr.dataset_filter(out="filtered", min_area=0.001, class_=["car", "truck"], backup_dir="label_backups")
 mgr.dataset_filter(out="filtered_small", min_width=0.01, min_height=0.01,
                    min_size_logic="and")
 mgr.dataset_filter(
@@ -79,10 +79,11 @@ mgr.dataset_bad_images(out="bad_images.csv")
 
 # 多数据集合并 —— roots 不在 mgr 上，独立传入
 mgr.dataset_merge(roots=[r"E:\datasets\part1", r"E:\datasets\part2"],
-                  out="merged_yolo", source_prefix=True)
+                  out="merged_yolo", source_prefix=True, backup_dir="label_backups")
 
 # 标注修改 —— 修改操作写入新目录，不覆盖原数据；建议先 dry_run=True
-mgr.ann_merge_class(from_=["crack", "break"], to="defect", out="yolo_merged", compact=True)
+mgr.ann_merge_class(from_=["crack", "break"], to="defect", out="yolo_merged", compact=True,
+                    backup_dir="label_backups")
 mgr.ann_merge_class({"vehicle": ["car", "truck"], "human": ["person"]}, out="yolo_merged_multi")
 mgr.ann_delete_class(class_=["ignore"], out="yolo_clean", compact=True)
 mgr.ann_replace_class(from_=["old_name"], to="new_name", out="yolo_replaced")
@@ -95,6 +96,7 @@ mgr.ann_correct_from_crops(
     to="defect",
     only_val=True,
     report="crop_correction.csv",
+    backup_dir="label_backups",
     dry_run=True,
 )
 
@@ -108,11 +110,13 @@ mgr.ann_correct_from_error_crops(
     to="defect",
     only_val=True,
     report="gt_correction.csv",
+    backup_dir="label_backups",
     dry_run=True,
 )
 # error-analysis crop 使用 `xxx_predx_gty`；提供 pred_dir 后，gtnone 会按 predx 从预测 txt 追加到 GT。
 # delete_pred_none=True 时，prednone_gty 会删除第 y 条 GT，即使 to 设置为更新类别。
 # replace_gt_from_pred=True 时，predx_gty 会用预测第 x 条完整替换 GT 第 y 条（类别和 geometry），并按 dedup_iou 对同图同类替换框去重；被抑制的重复 GT 会删除。
+# backup_dir 指定写出 GT 前的备份目录；省略时默认是 `<数据集根目录>/labels_backup`。每次实际写入会创建带时间戳的快照子目录，dry_run=True 不会创建备份。
 
 # 可视化
 mgr.vis_draw(out="images_vis", show_conf=True, show_attrs=True)

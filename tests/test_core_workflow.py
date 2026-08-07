@@ -4,7 +4,10 @@ import json
 from PIL import Image
 
 from yolo_data_manager.annotation.edit import delete_by_attribute, merge_classes, set_attribute
-from yolo_data_manager.annotation.crop_correction import correct_gt_labels_from_error_crops
+from yolo_data_manager.annotation.crop_correction import (
+    correct_gt_labels_from_error_crops,
+    correct_labels_from_crops,
+)
 from yolo_data_manager.annotation.query import copy_query_result, query_by_attribute, query_by_class
 from yolo_data_manager.converters.coco import import_coco
 from yolo_data_manager.converters.labelme import import_labelme_dir
@@ -90,9 +93,21 @@ def test_build_python_task_argv():
         min_height=0.01,
         min_size_logic="and",
         class_rules=Path("rules.yaml"),
+        backup_dir=Path("label_backups"),
     )
     assert "--min-size-logic" in filter_argv
     assert "--class-rules" in filter_argv
+    assert "--backup-dir" in filter_argv
+
+    merge_argv = build_task_argv(
+        "ann.merge_class",
+        root=Path("dataset"),
+        out=Path("merged"),
+        from_=["crack", "break"],
+        to="defect",
+        backup_dir=Path("label_backups"),
+    )
+    assert "--backup-dir" in merge_argv
 
     vis_argv = build_task_argv("vis.draw", root=Path("dataset"), out="vis", show_id=True, workers=4, progress=False)
     assert "--show-id" in vis_argv
@@ -151,12 +166,15 @@ def test_build_python_task_argv():
         dedup_iou=0.5,
         delete_pred_none=True,
         replace_gt_from_pred=True,
+        backup_dir=Path("label_backups"),
         to="none",
     )
     assert "--pred-dir" in correction_argv
     assert "--dedup-iou" in correction_argv
     assert "--delete-pred-none" in correction_argv
     assert "--replace-gt-from-pred" in correction_argv
+    assert "--backup-dir" in correction_argv
+    assert "label_backups" in correction_argv
 
     metrics_argv = build_task_argv(
         "eval.metrics",
@@ -510,6 +528,41 @@ def test_layout_detect_split_dirs_and_normalize(tmp_path):
     assert payload["classes"] == ["obj"]
     assert dataset.annotation_count() == 1
     assert (tmp_path / "normalized" / "images" / "a.jpg").exists()
+
+
+def test_write_yolo_dataset_backups_source_labels_before_writing(tmp_path):
+    root = make_dataset(tmp_path / "writer_backup")
+    dataset = load_yolo_dataset(root)
+    backup_root = tmp_path / "label_backups"
+    original_a = (root / "labels" / "a.txt").read_text(encoding="utf-8")
+    original_b = (root / "labels" / "b.txt").read_text(encoding="utf-8")
+
+    backup = write_yolo_dataset(
+        dataset,
+        tmp_path / "output",
+        workers=1,
+        backup_dir=backup_root,
+    )
+
+    snapshots = list(backup_root.iterdir())
+    assert backup is not None
+    assert backup.count == 2
+    assert len(snapshots) == 1
+    assert (snapshots[0] / "labels" / "a.txt").read_text(encoding="utf-8") == original_a
+    assert (snapshots[0] / "labels" / "b.txt").read_text(encoding="utf-8") == original_b
+    assert (tmp_path / "output" / "labels" / "a.txt").exists()
+
+
+def test_write_yolo_dataset_defaults_backup_to_dataset_root(tmp_path):
+    root = make_dataset(tmp_path / "writer_default_backup")
+    dataset = load_yolo_dataset(root)
+
+    write_yolo_dataset(dataset, tmp_path / "output", workers=1)
+
+    snapshots = list((root / "labels_backup").iterdir())
+    assert len(snapshots) == 1
+    assert (snapshots[0] / "labels" / "a.txt").exists()
+    assert (snapshots[0] / "labels" / "b.txt").exists()
 
 
 def test_image_list_layout(tmp_path):
@@ -879,6 +932,60 @@ def test_correct_labels_from_crops_updates_one_based_annotation_and_preserves_ge
     ]
 
 
+def test_correct_labels_from_crops_backups_changed_labels_with_timestamp(tmp_path):
+    root = make_dataset(tmp_path / "crop_correction_backup")
+    crops = tmp_path / "crops"
+    crops.mkdir()
+    Image.new("RGB", (10, 10), color="white").save(crops / "a_2.jpg")
+    original = (root / "labels" / "a.txt").read_text(encoding="utf-8")
+    backup_root = tmp_path / "label_backups"
+
+    dataset = load_yolo_dataset(root)
+    result, _ = correct_labels_from_crops(
+        dataset,
+        crops,
+        "person",
+        backup_dir=backup_root,
+    )
+
+    snapshots = list(backup_root.iterdir())
+    assert len(snapshots) == 1
+    assert snapshots[0].name.count("_") == 2
+    assert result.backup_files == 1
+    assert Path(result.backup_dir) == snapshots[0]
+    assert result.backup_timestamp == snapshots[0].name
+    assert (snapshots[0] / "labels" / "a.txt").read_text(encoding="utf-8") == original
+    assert not (snapshots[0] / "labels" / "b.txt").exists()
+
+    dry_backup_root = tmp_path / "dry_run_backups"
+    dataset = load_yolo_dataset(root)
+    result, _ = correct_labels_from_crops(
+        dataset,
+        crops,
+        "car",
+        backup_dir=dry_backup_root,
+        dry_run=True,
+    )
+    assert result.backup_files == 0
+    assert not dry_backup_root.exists()
+
+
+def test_crop_correction_uses_dataset_default_backup_dir(tmp_path):
+    root = make_dataset(tmp_path / "crop_correction_default_backup")
+    crops = tmp_path / "crops"
+    crops.mkdir()
+    Image.new("RGB", (10, 10), color="white").save(crops / "a_2.jpg")
+    original = (root / "labels" / "a.txt").read_text(encoding="utf-8")
+
+    dataset = load_yolo_dataset(root)
+    result, _ = correct_labels_from_crops(dataset, crops, "person")
+
+    snapshots = list((root / "labels_backup").iterdir())
+    assert len(snapshots) == 1
+    assert Path(result.backup_dir) == snapshots[0]
+    assert (snapshots[0] / "labels" / "a.txt").read_text(encoding="utf-8") == original
+
+
 def test_correct_gt_labels_from_error_crops_uses_gt_index(tmp_path):
     root = make_dataset(tmp_path / "error_crop_correction")
     crops = tmp_path / "error_review" / "pred_gt" / "pred_car_gt_person" / "crops"
@@ -981,18 +1088,25 @@ def test_correct_gt_labels_from_error_crops_replaces_gt_from_prediction(tmp_path
     Image.new("RGB", (10, 10), color="white").save(crops / "a_pred2_gtnone.jpg")
 
     dataset = load_yolo_dataset(root, task="detect")
+    original = (root / "labels" / "a.txt").read_text(encoding="utf-8")
+    backup_root = tmp_path / "label_backups"
     result, report = correct_gt_labels_from_error_crops(
         dataset,
         crops,
         None,
         pred_labels_dir=pred_labels,
         replace_gt_from_pred=True,
+        backup_dir=backup_root,
     )
 
     assert result.replaced == 1
     assert result.deleted == 1
     assert result.added == 1
     assert result.changed == 3
+    snapshots = list(backup_root.iterdir())
+    assert len(snapshots) == 1
+    assert result.backup_files == 1
+    assert (snapshots[0] / "labels" / "a.txt").read_text(encoding="utf-8") == original
     assert {row.operation for row in report.rows} == {
         "replace_gt_from_prediction",
         "delete_gt_from_missing_prediction",

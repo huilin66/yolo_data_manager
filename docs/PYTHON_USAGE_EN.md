@@ -114,7 +114,7 @@ mgr.dataset_bad_images(out="bad_images.csv")
 Filtering:
 
 ```python
-mgr.dataset_filter(out="filtered", min_area=0.001, class_=["car", "truck"])
+mgr.dataset_filter(out="filtered", min_area=0.001, class_=["car", "truck"], backup_dir="label_backups")
 mgr.dataset_filter(out="filtered_small", min_width=0.01, min_height=0.01, min_size_logic="and")
 mgr.dataset_filter(
     out="filtered_by_class",
@@ -138,7 +138,8 @@ mgr.dataset_merge(roots=["datasets/part1", "datasets/part2"], out="merged_yolo",
 ## Annotation Edits
 
 ```python
-mgr.ann_merge_class(from_=["crack", "break"], to="defect", out="yolo_merged", compact=True)
+mgr.ann_merge_class(from_=["crack", "break"], to="defect", out="yolo_merged", compact=True,
+                    backup_dir="label_backups")
 mgr.ann_merge_class({"vehicle": ["car", "truck"], "human": ["person"]}, out="yolo_merged_multi")
 mgr.ann_delete_class(class_=["ignore"], out="yolo_clean", compact=True)
 mgr.ann_replace_class(from_=["old_name"], to="new_name", out="yolo_replaced")
@@ -151,13 +152,16 @@ mgr.ann_correct_from_crops(
     to="defect",
     only_val=True,
     report="crop_correction.csv",
+    backup_dir="label_backups",
     dry_run=True,
 )
 ```
 
-Write operations output to a new directory. `ann_correct_from_crops` is the exception: it updates the source label files identified by crop names. Use `dry_run=True` when you want to inspect the effect first.
+Write operations output to a new directory. Commands that write GT label txt files accept `backup_dir` to snapshot current input labels before writing; crop correction is the in-place exception and backs up only labels it changes. Use `dry_run=True` when you want to inspect the effect first.
 Pass `to=None` to delete the corresponding annotation instead of assigning a class.
+Pass `backup_dir="label_backups"` to override the default backup directory. If omitted, backups go to `<dataset-root>/labels_backup`. Each source txt is backed up at most once per run; `dry_run=True` creates no backup.
 Use `mgr.ann_correct_from_error_crops(...)` for `eval_error_analysis` crops; in `xxx_predx_gty`, the 1-based `y` locates the GT annotation. Provide `pred_dir` to append prediction txt record `x` for `gtnone` crops, without prediction confidence. Added predictions use same-class IoU deduplication (default `dedup_iou=0.5`) and keep the higher-confidence candidate.
+The same `backup_dir` option applies to `ann_correct_from_error_crops`.
 Set `delete_pred_none=True` to delete the GT row `y` for `prednone_gty` crops even when `to` is an update class. For deletion-only crops, pass `to=None` and `delete_pred_none=True`.
 Set `replace_gt_from_pred=True` with `pred_dir` to replace GT row `y` completely with prediction row `x` for `predx_gty` crops; same-class overlapping replacements use `dedup_iou` and keep the higher-confidence prediction, while the suppressed duplicate GT row is deleted. `prednone_gty` is deleted and `predx_gtnone` is appended.
 

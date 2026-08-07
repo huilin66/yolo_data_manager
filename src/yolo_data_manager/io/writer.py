@@ -6,6 +6,7 @@ from pathlib import Path
 
 from yolo_data_manager.core.models import YoloDataset, YoloImage
 from yolo_data_manager.core.schema import write_attribute_schema, write_class_schema, write_dataset_yaml
+from yolo_data_manager.io.backup import LabelBackup
 from yolo_data_manager.runtime import iter_progress, normalize_workers
 
 
@@ -19,12 +20,18 @@ def write_yolo_dataset(
     workers: int = 8,
     progress: bool = False,
     progress_leave: bool = False,
-) -> None:
+    backup_dir: str | Path | None = None,
+) -> LabelBackup:
     out_path = Path(out_root)
     image_dir = out_path / "images"
     label_dir = out_path / "labels"
     image_dir.mkdir(parents=True, exist_ok=True)
     label_dir.mkdir(parents=True, exist_ok=True)
+
+    backup = LabelBackup(dataset.root, backup_dir)
+    for image in dataset.images:
+        if image.label_path is not None:
+            backup.backup(image.label_path)
 
     write_class_schema(dataset.classes, out_path / "class.txt")
     write_dataset_yaml(dataset.classes, out_path / "dataset.yaml", train="images", val="images")
@@ -42,7 +49,7 @@ def write_yolo_dataset(
                 include_confidence=include_confidence,
                 overwrite_images=overwrite_images,
             )
-        return
+        return backup
 
     with ThreadPoolExecutor(max_workers=worker_count) as executor:
         futures = [
@@ -60,6 +67,7 @@ def write_yolo_dataset(
         ]
         for future in iter_progress(as_completed(futures), enabled=progress, total=len(futures), desc="write dataset", leave=progress_leave):
             future.result()
+    return backup
 
 
 def _write_image_item(

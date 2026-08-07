@@ -88,8 +88,10 @@ ydm ann rename-class --root path/to/yolo --from cls_a --to cls_b --out yolo_rena
 ydm ann apply-map --root path/to/yolo --map class_map.yaml --out yolo_mapped
 ydm ann set-attr --root path/to/yolo --name defect --value yes --class sign --out yolo_attr_fixed
 ydm ann delete-attr --root path/to/yolo --name defect --value yes --out yolo_attr_clean
-ydm ann correct-from-crops --root path/to/yolo --crops-dir image_vis/crop/car --to defect --report crop_correction.csv
-ydm ann correct-from-error-crops --root path/to/yolo --crops-dir result_ana/val-52/review/pred_gt/pred_car_gt_background/crops --pred-dir result_ana/val-52/review/pred_txt --dedup-iou 0.5 --to defect --delete-pred-none --only-val --report gt_correction.csv
+ydm dataset filter --root path/to/yolo --min-area 0.001 --out yolo_filtered --backup-dir label_backups
+ydm ann merge-class --root path/to/yolo --from crack,break --to defect --out yolo_merged --backup-dir label_backups
+ydm ann correct-from-crops --root path/to/yolo --crops-dir image_vis/crop/car --to defect --backup-dir label_backups --report crop_correction.csv
+ydm ann correct-from-error-crops --root path/to/yolo --crops-dir result_ana/val-52/review/pred_gt/pred_car_gt_background/crops --pred-dir result_ana/val-52/review/pred_txt --dedup-iou 0.5 --to defect --delete-pred-none --backup-dir label_backups --only-val --report gt_correction.csv
 ```
 
 Write operations target `--out` and do not overwrite the source dataset in place.
@@ -97,6 +99,7 @@ Write operations target `--out` and do not overwrite the source dataset in place
 `correct-from-error-crops` uses the `y` in `xxx_predx_gty` to locate the GT annotation. When `--pred-dir` is provided, a crop with `gt none` appends prediction txt record `x` to the corresponding GT label, omitting prediction confidence. Without `--pred-dir`, `gt none` crops are skipped.
 Added predictions and `--replace-gt-from-pred` replacement boxes are deduplicated by same-class IoU on the same image; overlapping candidates keep the higher-confidence prediction, and a suppressed replacement deletes its duplicate GT row. Use `--dedup-iou` to change the default `0.5` threshold.
 With `--delete-pred-none`, `prednone_gty` deletes GT annotation `y` even when `--to` names an update class. For deletion-only review crops, use `--to none --delete-pred-none`; `predx_gty` continues to follow `--to`. With `--replace-gt-from-pred` and `--pred-dir`, `predx_gty` replaces GT row `y` completely with prediction row `x` (class and geometry), `prednone_gty` deletes, and `predx_gtnone` appends.
+Commands that write GT label txt files, including `dataset filter`, `dataset merge`, and `ann` edits, support `--backup-dir` to snapshot current input labels before writing. When omitted, the default is `<dataset-root>/labels_backup`; passing it overrides the default. Crop correction backs up only labels it actually changes. Each run creates a `YYYYMMDD_HHMMSS_microseconds` snapshot directory and preserves paths relative to the dataset root; a label file is copied at most once per run. `--dry-run` does not create a backup.
 
 ## Dataset Operations
 
