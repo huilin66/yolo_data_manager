@@ -2,7 +2,7 @@
 
 [English README](README.md)
 
-YOLO Data Manager 是一个用于管理单模态 YOLO 数据集的 Python 工具包和命令行工具，同时提供面向“共享 label、多个对齐图像模态”的多模态 Python manager。它把不同来源的数据先读成统一内部模型，然后在同一套接口上完成加载校验、导入导出、数据集管理、标注查询修改、统计、可视化和预测错误分析。
+YOLO Data Manager 是一个用于管理 YOLO 数据集的 Python 工具包和命令行工具。数据集可以是单模态，也可以是共享 label、多个对齐图像模态；模态是数据集属性，不是独立的功能模块。所有数据先读成统一内部模型，再用同一套接口完成加载校验、导入导出、数据集管理、标注查询修改、统计、可视化和预测错误分析。
 
 ## 文档入口
 
@@ -37,9 +37,10 @@ python -m pytest -q
 | 数据集管理 | select、split、merge、filter、yaml、重复图、坏图检测 | `train`、`val`、`absolute_paths`、`class_rules` |
 | 统计 | 类别分布、目标数、框宽高面积、图片尺寸、属性统计、图表 | `stats_list`、`plots_dir`、`ann_csv` |
 | 可视化 | 画框、画 mask、显示 confidence/属性/txt 顺序号、裁剪目标、临时手动画框 | `show_id`、`show_conf`、`workers` |
-| 多模态（Python API） | 多图像目录按 stem/suffix 关联，共享 label 的统计、渲染与 crop | `image_dirs`、`image_params`、`label_params` |
 | 导入导出 | 在 YOLO 与 LabelMe/COCO/VOC/mask/x-anylabeling 之间转换 | `class_map`、`background`、`min_area` |
 | 评估分析 | GT vs pred 对比、FP/FN review、细粒度错误分析、混淆矩阵 | `match_iou`、`low_iou`、`review_workers` |
+
+多模态通过 `MultiModalYoloManager` 提供模态感知的加载、scene 对齐和缓存；它复用统计、校验、可视化和转换的同一套功能目录，不增加独立的多模态输出模块。
 
 `layout detect` 输出是布局检测结果，不是 `check` 校验结果；结果中会包含 `report_type`、`class_source`、`class_count`、`classes`。
 
@@ -49,7 +50,7 @@ python -m pytest -q
 
 当图像和 label 配置为空时，按相同文件 stem 关联，标签默认使用 `labels/<stem>.txt`。图像名或标签名带后缀时，可用 `image_params`、`label_params` 配置。`check()` 会报告缺失模态、孤儿图像或 label、suffix 不匹配和重复 scene 图像。manager 会缓存关联结果，因此连续调用 `stats()`、`vis_draw()`、`vis_crop()` 不会针对每个图像目录重复读取和解析 label。
 
-多模态当前为 Python API，入口是 `MultiModalYoloManager`；首期支持 `check`、`stats`、`vis_draw`、`vis_crop`。完整参数与示例见 [Python 详细使用](docs/PYTHON_USAGE.md#多模态-yolo-数据集)。
+多模态当前为 Python API，入口是 `MultiModalYoloManager`；首期支持 `check`、`stats`、`vis_draw`、`vis_crop` 和 uint8 转换。它使用与单模态相同的输出分组；完整参数与示例见 [Python 详细使用](docs/PYTHON_USAGE.md#多模态-yolo-数据集)。
 
 ## Python 快速 Demo
 
@@ -59,12 +60,11 @@ from yolo_data_manager import YoloManager
 mgr = YoloManager(r"E:\datasets\my_yolo", layout="auto", init_check=False)
 mgr_yaml = YoloManager(r"E:\repository\yolo8\ultralytics\cfg\datasets\data_fire.yaml", layout="auto", init_check=False)
 
-mgr.check(out="validation.json", fill_missing_txt=True)
-mgr.stats(plots_dir="stats", stats_list=["all"])
-mgr.vis_draw(out="vis", show_id=True, show_conf=True)
+mgr.check(fill_missing_txt=True)
+mgr.stats(stats_list=["all"])
+mgr.vis_draw(show_id=True, show_conf=True)
 
 mgr.dataset_filter(
-    out="filtered",
     min_width=0.01,
     min_height=0.01,
     min_size_logic="and",
@@ -76,7 +76,6 @@ mgr.dataset_filter(
 
 mgr.eval_error_analysis(
     pred_root=r"E:\datasets\pred_labels",
-    out="error_report",
     review=True,
     workers=8,
     copy_pred_txt=True,
@@ -87,19 +86,21 @@ mgr.eval_error_analysis(
 
 ```bash
 ydm check --root path/to/yolo --layout auto --fill-missing-txt --out validation.json
-ydm stats --root path/to/yolo --plots-dir stats --stats-list all
-ydm vis draw --root path/to/yolo --out vis --show-id --show-conf
+ydm stats --root path/to/yolo --stats-list all
+ydm vis draw --root path/to/yolo --show-id --show-conf
 ydm vis manual-box --root path/to/yolo --image images/0001.jpg --class-id 5
-ydm dataset filter --root path/to/yolo --out filtered --min-width 0.01 --min-height 0.01 --min-size-logic and
-ydm eval metrics --gt-root gt_yolo --pred-root pred_labels --names class.txt --class car,bus --min-pixels 8 --show-original --out metrics.json --csv metrics.csv --print-table
-ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --out error_report --review --workers 8 --copy-pred-txt
+ydm dataset filter --root path/to/yolo --min-width 0.01 --min-height 0.01 --min-size-logic and
+ydm eval metrics --gt-root gt_yolo --pred-root pred_labels --names class.txt --class car,bus --min-pixels 8 --show-original --print-table
+ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --review --workers 8 --copy-pred-txt
 ```
 
 ## 输出约定
 
 - 写操作默认输出到新目录，不覆盖原数据。
 - CLI 和 `YoloManager` 默认使用统一运行参数：`workers=8`、显示临时 tqdm、`leave=False`。可用 `--workers/--no-progress/--progress-leave` 或 Python 的 `workers/progress/progress_leave` 调整。
-- `check` 完整校验结果写入 JSON，终端只输出红色 warning/error 摘要或绿色 OK 摘要。不指定输出路径时默认写到 `<root>/check_result.json`。
+- `check` 完整校验结果写入 JSON，终端只输出红色 warning/error 摘要或绿色 OK 摘要。不指定输出路径时默认写到 `<root>/ydm_quality/check.json`。
+- 默认分析输出使用统一的 `ydm_quality/`、`ydm_stats/`、`ydm_vis/`、`ydm_evaluation/`、`ydm_dataset/`、`ydm_annotation/`、`ydm_conversion/` 目录；`labels_backup/` 保持不带前缀。
+- `train.txt`、`val.txt`、`test.txt` 和 `dataset.yaml` 默认保留在数据集根目录。多模态只在同一功能目录下按需增加 `rgb/`、`depth/` 等子目录，不创建 `ydm_multimodal/`。
 - 标准 YOLO 输出包含 `images/`、`labels/`、`class.txt`、`dataset.yaml`。
 - error analysis 的 review 输出包含 `pred_gt/`、`confusion_matrix.png`、按 `pred_<预测类别>_gt_<真实类别>` 组织的图片和 crop。
 - review crop 文件名使用 `原图名_pred预测txt顺序id_gtGTtxt顺序id`，没有的一侧为 `none`。

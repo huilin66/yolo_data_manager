@@ -357,7 +357,7 @@ class YoloManager:
         """Validate the dataset (``ydm check``).
 
         The full JSON report is written to ``out``. If ``out`` is omitted,
-        the CLI writes ``check_result.json`` under the dataset root and prints
+        the CLI writes ``ydm_quality/check.json`` under the dataset root and prints
         only a compact terminal summary. Progress is enabled by default with
         multiple validation workers and ``leave=False``.
         """
@@ -463,7 +463,7 @@ class YoloManager:
     def dataset_select(
         self,
         file: str,
-        out: str,
+        out: str | None = None,
         *,
         copy_images: bool = True,
         backup_dir: str | Path | None = None,
@@ -481,7 +481,7 @@ class YoloManager:
 
     def dataset_normalize(
         self,
-        out: str,
+        out: str | None = None,
         *,
         copy_images: bool = True,
         keep_empty_labels: bool = True,
@@ -544,7 +544,7 @@ class YoloManager:
 
     def dataset_filter(
         self,
-        out: str,
+        out: str | None = None,
         *,
         class_: str | list[str] | None = None,
         min_width: float | None = None,
@@ -606,7 +606,7 @@ class YoloManager:
     def dataset_merge(
         self,
         roots: str | list[str],
-        out: str,
+        out: str | None = None,
         *,
         source_prefix: bool = True,
         rename_duplicates: bool = True,
@@ -663,7 +663,7 @@ class YoloManager:
     def ann_delete_class(
         self,
         class_: str | list[str],
-        out: str,
+        out: str | None = None,
         *,
         compact: bool = False,
         copy_images: bool = True,
@@ -697,7 +697,7 @@ class YoloManager:
         self,
         from_: str | list[str],
         to: str,
-        out: str,
+        out: str | None = None,
         *,
         compact: bool = False,
         copy_images: bool = True,
@@ -798,6 +798,7 @@ class YoloManager:
 
         from yolo_data_manager.annotation.edit import EditReport, merge_classes
         from yolo_data_manager.io.loader import load_yolo_dataset
+        from yolo_data_manager.io.output_paths import default_annotation_output
         from yolo_data_manager.io.writer import write_yolo_dataset
 
         requested_only_val = self.only_val if only_val is None else only_val
@@ -834,13 +835,15 @@ class YoloManager:
         for merge_report in reports:
             rows.extend(merge_report.rows)
         combined_report = EditReport(rows=rows)
+        resolved_out = out or str(default_annotation_output(self.root, "merge_class"))
+        resolved_report = report or str(
+            default_annotation_output(self.root, "merge_class") / "edit_report.csv"
+        )
 
         if not dry_run:
-            if out is None:
-                raise ValueError("out is required when dry_run=False")
             write_yolo_dataset(
                 current,
-                out,
+                resolved_out,
                 copy_images=copy_images,
                 keep_empty_labels=keep_empty_labels,
                 backup_dir=backup_dir,
@@ -848,11 +851,14 @@ class YoloManager:
                 progress=progress,
                 progress_leave=progress_leave,
             )
-        if report:
-            combined_report.write_csv(report)
+        combined_report.write_csv(resolved_report)
         print(
             json.dumps(
-                {"changed": len(combined_report.rows), "out": None if dry_run else out},
+                {
+                    "changed": len(combined_report.rows),
+                    "out": None if dry_run else resolved_out,
+                    "report": resolved_report,
+                },
                 indent=2,
                 ensure_ascii=False,
             )
@@ -863,7 +869,7 @@ class YoloManager:
         self,
         from_: str,
         to: str,
-        out: str,
+        out: str | None = None,
         *,
         copy_images: bool = True,
         keep_empty_labels: bool = True,
@@ -889,7 +895,7 @@ class YoloManager:
     def ann_apply_map(
         self,
         map_file: str,
-        out: str,
+        out: str | None = None,
         *,
         compact: bool = True,
         copy_images: bool = True,
@@ -1033,7 +1039,7 @@ class YoloManager:
 
     def vis_draw(
         self,
-        out: str,
+        out: str | None = None,
         *,
         limit: int | None = None,
         show_conf: bool = False,
@@ -1070,7 +1076,7 @@ class YoloManager:
 
     def vis_crop(
         self,
-        out: str,
+        out: str | None = None,
         *,
         keep_shape: bool = False,
         min_size: int = 1,
@@ -1134,11 +1140,11 @@ class YoloManager:
 
     # -- export -------------------------------------------------------------
 
-    def export_coco(self, out: str, **kwargs: Any) -> int:
+    def export_coco(self, out: str | None = None, **kwargs: Any) -> int:
         """Export to COCO JSON (``ydm export coco``)."""
         return self._run("export.coco", out=out, **kwargs)
 
-    def export_xany(self, out: str, **kwargs: Any) -> int:
+    def export_xany(self, out: str | None = None, **kwargs: Any) -> int:
         """Export to x-anylabeling JSON (``ydm export xany``)."""
         return self._run("export.xany", out=out, **kwargs)
 
@@ -1147,7 +1153,7 @@ class YoloManager:
     def import_labelme(
         self,
         json_dir: str,
-        out: str,
+        out: str | None = None,
         *,
         classes: str | list[str] | None = None,
         attribute_file: str | None = None,
@@ -1168,7 +1174,7 @@ class YoloManager:
         self,
         json_path: str,
         images_dir: str,
-        out: str,
+        out: str | None = None,
         *,
         classes: str | list[str] | None = None,
         copy_images: bool = True,
@@ -1190,7 +1196,7 @@ class YoloManager:
         self,
         annotations_dir: str,
         images_dir: str,
-        out: str,
+        out: str | None = None,
         *,
         classes: str | list[str] | None = None,
         skip_difficult: bool = True,
@@ -1211,7 +1217,7 @@ class YoloManager:
         self,
         images_dir: str,
         masks_dir: str,
-        out: str,
+        out: str | None = None,
         *,
         class_map: str | Path | Mapping[Any, str] | None = None,
         background: int | str = 0,
@@ -1255,7 +1261,7 @@ class YoloManager:
 
     def convert_seg2det(
         self,
-        out: str,
+        out: str | None = None,
         *,
         copy_images: bool = True,
         keep_empty_labels: bool = True,
@@ -1305,7 +1311,7 @@ class YoloManager:
         self,
         gt_root: str,
         pred_root: str,
-        out: str,
+        out: str | None = None,
         *,
         iou: float = 0.5,
         conf: float | None = None,
@@ -1330,7 +1336,7 @@ class YoloManager:
         self,
         gt_root: str,
         pred_root: str,
-        out: str,
+        out: str | None = None,
         *,
         csv: str | None = None,
         iou: float = 0.5,
@@ -1358,7 +1364,7 @@ class YoloManager:
     def eval_error_analysis(
         self,
         pred_root: str,
-        out: str,
+        out: str | None = None,
         *,
         gt_root: str | None = None,
         match_iou: float = 0.5,

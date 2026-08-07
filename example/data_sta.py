@@ -1,15 +1,10 @@
-import os
-
 from yolo_data_manager import YoloManager
 
 
 def yolo_sta(input_dir):
 
     mgr = YoloManager(input_dir, layout="flat", init_check=False)
-    sta_dir = os.path.join(mgr.root, "stats", "labels_sta")
-    os.makedirs(sta_dir, exist_ok=True)
-    # split
-    mgr.stats(plots_dir=sta_dir, stats_list=["all"], only_val=True)
+    mgr.stats(stats_list=["all"], only_val=True)
 
 
 if __name__ == "__main__":

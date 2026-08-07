@@ -47,18 +47,13 @@ def load_mdet_manager(
 def yolo_check(mgr: MultiModalYoloManager, input_dir: str | Path) -> dict[str, object]:
     """Check scene association and print image format/mode/dtype count groups."""
 
-    return mgr.check(out=Path(input_dir) / "multimodal_check_result.json")
+    return mgr.check()
 
 
 def yolo_sta(mgr: MultiModalYoloManager, input_dir: str | Path) -> dict[str, object]:
     """Write shared-label and per-modality statistics, including image types."""
 
-    stats_dir = Path(input_dir) / "stats" / "labels_sta"
-    return mgr.stats(
-        out=stats_dir / "multimodal_stats.json",
-        plots_dir=stats_dir,
-        stats_list=["all"],
-    )
+    return mgr.stats(stats_list=["all"])
 
 
 def convert_depth_to_uint8(
@@ -71,11 +66,11 @@ def convert_depth_to_uint8(
     """Copy depth uint8 images and stretch non-uint8 depth maps into PNG files.
 
     This does not change ``depth/``. The converted modality is written to
-    ``images_uint8/depth/`` and keeps zero-valued invalid depth pixels black.
+    ``ydm_conversion/uint8/depth/`` and keeps zero-valued invalid depth pixels black.
     """
 
     return mgr.convert_to_uint8(
-        Path(input_dir) / "images_uint8",
+        None,
         modalities=["depth"],
         stretch=True,
         value_range=value_range,
@@ -90,14 +85,20 @@ def yolo_vis(
     input_dir: str | Path,
     *,
     crop: bool = False,
-    output_name: str = "image_vis",
+    output_name: str | None = None,
 ) -> dict[str, int]:
     """Render all modalities from the already-loaded manager."""
 
-    vis_dir = Path(input_dir) / output_name
-    rendered = mgr.vis_draw(vis_dir / "full", workers=8, show_id=True)
+    if output_name is None:
+        rendered = mgr.vis_draw(workers=8, show_id=True)
+    else:
+        vis_dir = Path(input_dir) / output_name
+        rendered = mgr.vis_draw(vis_dir / "full", workers=8, show_id=True)
     if crop:
-        mgr.vis_crop(vis_dir / "crops", workers=8)
+        if output_name is None:
+            mgr.vis_crop(workers=8)
+        else:
+            mgr.vis_crop(vis_dir / "crops", workers=8)
     return rendered
 
 
@@ -113,7 +114,7 @@ if __name__ == "__main__":
     #    depth folder is the converted output before visualizing it.
     USE_UINT8_DEPTH = True
     REBUILD_UINT8_DEPTH = False
-    converted_depth_dir = DATASET_DIR / "images_uint8" / "depth"
+    converted_depth_dir = DATASET_DIR / "ydm_conversion" / "uint8" / "depth"
     if USE_UINT8_DEPTH:
         if REBUILD_UINT8_DEPTH or not converted_depth_dir.exists():
             convert_depth_to_uint8(
@@ -124,7 +125,7 @@ if __name__ == "__main__":
             )
         manager = load_mdet_manager(
             DATASET_DIR,
-            image_dirs=["visible", "infrared", "images_uint8/depth"],
+            image_dirs=["visible", "infrared", "ydm_conversion/uint8/depth"],
         )
         yolo_check(manager, DATASET_DIR)
 

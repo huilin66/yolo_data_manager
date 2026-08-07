@@ -52,6 +52,28 @@ Most commands that load, write, validate, visualize, or evaluate datasets suppor
 
 The default style is `workers=8`, tqdm enabled, and `leave=False`. A few pure conversion commands do not use threads internally yet, but keep the same CLI style where applicable.
 
+## Default Output Paths
+
+Explicit `--out`, `--csv`, and `--plots-dir` values always take precedence. When omitted, outputs are organized as follows:
+
+```text
+<dataset_root>/
+  labels_backup/                         # timestamped label backups
+  ydm_quality/                           # check, query, duplicates, bad-images
+  ydm_stats/                             # stats.json, CSV files, plots/
+  ydm_vis/                               # draw/, crop/, manual_box/
+  ydm_evaluation/                        # compare, review_pack, error_analysis, metrics
+  ydm_dataset/                           # select, normalize, filter, merge
+  ydm_annotation/                        # annotation edits and reports
+  ydm_conversion/                        # import/export and task conversions
+  train.txt / val.txt / test.txt         # split stays at the dataset root
+  dataset.yaml                            # stays at the dataset root
+```
+
+Multimodal data uses the same functional groups. It may add modality subdirectories
+under `ydm_stats`, `ydm_vis`, or `ydm_conversion` when required, but it does not create
+a separate `ydm_multimodal` feature directory.
+
 ## Layout and Validation
 
 ```bash
@@ -64,7 +86,7 @@ ydm dataset normalize --root path/to/yolo --layout auto --out normalized_yolo
 
 `layout detect` emits `report_type: layout_detect`. It is a layout detection result, not a dataset validation/check result. The output also includes `class_source`, `class_count`, and `classes` so you can confirm whether classes were read from `class.txt`, `classes.txt`, `dataset.yaml`, or `data.yaml`.
 
-`check` writes the full validation report to JSON, while the terminal prints only a red warning/error summary or a green OK summary. If `--out` is omitted, the default file is `<root>/check_result.json`. Use `--print-full` only when you also want the full JSON printed to the terminal.
+`check` writes the full validation report to JSON, while the terminal prints only a red warning/error summary or a green OK summary. If `--out` is omitted, the default file is `<root>/ydm_quality/check.json`. Use `--print-full` only when you also want the full JSON printed to the terminal.
 
 `--fill-missing-txt` creates empty label txt files for images without labels and reports the created files in JSON.
 
@@ -90,11 +112,11 @@ ydm ann set-attr --root path/to/yolo --name defect --value yes --class sign --ou
 ydm ann delete-attr --root path/to/yolo --name defect --value yes --out yolo_attr_clean
 ydm dataset filter --root path/to/yolo --min-area 0.001 --out yolo_filtered --backup-dir label_backups
 ydm ann merge-class --root path/to/yolo --from crack,break --to defect --out yolo_merged --backup-dir label_backups
-ydm ann correct-from-crops --root path/to/yolo --crops-dir image_vis/crop/car --to defect --backup-dir label_backups --report crop_correction.csv
+ydm ann correct-from-crops --root path/to/yolo --crops-dir ydm_vis/crop/car --to defect --backup-dir label_backups --report crop_correction.csv
 ydm ann correct-from-error-crops --root path/to/yolo --crops-dir result_ana/val-52/review/pred_gt/pred_car_gt_background/crops --pred-dir result_ana/val-52/review/pred_txt --dedup-iou 0.5 --to defect --delete-pred-none --backup-dir label_backups --only-val --report gt_correction.csv
 ```
 
-Write operations target `--out` and do not overwrite the source dataset in place.
+When `--out` is omitted, write operations use their corresponding `ydm_dataset` or `ydm_annotation` subdirectory and do not overwrite the source dataset in place.
 `correct-from-crops` is the exception: it updates the corresponding source label files directly. Use `--dry-run` first when reviewing changes. Standard `vis crop` names use `<image_stem>_<1-based annotation index>.<extension>`. Use `--to none` or `--to null` to delete the corresponding annotation.
 `correct-from-error-crops` uses the `y` in `xxx_predx_gty` to locate the GT annotation. When `--pred-dir` is provided, a crop with `gt none` appends prediction txt record `x` to the corresponding GT label, omitting prediction confidence. Without `--pred-dir`, `gt none` crops are skipped.
 Added predictions and `--replace-gt-from-pred` replacement boxes are deduplicated by same-class IoU on the same image; overlapping candidates keep the higher-confidence prediction, and a suppressed replacement deletes its duplicate GT row. Use `--dedup-iou` to change the default `0.5` threshold.
@@ -152,6 +174,7 @@ defect:
 ## Statistics
 
 ```bash
+ydm stats --root path/to/yolo
 ydm stats --root path/to/yolo --out stats.json
 ydm stats --root path/to/yolo --ann-csv annotations.csv --attr-csv attributes.csv --plots-dir stats_plots
 ydm stats --root path/to/yolo --plots-dir labels_sta --stats-list all
@@ -171,8 +194,8 @@ Selecting `box_shape`, `box_shape_pix`, `box_shape_rate`, `box_width`, or `box_h
 ## Visualization and Cropping
 
 ```bash
-ydm vis draw --root path/to/yolo --out images_vis
-ydm vis crop --root path/to/yolo --out crops --padding 20
+ydm vis draw --root path/to/yolo
+ydm vis crop --root path/to/yolo --padding 20
 ydm vis crop --root path/to/yolo --out crops --padding 0.2
 ydm vis draw --root path/to/yolo --out images_vis --show-conf --show-attrs --filter-no-attrs
 ydm vis draw --root path/to/yolo --out images_vis --show-id
@@ -190,8 +213,8 @@ ydm vis manual-box --root path/to/yolo --image images/0001.jpg --hide-existing
 ## Import and Export
 
 ```bash
-ydm export coco --root path/to/yolo --out instances.json
-ydm export xany --root path/to/yolo --out xany_json
+ydm export coco --root path/to/yolo
+ydm export xany --root path/to/yolo
 
 ydm import labelme --json-dir labelme_json --out yolo --task segment
 ydm import coco --json instances.json --images-dir images --out yolo --task segment
@@ -229,9 +252,9 @@ ydm convert pseudo --root pred_yolo --conf 0.5 --out pseudo_yolo
 ## Evaluation and Error Analysis
 
 ```bash
-ydm eval compare --gt-root gt_yolo --pred-root pred_yolo --out compare.csv --iou 0.5
-ydm eval review-pack --gt-root gt_yolo --pred-root pred_yolo --out review_pack --iou 0.5
-ydm eval metrics --gt-root gt_yolo --pred-root pred_yolo --out metrics.json --csv metrics.csv
+ydm eval compare --gt-root gt_yolo --pred-root pred_yolo --iou 0.5
+ydm eval review-pack --gt-root gt_yolo --pred-root pred_yolo --iou 0.5
+ydm eval metrics --gt-root gt_yolo --pred-root pred_yolo
 ydm eval metrics --gt-root gt_yolo --pred-root pred_labels --names class.txt --class car,bus --out vehicle_metrics.json
 ydm eval metrics --gt-root gt_yolo --pred-root pred_labels --names class.txt --class car,bus --min-pixels 8 --out vehicle_no_small.json
 ydm eval metrics --gt-root gt_yolo --pred-root pred_labels --names class.txt --class car,bus --print-table

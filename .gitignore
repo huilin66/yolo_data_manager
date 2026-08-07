@@ -46,6 +46,8 @@ logs/
 /images_vis/
 /labels_sta/
 /cache/
+ydm_*/
+labels_backup/
 
 # Model weights and ML artifacts
 *.pt

@@ -9,6 +9,7 @@ from yolo_data_manager.core.models import TASK_AUTO
 from yolo_data_manager.core.multimodal import AlignmentReport, MultimodalYoloDataset
 from yolo_data_manager.io.image_conversion import convert_multimodal_images_to_uint8
 from yolo_data_manager.io.multimodal import load_multimodal_yolo_dataset
+from yolo_data_manager.io.output_paths import ydm_dir
 from yolo_data_manager.stats.multimodal import (
     compute_multimodal_stats,
     write_multimodal_stats_plots,
@@ -21,14 +22,13 @@ from yolo_data_manager.vis.multimodal import (
 
 
 class MultiModalYoloManager:
-    """Stateful entry point for a shared-label, multi-image YOLO dataset.
+    """Modality-aware loader/cache for a shared-label YOLO dataset.
 
-    The manager lazily loads and caches one :class:`MultimodalYoloDataset`.
-    At present it intentionally exposes only multimodal-safe operations:
-    alignment check, statistics, uint8 conversion, annotation rendering, and
-    object crops.
-    Other ``YoloManager`` operations need explicit all-modality write semantics
-    before they can be added safely.
+    Multimodality is a property of the dataset, not a separate business
+    workflow. This adapter associates several image folders with one label set
+    and reuses the same quality, statistics, visualization, and conversion
+    output groups as :class:`YoloManager`. Operations without explicit
+    all-modality write semantics are intentionally not exposed yet.
     """
 
     def __init__(
@@ -122,9 +122,7 @@ class MultiModalYoloManager:
             "image_type_summary": dataset.image_type_summary,
             **report.to_dict(),
         }
-        report_path = (
-            Path(out) if out is not None else self.root / "multimodal_check_result.json"
-        )
+        report_path = Path(out) if out is not None else ydm_dir(self.root, "quality") / "multimodal_check.json"
         write_json_report(payload, report_path)
         _print_check_summary(payload, report_path)
         return payload
@@ -145,16 +143,17 @@ class MultiModalYoloManager:
             reload=reload, progress=progress, progress_leave=progress_leave
         )
         payload = compute_multimodal_stats(dataset)
-        if out is not None:
-            write_json_report(payload, out)
-        if plots_dir is not None:
-            write_multimodal_stats_plots(dataset, plots_dir, stats_list=stats_list)
+        stats_dir = ydm_dir(self.root, "stats")
+        report_path = Path(out) if out is not None else stats_dir / "multimodal_stats.json"
+        plots_path = Path(plots_dir) if plots_dir is not None else stats_dir / "plots"
+        write_json_report(payload, report_path)
+        write_multimodal_stats_plots(dataset, plots_path, stats_list=stats_list)
         print(json.dumps(payload, indent=2, ensure_ascii=False))
         return payload
 
     def convert_to_uint8(
         self,
-        out: str | Path,
+        out: str | Path | None = None,
         *,
         modalities: Sequence[str] | None = None,
         stretch: bool = True,
@@ -173,11 +172,12 @@ class MultiModalYoloManager:
         mapping across images, such as ``(0, 20000)`` for depth values.
         """
 
+        output_path = Path(out) if out is not None else ydm_dir(self.root, "conversion") / "uint8"
         payload = convert_multimodal_images_to_uint8(
             self.load(
                 reload=reload, progress=progress, progress_leave=progress_leave
             ),
-            out,
+            output_path,
             modalities=modalities,
             stretch=stretch,
             value_range=value_range,
@@ -192,7 +192,7 @@ class MultiModalYoloManager:
 
     def vis_draw(
         self,
-        out: str | Path,
+        out: str | Path | None = None,
         *,
         modalities: Sequence[str] | None = None,
         limit: int | None = None,
@@ -210,9 +210,10 @@ class MultiModalYoloManager:
     ) -> dict[str, int]:
         """Render every selected modality from the shared cached annotations."""
 
+        output_path = Path(out) if out is not None else ydm_dir(self.root, "vis") / "draw"
         counts = render_multimodal_dataset(
             self.load(reload=reload, progress=progress, progress_leave=progress_leave),
-            out,
+            output_path,
             modalities=modalities,
             limit=limit,
             show_confidence=show_conf,
@@ -228,14 +229,14 @@ class MultiModalYoloManager:
         )
         print(
             json.dumps(
-                {"out": str(out), "modalities": counts}, indent=2, ensure_ascii=False
+                {"out": str(output_path), "modalities": counts}, indent=2, ensure_ascii=False
             )
         )
         return counts
 
     def vis_crop(
         self,
-        out: str | Path,
+        out: str | Path | None = None,
         *,
         modalities: Sequence[str] | None = None,
         keep_shape: bool = False,
@@ -251,9 +252,10 @@ class MultiModalYoloManager:
     ) -> dict[str, int]:
         """Write object crops grouped by modality without reparsing labels."""
 
+        output_path = Path(out) if out is not None else ydm_dir(self.root, "vis") / "crop"
         counts = crop_multimodal_dataset(
             self.load(reload=reload, progress=progress, progress_leave=progress_leave),
-            out,
+            output_path,
             modalities=modalities,
             keep_shape=keep_shape,
             min_size=min_size,
@@ -266,7 +268,7 @@ class MultiModalYoloManager:
             progress_leave=progress_leave,
         )
         print(
-            json.dumps({"out": str(out), "crops": counts}, indent=2, ensure_ascii=False)
+            json.dumps({"out": str(output_path), "crops": counts}, indent=2, ensure_ascii=False)
         )
         return counts
 

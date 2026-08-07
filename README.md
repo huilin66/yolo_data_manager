@@ -2,7 +2,7 @@
 
 [中文文档](README_CN.md)
 
-YOLO Data Manager is a Python package and CLI for managing single-modal YOLO datasets, plus a Python manager for multi-modal YOLO datasets with shared labels and aligned image modalities. It normalizes different dataset sources into one internal model, then provides loading, validation, import/export, dataset operations, annotation query/edit, statistics, visualization, and prediction error analysis on top of that model.
+YOLO Data Manager is a Python package and CLI for managing YOLO datasets. A dataset may be single-modal or may contain multiple aligned image modalities sharing one label set; modality is a dataset property, not a separate feature module. All inputs are normalized into one internal model, then handled through the same loading, validation, import/export, dataset-operation, annotation, statistics, visualization, and prediction-analysis workflows.
 
 ## Documentation
 
@@ -37,9 +37,10 @@ python -m pytest -q
 | Dataset operations | select, split, merge, filter, yaml, duplicate/bad-image checks | `train`, `val`, `absolute_paths`, `class_rules` |
 | Statistics | Class distribution, object counts, box shapes, image shapes, attributes, plots | `stats_list`, `plots_dir`, `ann_csv` |
 | Visualization | Draw boxes/masks, show confidence/attributes/txt order id, crop objects, temporary manual boxes | `show_id`, `show_conf`, `workers` |
-| Multimodal (Python API) | Associate image folders by stem/suffix and reuse shared labels for stats, rendering, and crops | `image_dirs`, `image_params`, `label_params` |
 | Import/export | Convert between YOLO and LabelMe/COCO/VOC/masks/x-anylabeling | `class_map`, `background`, `min_area` |
 | Evaluation | Compare GT vs predictions, build FP/FN review packs, error analysis, confusion matrix | `match_iou`, `low_iou`, `review_workers` |
+
+`MultiModalYoloManager` provides modality-aware loading, scene alignment, and caching while reusing the same functional output groups as the single-modal manager; it does not add a separate multimodal output module.
 
 `layout detect` output is a layout detection result, not a validation/check result. It includes `report_type`, `class_source`, `class_count`, and `classes`.
 
@@ -49,7 +50,7 @@ python -m pytest -q
 
 With empty image and label configuration, matching uses identical filename stems and standard `labels/<stem>.txt` labels. `image_params` and `label_params` configure modality/label suffixes when names differ. `check()` reports missing modalities, orphan images or labels, suffix mismatches, and duplicate scene images. The manager caches the associated dataset, so `stats()`, `vis_draw()`, and `vis_crop()` reuse parsed labels rather than loading once per image folder.
 
-Multimodal support is currently a Python API; use `MultiModalYoloManager`. Its first supported operations are `check`, `stats`, `vis_draw`, and `vis_crop`. Full parameters and examples are in [Python Usage](docs/PYTHON_USAGE_EN.md#multimodal-yolo-datasets).
+Multimodal support is currently a Python API; use `MultiModalYoloManager` for modality-aware loading. Its first supported operations are `check`, `stats`, `vis_draw`, `vis_crop`, and uint8 conversion. It uses the same output groups as single-modal workflows. Full parameters and examples are in [Python Usage](docs/PYTHON_USAGE_EN.md#multimodal-yolo-datasets).
 
 ## Python Quick Demo
 
@@ -59,12 +60,11 @@ from yolo_data_manager import YoloManager
 mgr = YoloManager("datasets/my_yolo", layout="auto", init_check=False)
 mgr_yaml = YoloManager(r"E:\repository\yolo8\ultralytics\cfg\datasets\data_fire.yaml", layout="auto", init_check=False)
 
-mgr.check(out="validation.json", fill_missing_txt=True)
-mgr.stats(plots_dir="stats", stats_list=["all"])
-mgr.vis_draw(out="vis", show_id=True, show_conf=True)
+mgr.check(fill_missing_txt=True)
+mgr.stats(stats_list=["all"])
+mgr.vis_draw(show_id=True, show_conf=True)
 
 mgr.dataset_filter(
-    out="filtered",
     min_width=0.01,
     min_height=0.01,
     min_size_logic="and",
@@ -76,7 +76,6 @@ mgr.dataset_filter(
 
 mgr.eval_error_analysis(
     pred_root="datasets/pred_labels",
-    out="error_report",
     review=True,
     workers=8,
     copy_pred_txt=True,
@@ -87,12 +86,12 @@ mgr.eval_error_analysis(
 
 ```bash
 ydm check --root path/to/yolo --layout auto --fill-missing-txt --out validation.json
-ydm stats --root path/to/yolo --plots-dir stats --stats-list all
-ydm vis draw --root path/to/yolo --out vis --show-id --show-conf
+ydm stats --root path/to/yolo --stats-list all
+ydm vis draw --root path/to/yolo --show-id --show-conf
 ydm vis manual-box --root path/to/yolo --image images/0001.jpg --class-id 5
-ydm dataset filter --root path/to/yolo --out filtered --min-width 0.01 --min-height 0.01 --min-size-logic and
-ydm eval metrics --gt-root gt_yolo --pred-root pred_labels --names class.txt --class car,bus --min-pixels 8 --show-original --out metrics.json --csv metrics.csv --print-table
-ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --out error_report --review --workers 8 --copy-pred-txt
+ydm dataset filter --root path/to/yolo --min-width 0.01 --min-height 0.01 --min-size-logic and
+ydm eval metrics --gt-root gt_yolo --pred-root pred_labels --names class.txt --class car,bus --min-pixels 8 --show-original --print-table
+ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --review --workers 8 --copy-pred-txt
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --names class.txt --class car,bus --exclude-class ignore --min-width 0.01 --min-height 0.01 --min-size-logic and --min-pixels 8 --out error_report
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --names class.txt --class-rules error_rules.yaml --out error_report
 ```
@@ -101,7 +100,9 @@ ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --names class.
 
 - Write operations default to a new output directory and do not overwrite the source dataset in place.
 - The CLI and `YoloManager` use common runtime defaults: `workers=8`, temporary tqdm progress bars, and `leave=False`. Tune them with `--workers/--no-progress/--progress-leave` or Python `workers/progress/progress_leave`.
-- `check` writes the full validation report to JSON, while the terminal prints only a red warning/error summary or a green OK summary. Without an output path, the default report is `<root>/check_result.json`.
+- `check` writes the full validation report to JSON, while the terminal prints only a red warning/error summary or a green OK summary. Without an output path, the default report is `<root>/ydm_quality/check.json`.
+- Default analysis outputs use `ydm_quality/`, `ydm_stats/`, `ydm_vis/`, `ydm_evaluation/`, `ydm_dataset/`, `ydm_annotation/`, and `ydm_conversion/`; `labels_backup/` remains unprefixed.
+- `train.txt`, `val.txt`, `test.txt`, and `dataset.yaml` remain at the dataset root. Multimodal workflows add `rgb/`, `depth/`, and similar subdirectories only inside the relevant functional group; there is no `ydm_multimodal/` directory.
 - Standard YOLO output includes `images/`, `labels/`, `class.txt`, and `dataset.yaml`.
 - Error-analysis review output includes `review/pred_gt`, `confusion_matrix.png`, grouped `pred_<pred_class>_gt_<gt_class>` folders, and optional `review/pred_txt`.
 - Review crop names use `image_pred<pred_txt_order>_gt<gt_txt_order>`, with `none` for missing sides.

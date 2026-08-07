@@ -1,21 +1,13 @@
-import os
-
 from yolo_data_manager import YoloManager
 
 
 def yolo_vis(input_dir, crop=True):
 
     mgr = YoloManager(input_dir, layout="auto", init_check=False, init_layout=False)
-    vis_dir = os.path.join(mgr.root, "image_vis")
-    full_dir = os.path.join(vis_dir, "full")
-    crop_dir = os.path.join(vis_dir, "crop")
-
-    os.makedirs(vis_dir, exist_ok=True)
-    mgr.vis_draw(out=full_dir, workers=8, show_id=True)
+    mgr.vis_draw(workers=8, show_id=True)
 
     if crop:
-        os.makedirs(crop_dir, exist_ok=True)
-        mgr.vis_crop(out=crop_dir, workers=8, progress=True)
+        mgr.vis_crop(workers=8, progress=True)
 
 
 if __name__ == "__main__":

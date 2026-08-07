@@ -30,6 +30,14 @@ from yolo_data_manager.dataset.split import class_counts_for_images, split_datas
 from yolo_data_manager.core.schema import write_dataset_yaml
 from yolo_data_manager.io.layout import detect_layout
 from yolo_data_manager.io.loader import load_yolo_dataset
+from yolo_data_manager.io.output_paths import (
+    default_annotation_output,
+    default_conversion_output,
+    default_dataset_output,
+    default_evaluation_output,
+    default_visualization_output,
+    ydm_dir,
+)
 from yolo_data_manager.io.validator import fill_missing_label_files, validate_dataset
 from yolo_data_manager.io.writer import write_split_file, write_yolo_dataset
 from yolo_data_manager.stats.compute import compute_stats
@@ -74,18 +82,22 @@ def build_parser() -> argparse.ArgumentParser:
 
     check = subparsers.add_parser("check", help="validate a YOLO dataset")
     add_dataset_args(check)
-    check.add_argument("--out", default=None, help="JSON output path; defaults to <root>/check_result.json")
+    check.add_argument(
+        "--out",
+        default=None,
+        help="JSON output path; defaults to <root>/ydm_quality/check.json",
+    )
     check.add_argument("--fill-missing-txt", action="store_true", help="create empty txt files for images without matching labels")
     check.add_argument("--print-full", action="store_true", help="also print the full JSON report to terminal")
     check.set_defaults(handler=handle_check)
 
     stats = subparsers.add_parser("stats", help="compute dataset statistics")
     add_dataset_args(stats)
-    stats.add_argument("--out", default=None, help="optional JSON output path")
-    stats.add_argument("--class-csv", default=None, help="optional class-count CSV output path")
-    stats.add_argument("--ann-csv", default=None, help="optional annotation CSV output path")
-    stats.add_argument("--attr-csv", default=None, help="optional long-form attribute CSV output path")
-    stats.add_argument("--plots-dir", default=None, help="optional directory for PNG plots")
+    stats.add_argument("--out", default=None, help="JSON output path; defaults to <root>/ydm_stats/stats.json")
+    stats.add_argument("--class-csv", default=None, help="class-count CSV; defaults to <root>/ydm_stats/class_counts.csv")
+    stats.add_argument("--ann-csv", default=None, help="annotation CSV; defaults to <root>/ydm_stats/annotations.csv")
+    stats.add_argument("--attr-csv", default=None, help="attribute CSV; defaults to <root>/ydm_stats/attributes.csv")
+    stats.add_argument("--plots-dir", default=None, help="PNG plot directory; defaults to <root>/ydm_stats/plots")
     stats.add_argument("--stats-list", default=None, help="comma-separated stats to plot/export; use all for every stats output")
     stats.set_defaults(handler=handle_stats)
 
@@ -101,7 +113,7 @@ def build_parser() -> argparse.ArgumentParser:
     query_class = query_sub.add_parser("class", help="query labels containing a class")
     add_dataset_args(query_class)
     query_class.add_argument("--class", dest="class_values", required=True, help="class id/name, comma-separated allowed")
-    query_class.add_argument("--out", default=None, help="optional CSV output path")
+    query_class.add_argument("--out", default=None, help="CSV output path; defaults to ydm_quality/query/class_<class>.csv")
     query_class.add_argument("--copy-images", default=None, help="copy matching images to this directory")
     query_class.add_argument("--copy-labels", default=None, help="copy matching labels to this directory")
     query_class.add_argument("--filtered-labels", action="store_true", help="when copying labels, keep only matched instances")
@@ -111,7 +123,7 @@ def build_parser() -> argparse.ArgumentParser:
     query_attr.add_argument("--name", required=True, help="attribute name")
     query_attr.add_argument("--value", default=None, help="attribute value, comma-separated allowed")
     query_attr.add_argument("--nonzero", action="store_true", help="match annotations whose raw attribute value is non-zero")
-    query_attr.add_argument("--out", default=None, help="optional CSV output path")
+    query_attr.add_argument("--out", default=None, help="CSV output path; defaults to ydm_quality/query/attr_<name>.csv")
     query_attr.add_argument("--copy-images", default=None, help="copy matching images to this directory")
     query_attr.add_argument("--copy-labels", default=None, help="copy matching labels to this directory")
     query_attr.add_argument("--filtered-labels", action="store_true", help="when copying labels, keep only matched instances")
@@ -122,19 +134,25 @@ def build_parser() -> argparse.ArgumentParser:
     dataset_select = dataset_sub.add_parser("select", help="copy a subset from a txt/csv-like file")
     add_dataset_args(dataset_select)
     dataset_select.add_argument("--file", required=True, help="selection file containing image paths/names/stems")
-    dataset_select.add_argument("--out", required=True, help="output dataset root")
+    dataset_select.add_argument("--out", default=None, help="output dataset root; defaults to <root>/ydm_dataset/select")
     dataset_select.add_argument(
         "--backup-dir",
         default=None,
         help="backup directory; default is <dataset-root>/labels_backup",
     )
     dataset_select.add_argument("--no-copy-images", dest="copy_images", action="store_false")
-    dataset_select.set_defaults(handler=handle_dataset_select, copy_images=True)
+    dataset_select.set_defaults(
+        handler=handle_dataset_select,
+        copy_images=True,
+    )
 
     dataset_normalize = dataset_sub.add_parser("normalize", help="normalize supported YOLO layouts into flat images/labels")
     add_dataset_args(dataset_normalize)
     add_write_args(dataset_normalize)
-    dataset_normalize.set_defaults(handler=handle_dataset_normalize)
+    dataset_normalize.set_defaults(
+        handler=handle_dataset_normalize,
+        _output_operation="normalize",
+    )
 
     dataset_split = dataset_sub.add_parser("split", help="write train/val/test split txt files")
     add_dataset_args(dataset_split)
@@ -156,7 +174,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     dataset_filter = dataset_sub.add_parser("filter", help="filter annotations by class/geometry/confidence")
     add_dataset_args(dataset_filter)
-    dataset_filter.add_argument("--out", required=True, help="output dataset root")
+    dataset_filter.add_argument("--out", default=None, help="output dataset root; defaults to <root>/ydm_dataset/filter")
     dataset_filter.add_argument(
         "--backup-dir",
         default=None,
@@ -172,11 +190,15 @@ def build_parser() -> argparse.ArgumentParser:
     dataset_filter.add_argument("--class-rules", default=None, help="YAML/JSON per-class filter rules")
     dataset_filter.add_argument("--no-copy-images", dest="copy_images", action="store_false")
     dataset_filter.add_argument("--dry-run", action="store_true")
-    dataset_filter.set_defaults(handler=handle_dataset_filter, copy_images=True)
+    dataset_filter.set_defaults(
+        handler=handle_dataset_filter,
+        copy_images=True,
+        _output_operation="filter",
+    )
 
     dataset_merge = dataset_sub.add_parser("merge", help="merge multiple YOLO datasets with class-name alignment")
     dataset_merge.add_argument("--roots", required=True, help="comma-separated dataset roots")
-    dataset_merge.add_argument("--out", required=True, help="output dataset root")
+    dataset_merge.add_argument("--out", default=None, help="output dataset root; defaults to <first-root>/ydm_dataset/merge")
     dataset_merge.add_argument(
         "--backup-dir",
         default=None,
@@ -189,17 +211,22 @@ def build_parser() -> argparse.ArgumentParser:
     dataset_merge.add_argument("--no-rename-duplicates", dest="rename_duplicates", action="store_false", help="fail on duplicate output image names")
     dataset_merge.add_argument("--no-copy-images", dest="copy_images", action="store_false")
     dataset_merge.add_argument("--dry-run", action="store_true")
-    dataset_merge.set_defaults(handler=handle_dataset_merge, source_prefix=True, rename_duplicates=True, copy_images=True)
+    dataset_merge.set_defaults(
+        handler=handle_dataset_merge,
+        source_prefix=True,
+        rename_duplicates=True,
+        copy_images=True,
+    )
 
     dataset_duplicates = dataset_sub.add_parser("duplicates", help="find duplicate image files by content hash")
     add_dataset_args(dataset_duplicates)
-    dataset_duplicates.add_argument("--out", default=None, help="optional duplicate CSV output")
+    dataset_duplicates.add_argument("--out", default=None, help="duplicate CSV; defaults to <root>/ydm_quality/duplicates.csv")
     dataset_duplicates.add_argument("--algorithm", default="sha256")
     dataset_duplicates.set_defaults(handler=handle_dataset_duplicates)
 
     dataset_bad_images = dataset_sub.add_parser("bad-images", help="find missing or corrupt images")
     add_dataset_args(dataset_bad_images)
-    dataset_bad_images.add_argument("--out", default=None, help="optional CSV output")
+    dataset_bad_images.add_argument("--out", default=None, help="CSV output; defaults to <root>/ydm_quality/bad_images.csv")
     dataset_bad_images.set_defaults(handler=handle_dataset_bad_images)
 
     ann = subparsers.add_parser("ann", help="edit annotations")
@@ -210,7 +237,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_write_args(delete)
     delete.add_argument("--class", dest="class_values", required=True, help="class id/name, comma-separated allowed")
     delete.add_argument("--compact", action="store_true", help="remove classes from class.txt and remap ids")
-    delete.set_defaults(handler=handle_delete_class)
+    delete.set_defaults(handler=handle_delete_class, _output_operation="delete_class")
 
     replace = ann_sub.add_parser("replace-class", help="replace one or more classes with another class")
     add_dataset_args(replace)
@@ -218,7 +245,7 @@ def build_parser() -> argparse.ArgumentParser:
     replace.add_argument("--from", dest="from_values", required=True, help="source class id/name, comma-separated allowed")
     replace.add_argument("--to", dest="to_value", required=True, help="target class id/name")
     replace.add_argument("--compact", action="store_true", help="remove source classes from class.txt and remap ids")
-    replace.set_defaults(handler=handle_replace_class)
+    replace.set_defaults(handler=handle_replace_class, _output_operation="replace_class")
 
     merge = ann_sub.add_parser("merge-class", help="merge classes into one class")
     add_dataset_args(merge)
@@ -226,21 +253,21 @@ def build_parser() -> argparse.ArgumentParser:
     merge.add_argument("--from", dest="from_values", required=True, help="source class id/name, comma-separated allowed")
     merge.add_argument("--to", dest="to_value", required=True, help="target class id/name")
     merge.add_argument("--no-compact", dest="compact", action="store_false", help="keep source class names in class.txt")
-    merge.set_defaults(handler=handle_merge_class, compact=True)
+    merge.set_defaults(handler=handle_merge_class, compact=True, _output_operation="merge_class")
 
     rename = ann_sub.add_parser("rename-class", help="rename a class without changing ids")
     add_dataset_args(rename)
     add_write_args(rename)
     rename.add_argument("--from", dest="from_value", required=True, help="source class id/name")
     rename.add_argument("--to", dest="to_value", required=True, help="new class name")
-    rename.set_defaults(handler=handle_rename_class)
+    rename.set_defaults(handler=handle_rename_class, _output_operation="rename_class")
 
     apply_map = ann_sub.add_parser("apply-map", help="apply class rename/merge/drop yaml")
     add_dataset_args(apply_map)
     add_write_args(apply_map)
     apply_map.add_argument("--map", dest="map_file", required=True, help="YAML class map")
     apply_map.add_argument("--no-compact", dest="compact", action="store_false", help="do not compact class ids")
-    apply_map.set_defaults(handler=handle_apply_map, compact=True)
+    apply_map.set_defaults(handler=handle_apply_map, compact=True, _output_operation="apply_map")
 
     correct_crops = ann_sub.add_parser(
         "correct-from-crops",
@@ -254,9 +281,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="backup directory; default is <dataset-root>/labels_backup",
     )
     correct_crops.add_argument("--to", dest="to_value", required=True, help="target class id/name; use none/null to delete the annotation")
-    correct_crops.add_argument("--report", default=None, help="optional edit report CSV path")
+    correct_crops.add_argument("--report", default=None, help="edit report CSV; defaults to ydm_annotation/correct_from_crops/edit_report.csv")
     correct_crops.add_argument("--dry-run", action="store_true", help="report changes without modifying labels")
-    correct_crops.set_defaults(handler=handle_correct_from_crops)
+    correct_crops.set_defaults(handler=handle_correct_from_crops, _output_operation="correct_from_crops")
 
     correct_error_crops = ann_sub.add_parser(
         "correct-from-error-crops",
@@ -294,9 +321,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="replace GT y with prediction x for predx_gty crops",
     )
     correct_error_crops.add_argument("--to", dest="to_value", required=True, help="target class id/name; use none/null to delete the GT annotation")
-    correct_error_crops.add_argument("--report", default=None, help="optional edit report CSV path")
+    correct_error_crops.add_argument("--report", default=None, help="edit report CSV; defaults to ydm_annotation/correct_from_error_crops/edit_report.csv")
     correct_error_crops.add_argument("--dry-run", action="store_true", help="report changes without modifying labels")
-    correct_error_crops.set_defaults(handler=handle_correct_from_error_crops)
+    correct_error_crops.set_defaults(handler=handle_correct_from_error_crops, _output_operation="correct_from_error_crops")
 
     set_attr = ann_sub.add_parser("set-attr", help="set an attribute value on annotations")
     add_dataset_args(set_attr)
@@ -305,7 +332,7 @@ def build_parser() -> argparse.ArgumentParser:
     set_attr.add_argument("--value", required=True, help="new attribute value")
     set_attr.add_argument("--class", dest="class_values", default=None, help="optional class id/name filter")
     set_attr.add_argument("--where-value", default=None, help="only update annotations whose current attribute has this value")
-    set_attr.set_defaults(handler=handle_set_attr)
+    set_attr.set_defaults(handler=handle_set_attr, _output_operation="set_attr")
 
     delete_attr = ann_sub.add_parser("delete-attr", help="delete annotations matched by an attribute")
     add_dataset_args(delete_attr)
@@ -313,13 +340,13 @@ def build_parser() -> argparse.ArgumentParser:
     delete_attr.add_argument("--name", required=True, help="attribute name")
     delete_attr.add_argument("--value", default=None, help="attribute value, comma-separated allowed")
     delete_attr.add_argument("--nonzero", action="store_true")
-    delete_attr.set_defaults(handler=handle_delete_attr)
+    delete_attr.set_defaults(handler=handle_delete_attr, _output_operation="delete_attr")
 
     vis = subparsers.add_parser("vis", help="visualize annotations")
     vis_sub = vis.add_subparsers(dest="vis_command", required=True)
     draw = vis_sub.add_parser("draw", help="draw labels on images")
     add_dataset_args(draw)
-    draw.add_argument("--out", required=True, help="output image directory")
+    draw.add_argument("--out", default=None, help="output image directory; defaults to <root>/ydm_vis/draw")
     draw.add_argument("--limit", type=int, default=None)
     draw.add_argument("--show-conf", action="store_true")
     draw.add_argument("--conf", type=float, default=None, help="optional confidence threshold")
@@ -332,7 +359,7 @@ def build_parser() -> argparse.ArgumentParser:
     draw.set_defaults(handler=handle_vis_draw)
     crop = vis_sub.add_parser("crop", help="crop annotation regions into class folders")
     add_dataset_args(crop)
-    crop.add_argument("--out", required=True, help="output crop directory")
+    crop.add_argument("--out", default=None, help="output crop directory; defaults to <root>/ydm_vis/crop")
     crop.add_argument("--keep-shape", action="store_true")
     crop.add_argument("--min-size", type=int, default=1)
     crop.add_argument(
@@ -377,25 +404,25 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_false",
         help="start with existing txt annotations hidden; press L to toggle them",
     )
-    manual_box.add_argument("--out", default=None, help="optional JSON output path")
+    manual_box.add_argument("--out", default=None, help="JSON output path; defaults to <root>/ydm_vis/manual_box/<image>.json")
     manual_box.set_defaults(handler=handle_vis_manual_box, show_existing=True)
 
     export = subparsers.add_parser("export", help="export to another format")
     export_sub = export.add_subparsers(dest="export_command", required=True)
     coco = export_sub.add_parser("coco", help="export YOLO dataset to COCO JSON")
     add_dataset_args(coco)
-    coco.add_argument("--out", required=True, help="output COCO JSON path")
+    coco.add_argument("--out", default=None, help="output COCO JSON path; defaults to <root>/ydm_conversion/coco/instances.json")
     coco.set_defaults(handler=handle_export_coco)
     xany = export_sub.add_parser("xany", help="export YOLO dataset to x-anylabeling JSON files")
     add_dataset_args(xany)
-    xany.add_argument("--out", required=True, help="output JSON directory")
+    xany.add_argument("--out", default=None, help="output JSON directory; defaults to <root>/ydm_conversion/xanylabeling")
     xany.set_defaults(handler=handle_export_xany)
 
     import_cmd = subparsers.add_parser("import", help="import another annotation format")
     import_sub = import_cmd.add_subparsers(dest="import_command", required=True)
     labelme = import_sub.add_parser("labelme", help="import LabelMe JSON directory as YOLO")
     labelme.add_argument("--json-dir", required=True)
-    labelme.add_argument("--out", required=True)
+    labelme.add_argument("--out", default=None, help="output dataset root; defaults to <json-dir-parent>/ydm_conversion/import_labelme")
     labelme.add_argument("--task", choices=["auto", "detect", "segment"], default="auto")
     labelme.add_argument("--classes", default=None, help="optional comma-separated class order")
     labelme.add_argument("--attribute-file", default=None, help="optional attribute.yaml for importing shape attributes")
@@ -404,7 +431,7 @@ def build_parser() -> argparse.ArgumentParser:
     coco_import = import_sub.add_parser("coco", help="import COCO JSON as YOLO")
     coco_import.add_argument("--json", dest="json_path", required=True)
     coco_import.add_argument("--images-dir", required=True)
-    coco_import.add_argument("--out", required=True)
+    coco_import.add_argument("--out", default=None, help="output dataset root; defaults to <json-parent>/ydm_conversion/import_coco")
     coco_import.add_argument("--task", choices=["detect", "segment"], default="detect")
     coco_import.add_argument("--classes", default=None, help="optional comma-separated class order")
     coco_import.add_argument("--no-copy-images", dest="copy_images", action="store_false")
@@ -413,7 +440,7 @@ def build_parser() -> argparse.ArgumentParser:
     voc_import = import_sub.add_parser("voc", help="import Pascal VOC XML directory as YOLO")
     voc_import.add_argument("--annotations-dir", required=True)
     voc_import.add_argument("--images-dir", required=True)
-    voc_import.add_argument("--out", required=True)
+    voc_import.add_argument("--out", default=None, help="output dataset root; defaults to <annotations-parent>/ydm_conversion/import_voc")
     voc_import.add_argument("--classes", default=None, help="optional comma-separated class order")
     voc_import.add_argument("--keep-difficult", dest="skip_difficult", action="store_false")
     add_runtime_args(voc_import)
@@ -421,7 +448,7 @@ def build_parser() -> argparse.ArgumentParser:
     mask_import = import_sub.add_parser("mask", help="import semantic segmentation masks as YOLO segmentation")
     mask_import.add_argument("--images-dir", required=True)
     mask_import.add_argument("--masks-dir", required=True)
-    mask_import.add_argument("--out", required=True)
+    mask_import.add_argument("--out", default=None, help="output dataset root; defaults to <images-parent>/ydm_conversion/import_mask")
     mask_import.add_argument("--class-map", default=None, help="YAML/JSON mapping from mask value/color to class name")
     mask_import.add_argument("--background", default="0", help="background mask value or color")
     mask_import.add_argument("--min-area", type=int, default=1, help="minimum connected-component area in pixels")
@@ -434,20 +461,27 @@ def build_parser() -> argparse.ArgumentParser:
     seg2det = convert_sub.add_parser("seg2det", help="convert YOLO segmentation labels to detection labels")
     add_dataset_args(seg2det)
     add_write_args(seg2det)
-    seg2det.set_defaults(handler=handle_seg2det)
+    seg2det.set_defaults(
+        handler=handle_seg2det,
+        _output_operation="seg2det",
+    )
     pseudo = convert_sub.add_parser("pseudo", help="convert prediction labels to pseudo labels")
     add_dataset_args(pseudo)
     add_write_args(pseudo)
     pseudo.add_argument("--conf", type=float, default=0.0, help="confidence threshold")
     pseudo.add_argument("--keep-conf", dest="drop_confidence", action="store_false", help="keep confidence in output labels")
-    pseudo.set_defaults(handler=handle_pseudo, drop_confidence=True)
+    pseudo.set_defaults(
+        handler=handle_pseudo,
+        drop_confidence=True,
+        _output_operation="pseudo",
+    )
 
     eval_cmd = subparsers.add_parser("eval", help="evaluate or compare predictions")
     eval_sub = eval_cmd.add_subparsers(dest="eval_command", required=True)
     compare = eval_sub.add_parser("compare", help="compare prediction labels against GT labels")
     compare.add_argument("--gt-root", required=True)
     compare.add_argument("--pred-root", required=True)
-    compare.add_argument("--out", required=True, help="CSV output path")
+    compare.add_argument("--out", default=None, help="CSV output path; defaults to <gt-root>/ydm_evaluation/compare.csv")
     compare.add_argument("--iou", type=float, default=0.5)
     compare.add_argument("--conf", type=float, default=None)
     compare.add_argument("--task", choices=["auto", "detect", "segment"], default="auto")
@@ -459,8 +493,8 @@ def build_parser() -> argparse.ArgumentParser:
     review = eval_sub.add_parser("review-pack", help="write FP/FN review package from GT and predictions")
     review.add_argument("--gt-root", required=True)
     review.add_argument("--pred-root", required=True)
-    review.add_argument("--out", required=True, help="review output directory")
-    review.add_argument("--csv", default=None, help="optional full compare CSV output")
+    review.add_argument("--out", default=None, help="review output directory; defaults to <gt-root>/ydm_evaluation/review_pack")
+    review.add_argument("--csv", default=None, help="full compare CSV; defaults to <out>/compare.csv")
     review.add_argument("--iou", type=float, default=0.5)
     review.add_argument("--conf", type=float, default=None)
     review.add_argument("--status", default="fp,fn", help="statuses to include, comma-separated")
@@ -476,7 +510,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     error_analysis.add_argument("--gt-root", required=True)
     error_analysis.add_argument("--pred-root", required=True)
-    error_analysis.add_argument("--out", required=True, help="output directory for CSV reports")
+    error_analysis.add_argument("--out", default=None, help="output directory; defaults to <gt-root>/ydm_evaluation/error_analysis")
     error_analysis.add_argument("--match-iou", type=float, default=0.5)
     error_analysis.add_argument("--low-iou", type=float, default=0.1)
     error_analysis.add_argument("--conf-thres", type=float, default=0.0, help="confidence threshold for predictions")
@@ -509,8 +543,8 @@ def build_parser() -> argparse.ArgumentParser:
     metrics = eval_sub.add_parser("metrics", help="compute Ultralytics-style precision/recall/mAP from GT and prediction txt")
     metrics.add_argument("--gt-root", required=True)
     metrics.add_argument("--pred-root", required=True)
-    metrics.add_argument("--out", default=None, help="optional JSON output path")
-    metrics.add_argument("--csv", default=None, help="optional per-class CSV output path")
+    metrics.add_argument("--out", default=None, help="JSON output path; defaults to <gt-root>/ydm_evaluation/metrics.json")
+    metrics.add_argument("--csv", default=None, help="per-class CSV; defaults to <gt-root>/ydm_evaluation/metrics.csv")
     metrics.add_argument("--print-table", action="store_true", help="print an Ultralytics-style metrics table instead of JSON")
     metrics.add_argument(
         "--show-original",
@@ -569,13 +603,13 @@ def add_runtime_args(parser: argparse.ArgumentParser, *, workers: bool = True) -
 
 
 def add_write_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--out", required=True, help="output dataset root")
+    parser.add_argument("--out", default=None, help="output dataset root; defaults to the command's <root>/ydm_* directory")
     parser.add_argument(
         "--backup-dir",
         default=None,
         help="backup directory; default is <dataset-root>/labels_backup",
     )
-    parser.add_argument("--report", default=None, help="optional edit report CSV path")
+    parser.add_argument("--report", default=None, help="edit report CSV; defaults to the command's annotation output directory")
     parser.add_argument("--no-copy-images", dest="copy_images", action="store_false", help="do not copy image files")
     parser.add_argument("--drop-empty-labels", dest="keep_empty_labels", action="store_false", help="do not write empty label files")
     parser.add_argument("--dry-run", action="store_true", help="report changes without writing output")
@@ -612,6 +646,40 @@ def load_from_args(args: argparse.Namespace, *, progress: bool | None = None, pr
     )
 
 
+def _resolved_output_root(root: str | Path) -> Path:
+    """Resolve a dataset YAML to its dataset directory for default outputs."""
+
+    root_path = Path(root)
+    if root_path.suffix.lower() in {".yaml", ".yml"} and root_path.is_file():
+        from yolo_data_manager.scripting import _resolve_manager_root
+
+        return _resolve_manager_root(root_path)[0]
+    return root_path
+
+
+def _default_file_path(args: argparse.Namespace, group: str, filename: str) -> str:
+    return str(ydm_dir(_resolved_output_root(args.root), group) / filename)
+
+
+def _value_or_default(value: str | Path | None, default: str | Path) -> str:
+    return str(value) if value is not None else str(default)
+
+
+def _default_report_path(args: argparse.Namespace, operation: str) -> str:
+    return str(default_annotation_output(_resolved_output_root(args.root), operation) / "edit_report.csv")
+
+
+def _eval_output_root(root: str | Path) -> Path:
+    """Use a GT dataset root as the anchor for evaluation reports."""
+
+    return _resolved_output_root(root)
+
+
+def _safe_stem(value: str) -> str:
+    cleaned = "".join(char if char.isalnum() or char in {"-", "_"} else "_" for char in value)
+    return cleaned.strip("_") or "query"
+
+
 def handle_layout_detect(args: argparse.Namespace) -> int:
     _print_status("LAYOUT", f"detecting dataset layout: {args.root}")
     info = detect_layout(args.root, progress=args.progress, progress_leave=args.progress_leave)
@@ -620,7 +688,7 @@ def handle_layout_detect(args: argparse.Namespace) -> int:
 
 
 def handle_check(args: argparse.Namespace) -> int:
-    out = args.out or str(Path(args.root) / "check_result.json")
+    out = _value_or_default(args.out, _default_file_path(args, "quality", "check.json"))
     _print_status("CHECK", f"loading and validating dataset: {args.root}")
     dataset = load_from_args(args, progress=args.progress, progress_leave=args.progress_leave)
     _print_status("CHECK", f"validating {len(dataset.images)} images with {max(1, int(args.workers))} worker(s)")
@@ -652,23 +720,29 @@ def handle_check(args: argparse.Namespace) -> int:
 def handle_stats(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
     payload = compute_stats(dataset)
-    if args.class_csv:
-        write_class_counts_csv(payload, args.class_csv)
-    if args.ann_csv:
-        write_annotation_csv(dataset, args.ann_csv)
-    if args.attr_csv:
-        write_attribute_csv(dataset, args.attr_csv)
-    if args.plots_dir:
-        write_stats_plots(dataset, args.plots_dir, stats_list=args.stats_list)
-    _emit_json(payload, args.out)
+    stats_dir = ydm_dir(_resolved_output_root(args.root), "stats")
+    out = _value_or_default(args.out, stats_dir / "stats.json")
+    class_csv = _value_or_default(args.class_csv, stats_dir / "class_counts.csv")
+    ann_csv = _value_or_default(args.ann_csv, stats_dir / "annotations.csv")
+    attr_csv = _value_or_default(args.attr_csv, stats_dir / "attributes.csv")
+    plots_dir = _value_or_default(args.plots_dir, stats_dir / "plots")
+    write_class_counts_csv(payload, class_csv)
+    write_annotation_csv(dataset, ann_csv)
+    write_attribute_csv(dataset, attr_csv)
+    write_stats_plots(dataset, plots_dir, stats_list=args.stats_list)
+    _emit_json(payload, out)
     return 0
 
 
 def handle_query_class(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
     result = query_by_class(dataset, _split_values(args.class_values))
-    if args.out:
-        result.write_csv(args.out)
+    query_name = _safe_stem("_".join(_split_values(args.class_values)))
+    out = _value_or_default(
+        args.out,
+        ydm_dir(_resolved_output_root(args.root), "quality") / "query" / f"class_{query_name}.csv",
+    )
+    result.write_csv(out)
     copy_query_result(
         result,
         images_dir=args.copy_images,
@@ -683,8 +757,12 @@ def handle_query_attr(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
     values = _split_values(args.value) if args.value else None
     result = query_by_attribute(dataset, args.name, values=values, nonzero=args.nonzero)
-    if args.out:
-        result.write_csv(args.out)
+    query_name = _safe_stem(args.name)
+    out = _value_or_default(
+        args.out,
+        ydm_dir(_resolved_output_root(args.root), "quality") / "query" / f"attr_{query_name}.csv",
+    )
+    result.write_csv(out)
     copy_query_result(
         result,
         images_dir=args.copy_images,
@@ -698,25 +776,30 @@ def handle_query_attr(args: argparse.Namespace) -> int:
 def handle_dataset_select(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
     selected = select_from_file(dataset, args.file)
+    out = _value_or_default(args.out, default_dataset_output(_resolved_output_root(args.root), "select"))
     write_yolo_dataset(
         selected,
-        args.out,
+        out,
         copy_images=args.copy_images,
         workers=args.workers,
         progress=args.progress,
         progress_leave=args.progress_leave,
         backup_dir=args.backup_dir,
     )
-    print(json.dumps({"images": len(selected.images), "out": args.out}, indent=2, ensure_ascii=False))
+    print(json.dumps({"images": len(selected.images), "out": out}, indent=2, ensure_ascii=False))
     return 0
 
 
 def handle_dataset_normalize(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
+    out = _value_or_default(
+        args.out,
+        default_dataset_output(_resolved_output_root(args.root), "normalize"),
+    )
     if not args.dry_run:
         write_yolo_dataset(
             dataset,
-            args.out,
+            out,
             copy_images=args.copy_images,
             keep_empty_labels=args.keep_empty_labels,
             workers=args.workers,
@@ -724,7 +807,7 @@ def handle_dataset_normalize(args: argparse.Namespace) -> int:
             progress_leave=args.progress_leave,
             backup_dir=args.backup_dir,
         )
-    print(json.dumps({"images": len(dataset.images), "annotations": dataset.annotation_count(), "out": None if args.dry_run else args.out}, indent=2, ensure_ascii=False))
+    print(json.dumps({"images": len(dataset.images), "annotations": dataset.annotation_count(), "out": None if args.dry_run else out}, indent=2, ensure_ascii=False))
     return 0
 
 
@@ -738,7 +821,7 @@ def handle_dataset_split(args: argparse.Namespace) -> int:
         seed=args.seed,
         absolute_paths=args.absolute_paths,
     )
-    out_dir = Path(args.out) if args.out else Path(args.root)
+    out_dir = Path(args.out) if args.out else _resolved_output_root(args.root)
     for split_name, names in splits.items():
         write_split_file(names, out_dir / f"{split_name}.txt")
     print(
@@ -757,7 +840,7 @@ def handle_dataset_split(args: argparse.Namespace) -> int:
 
 def handle_dataset_yaml(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
-    out_path = Path(args.out) if args.out else Path(args.root) / "dataset.yaml"
+    out_path = Path(args.out) if args.out else _resolved_output_root(args.root) / "dataset.yaml"
     write_dataset_yaml(dataset.classes, out_path, train=args.train, val=args.val, test=args.test)
     print(json.dumps({"out": str(out_path)}, indent=2, ensure_ascii=False))
     return 0
@@ -765,6 +848,10 @@ def handle_dataset_yaml(args: argparse.Namespace) -> int:
 
 def handle_dataset_filter(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
+    out = _value_or_default(
+        args.out,
+        default_dataset_output(_resolved_output_root(args.root), "filter"),
+    )
     before = dataset.annotation_count()
     class_ids = {dataset.class_id(value) for value in _split_values(args.class_values)} if args.class_values else None
     filtered = filter_by_geometry(
@@ -782,14 +869,14 @@ def handle_dataset_filter(args: argparse.Namespace) -> int:
     if not args.dry_run:
         write_yolo_dataset(
             filtered,
-            args.out,
+            out,
             copy_images=args.copy_images,
             workers=args.workers,
             progress=args.progress,
             progress_leave=args.progress_leave,
             backup_dir=args.backup_dir,
         )
-    print(json.dumps({"before": before, "after": after, "removed": before - after, "out": None if args.dry_run else args.out}, indent=2, ensure_ascii=False))
+    print(json.dumps({"before": before, "after": after, "removed": before - after, "out": None if args.dry_run else out}, indent=2, ensure_ascii=False))
     return 0
 
 
@@ -804,6 +891,9 @@ def _read_class_rules(path: str | None) -> dict | None:
 
 def handle_dataset_merge(args: argparse.Namespace) -> int:
     roots = _split_values(args.roots)
+    if not roots:
+        raise ValueError("--roots must contain at least one dataset root")
+    out = _value_or_default(args.out, default_dataset_output(_resolved_output_root(roots[0]), "merge"))
     datasets = [
         load_yolo_dataset(
             root,
@@ -813,20 +903,19 @@ def handle_dataset_merge(args: argparse.Namespace) -> int:
             workers=args.workers,
             progress=args.progress,
             progress_leave=args.progress_leave,
-            backup_dir=args.backup_dir,
         )
         for root in roots
     ]
     merged, report = merge_datasets(
         datasets,
-        root=args.out,
+        root=out,
         rename_duplicates=args.rename_duplicates,
         source_prefix=args.source_prefix,
     )
     if not args.dry_run:
         write_yolo_dataset(
             merged,
-            args.out,
+            out,
             copy_images=args.copy_images,
             workers=args.workers,
             progress=args.progress,
@@ -840,7 +929,7 @@ def handle_dataset_merge(args: argparse.Namespace) -> int:
                 "annotations": report.annotation_count,
                 "classes": report.class_names,
                 "renamed_images": report.renamed_images,
-                "out": None if args.dry_run else args.out,
+                "out": None if args.dry_run else out,
             },
             indent=2,
             ensure_ascii=False,
@@ -858,9 +947,9 @@ def handle_dataset_duplicates(args: argparse.Namespace) -> int:
         progress=args.progress,
         progress_leave=args.progress_leave,
     )
-    if args.out:
-        write_duplicate_image_csv(groups, args.out)
-    print(json.dumps({"groups": len(groups), "duplicates": [group.__dict__ for group in groups]}, indent=2, ensure_ascii=False))
+    out = _value_or_default(args.out, _default_file_path(args, "quality", "duplicates.csv"))
+    write_duplicate_image_csv(groups, out)
+    print(json.dumps({"groups": len(groups), "duplicates": [group.__dict__ for group in groups], "out": out}, indent=2, ensure_ascii=False))
     return 0
 
 
@@ -872,47 +961,52 @@ def handle_dataset_bad_images(args: argparse.Namespace) -> int:
         progress=args.progress,
         progress_leave=args.progress_leave,
     )
-    if args.out:
-        write_image_quality_csv(issues, args.out)
-    print(json.dumps({"issues": len(issues), "bad_images": [issue.__dict__ for issue in issues]}, indent=2, ensure_ascii=False))
+    out = _value_or_default(args.out, _default_file_path(args, "quality", "bad_images.csv"))
+    write_image_quality_csv(issues, out)
+    print(json.dumps({"issues": len(issues), "bad_images": [issue.__dict__ for issue in issues], "out": out}, indent=2, ensure_ascii=False))
     return 0
 
 
 def handle_delete_class(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
     edited, report = delete_class(dataset, _split_values(args.class_values), compact=args.compact)
-    _write_edit_result(edited, report, args)
+    _write_edit_result(edited, report, args, operation="delete_class")
     return 0
 
 
 def handle_replace_class(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
     edited, report = replace_class(dataset, _split_values(args.from_values), args.to_value, compact=args.compact)
-    _write_edit_result(edited, report, args)
+    _write_edit_result(edited, report, args, operation="replace_class")
     return 0
 
 
 def handle_merge_class(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
     edited, report = merge_classes(dataset, _split_values(args.from_values), args.to_value, compact=args.compact)
-    _write_edit_result(edited, report, args)
+    _write_edit_result(edited, report, args, operation="merge_class")
     return 0
 
 
 def handle_rename_class(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
     edited, report = rename_class(dataset, args.from_value, args.to_value)
-    _write_edit_result(edited, report, args)
+    _write_edit_result(edited, report, args, operation="rename_class")
     return 0
 
 
 def handle_apply_map(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
     edited, reports = apply_class_map(dataset, args.map_file, compact=args.compact)
+    out = _value_or_default(
+        args.out,
+        default_annotation_output(_resolved_output_root(args.root), "apply_map"),
+    )
+    report_path = args.report or _default_report_path(args, "apply_map")
     if not args.dry_run:
         write_yolo_dataset(
             edited,
-            args.out,
+            out,
             copy_images=args.copy_images,
             keep_empty_labels=args.keep_empty_labels,
             workers=args.workers,
@@ -920,14 +1014,14 @@ def handle_apply_map(args: argparse.Namespace) -> int:
             progress_leave=args.progress_leave,
             backup_dir=args.backup_dir,
         )
-    if args.report:
+    if report_path:
         rows = []
         for report in reports:
             rows.extend(report.rows)
         from yolo_data_manager.annotation.edit import EditReport
 
-        EditReport(rows=rows).write_csv(args.report)
-    print(json.dumps({"reports": len(reports), "out": None if args.dry_run else args.out}, indent=2, ensure_ascii=False))
+        EditReport(rows=rows).write_csv(report_path)
+    print(json.dumps({"reports": len(reports), "out": None if args.dry_run else out, "report": report_path}, indent=2, ensure_ascii=False))
     return 0
 
 
@@ -940,11 +1034,11 @@ def handle_correct_from_crops(args: argparse.Namespace) -> int:
         backup_dir=getattr(args, "backup_dir", None),
         dry_run=args.dry_run,
     )
-    if args.report:
-        edit_report.write_csv(args.report)
+    report_path = args.report or _default_report_path(args, "correct_from_crops")
+    edit_report.write_csv(report_path)
     payload = result.to_dict()
     payload["dry_run"] = args.dry_run
-    payload["report"] = args.report
+    payload["report"] = report_path
     print(json.dumps(payload, indent=2, ensure_ascii=False))
     return 0
 
@@ -962,11 +1056,11 @@ def handle_correct_from_error_crops(args: argparse.Namespace) -> int:
         backup_dir=getattr(args, "backup_dir", None),
         dry_run=args.dry_run,
     )
-    if args.report:
-        edit_report.write_csv(args.report)
+    report_path = args.report or _default_report_path(args, "correct_from_error_crops")
+    edit_report.write_csv(report_path)
     payload = result.to_dict()
     payload["dry_run"] = args.dry_run
-    payload["report"] = args.report
+    payload["report"] = report_path
     print(json.dumps(payload, indent=2, ensure_ascii=False))
     return 0
 
@@ -981,7 +1075,7 @@ def handle_set_attr(args: argparse.Namespace) -> int:
         classes=classes,
         where_value=args.where_value,
     )
-    _write_edit_result(edited, report, args)
+    _write_edit_result(edited, report, args, operation="set_attr")
     return 0
 
 
@@ -989,15 +1083,19 @@ def handle_delete_attr(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
     values = _split_values(args.value) if args.value else None
     edited, report = delete_by_attribute(dataset, args.name, values=values, nonzero=args.nonzero)
-    _write_edit_result(edited, report, args)
+    _write_edit_result(edited, report, args, operation="delete_attr")
     return 0
 
 
 def handle_vis_draw(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
+    out = _value_or_default(
+        args.out,
+        default_visualization_output(_resolved_output_root(args.root), "draw"),
+    )
     render_dataset(
         dataset,
-        args.out,
+        out,
         limit=args.limit,
         show_confidence=args.show_conf,
         confidence_threshold=args.conf,
@@ -1010,15 +1108,19 @@ def handle_vis_draw(args: argparse.Namespace) -> int:
         progress=args.progress,
         progress_leave=args.progress_leave,
     )
-    print(json.dumps({"out": args.out}, indent=2, ensure_ascii=False))
+    print(json.dumps({"out": out}, indent=2, ensure_ascii=False))
     return 0
 
 
 def handle_vis_crop(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
+    out = _value_or_default(
+        args.out,
+        default_visualization_output(_resolved_output_root(args.root), "crop"),
+    )
     saved = crop_dataset(
         dataset,
-        args.out,
+        out,
         keep_shape=args.keep_shape,
         min_size=args.min_size,
         padding=args.padding,
@@ -1029,7 +1131,7 @@ def handle_vis_crop(args: argparse.Namespace) -> int:
         progress=args.progress,
         progress_leave=args.progress_leave,
     )
-    print(json.dumps({"saved": saved, "out": args.out}, indent=2, ensure_ascii=False))
+    print(json.dumps({"saved": saved, "out": out}, indent=2, ensure_ascii=False))
     return 0
 
 
@@ -1042,8 +1144,12 @@ def handle_vis_manual_box(args: argparse.Namespace) -> int:
             root_label_path = dataset.root / label_path
             if root_label_path.exists() or not label_path.exists():
                 label_path = root_label_path
-        if args.out is not None:
-            output_path = Path(args.out).resolve()
+        output_arg = args.out or str(
+            default_visualization_output(_resolved_output_root(args.root), "manual_box")
+            / f"{image.stem}.json"
+        )
+        if output_arg is not None:
+            output_path = Path(output_arg).resolve()
             protected_paths = {image.path.resolve()}
             if label_path is not None:
                 protected_paths.add(label_path.resolve())
@@ -1070,8 +1176,8 @@ def handle_vis_manual_box(args: argparse.Namespace) -> int:
     else:
         payload = result.to_dict()
 
-    if args.out is not None:
-        output_path = Path(args.out)
+    output_path = Path(output_arg)
+    if output_path is not None:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(
             json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
@@ -1083,29 +1189,41 @@ def handle_vis_manual_box(args: argparse.Namespace) -> int:
 
 def handle_export_coco(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
-    export_coco(dataset, args.out)
-    print(json.dumps({"out": args.out}, indent=2, ensure_ascii=False))
+    out = _value_or_default(
+        args.out,
+        default_conversion_output(_resolved_output_root(args.root), "coco") / "instances.json",
+    )
+    export_coco(dataset, out)
+    print(json.dumps({"out": out}, indent=2, ensure_ascii=False))
     return 0
 
 
 def handle_export_xany(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
+    out = _value_or_default(
+        args.out,
+        default_conversion_output(_resolved_output_root(args.root), "xanylabeling"),
+    )
     export_xanylabeling(
         dataset,
-        args.out,
+        out,
         workers=args.workers,
         progress=args.progress,
         progress_leave=args.progress_leave,
     )
-    print(json.dumps({"out": args.out}, indent=2, ensure_ascii=False))
+    print(json.dumps({"out": out}, indent=2, ensure_ascii=False))
     return 0
 
 
 def handle_import_labelme(args: argparse.Namespace) -> int:
     classes = _split_values(args.classes) if args.classes else None
+    out = _value_or_default(
+        args.out,
+        default_conversion_output(Path(args.json_dir).parent, "import_labelme"),
+    )
     dataset = import_labelme_dir(
         args.json_dir,
-        out_root=args.out,
+        out_root=out,
         task=args.task,
         class_names=classes,
         attribute_file=args.attribute_file,
@@ -1113,16 +1231,20 @@ def handle_import_labelme(args: argparse.Namespace) -> int:
         progress=args.progress,
         progress_leave=args.progress_leave,
     )
-    print(json.dumps({"images": len(dataset.images), "annotations": dataset.annotation_count(), "out": args.out}, indent=2, ensure_ascii=False))
+    print(json.dumps({"images": len(dataset.images), "annotations": dataset.annotation_count(), "out": out}, indent=2, ensure_ascii=False))
     return 0
 
 
 def handle_import_coco(args: argparse.Namespace) -> int:
     classes = _split_values(args.classes) if args.classes else None
+    out = _value_or_default(
+        args.out,
+        default_conversion_output(Path(args.json_path).parent, "import_coco"),
+    )
     dataset = import_coco(
         args.json_path,
         images_dir=args.images_dir,
-        out_root=args.out,
+        out_root=out,
         task=args.task,
         class_names=classes,
         copy_images=args.copy_images,
@@ -1130,31 +1252,39 @@ def handle_import_coco(args: argparse.Namespace) -> int:
         progress=args.progress,
         progress_leave=args.progress_leave,
     )
-    print(json.dumps({"images": len(dataset.images), "annotations": dataset.annotation_count(), "out": args.out}, indent=2, ensure_ascii=False))
+    print(json.dumps({"images": len(dataset.images), "annotations": dataset.annotation_count(), "out": out}, indent=2, ensure_ascii=False))
     return 0
 
 
 def handle_import_voc(args: argparse.Namespace) -> int:
     classes = _split_values(args.classes) if args.classes else None
+    out = _value_or_default(
+        args.out,
+        default_conversion_output(Path(args.annotations_dir).parent, "import_voc"),
+    )
     dataset = import_voc_dir(
         args.annotations_dir,
         images_dir=args.images_dir,
-        out_root=args.out,
+        out_root=out,
         class_names=classes,
         skip_difficult=args.skip_difficult,
         workers=args.workers,
         progress=args.progress,
         progress_leave=args.progress_leave,
     )
-    print(json.dumps({"images": len(dataset.images), "annotations": dataset.annotation_count(), "out": args.out}, indent=2, ensure_ascii=False))
+    print(json.dumps({"images": len(dataset.images), "annotations": dataset.annotation_count(), "out": out}, indent=2, ensure_ascii=False))
     return 0
 
 
 def handle_import_mask(args: argparse.Namespace) -> int:
+    out = _value_or_default(
+        args.out,
+        default_conversion_output(Path(args.images_dir).parent, "import_mask"),
+    )
     dataset = import_semantic_mask_dir(
         args.images_dir,
         args.masks_dir,
-        out_root=args.out,
+        out_root=out,
         class_map=_read_class_rules(args.class_map),
         background=args.background,
         min_area=args.min_area,
@@ -1163,16 +1293,20 @@ def handle_import_mask(args: argparse.Namespace) -> int:
         progress=args.progress,
         progress_leave=args.progress_leave,
     )
-    print(json.dumps({"images": len(dataset.images), "annotations": dataset.annotation_count(), "out": args.out}, indent=2, ensure_ascii=False))
+    print(json.dumps({"images": len(dataset.images), "annotations": dataset.annotation_count(), "out": out}, indent=2, ensure_ascii=False))
     return 0
 
 
 def handle_seg2det(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
     edited = segmentation_to_detection(dataset)
+    out = _value_or_default(
+        args.out,
+        default_conversion_output(_resolved_output_root(args.root), "seg2det"),
+    )
     write_yolo_dataset(
         edited,
-        args.out,
+        out,
         copy_images=args.copy_images,
         keep_empty_labels=args.keep_empty_labels,
         workers=args.workers,
@@ -1180,17 +1314,21 @@ def handle_seg2det(args: argparse.Namespace) -> int:
         progress_leave=args.progress_leave,
         backup_dir=args.backup_dir,
     )
-    print(json.dumps({"out": args.out}, indent=2, ensure_ascii=False))
+    print(json.dumps({"out": out}, indent=2, ensure_ascii=False))
     return 0
 
 
 def handle_pseudo(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
     pseudo = predictions_to_pseudo_labels(dataset, confidence_threshold=args.conf, drop_confidence=args.drop_confidence)
+    out = _value_or_default(
+        args.out,
+        default_conversion_output(_resolved_output_root(args.root), "pseudo"),
+    )
     if not args.dry_run:
         write_yolo_dataset(
             pseudo,
-            args.out,
+            out,
             copy_images=args.copy_images,
             keep_empty_labels=args.keep_empty_labels,
             include_confidence=not args.drop_confidence,
@@ -1199,7 +1337,7 @@ def handle_pseudo(args: argparse.Namespace) -> int:
             progress_leave=args.progress_leave,
             backup_dir=args.backup_dir,
         )
-    print(json.dumps({"annotations": pseudo.annotation_count(), "out": None if args.dry_run else args.out}, indent=2, ensure_ascii=False))
+    print(json.dumps({"annotations": pseudo.annotation_count(), "out": None if args.dry_run else out}, indent=2, ensure_ascii=False))
     return 0
 
 
@@ -1221,8 +1359,9 @@ def handle_eval_compare(args: argparse.Namespace) -> int:
     gt = load_yolo_dataset(args.gt_root, **kw)
     pred = load_yolo_dataset(args.pred_root, **kw)
     rows, summary = compare_datasets(gt, pred, iou_threshold=args.iou, confidence_threshold=args.conf)
-    write_compare_csv(rows, args.out)
-    print(json.dumps({"summary": summary, "out": args.out}, indent=2, ensure_ascii=False))
+    out = _value_or_default(args.out, ydm_dir(_eval_output_root(args.gt_root), "evaluation") / "compare.csv")
+    write_compare_csv(rows, out)
+    print(json.dumps({"summary": summary, "out": out}, indent=2, ensure_ascii=False))
     return 0
 
 
@@ -1231,23 +1370,28 @@ def handle_eval_review_pack(args: argparse.Namespace) -> int:
     gt = load_yolo_dataset(args.gt_root, **kw)
     pred = load_yolo_dataset(args.pred_root, **kw)
     rows, summary = compare_datasets(gt, pred, iou_threshold=args.iou, confidence_threshold=args.conf)
-    if args.csv:
-        write_compare_csv(rows, args.csv)
+    out = _value_or_default(args.out, default_evaluation_output(_eval_output_root(args.gt_root), "review_pack"))
+    csv_out = args.csv or str(Path(out) / "compare.csv")
+    write_compare_csv(rows, csv_out)
     counts = write_review_pack(
         rows,
         gt,
-        args.out,
+        out,
         statuses=set(_split_values(args.status)),
         pred=pred,
         workers=args.workers,
         progress=args.progress,
         progress_leave=args.progress_leave,
     )
-    print(json.dumps({"summary": summary, "review": counts, "out": args.out}, indent=2, ensure_ascii=False))
+    print(json.dumps({"summary": summary, "review": counts, "out": out, "csv": csv_out}, indent=2, ensure_ascii=False))
     return 0
 
 
 def handle_eval_error_analysis(args: argparse.Namespace) -> int:
+    out = _value_or_default(
+        args.out,
+        default_evaluation_output(_eval_output_root(args.gt_root), "error_analysis"),
+    )
     val_source = _resolve_eval_val_source(args.gt_root, args.val_source, getattr(args, "only_val", False))
     stems = collect_stems_from_source(val_source)
     gt = load_error_analysis_dataset(
@@ -1318,14 +1462,14 @@ def handle_eval_error_analysis(args: argparse.Namespace) -> int:
         conf_thres=args.conf_thres,
     )
     dup_rows = find_duplicate_gt(gt, duplicate_iou=args.duplicate_iou)
-    write_error_csvs(error_rows, args.out)
-    write_duplicate_gt_csv(dup_rows, args.out)
+    write_error_csvs(error_rows, out)
+    write_duplicate_gt_csv(dup_rows, out)
     review_counts = (
         write_error_review_pack(
             error_rows,
             gt,
             pred,
-            args.out,
+            out,
             crop_padding=args.crop_padding,
             workers=args.review_workers if args.review_workers is not None else args.workers,
             progress=args.review_progress or args.progress,
@@ -1334,7 +1478,7 @@ def handle_eval_error_analysis(args: argparse.Namespace) -> int:
         if args.review
         else {}
     )
-    copied_pred_txt = copy_prediction_txt_to_review(pred, args.out, stems=stems) if args.copy_pred_txt else []
+    copied_pred_txt = copy_prediction_txt_to_review(pred, out, stems=stems) if args.copy_pred_txt else []
     print_error_summary(error_rows, dup_rows)
     print(
         json.dumps(
@@ -1343,7 +1487,7 @@ def handle_eval_error_analysis(args: argparse.Namespace) -> int:
                 "duplicate_gt_pairs": len(dup_rows),
                 "review": review_counts,
                 "pred_txt_copied": len(copied_pred_txt),
-                "out": args.out,
+                "out": out,
             },
             indent=2,
             ensure_ascii=False,
@@ -1353,6 +1497,9 @@ def handle_eval_error_analysis(args: argparse.Namespace) -> int:
 
 
 def handle_eval_metrics(args: argparse.Namespace) -> int:
+    output_dir = ydm_dir(_eval_output_root(args.gt_root), "evaluation")
+    out = _value_or_default(args.out, output_dir / "metrics.json")
+    csv_out = _value_or_default(args.csv, output_dir / "metrics.csv")
     val_source = _resolve_eval_val_source(args.gt_root, args.val_source, getattr(args, "only_val", False))
     stems = collect_stems_from_source(val_source)
     gt = load_error_analysis_dataset(
@@ -1414,10 +1561,8 @@ def handle_eval_metrics(args: argparse.Namespace) -> int:
         min_pixels=args.min_pixels,
         ignore_empty_classes=args.ignore_empty_classes,
     )
-    if args.out:
-        write_metrics_json(metrics, args.out)
-    if args.csv:
-        write_metrics_csv(metrics, args.csv)
+    write_metrics_json(metrics, out)
+    write_metrics_csv(metrics, csv_out)
     if original_metrics is not None and args.print_table:
         print("Original metrics:")
         print(format_metrics_table(original_metrics))
@@ -1443,11 +1588,23 @@ def handle_eval_metrics(args: argparse.Namespace) -> int:
     return 0
 
 
-def _write_edit_result(dataset, report, args: argparse.Namespace) -> None:
+def _write_edit_result(
+    dataset,
+    report,
+    args: argparse.Namespace,
+    *,
+    operation: str | None = None,
+) -> None:
+    operation = operation or getattr(args, "_output_operation", "edit")
+    out = _value_or_default(
+        args.out,
+        default_annotation_output(_resolved_output_root(args.root), operation),
+    )
+    report_path = args.report or _default_report_path(args, operation)
     if not args.dry_run:
         write_yolo_dataset(
             dataset,
-            args.out,
+            out,
             copy_images=args.copy_images,
             keep_empty_labels=args.keep_empty_labels,
             workers=args.workers,
@@ -1455,9 +1612,18 @@ def _write_edit_result(dataset, report, args: argparse.Namespace) -> None:
             progress_leave=args.progress_leave,
             backup_dir=args.backup_dir,
         )
-    if args.report:
-        report.write_csv(args.report)
-    print(json.dumps({"changed": len(report.rows), "out": None if args.dry_run else args.out}, indent=2, ensure_ascii=False))
+    report.write_csv(report_path)
+    print(
+        json.dumps(
+            {
+                "changed": len(report.rows),
+                "out": None if args.dry_run else out,
+                "report": report_path,
+            },
+            indent=2,
+            ensure_ascii=False,
+        )
+    )
 
 
 def _split_values(text: str) -> list[str]:

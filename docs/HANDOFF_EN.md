@@ -11,7 +11,36 @@ Core principles:
 1. Convert all supported formats into one internal dataset model.
 2. Query, edit, statistics, and visualization depend only on that model.
 3. Import/export modules own format boundaries and should not duplicate business logic.
-4. Write operations default to a new output directory and should not modify the source dataset in place.
+4. Write operations default to a new output directory and should not modify the source dataset in place; default analysis outputs use `ydm_`-prefixed functional groups.
+
+## Default Output Paths and Modality Boundary
+
+The default output groups below a dataset root are:
+
+```text
+labels_backup/       timestamped backups before label writes
+ydm_quality/         check, query, duplicates, bad-images
+ydm_stats/           stats JSON, CSV files, plots/
+ydm_vis/             draw/, crop/, manual_box/
+ydm_evaluation/      compare, review_pack, error_analysis, metrics
+ydm_dataset/         select, normalize, filter, merge
+ydm_annotation/      annotation edits and reports
+ydm_conversion/      format import/export and task conversions
+train.txt/val.txt/test.txt, dataset.yaml  remain at the dataset root
+```
+
+Explicit `out`, `csv`, and `plots_dir` values always take precedence. `labels_backup`
+does not use the `ydm_` prefix because it is part of the write-safety policy. Multimodality
+is a dataset property, not a separate feature group: single-modal and multimodal operations
+share these functional directories. Only operations that need to separate image sources add
+subdirectories such as `ydm_stats/plots/rgb/`, `ydm_vis/draw/depth/`, or
+`ydm_conversion/uint8/depth/`; there is no `ydm_multimodal/` directory.
+
+`MultiModalYoloManager` is a modality-aware loader/cache for associating multiple image
+folders with one shared label set. It is not a second business workflow. Its check,
+statistics, visualization, crop, and uint8 conversion outputs use the same groups as
+`YoloManager`; operations without safe all-modality write semantics must not silently modify
+only one image source.
 
 ## Current Feature Groups
 
@@ -152,10 +181,13 @@ yolo_data_manager/
     geometry.py
     schema.py
     errors.py
+    multimodal.py
   io/
     loader.py
     writer.py
     validator.py
+    output_paths.py
+    multimodal.py
   annotation/
     query.py
     edit.py
@@ -183,8 +215,11 @@ yolo_data_manager/
     compute.py
     export.py
     report.py
+    multimodal.py
   vis/
     renderer.py
+    multimodal.py
+  multimodal_manager.py
   cli.py
   scripting.py
 ```
@@ -219,7 +254,7 @@ Detection, segmentation, attributes, and predictions should continue to flow thr
 
 ## Safety Rules
 
-- Default writes go to `--out`.
+- When output arguments are omitted, use the unified `ydm_*` default groups; explicit `--out` wins.
 - Avoid in-place mutation unless an explicit future feature adds it carefully.
 - Preserve user data and prefer copy/write-new-directory workflows.
 - Use `dry_run` and report files for potentially destructive annotation edits.

@@ -52,6 +52,29 @@ python -m yolo_data_manager.cli check --root path/to/yolo
 
 默认风格是 `workers=8`、显示 tqdm、`leave=False`。少数纯格式转换命令暂不使用线程，但仍会保持相同的 CLI 风格。
 
+## 默认输出路径
+
+除特别说明外，显式传入的 `--out`、`--csv`、`--plots-dir` 优先；省略时使用以下约定：
+
+```text
+<dataset_root>/
+  labels_backup/                         # label 写入前的时间戳备份
+  ydm_quality/                           # check、query、duplicates、bad-images
+  ydm_stats/                             # stats.json、CSV、plots/
+  ydm_vis/                               # draw/、crop/、manual_box/
+  ydm_evaluation/                        # compare、review_pack、error_analysis、metrics
+  ydm_dataset/                           # select、normalize、filter、merge
+  ydm_annotation/                        # 各类标注编辑输出和 report
+  ydm_conversion/                        # coco、xanylabeling、import、seg2det、pseudo
+  train.txt / val.txt / test.txt         # split 仍写在数据集根目录
+  dataset.yaml                            # 默认仍写在数据集根目录
+```
+
+`check` 默认写入 `ydm_quality/check.json`；`stats` 默认同时写入
+`ydm_stats/stats.json`、类别/标注/属性 CSV 和 `ydm_stats/plots/`。多模态数据不创建独立的
+`ydm_multimodal` 功能目录，而是在相同的 `ydm_quality`、`ydm_stats`、`ydm_vis`、
+`ydm_conversion` 目录中按模态建立必要的子目录。
+
 ## 加载、布局与校验
 
 ```bash
@@ -64,7 +87,7 @@ ydm dataset normalize --root path/to/yolo --layout auto --out normalized_yolo
 
 `layout detect` 输出的 `report_type` 是 `layout_detect`，这是布局检测结果，不是 `check` 校验结果。输出中还会包含 `class_source`、`class_count`、`classes`，用于确认类别是从 `class.txt`、`classes.txt`、`dataset.yaml` 还是 `data.yaml` 读取到的。
 
-`check` 完整校验结果会写入 JSON 文件，终端只输出红色 warning/error 摘要或绿色 OK 摘要。`--out` 不指定时默认写到 `<root>/check_result.json`。如确实需要在终端打印完整 JSON，可加 `--print-full`。
+`check` 完整校验结果会写入 JSON 文件，终端只输出红色 warning/error 摘要或绿色 OK 摘要。`--out` 不指定时默认写到 `<root>/ydm_quality/check.json`。如确实需要在终端打印完整 JSON，可加 `--print-full`。
 
 `--fill-missing-txt` 会为没有 label 的图片创建空 txt，并在 JSON 中列出创建结果。
 
@@ -90,11 +113,11 @@ ydm ann set-attr --root path/to/yolo --name defect --value yes --class sign --ou
 ydm ann delete-attr --root path/to/yolo --name defect --value yes --out yolo_attr_clean
 ydm dataset filter --root path/to/yolo --min-area 0.001 --out yolo_filtered --backup-dir label_backups
 ydm ann merge-class --root path/to/yolo --from crack,break --to defect --out yolo_merged --backup-dir label_backups
-ydm ann correct-from-crops --root path/to/yolo --crops-dir image_vis/crop/car --to defect --backup-dir label_backups --report crop_correction.csv
+ydm ann correct-from-crops --root path/to/yolo --crops-dir ydm_vis/crop/car --to defect --backup-dir label_backups --report crop_correction.csv
 ydm ann correct-from-error-crops --root path/to/yolo --crops-dir result_ana/val-52/review/pred_gt/pred_car_gt_background/crops --pred-dir result_ana/val-52/review/pred_txt --dedup-iou 0.5 --to defect --delete-pred-none --backup-dir label_backups --only-val --report gt_correction.csv
 ```
 
-写操作默认输出到 `--out`，不原地覆盖原数据。
+写操作省略 `--out` 时默认输出到对应的 `ydm_dataset` 或 `ydm_annotation` 子目录，不原地覆盖原数据。
 `correct-from-crops` 是按 crop 文件名直接修改源数据对应 label 的例外；建议先使用 `--dry-run`，或保留 `--report` 作为修改记录。`vis crop` 文件名 `<image_stem>_<序号>.<扩展名>` 中的序号从 1 开始。`--to none` 或 `--to null` 会删除对应标注。
 `correct-from-error-crops` 使用 `xxx_predx_gty` 文件名中的 `y` 定位 GT 标注序号。提供 `--pred-dir` 后，`gt none` 的 crop 会使用预测 txt 中第 `x` 条记录追加到对应 GT label；追加时会去掉 prediction confidence。未提供 `--pred-dir` 时，`gt none` crop 会跳过。
 追加预测以及 `--replace-gt-from-pred` 产生的替换框，默认按同一类别、同一图片的 IoU `0.5` 去重，重叠候选保留置信度更高的预测；替换框被去重时，对应的重复 GT 也会删除。可用 `--dedup-iou` 调整阈值。
@@ -152,9 +175,9 @@ defect:
 ## 统计
 
 ```bash
-ydm stats --root path/to/yolo --out stats.json
-ydm stats --root path/to/yolo --ann-csv annotations.csv --attr-csv attributes.csv --plots-dir stats_plots
-ydm stats --root path/to/yolo --plots-dir labels_sta --stats-list all
+ydm stats --root path/to/yolo
+ydm stats --root path/to/yolo --out stats.json --ann-csv annotations.csv --attr-csv attributes.csv --plots-dir stats_plots
+ydm stats --root path/to/yolo --stats-list all
 ydm stats --root path/to/yolo --plots-dir labels_sta --stats-list image_shape,box_shape_pix,box_pos_center
 ```
 
@@ -171,8 +194,8 @@ box_pos_start, box_pos_center, box_pos_end, attribute, legacy_csv
 ## 可视化与裁剪
 
 ```bash
-ydm vis draw --root path/to/yolo --out images_vis
-ydm vis crop --root path/to/yolo --out crops --padding 20
+ydm vis draw --root path/to/yolo
+ydm vis crop --root path/to/yolo --padding 20
 ydm vis crop --root path/to/yolo --out crops --padding 0.2
 ydm vis draw --root path/to/yolo --out images_vis --show-conf --show-attrs --filter-no-attrs
 ydm vis draw --root path/to/yolo --out images_vis --show-id
@@ -190,8 +213,8 @@ ydm vis manual-box --root path/to/yolo --image images/0001.jpg --hide-existing
 ## 导入导出
 
 ```bash
-ydm export coco --root path/to/yolo --out instances.json
-ydm export xany --root path/to/yolo --out xany_json
+ydm export coco --root path/to/yolo
+ydm export xany --root path/to/yolo
 
 ydm import labelme --json-dir labelme_json --out yolo --task segment
 ydm import coco --json instances.json --images-dir images --out yolo --task segment
@@ -229,9 +252,9 @@ ydm convert pseudo --root pred_yolo --conf 0.5 --out pseudo_yolo
 ## 评估与错误分析
 
 ```bash
-ydm eval compare --gt-root gt_yolo --pred-root pred_yolo --out compare.csv --iou 0.5
-ydm eval review-pack --gt-root gt_yolo --pred-root pred_yolo --out review_pack --iou 0.5
-ydm eval metrics --gt-root gt_yolo --pred-root pred_yolo --out metrics.json --csv metrics.csv
+ydm eval compare --gt-root gt_yolo --pred-root pred_yolo --iou 0.5
+ydm eval review-pack --gt-root gt_yolo --pred-root pred_yolo --iou 0.5
+ydm eval metrics --gt-root gt_yolo --pred-root pred_yolo
 ydm eval metrics --gt-root gt_yolo --pred-root pred_labels --names class.txt --class car,bus --out vehicle_metrics.json
 ydm eval metrics --gt-root gt_yolo --pred-root pred_labels --names class.txt --class car,bus --min-pixels 8 --out vehicle_no_small.json
 ydm eval metrics --gt-root gt_yolo --pred-root pred_labels --names class.txt --class car,bus --print-table

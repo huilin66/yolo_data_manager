@@ -11,10 +11,30 @@
 1. 所有格式先读成统一内部模型。
 2. 查询、编辑、统计、可视化都只依赖内部模型。
 3. 导入导出只负责格式边界，不重复实现业务逻辑。
-4. 默认不原地破坏数据，写操作优先输出到新目录，并支持 `dry-run/report/backup`。
+4. 默认不原地破坏数据，写操作优先输出到新目录，并支持 `dry-run/report/backup`；默认分析输出统一归档到带 `ydm_` 前缀的功能目录。
 5. 当 `progress=True` 时，每个可能耗时的阶段都必须先输出可保留的阶段提示；即使动态进度条使用 `leave=False` 清除，也不得让用户在处理期间看到无状态的空白。`progress=False` 是用户主动关闭提示的例外。
 6. 并行任务收到 `Ctrl+C` 时必须取消尚未开始的工作，清理进度显示并立即向调用方传播中断；不得因线程池退出等待整个待处理队列。已生成的输出可保留，后续任务不再继续。
 7. 多模态图像可混有不同格式、模式和位深；`check()` 必须报告每个模态的源图像类型计数。需要显示型转换时，只能写入新的输出目录；`uint16` 等非 `uint8` 图像须显式拉伸或指定固定值域后再转换，不能直接当作 RGB 显示。
+
+## 默认输出路径与模态边界
+
+数据集根目录下的默认输出分组为：
+
+```text
+labels_backup/       label 写入前的时间戳备份
+ydm_quality/         check、query、duplicates、bad-images
+ydm_stats/           stats JSON、CSV、plots/
+ydm_vis/             draw/、crop/、manual_box/
+ydm_evaluation/      compare、review_pack、error_analysis、metrics
+ydm_dataset/         select、normalize、filter、merge
+ydm_annotation/      标注编辑输出和 report
+ydm_conversion/      格式导入导出、任务转换
+train.txt/val.txt/test.txt、dataset.yaml  保留在根目录
+```
+
+显式传入的 `out/csv/plots_dir` 始终优先；`labels_backup` 不使用 `ydm_` 前缀，因为它是写入安全策略的一部分。多模态不是一个独立的功能模块，而是数据集的模态属性：单模态和多模态操作共享上述功能分组。只有在同一操作需要区分图像源时，才在 `ydm_stats/plots/`、`ydm_vis/draw/`、`ydm_conversion/uint8/` 等目录下增加 `rgb/`、`depth/` 等模态子目录，不创建 `ydm_multimodal/`。
+
+`MultiModalYoloManager` 仅负责多图像目录与共享 label 的 scene 对齐、缓存和模态感知读取；它不是另一套业务流程。`check`、统计、可视化、crop、uint8 转换使用与 `YoloManager` 相同的输出组织；尚未定义安全的全模态写入语义的操作不会只修改某一路图像。
 
 ## 当前功能分组
 
@@ -221,10 +241,13 @@ yolo_data_manager/
     geometry.py
     schema.py
     errors.py
+    multimodal.py
   io/
     loader.py
     writer.py
     validator.py
+    output_paths.py
+    multimodal.py
   annotation/
     query.py
     edit.py
@@ -243,8 +266,11 @@ yolo_data_manager/
   stats/
     compute.py
     report.py
+    multimodal.py
   vis/
     renderer.py
+    multimodal.py
+  multimodal_manager.py
   cli.py
 ```
 
@@ -305,7 +331,7 @@ YoloAnnotation
 
 ## 写操作安全策略
 
-- 默认输出到 `--out`
+- 省略输出参数时使用统一的 `ydm_*` 默认目录；显式 `--out` 优先
 - 原地修改必须显式 `--in-place`
 - 支持 `--dry-run`
 - 支持 `--report edit_report.csv`
@@ -319,6 +345,6 @@ YoloAnnotation
 
 - Python 缓存、构建产物、虚拟环境
 - 数据目录：`data/ datasets/ dataset/ raw/ processed/ images/ labels/ annotations/`
-- 训练与分析输出：`runs/ outputs/ work_dirs/ images_vis/ labels_sta/ cache/`
+- 训练与分析输出：`runs/ outputs/ work_dirs/ ydm_*/ images_vis/ labels_sta/ cache/`
 - 模型权重：`.pt .pth .ckpt .onnx .engine .trt .safetensors .weights .h5`
 - 大型压缩包与视频

@@ -92,7 +92,7 @@ mgr.ann_apply_map(map_file="class_map.yaml", out="yolo_mapped")
 mgr.ann_set_attr(name="defect", value="yes", class_=["sign"], out="yolo_attr")
 mgr.ann_delete_attr(name="quality", value=["bad"], out="yolo_clean")
 mgr.ann_correct_from_crops(
-    crops_dir="image_vis/crop/car",
+    crops_dir="ydm_vis/crop/car",
     to="defect",
     only_val=True,
     report="crop_correction.csv",
@@ -226,7 +226,28 @@ mgr.eval_error_analysis(pred_root="pred", out="error_report", review=True, worke
 
 底层函数如 `load_yolo_dataset()`、`validate_dataset()` 默认不显示进度条，方便作为库函数安静调用；`YoloManager` 和 CLI 默认显示进度条。
 
-`check` 完整校验结果会写入 JSON 文件，终端只输出红色 warning/error 摘要或绿色 OK 摘要。`out` 不指定时默认写到 `<root>/check_result.json`。
+`check` 完整校验结果会写入 JSON 文件，终端只输出红色 warning/error 摘要或绿色 OK 摘要。`out` 不指定时默认写到 `<root>/ydm_quality/check.json`。
+
+### 默认输出路径
+
+Python API 与 CLI 使用相同的默认输出规则；显式传入 `out`、`csv` 或 `plots_dir` 时仍以显式路径为准：
+
+```text
+<root>/labels_backup/       label 写入前的时间戳备份
+<root>/ydm_quality/         check、query、duplicates、bad-images
+<root>/ydm_stats/           stats.json、CSV、plots/
+<root>/ydm_vis/             draw/、crop/、manual_box/
+<root>/ydm_evaluation/      compare、review_pack、error_analysis、metrics
+<root>/ydm_dataset/         select、normalize、filter、merge
+<root>/ydm_annotation/      标注编辑输出和 edit_report.csv
+<root>/ydm_conversion/      格式导入导出和任务转换
+<root>/train.txt、val.txt、test.txt、dataset.yaml
+```
+
+`dataset_split()` 仍把 split 文件写在数据集根目录；`dataset_yaml()` 默认也写在根目录。
+`only_val` 只改变处理的数据范围，不改变默认输出分组。多模态数据沿用这些相同的功能目录，
+必要时在 `ydm_stats/plots/`、`ydm_vis/draw/` 等目录下按模态建立子目录，不存在独立的
+`ydm_multimodal` 功能模块。
 
 `layout_detect()` 打印的是布局检测结果，不是 `check` 校验结果。输出中 `report_type` 为 `layout_detect`，并包含 `class_source`、`class_count`、`classes`，可用于确认类别文件来源。
 
@@ -392,7 +413,7 @@ for issue in report.issues:
 
 ## 多模态 YOLO 数据集
 
-`MultiModalYoloManager` 面向“一份共享 YOLO label，多个对齐图像目录”的数据集。它与单模态 `YoloManager` 并行，当前正式支持多模态关联检查、统计、绘制和 crop；尚未定义全模态写入语义的查询、编辑、split、merge 等方法不会静默退化为只处理某一路图像。它目前不提供 CLI 命令。
+多模态是数据集的模态属性，不是独立的功能模块。`MultiModalYoloManager` 只是针对“一份共享 YOLO label、多个对齐图像目录”的加载与关联适配器；统计、校验、可视化和图像转换仍遵循 `YoloManager` 的相同输出分组和默认路径。当前适配器提供关联检查、统计、绘制、crop 和 uint8 转换；尚未定义安全的全模态写入语义的查询、编辑、split、merge 等方法不会静默退化为只处理某一路图像。它目前不提供 CLI 命令。
 
 图像关联使用场景 stem：每个图像或 label 文件先去扩展名，再去掉其 source 配置的 `suffix`，得到同一个 `scene_stem`。例如 `visible/0001_V.jpg`、`infrared/0001_T.png` 和 `labels/0001_gt.txt` 可关联为场景 `0001`。
 
@@ -414,12 +435,13 @@ mgr = MultiModalYoloManager(
 )
 
 # Manager 首次使用时加载并缓存；以下操作均复用同一份关联结果。
-stats = mgr.stats(out="stats/multimodal_stats.json", plots_dir="stats/labels_sta", stats_list=["all"])
-mgr.vis_draw("image_vis", show_id=True, workers=8)
-mgr.vis_crop("image_vis/crops", workers=8)
+# 省略输出参数时使用 ydm_stats/、ydm_vis/ 等统一功能目录。
+stats = mgr.stats(stats_list=["all"])
+mgr.vis_draw(show_id=True, workers=8)
+mgr.vis_crop(workers=8)
 
 # 检查未关联文件、缺失模态、suffix 不匹配或重复场景图。
-mgr.check()  # 终端输出简洁摘要；完整报告默认写入 multimodal_check_result.json
+mgr.check()  # 终端输出简洁摘要；完整报告默认写入 ydm_quality/multimodal_check.json
 ```
 
 `check()` 的 `image_type_summary` 同时按每个模态输出源图像总数及 `format / Pillow mode / dtype / 通道数 / 分辨率` 的分组数量。例如可直接发现同一 depth 目录中混有 `JPEG/RGB/uint8` 和 `PNG/I;16/uint16`。
@@ -428,14 +450,14 @@ mgr.check()  # 终端输出简洁摘要；完整报告默认写入 multimodal_ch
 
 ```python
 converted = mgr.convert_to_uint8(
-    "images_uint8",
+    # 省略 out 时默认写入 ydm_conversion/uint8/
     modalities=["depth"],
     stretch=True,
     value_range=(0, 20000),  # 将该原始深度范围映射到显示值 0–255
     preserve_zero=True,      # 保留无效深度 0 为黑色
     workers=8,
 )
-# 输出：images_uint8/depth/<原相对路径>；非 uint8 文件写为 .png
+# 输出：ydm_conversion/uint8/depth/<原相对路径>；非 uint8 文件写为 .png
 ```
 
 不传 `value_range` 时，`stretch=True` 按每张非 `uint8` 图像的非零有效值 min-max 拉伸；适合观察细节，但不同图片的亮度不具可比性。`stretch=False` 则仅把原始数值裁剪到 `0–255`，通常不适用于 `uint16` 深度图。默认 `overwrite=False`，若目标文件已存在会中止以避免覆盖。
@@ -458,7 +480,7 @@ mgr = MultiModalYoloManager(
 )
 ```
 
-上述配置将 `0001_V.jpg`、`0001_T.png`、`0001_D.tif` 和 `0001_gt.txt` 都归一为 scene stem `0001`。`required=False` 的模态缺失不会排除该场景；默认所有图像 type 都是必需的。统计结果的 `annotation_stats` 只按 scene 统计一次标注，`modalities.<type>.stats` 则分别给出每种图像的尺寸和像素级框统计。可视化输出按 type 分目录，例如 `image_vis/rgb/`、`image_vis/infrared/`，避免文件覆盖。
+上述配置将 `0001_V.jpg`、`0001_T.png`、`0001_D.tif` 和 `0001_gt.txt` 都归一为 scene stem `0001`。`required=False` 的模态缺失不会排除该场景；默认所有图像 type 都是必需的。统计结果的 `annotation_stats` 只按 scene 统计一次标注，`modalities.<type>.stats` 则分别给出每种图像的尺寸和像素级框统计。可视化输出按 type 分目录，例如 `ydm_vis/draw/rgb/`、`ydm_vis/draw/infrared/`，避免文件覆盖；这只是同一 `vis` 功能下的模态子目录。
 
 ## 查询结果对象
 

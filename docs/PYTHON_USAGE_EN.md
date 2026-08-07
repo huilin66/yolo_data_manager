@@ -66,13 +66,35 @@ mgr.eval_error_analysis(pred_root="pred", out="error_report", review=True, worke
 
 Lower-level functions such as `load_yolo_dataset()` and `validate_dataset()` default to quiet progress-free execution so they are pleasant as library calls. `YoloManager` and the CLI show progress by default.
 
-`check` writes the full validation report to JSON, while the terminal prints only a red warning/error summary or a green OK summary. If `out` is omitted, the default file is `<root>/check_result.json`.
+`check` writes the full validation report to JSON, while the terminal prints only a red warning/error summary or a green OK summary. If `out` is omitted, the default file is `<root>/ydm_quality/check.json`.
+
+### Default output paths
+
+The Python API and CLI use the same defaults. Explicit `out`, `csv`, or `plots_dir` values always take precedence:
+
+```text
+<root>/labels_backup/       timestamped backups before label writes
+<root>/ydm_quality/         check, query, duplicates, bad-images
+<root>/ydm_stats/           stats.json, CSV files, plots/
+<root>/ydm_vis/             draw/, crop/, manual_box/
+<root>/ydm_evaluation/      compare, review_pack, error_analysis, metrics
+<root>/ydm_dataset/         select, normalize, filter, merge
+<root>/ydm_annotation/      annotation-edit outputs and edit_report.csv
+<root>/ydm_conversion/      format import/export and task conversions
+<root>/train.txt, val.txt, test.txt, dataset.yaml
+```
+
+`dataset_split()` keeps split files in the dataset root, and `dataset_yaml()` keeps
+`dataset.yaml` there as well. `only_val` changes the data scope, not the output group.
+Multimodal data uses these same functional groups; modality subdirectories are added only
+where needed, and there is no separate `ydm_multimodal` feature module.
 
 `layout_detect()` prints a layout detection result, not a validation/check result. The output has `report_type: layout_detect` and includes `class_source`, `class_count`, and `classes`.
 
 ## Statistics
 
 ```python
+mgr.stats()
 mgr.stats(out="stats.json", class_csv="class_counts.csv", attr_csv="attributes.csv")
 mgr.stats(plots_dir="labels_sta", stats_list=["all"])
 mgr.stats(plots_dir="labels_sta", stats_list=["image_shape", "box_shape_pix", "box_pos_center"])
@@ -148,7 +170,7 @@ mgr.ann_apply_map(map_file="class_map.yaml", out="yolo_mapped")
 mgr.ann_set_attr(name="defect", value="yes", class_=["sign"], out="yolo_attr")
 mgr.ann_delete_attr(name="quality", value=["bad"], out="yolo_clean")
 mgr.ann_correct_from_crops(
-    crops_dir="image_vis/crop/car",
+    crops_dir="ydm_vis/crop/car",
     to="defect",
     only_val=True,
     report="crop_correction.csv",
@@ -278,7 +300,7 @@ When `gt_root` or `class_file` is omitted, `YoloManager` falls back to the manag
 
 ## Multimodal YOLO Datasets
 
-`MultiModalYoloManager` is for datasets with one shared YOLO label set and multiple aligned image folders. It is parallel to the single-modal `YoloManager` and currently supports multimodal association checks, statistics, rendering, and crops. Methods whose all-modality write semantics are not yet defined, such as edit, split, and merge, are intentionally not exposed. It is a Python API and currently has no CLI command.
+Multimodality is a dataset property, not a separate functional module. `MultiModalYoloManager` is a modality-aware loading and association adapter for datasets with one shared YOLO label set and multiple aligned image folders. It follows the same output groups as `YoloManager` (`ydm_quality`, `ydm_stats`, `ydm_vis`, and `ydm_conversion`). Methods whose all-modality write semantics are not yet defined, such as edit, split, and merge, are intentionally not exposed. It is a Python API and currently has no CLI command.
 
 Each image or label filename is normalized to a scene stem by removing its extension and its configured source `suffix`. For example, `visible/0001_V.jpg`, `infrared/0001_T.png`, and `labels/0001_gt.txt` all associate with scene `0001`.
 
@@ -298,11 +320,11 @@ mgr = MultiModalYoloManager(
     task="detect",
 )
 
-stats = mgr.stats(out="stats/multimodal_stats.json", plots_dir="stats/labels_sta", stats_list=["all"])
-mgr.vis_draw("image_vis", show_id=True, workers=8)
-mgr.vis_crop("image_vis/crops", workers=8)
+stats = mgr.stats(stats_list=["all"])
+mgr.vis_draw(show_id=True, workers=8)
+mgr.vis_crop(workers=8)
 
-mgr.check()  # prints a compact summary and writes multimodal_check_result.json
+mgr.check()  # prints a compact summary and writes ydm_quality/multimodal_check.json
 ```
 
 `check()` also returns `image_type_summary`: the source-image count and groups by `format / Pillow mode / dtype / channel count / resolution` for every modality. This makes mixed inputs such as `JPEG/RGB/uint8` and `PNG/I;16/uint16` in one depth folder visible immediately.
@@ -311,14 +333,14 @@ Write non-`uint8` images to a new modality output directory as 8-bit PNG without
 
 ```python
 converted = mgr.convert_to_uint8(
-    "images_uint8",
+    # omit out to use ydm_conversion/uint8/
     modalities=["depth"],
     stretch=True,
     value_range=(0, 20000),  # maps this raw depth range to display values 0–255
     preserve_zero=True,      # keeps invalid depth 0 black
     workers=8,
 )
-# Output: images_uint8/depth/<original-relative-path>; non-uint8 files become .png
+# Output: ydm_conversion/uint8/depth/<original-relative-path>; non-uint8 files become .png
 ```
 
 Without `value_range`, `stretch=True` applies a per-image min-max stretch over nonzero valid values. It improves detail but makes brightness incomparable across images. `stretch=False` only clips source values to `0–255`, which is usually unsuitable for `uint16` depth data. `overwrite=False` by default prevents replacing an existing output image.
@@ -341,7 +363,7 @@ mgr = MultiModalYoloManager(
 )
 ```
 
-The default is for every image type to be required. `required=False` allows a scene to remain usable when that modality is absent. `annotation_stats` counts each shared label once, whereas `modalities.<type>.stats` contains per-modality image and pixel-level box statistics. Rendered outputs are separated by type, for example `image_vis/rgb/` and `image_vis/infrared/`.
+The default is for every image type to be required. `required=False` allows a scene to remain usable when that modality is absent. `annotation_stats` counts each shared label once, whereas `modalities.<type>.stats` contains per-modality image and pixel-level box statistics. Rendered outputs are separated by type, for example `ydm_vis/draw/rgb/` and `ydm_vis/draw/infrared/`; these are modality subdirectories of the same visualization group.
 
 ## Functional API
 

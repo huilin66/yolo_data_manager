@@ -414,7 +414,7 @@ def test_cli_check_uses_default_report_path(tmp_path, capsys):
     captured = capsys.readouterr()
 
     assert code == 0
-    assert (root / "check_result.json").exists()
+    assert (root / "ydm_quality" / "check.json").exists()
     assert "[CHECK OK]" in captured.err
     assert captured.out == ""
 
