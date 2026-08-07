@@ -383,6 +383,34 @@ code = run_task(
 
 Task names use module-style identifiers, such as `query.class`, `ann.set_attr`, `vis.draw`, and `eval.error_analysis`.
 
+## Example Functions and Dataset Runners
+
+The example code is split into reusable functions in `example/functions/` and
+runtime invocation scripts in `example/datasets/`. Dataset paths can be
+outside this repository and do not need to be edited into the function files:
+
+```powershell
+python -m example.datasets.run_dataset --data-dir E:\datasets\my_yolo --task stats
+
+python -m example.datasets.run_dataset `
+  --data-dir E:\datasets\dataset_a `
+  --data-dir E:\datasets\dataset_b `
+  --task vis --no-crop
+```
+
+`--data-dir` accepts a dataset root or dataset YAML and may be repeated. Tasks
+process all data by default; add `--only-val` explicitly to use the validation
+split. See the complete task and option list with:
+
+```powershell
+python -m example.datasets.run_dataset --help
+```
+
+The root `example/*.py` files still re-export their original function names.
+The old `scripts/run_ydm.py` and `scripts/convert_tt100k.py` remain as
+compatibility entry points, while their original implementations are archived
+under `example/archive/scripts/`.
+
 ## Parameter Notes
 
 | Python Parameter | CLI Flag | Note |

@@ -365,28 +365,26 @@ if code != 0:
 任务名使用 `模块.操作` 形式，例如 `query.class`、`ann.set_attr`、`vis.draw`、`eval.error_analysis`。
 由于 `class` 和 `from` 是 Python 关键字，对应参数写成 `class_` 和 `from_`。
 
-## 可编辑脚本入口
+## 示例函数与数据集调用脚本
 
-项目提供 `scripts/run_ydm.py`。修改其中的 `TASK` 和 `PARAMS`，然后运行：
+现有示例按两层组织：`example/functions/` 保留可复用函数，`example/datasets/` 负责给函数传入具体数据集路径和运行参数。这样数据集可以位于项目目录之外，不需要修改函数文件：
 
 ```powershell
-python scripts/run_ydm.py
+python -m example.datasets.run_dataset --data-dir E:\datasets\my_yolo --task stats
+
+python -m example.datasets.run_dataset `
+  --data-dir E:\datasets\dataset_a `
+  --data-dir E:\datasets\dataset_b `
+  --task vis --no-crop
 ```
 
-默认配置用于数据统计：
+`--data-dir` 可以是数据集根目录或 dataset YAML，并且可以重复传入。默认处理全部数据；需要只处理验证集时显式增加 `--only-val`。支持的任务和参数见：
 
-```python
-TASK = "stats"
-PARAMS = {
-    "root": Path(r"E:\datasets\my_yolo"),
-    "layout": "auto",
-    "out": Path(r"E:\datasets\reports\stats.json"),
-    "class_csv": Path(r"E:\datasets\reports\class_counts.csv"),
-    "attr_csv": Path(r"E:\datasets\reports\attributes.csv"),
-}
+```powershell
+python -m example.datasets.run_dataset --help
 ```
 
-路径可使用 `Path` 或字符串。值为 `None` 的参数会被忽略，多值参数可以直接使用列表。
+原 `example/*.py` 文件仍然保留同名函数的兼容导出；`scripts/run_ydm.py` 和 `scripts/convert_tt100k.py` 保留为兼容入口，原始可编辑脚本归档在 `example/archive/scripts/`。
 
 ## 加载并获得 Python 对象
 

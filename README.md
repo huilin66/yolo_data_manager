@@ -82,6 +82,32 @@ mgr.eval_error_analysis(
 )
 ```
 
+## Example Organization
+
+`example/functions/` contains reusable function implementations with no
+dataset-specific paths and no work performed on import. The invocation layer
+is `example/datasets/run_dataset.py`; pass a dataset root or YAML at runtime,
+and repeat `--data-dir` for unrelated datasets:
+
+```powershell
+python -m example.datasets.run_dataset --data-dir E:\datasets\hmt_rgb --task stats
+
+python -m example.datasets.run_dataset `
+  --data-dir E:\datasets\hmt_rgb `
+  --data-dir E:\datasets\hmt_t `
+  --task stats
+
+python -m example.datasets.run_dataset `
+  --data-dir E:\datasets\hmt_rgb.yaml `
+  --task metric `
+  --pred-dir E:\models\runs\detect --pred-name val-52 --only-val
+```
+
+Run `python -m example.datasets.run_dataset --help` for all tasks and
+options. The old `example/*.py` files still re-export their original function
+names for compatibility. The old `scripts/` entry points are compatibility
+wrappers; their implementations are archived under `example/archive/scripts/`.
+
 ## CLI Quick Demo
 
 ```bash

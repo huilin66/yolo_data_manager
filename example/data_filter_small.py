@@ -1,55 +1,20 @@
-import os
+"""Compatibility wrapper for :mod:`example.functions.data_filter_small`."""
 
-from yolo_data_manager import YoloManager
+from __future__ import annotations
 
+import sys
+from pathlib import Path
 
-def yolo_filter_small(input_dir, filter_ratio=0.01, logic="or", class_rules=None):
-    """Filter small boxes globally or with per-class width/height rules.
+try:
+    from .functions.data_filter_small import yolo_filter_small
+    from .datasets.run_dataset import main
+except ImportError:  # supports ``python example/data_filter_small.py``
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from example.functions.data_filter_small import yolo_filter_small
+    from example.datasets.run_dataset import main
 
-    ``class_rules`` uses normalized YOLO width/height values, for example::
+__all__ = ["yolo_filter_small"]
 
-        {
-            "Efflorescene Low Risk": {
-                "width": 0.03,
-                "height": 0.03,
-                "logic": "or",
-            },
-        }
-
-    ``logic="or"`` removes a box when either dimension is too small;
-    ``logic="and"`` removes it only when both dimensions are too small.
-    Classes without a rule use the global ``filter_ratio`` and ``logic``.
-    """
-    out_dir = input_dir+f'_filter_{filter_ratio}_{logic.upper()}'
-    os.makedirs(out_dir, exist_ok=True)
-
-    mgr = YoloManager(input_dir, layout="flat", init_check=False, init_layout=False)
-
-    if class_rules is None:
-        mgr.dataset_filter(
-            out=out_dir,
-            min_width=filter_ratio,
-            min_height=filter_ratio,
-            min_size_logic=logic,
-        )
-    else:
-        mgr.dataset_filter(
-            out=out_dir,
-            class_rules=class_rules
-        )
 
 if __name__ == "__main__":
-    pass
-    # rgb_merge_dir = r"/localnvme/data/bdd_hmt/sua_rgb_merge"
-    # yolo_filter_small(rgb_merge_dir, filter_ratio=0.02, logic='and')
-    # rgb_merge_f02_dir = r"/localnvme/data/bdd_hmt/sua_rgb_merge_filter_0.02_AND"
-    # yolo_filter_small(rgb_merge_f02_dir, filter_ratio=0.0, logic='or',
-    #     class_rules={
-    #         "Efflorescene Low Risk": {
-    #             "width": 0.03,
-    #             "height": 0.03,
-    #             "logic": "or",
-    #         },
-
-    #     }
-    # )
+    raise SystemExit(main(default_task="filter-small"))

@@ -1,49 +1,20 @@
-import os
+"""Compatibility wrapper for :mod:`example.functions.result_error_ana`."""
 
-from yolo_data_manager import YoloManager
+from __future__ import annotations
 
+import sys
+from pathlib import Path
 
-def yolo_error_ana(
-    input_dir,
-    pred_dir,
-    pred_name,
-    abs_path=False,
-    only_val=True,
-    workers=8,
-    conf_thres=0.001,
-    class_=None,
-    exclude_class_=None,
-    min_pixels=None,
-    class_rules=None,
-    **kwargs,
-):
-    if not abs_path:
-        pred_dir = os.path.join(pred_dir, pred_name, "labels")
+try:
+    from .functions.result_error_ana import yolo_error_ana
+    from .datasets.run_dataset import main
+except ImportError:  # supports ``python example/result_error_ana.py``
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from example.functions.result_error_ana import yolo_error_ana
+    from example.datasets.run_dataset import main
 
-    mgr = YoloManager(input_dir, layout="auto", init_check=False)
-
-    ana_dir = os.path.join(mgr.root, "result_ana", pred_name)
-    mgr.eval_error_analysis(
-        pred_root=pred_dir,
-        out=ana_dir,
-        conf_thres=conf_thres,
-        crop_padding=12,
-        review_workers=workers,
-        only_val=only_val,
-        class_=class_,
-        exclude_class_=exclude_class_,
-        min_pixels=min_pixels,
-        class_rules=class_rules,
-        workers=workers,
-        **kwargs,
-    )
+__all__ = ["yolo_error_ana"]
 
 
 if __name__ == "__main__":
-    data_dir = (
-        r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_bp_cube.yaml"
-    )
-    pred_dir = r"/localnvme/project/aic_mdet/models/ultralytics/runs/detect"
-
-    # yolo_error_ana(data_dir, pred_dir, "predict-6", only_val=False)
-    yolo_error_ana(data_dir, pred_dir, "val-159", only_val=True)
+    raise SystemExit(main(default_task="error-analysis"))

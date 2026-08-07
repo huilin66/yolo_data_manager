@@ -36,6 +36,18 @@ train.txt/val.txt/test.txt、dataset.yaml  保留在根目录
 
 `MultiModalYoloManager` 仅负责多图像目录与共享 label 的 scene 对齐、缓存和模态感知读取；它不是另一套业务流程。`check`、统计、可视化、crop、uint8 转换使用与 `YoloManager` 相同的输出组织；尚未定义安全的全模态写入语义的操作不会只修改某一路图像。
 
+## 示例代码与外部数据集
+
+示例代码分为两层：
+
+```text
+example/functions/       可复用函数；不包含数据集路径，不在导入时执行
+example/datasets/        运行入口；通过 --data-dir 接收一个或多个数据集路径
+example/archive/scripts/ 旧的可编辑脚本和转换脚本归档
+```
+
+`example/datasets/run_dataset.py` 的 `--data-dir` 可以接收数据集根目录或 dataset YAML，并可重复传入。默认任务处理全部数据，只有显式传入 `--only-val` 才使用验证集。根目录下的旧 `example/*.py` 和 `scripts/*.py` 仅用于兼容转发，不再承载写死的数据集配置。
+
 ## 当前功能分组
 
 ### 1. 加载与校验

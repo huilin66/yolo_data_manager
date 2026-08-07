@@ -82,6 +82,26 @@ mgr.eval_error_analysis(
 )
 ```
 
+## 示例代码组织
+
+`example/functions/` 保存可复用的函数实现，不包含具体数据集路径，也不会在导入时自动执行。`example/datasets/run_dataset.py` 是调用层，运行时通过 `--data-dir` 传入数据集根目录或 YAML；同一个命令可以重复传入多个外部数据集路径：
+
+```powershell
+python -m example.datasets.run_dataset --data-dir E:\datasets\hmt_rgb --task stats
+
+python -m example.datasets.run_dataset `
+  --data-dir E:\datasets\hmt_rgb `
+  --data-dir E:\datasets\hmt_t `
+  --task stats
+
+python -m example.datasets.run_dataset `
+  --data-dir E:\datasets\hmt_rgb.yaml `
+  --task metric `
+  --pred-dir E:\models\runs\detect --pred-name val-52 --only-val
+```
+
+支持的任务和参数可通过 `python -m example.datasets.run_dataset --help` 查看。旧的 `example/*.py` 仍保留同名函数的兼容导出；`scripts/` 中的旧入口只作为兼容转发，原始脚本已归档到 `example/archive/scripts/`。
+
 ## CLI 快速 Demo
 
 ```bash

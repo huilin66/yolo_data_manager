@@ -42,6 +42,22 @@ statistics, visualization, crop, and uint8 conversion outputs use the same group
 `YoloManager`; operations without safe all-modality write semantics must not silently modify
 only one image source.
 
+## Example Code and External Datasets
+
+Examples are separated into two active layers and one archive:
+
+```text
+example/functions/        reusable functions; no dataset paths or import-time execution
+example/datasets/         runtime entry points; accepts one or more --data-dir values
+example/archive/scripts/  archived editable and conversion scripts
+```
+
+`example/datasets/run_dataset.py` accepts either a dataset root or dataset YAML
+for `--data-dir`, and the option may be repeated. Tasks process all input data
+by default; `--only-val` must be supplied explicitly to use the validation
+split. The root `example/*.py` and `scripts/*.py` files are compatibility
+wrappers only and no longer hold hard-coded dataset configurations.
+
 ## Current Feature Groups
 
 ### Loading and Validation
