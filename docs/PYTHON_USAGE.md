@@ -122,6 +122,10 @@ mgr.vis_draw(out="images_vis", workers=16)
 mgr.vis_draw(out="images_vis", progress=False)
 mgr.vis_crop(out="crops", by_attr=True, min_size=32)
 mgr.vis_crop(out="crops", workers=16)
+mgr.vis_crop(out="crops", padding=20)    # 每边增加 20 像素
+mgr.vis_crop(out="crops", padding=0.2)   # 每边增加 box 宽/高的 20%
+mgr.vis_crop(out="crops", padding=20)    # 每边增加 20 像素
+mgr.vis_crop(out="crops", padding=0.2)   # 每边增加 box 宽/高的 20%
 
 # 临时手动画一个 box：只读取并显示 image/txt，不修改原 label；按 Enter 后输出坐标
 mgr.vis_manual_box(

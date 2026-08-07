@@ -169,6 +169,8 @@ Selecting `box_shape`, `box_shape_pix`, `box_shape_rate`, `box_width`, or `box_h
 
 ```bash
 ydm vis draw --root path/to/yolo --out images_vis
+ydm vis crop --root path/to/yolo --out crops --padding 20
+ydm vis crop --root path/to/yolo --out crops --padding 0.2
 ydm vis draw --root path/to/yolo --out images_vis --show-conf --show-attrs --filter-no-attrs
 ydm vis draw --root path/to/yolo --out images_vis --show-id
 ydm vis draw --root path/to/yolo --out images_vis --workers 16

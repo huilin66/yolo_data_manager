@@ -98,8 +98,16 @@ def test_build_python_task_argv():
     assert "--show-id" in vis_argv
     assert vis_argv[-3:] == ["--workers", "4", "--no-progress"]
 
-    crop_argv = build_task_argv("vis.crop", root=Path("dataset"), out="crops", progress=False)
+    crop_argv = build_task_argv(
+        "vis.crop",
+        root=Path("dataset"),
+        out="crops",
+        padding=0.2,
+        progress=False,
+    )
     assert "--no-progress" in crop_argv
+    assert "--padding" in crop_argv
+    assert "0.2" in crop_argv
 
     error_argv = build_task_argv(
         "eval.error_analysis",
@@ -819,6 +827,21 @@ def test_query_copy_and_crop(tmp_path):
     assert saved == 3
     assert (tmp_path / "vis_mt" / "a.jpg").exists()
     assert (tmp_path / "crops" / "person" / "a_1.jpg").exists()
+
+
+def test_crop_padding_supports_pixels_and_box_ratio(tmp_path):
+    root = make_dataset(tmp_path / "crop_padding")
+    dataset = load_yolo_dataset(root)
+
+    pixel_dir = tmp_path / "crops_pixels"
+    ratio_dir = tmp_path / "crops_ratio"
+    crop_dataset(dataset, pixel_dir, padding=10, workers=1, progress=False)
+    crop_dataset(dataset, ratio_dir, padding=0.5, workers=1, progress=False)
+
+    with Image.open(pixel_dir / "person" / "a_1.jpg") as crop:
+        assert crop.size == (40, 44)
+    with Image.open(ratio_dir / "person" / "a_1.jpg") as crop:
+        assert crop.size == (40, 48)
 
 
 def test_correct_labels_from_crops_updates_one_based_annotation_and_preserves_geometry(tmp_path):

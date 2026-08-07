@@ -310,6 +310,12 @@ def build_parser() -> argparse.ArgumentParser:
     crop.add_argument("--out", required=True, help="output crop directory")
     crop.add_argument("--keep-shape", action="store_true")
     crop.add_argument("--min-size", type=int, default=1)
+    crop.add_argument(
+        "--padding",
+        type=_parse_crop_padding,
+        default=0,
+        help="per-side padding: integer pixels or decimal box-size ratio",
+    )
     crop.add_argument("--conf", type=float, default=None, help="optional confidence threshold")
     crop.add_argument("--by-attr", action="store_true", help="also save crops into class/attribute-value folders")
     crop.add_argument("--keep-no-attrs", dest="filter_no_attrs", action="store_false")
@@ -977,6 +983,7 @@ def handle_vis_crop(args: argparse.Namespace) -> int:
         args.out,
         keep_shape=args.keep_shape,
         min_size=args.min_size,
+        padding=args.padding,
         confidence_threshold=args.conf,
         by_attribute=args.by_attr,
         filter_no_attributes=args.filter_no_attrs,
@@ -1420,6 +1427,20 @@ def _parse_optional_class_value(value: str | None) -> str | None:
     if value is None or value.strip().lower() in {"none", "null"}:
         return None
     return value
+
+
+def _parse_crop_padding(value: str) -> int | float:
+    text = value.strip()
+    if not text:
+        raise argparse.ArgumentTypeError("padding must be an integer or decimal value")
+    try:
+        if any(marker in text.lower() for marker in (".", "e")):
+            return float(text)
+        return int(text)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(
+            "padding must be an integer pixel value or a floating-point ratio"
+        ) from exc
 
 
 def _resolve_eval_val_source(root: str | Path, val_source: str | None, only_val: bool) -> str | None:

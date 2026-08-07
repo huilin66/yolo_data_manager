@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import math
 from pathlib import Path
 import sys
 
@@ -93,6 +94,7 @@ def crop_dataset(
     out_dir: str | Path,
     keep_shape: bool = False,
     min_size: int = 1,
+    padding: int | float = 0,
     confidence_threshold: float | None = None,
     by_attribute: bool = False,
     filter_no_attributes: bool = True,
@@ -100,6 +102,7 @@ def crop_dataset(
     progress: bool = True,
     progress_leave: bool = False,
 ) -> int:
+    _validate_crop_padding(padding)
     out_path = Path(out_dir)
     out_path.mkdir(parents=True, exist_ok=True)
     worker_count = normalize_workers(workers)
@@ -111,6 +114,7 @@ def crop_dataset(
             out_path,
             keep_shape=keep_shape,
             min_size=min_size,
+            padding=padding,
             confidence_threshold=confidence_threshold,
             by_attribute=by_attribute,
             filter_no_attributes=filter_no_attributes,
@@ -213,6 +217,7 @@ def _crop_image(
     *,
     keep_shape: bool,
     min_size: int,
+    padding: int | float,
     confidence_threshold: float | None,
     by_attribute: bool,
     filter_no_attributes: bool,
@@ -228,12 +233,21 @@ def _crop_image(
         if box is None:
             continue
         xyxy = xywhn_to_xyxy(box.as_tuple(), width, height)
-        left = max(0, int(round(xyxy.x1)))
-        top = max(0, int(round(xyxy.y1)))
-        right = min(width, int(round(xyxy.x2)))
-        bottom = min(height, int(round(xyxy.y2)))
-        if right - left < min_size or bottom - top < min_size:
+        box_left = max(0, int(round(xyxy.x1)))
+        box_top = max(0, int(round(xyxy.y1)))
+        box_right = min(width, int(round(xyxy.x2)))
+        box_bottom = min(height, int(round(xyxy.y2)))
+        if box_right - box_left < min_size or box_bottom - box_top < min_size:
             continue
+        padding_x, padding_y = _crop_padding_pixels(
+            padding,
+            xyxy.x2 - xyxy.x1,
+            xyxy.y2 - xyxy.y1,
+        )
+        left = max(0, int(round(xyxy.x1 - padding_x)))
+        top = max(0, int(round(xyxy.y1 - padding_y)))
+        right = min(width, int(round(xyxy.x2 + padding_x)))
+        bottom = min(height, int(round(xyxy.y2 + padding_y)))
         crop = Image.new("RGB", canvas.size, color=(0, 0, 0)) if keep_shape else canvas.crop((left, top, right, bottom))
         if keep_shape:
             crop.paste(canvas.crop((left, top, right, bottom)), (left, top))
@@ -249,6 +263,24 @@ def _crop_image(
             crop.save(save_dir / f"{image.stem}_{idx + 1}{image.path.suffix}")
             saved += 1
     return saved
+
+
+def _validate_crop_padding(padding: int | float) -> None:
+    if isinstance(padding, bool) or not isinstance(padding, (int, float)):
+        raise TypeError("padding must be an integer pixel value or a floating-point ratio")
+    if not math.isfinite(float(padding)) or padding < 0:
+        raise ValueError("padding must be a finite non-negative value")
+
+
+def _crop_padding_pixels(
+    padding: int | float,
+    box_width_pixels: float,
+    box_height_pixels: float,
+) -> tuple[float, float]:
+    _validate_crop_padding(padding)
+    if isinstance(padding, int) and not isinstance(padding, bool):
+        return float(padding), float(padding)
+    return box_width_pixels * float(padding), box_height_pixels * float(padding)
 
 
 def _draw_label(draw: ImageDraw.ImageDraw, x: float, y: float, text: str, color: tuple[int, int, int]) -> None:

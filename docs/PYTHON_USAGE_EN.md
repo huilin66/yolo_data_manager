@@ -171,6 +171,8 @@ mgr.vis_draw(out="images_vis", workers=16)
 mgr.vis_draw(out="images_vis", progress=False)
 mgr.vis_crop(out="crops", by_attr=True, min_size=32)
 mgr.vis_crop(out="crops", workers=16)
+mgr.vis_crop(out="crops", padding=20)    # add 20 pixels on each side
+mgr.vis_crop(out="crops", padding=0.2)   # add 20% of box width/height on each side
 mgr.vis_manual_box(
     image="images/0001.jpg",
     class_id=5,
