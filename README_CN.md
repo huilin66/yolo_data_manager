@@ -84,23 +84,18 @@ mgr.eval_error_analysis(
 
 ## 示例代码组织
 
-`example/functions/` 保存可复用的函数实现，不包含具体数据集路径，也不会在导入时自动执行。`example/datasets/run_dataset.py` 是调用层，运行时通过 `--data-dir` 传入数据集根目录或 YAML；同一个命令可以重复传入多个外部数据集路径：
+`example/functions/` 保存二次整理后的可复用函数；`example/` 根目录下的文件则对应具体数据集，直接填写路径、选择参数并调用这些函数。复制 `example/dataset_template.py`，按数据集改名即可：
 
-```powershell
-python -m example.datasets.run_dataset --data-dir E:\datasets\hmt_rgb --task stats
+```python
+from example.functions import yolo_sta, yolo_vis
 
-python -m example.datasets.run_dataset `
-  --data-dir E:\datasets\hmt_rgb `
-  --data-dir E:\datasets\hmt_t `
-  --task stats
+DATA_DIR = r"/path/to/my_dataset.yaml"
 
-python -m example.datasets.run_dataset `
-  --data-dir E:\datasets\hmt_rgb.yaml `
-  --task metric `
-  --pred-dir E:\models\runs\detect --pred-name val-52 --only-val
+yolo_sta(DATA_DIR, stats_list=["all"], only_val=False)
+yolo_vis(DATA_DIR, crop=True, only_val=False)
 ```
 
-支持的任务和参数可通过 `python -m example.datasets.run_dataset --help` 查看。旧的 `example/*.py` 仍保留同名函数的兼容导出；`scripts/` 中的旧入口只作为兼容转发，原始脚本已归档到 `example/archive/scripts/`。
+不再保留通用 `example/datasets/` 调用器，也不再需要 `run_ydm.py`。TT100K 转换属于独立工具，入口为 `tools/convert_tt100k.py`。
 
 ## CLI 快速 Demo
 

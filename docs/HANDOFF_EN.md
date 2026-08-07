@@ -44,19 +44,17 @@ only one image source.
 
 ## Example Code and External Datasets
 
-Examples are separated into two active layers and one archive:
-
 ```text
-example/functions/        reusable functions; no dataset paths or import-time execution
-example/datasets/         runtime entry points; accepts one or more --data-dir values
-example/archive/scripts/  archived editable and conversion scripts
+example/                 one caller script per dataset, with paths and parameters
+example/functions/       secondarily organized reusable functions
+tools/                   standalone helpers such as TT100K conversion
 ```
 
-`example/datasets/run_dataset.py` accepts either a dataset root or dataset YAML
-for `--data-dir`, and the option may be repeated. Tasks process all input data
-by default; `--only-val` must be supplied explicitly to use the validation
-split. The root `example/*.py` and `scripts/*.py` files are compatibility
-wrappers only and no longer hold hard-coded dataset configurations.
+`example/dataset_template.py` is the dataset-caller template. Copy it, rename
+it for a dataset, import the needed functions from `example.functions`, and
+set the dataset path and parameters directly in that file. There is no generic
+dataset runner and no need for `run_ydm.py`; separate example files keep
+different dataset configurations isolated.
 
 ## Current Feature Groups
 

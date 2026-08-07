@@ -1,8 +1,8 @@
 """Reusable functions used by the dataset example drivers.
 
 These modules contain no dataset-specific paths and do not execute work when
-imported.  Dataset paths and operation choices belong in
-``example.datasets`` or in the caller's own script.
+imported.  Dataset paths and operation choices belong in the caller's
+dataset-specific script under ``example/``.
 """
 
 from .data_filter_small import yolo_filter_small
@@ -47,4 +47,3 @@ __all__ = [
 # Keep an unambiguous alias for callers that want the multimodal check while
 # retaining the ordinary ``yolo_check`` spelling in the public list.
 yolo_check = yolo_multimodal_check
-

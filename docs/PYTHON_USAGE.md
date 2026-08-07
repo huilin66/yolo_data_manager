@@ -367,24 +367,18 @@ if code != 0:
 
 ## 示例函数与数据集调用脚本
 
-现有示例按两层组织：`example/functions/` 保留可复用函数，`example/datasets/` 负责给函数传入具体数据集路径和运行参数。这样数据集可以位于项目目录之外，不需要修改函数文件：
+`example/functions/` 是二次整理后的可复用函数；`example/` 根目录下的文件是具体数据集的调用脚本。复制 `example/dataset_template.py`，按数据集改名并修改路径和参数：
 
-```powershell
-python -m example.datasets.run_dataset --data-dir E:\datasets\my_yolo --task stats
+```python
+from example.functions import yolo_sta, yolo_vis
 
-python -m example.datasets.run_dataset `
-  --data-dir E:\datasets\dataset_a `
-  --data-dir E:\datasets\dataset_b `
-  --task vis --no-crop
+DATA_DIR = r"/path/to/my_dataset.yaml"
+
+yolo_sta(DATA_DIR, stats_list=["all"], only_val=False)
+yolo_vis(DATA_DIR, crop=True, only_val=False)
 ```
 
-`--data-dir` 可以是数据集根目录或 dataset YAML，并且可以重复传入。默认处理全部数据；需要只处理验证集时显式增加 `--only-val`。支持的任务和参数见：
-
-```powershell
-python -m example.datasets.run_dataset --help
-```
-
-原 `example/*.py` 文件仍然保留同名函数的兼容导出；`scripts/run_ydm.py` 和 `scripts/convert_tt100k.py` 保留为兼容入口，原始可编辑脚本归档在 `example/archive/scripts/`。
+不再使用通用 `example/datasets/` 调用器，也不再需要 `run_ydm.py`。TT100K 转换作为独立工具放在 `tools/convert_tt100k.py`。
 
 ## 加载并获得 Python 对象
 

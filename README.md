@@ -84,29 +84,23 @@ mgr.eval_error_analysis(
 
 ## Example Organization
 
-`example/functions/` contains reusable function implementations with no
-dataset-specific paths and no work performed on import. The invocation layer
-is `example/datasets/run_dataset.py`; pass a dataset root or YAML at runtime,
-and repeat `--data-dir` for unrelated datasets:
+`example/functions/` contains the secondarily organized reusable functions.
+Files directly under `example/` are dataset-specific callers: copy
+`example/dataset_template.py`, rename it for the dataset, set its path, and
+select the functions and parameters to run:
 
-```powershell
-python -m example.datasets.run_dataset --data-dir E:\datasets\hmt_rgb --task stats
+```python
+from example.functions import yolo_sta, yolo_vis
 
-python -m example.datasets.run_dataset `
-  --data-dir E:\datasets\hmt_rgb `
-  --data-dir E:\datasets\hmt_t `
-  --task stats
+DATA_DIR = r"/path/to/my_dataset.yaml"
 
-python -m example.datasets.run_dataset `
-  --data-dir E:\datasets\hmt_rgb.yaml `
-  --task metric `
-  --pred-dir E:\models\runs\detect --pred-name val-52 --only-val
+yolo_sta(DATA_DIR, stats_list=["all"], only_val=False)
+yolo_vis(DATA_DIR, crop=True, only_val=False)
 ```
 
-Run `python -m example.datasets.run_dataset --help` for all tasks and
-options. The old `example/*.py` files still re-export their original function
-names for compatibility. The old `scripts/` entry points are compatibility
-wrappers; their implementations are archived under `example/archive/scripts/`.
+There is no generic `example/datasets/` runner and no need for `run_ydm.py`.
+TT100K conversion is an independent repository tool at
+`tools/convert_tt100k.py`.
 
 ## CLI Quick Demo
 

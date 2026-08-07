@@ -383,33 +383,25 @@ code = run_task(
 
 Task names use module-style identifiers, such as `query.class`, `ann.set_attr`, `vis.draw`, and `eval.error_analysis`.
 
-## Example Functions and Dataset Runners
+## Example Functions and Dataset Callers
 
-The example code is split into reusable functions in `example/functions/` and
-runtime invocation scripts in `example/datasets/`. Dataset paths can be
-outside this repository and do not need to be edited into the function files:
+`example/functions/` contains the secondarily organized reusable functions.
+Files directly under `example/` are dataset-specific callers. Copy
+`example/dataset_template.py`, rename it for a dataset, set its path, and
+select the functions and parameters to run:
 
-```powershell
-python -m example.datasets.run_dataset --data-dir E:\datasets\my_yolo --task stats
+```python
+from example.functions import yolo_sta, yolo_vis
 
-python -m example.datasets.run_dataset `
-  --data-dir E:\datasets\dataset_a `
-  --data-dir E:\datasets\dataset_b `
-  --task vis --no-crop
+DATA_DIR = r"/path/to/my_dataset.yaml"
+
+yolo_sta(DATA_DIR, stats_list=["all"], only_val=False)
+yolo_vis(DATA_DIR, crop=True, only_val=False)
 ```
 
-`--data-dir` accepts a dataset root or dataset YAML and may be repeated. Tasks
-process all data by default; add `--only-val` explicitly to use the validation
-split. See the complete task and option list with:
-
-```powershell
-python -m example.datasets.run_dataset --help
-```
-
-The root `example/*.py` files still re-export their original function names.
-The old `scripts/run_ydm.py` and `scripts/convert_tt100k.py` remain as
-compatibility entry points, while their original implementations are archived
-under `example/archive/scripts/`.
+There is no generic `example/datasets/` runner and no need for `run_ydm.py`.
+TT100K conversion is an independent repository tool at
+`tools/convert_tt100k.py`.
 
 ## Parameter Notes
 

@@ -4,7 +4,7 @@ TT100K does not use the COCO/VOC/YOLO annotation schemas.  Its annotation file
 contains a ``types`` list and an ``imgs`` mapping; each object has a category
 name and an ``xmin/ymin/xmax/ymax`` bounding box.  This module deliberately
 keeps the converter independent of the rest of the dataset manager so it can
-also be used from the small command-line wrapper in ``scripts/``.
+also be used from the small command-line wrapper in ``tools/``.
 """
 
 from __future__ import annotations
