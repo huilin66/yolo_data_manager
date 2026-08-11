@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from yolo_data_manager import YoloManager
+from ._manager import YoloManagerInput, get_yolo_manager
 
 
 def yolo_sta(
-    input_dir: str | Path,
+    dataset_input: YoloManagerInput,
     *,
     stats_list: str | list[str] | None = "all",
     only_val: bool = False,
@@ -20,7 +20,7 @@ def yolo_sta(
 ) -> int:
     """Compute statistics for all input data unless ``only_val`` is enabled."""
 
-    mgr = YoloManager(input_dir, layout="flat", init_check=False)
+    mgr = get_yolo_manager(dataset_input, layout="flat", init_check=False)
     return mgr.stats(
         stats_list=stats_list,
         only_val=only_val,
@@ -30,4 +30,3 @@ def yolo_sta(
         attr_csv=attr_csv,
         plots_dir=plots_dir,
     )
-

@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from yolo_data_manager import YoloManager
+from ._manager import YoloManagerInput, get_yolo_manager
 
 
 def yolo_draw(
-    input_dir: str | Path,
+    dataset_input: YoloManagerInput,
     image_name: str | Path,
     *,
     label: str | Path | None = None,
@@ -18,7 +18,7 @@ def yolo_draw(
 ) -> int:
     """Draw one temporary box and save its coordinates without editing labels."""
 
-    mgr = YoloManager(input_dir, layout="flat", init_check=False, init_layout=False)
+    mgr = get_yolo_manager(dataset_input, layout="flat", init_check=False, init_layout=False)
     return mgr.vis_manual_box(
         image_name,
         label=label,
@@ -26,4 +26,3 @@ def yolo_draw(
         show_existing=show_existing,
         out=out,
     )
-

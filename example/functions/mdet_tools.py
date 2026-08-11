@@ -20,7 +20,7 @@ LABEL_PARAMS: dict[str, str] = {}
 
 
 def load_mdet_manager(
-    input_dir: str | Path,
+    dataset_input: str | Path,
     *,
     image_dirs: list[str] | None = None,
     image_params: dict[str, dict[str, str]] | None = None,
@@ -31,7 +31,7 @@ def load_mdet_manager(
     """Create one cached multimodal manager for the selected image folders."""
 
     return MultiModalYoloManager(
-        input_dir,
+        dataset_input,
         image_dirs=image_dirs or IMAGE_DIR_NAMES,
         image_params=image_params if image_params is not None else IMAGE_PARAMS or None,
         labels_dir=labels_dir,
@@ -43,13 +43,19 @@ def load_mdet_manager(
     )
 
 
-def yolo_check(mgr: MultiModalYoloManager, input_dir: str | Path | None = None) -> dict[str, object]:
+def yolo_check(
+    mgr: MultiModalYoloManager,
+    dataset_input: str | Path | None = None,
+) -> dict[str, object]:
     """Check scene association and image format/mode/dtype groups."""
 
     return mgr.check()
 
 
-def yolo_sta(mgr: MultiModalYoloManager, input_dir: str | Path | None = None) -> dict[str, object]:
+def yolo_sta(
+    mgr: MultiModalYoloManager,
+    dataset_input: str | Path | None = None,
+) -> dict[str, object]:
     """Write shared-label and per-modality statistics."""
 
     return mgr.stats(stats_list=["all"])
@@ -57,7 +63,7 @@ def yolo_sta(mgr: MultiModalYoloManager, input_dir: str | Path | None = None) ->
 
 def convert_depth_to_uint8(
     mgr: MultiModalYoloManager,
-    input_dir: str | Path | None = None,
+    dataset_input: str | Path | None = None,
     *,
     value_range: tuple[float, float] = (0, 20000),
     overwrite: bool = False,
@@ -77,7 +83,7 @@ def convert_depth_to_uint8(
 
 def yolo_vis(
     mgr: MultiModalYoloManager,
-    input_dir: str | Path | None = None,
+    dataset_input: str | Path | None = None,
     *,
     crop: bool = False,
     output_name: str | None = None,
@@ -95,4 +101,3 @@ def yolo_vis(
         else:
             mgr.vis_crop(vis_dir / "crops", workers=8)
     return rendered
-

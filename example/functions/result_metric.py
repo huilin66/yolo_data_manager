@@ -5,11 +5,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from yolo_data_manager import YoloManager
+from ._manager import YoloManagerInput, get_yolo_manager
 
 
 def yolo_metric(
-    input_dir: str | Path,
+    dataset_input: YoloManagerInput,
     pred_dir: str | Path,
     pred_name: str | None = None,
     *,
@@ -37,7 +37,7 @@ def yolo_metric(
             raise ValueError("pred_name is required when abs_path=False")
         resolved_pred_dir = resolved_pred_dir / pred_name / "labels"
 
-    mgr = YoloManager(input_dir, layout="auto", init_check=False, init_layout=False)
+    mgr = get_yolo_manager(dataset_input, layout="auto", init_check=False, init_layout=False)
     return mgr.eval_metrics(
         pred_root=resolved_pred_dir,
         class_=class_,
@@ -56,4 +56,3 @@ def yolo_metric(
         print_table=True,
         workers=workers,
     )
-

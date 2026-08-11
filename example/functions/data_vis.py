@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from yolo_data_manager import YoloManager
+from ._manager import YoloManagerInput, get_yolo_manager
 
 
 def yolo_vis(
-    input_dir: str | Path,
+    dataset_input: YoloManagerInput,
     crop: bool = True,
     *,
     draw_out: str | Path | None = None,
@@ -20,7 +20,7 @@ def yolo_vis(
 ) -> int:
     """Render boxes and optionally crops for all data by default."""
 
-    mgr = YoloManager(input_dir, layout="auto", init_check=False, init_layout=False)
+    mgr = get_yolo_manager(dataset_input, layout="auto", init_check=False, init_layout=False)
     result = mgr.vis_draw(
         draw_out,
         workers=workers,
@@ -35,4 +35,3 @@ def yolo_vis(
             only_val=only_val,
         )
     return result
-

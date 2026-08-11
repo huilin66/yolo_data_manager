@@ -5,11 +5,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Mapping, Sequence
 
-from yolo_data_manager import YoloManager
+from ._manager import YoloManagerInput, get_yolo_manager
 
 
 def yolo_merge_class(
-    input_dir: str | Path,
+    dataset_input: YoloManagerInput,
     output_dir: str | Path | None,
     merge_dict: Mapping[str | int, str | int | Sequence[str | int]],
     *,
@@ -18,11 +18,10 @@ def yolo_merge_class(
 ) -> int:
     """Merge source classes into target classes in a new dataset by default."""
 
-    mgr = YoloManager(input_dir, layout="flat", init_check=False, init_layout=False)
+    mgr = get_yolo_manager(dataset_input, layout="flat", init_check=False, init_layout=False)
     return mgr.ann_merge_class(
         merge_dict,
         out=output_dir,
         backup_dir=backup_dir,
         dry_run=dry_run,
     )
-

@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from yolo_data_manager import YoloManager
+from ._manager import YoloManagerInput, get_yolo_manager
 
 
 def yolo_update(
-    input_dir: str | Path,
+    dataset_input: YoloManagerInput,
     crops_dir: str | Path,
     to: str | int | None,
     *,
@@ -23,7 +23,7 @@ def yolo_update(
 ) -> int:
     """Correct GT, delete GT, or add/replace predictions referenced by crops."""
 
-    mgr = YoloManager(input_dir, layout="auto", init_check=False, init_layout=False)
+    mgr = get_yolo_manager(dataset_input, layout="auto", init_check=False, init_layout=False)
     return mgr.ann_correct_from_error_crops(
         crops_dir=crops_dir,
         to=to,
@@ -36,4 +36,3 @@ def yolo_update(
         dry_run=dry_run,
         only_val=only_val,
     )
-

@@ -5,11 +5,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Mapping
 
-from yolo_data_manager import YoloManager
+from ._manager import YoloManagerInput, get_yolo_manager
 
 
 def yolo_filter_small(
-    input_dir: str | Path,
+    dataset_input: YoloManagerInput,
     filter_ratio: float = 0.01,
     logic: str = "or",
     class_rules: Mapping[str, Mapping[str, Any]] | str | Path | None = None,
@@ -39,7 +39,7 @@ def yolo_filter_small(
     omitted.
     """
 
-    mgr = YoloManager(input_dir, layout="flat", init_check=False, init_layout=False)
+    mgr = get_yolo_manager(dataset_input, layout="flat", init_check=False, init_layout=False)
     return mgr.dataset_filter(
         out=out_dir,
         class_=class_,
@@ -53,4 +53,3 @@ def yolo_filter_small(
         backup_dir=backup_dir,
         dry_run=dry_run,
     )
-

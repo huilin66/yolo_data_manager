@@ -17,6 +17,7 @@ if __package__ in (None, ""):
     if str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
 
+from yolo_data_manager import YoloManager
 from example.functions import yolo_metric, yolo_sta, yolo_vis
 
 
@@ -28,16 +29,19 @@ PRED_NAME = "val-52"
 
 
 def main() -> None:
+    # Reuse one initialized manager across all selected operations.
+    manager = YoloManager(DATA_DIR, layout="auto", init_check=False)
+
     yolo_sta(
-        DATA_DIR,
+        manager,
         stats_list=["all"],
         only_val=False,
     )
 
-    # yolo_vis(DATA_DIR, crop=True, only_val=False)
+    # yolo_vis(manager, crop=True, only_val=False)
 
     # yolo_metric(
-    #     DATA_DIR,
+    #     manager,
     #     PRED_RUNS_DIR,
     #     PRED_NAME,
     #     only_val=True,
