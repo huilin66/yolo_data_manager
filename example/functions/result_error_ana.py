@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from ._manager import YoloManagerInput, get_yolo_manager
 
@@ -39,8 +40,11 @@ def yolo_error_ana(
         if not pred_name:
             raise ValueError("pred_name is required when abs_path=False")
         resolved_pred_dir = resolved_pred_dir / pred_name / "labels"
-
-    mgr = get_yolo_manager(dataset_input, layout="auto", init_check=False, init_layout=False)
+    if out is None:
+        out = Path(pred_dir) / pred_name / "error_analysis"
+    mgr = get_yolo_manager(
+        dataset_input, layout="auto", init_check=False, init_layout=False
+    )
     return mgr.eval_error_analysis(
         pred_root=resolved_pred_dir,
         out=out,
