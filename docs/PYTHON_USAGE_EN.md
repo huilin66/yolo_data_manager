@@ -89,6 +89,19 @@ The Python API and CLI use the same defaults. Explicit `out`, `csv`, or `plots_d
 Multimodal data uses these same functional groups; modality subdirectories are added only
 where needed, and there is no separate `ydm_multimodal` feature module.
 
+The default locations are also available directly from `YoloManager`:
+
+```python
+mgr.output_stats
+mgr.output_vis
+mgr.output_evaluation
+mgr.output_labels_backup
+mgr.output_dataset_yaml
+```
+
+These properties return `Path` objects and do not create directories; the corresponding
+manager operation creates outputs as needed.
+
 `layout_detect()` prints a layout detection result, not a validation/check result. The output has `report_type: layout_detect` and includes `class_source`, `class_count`, and `classes`.
 
 ## Statistics

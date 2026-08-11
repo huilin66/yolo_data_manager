@@ -19,3 +19,21 @@ def test_example_function_does_not_initialize_existing_manager(monkeypatch):
     monkeypatch.setattr(YoloManager, "__init__", fail_if_initialized)
 
     assert yolo_split(manager) == 7
+
+
+def test_yolo_manager_exposes_default_output_paths(tmp_path):
+    manager = object.__new__(YoloManager)
+    manager.root = str(tmp_path)
+
+    assert manager.output_quality == tmp_path / "ydm_quality"
+    assert manager.output_stats == tmp_path / "ydm_stats"
+    assert manager.output_vis == tmp_path / "ydm_vis"
+    assert manager.output_evaluation == tmp_path / "ydm_evaluation"
+    assert manager.output_dataset == tmp_path / "ydm_dataset"
+    assert manager.output_annotation == tmp_path / "ydm_annotation"
+    assert manager.output_conversion == tmp_path / "ydm_conversion"
+    assert manager.output_labels_backup == tmp_path / "labels_backup"
+    assert manager.output_train == tmp_path / "train.txt"
+    assert manager.output_val == tmp_path / "val.txt"
+    assert manager.output_test == tmp_path / "test.txt"
+    assert manager.output_dataset_yaml == tmp_path / "dataset.yaml"

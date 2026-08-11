@@ -12,6 +12,7 @@ from typing import Any
 import yaml
 
 from yolo_data_manager.core.schema import read_dataset_yaml
+from yolo_data_manager.io.output_paths import ydm_dir
 
 TASK_COMMANDS: Mapping[str, tuple[str, ...]] = {
     "check": ("check",),
@@ -298,6 +299,80 @@ class YoloManager:
         self.init_check_progress_leave = init_check_progress_leave
 
         self._warmup_()
+
+    # -- default output paths ----------------------------------------------
+
+    @property
+    def output_quality(self) -> Path:
+        """Default data-quality output directory."""
+
+        return ydm_dir(self.root, "quality")
+
+    @property
+    def output_stats(self) -> Path:
+        """Default statistics output directory."""
+
+        return ydm_dir(self.root, "stats")
+
+    @property
+    def output_vis(self) -> Path:
+        """Default visualization output directory."""
+
+        return ydm_dir(self.root, "vis")
+
+    @property
+    def output_evaluation(self) -> Path:
+        """Default evaluation output directory."""
+
+        return ydm_dir(self.root, "evaluation")
+
+    @property
+    def output_dataset(self) -> Path:
+        """Default dataset-producing output directory."""
+
+        return ydm_dir(self.root, "dataset")
+
+    @property
+    def output_annotation(self) -> Path:
+        """Default annotation-edit output directory."""
+
+        return ydm_dir(self.root, "annotation")
+
+    @property
+    def output_conversion(self) -> Path:
+        """Default conversion output directory."""
+
+        return ydm_dir(self.root, "conversion")
+
+    @property
+    def output_labels_backup(self) -> Path:
+        """Default timestamped label-backup directory."""
+
+        return Path(self.root) / "labels_backup"
+
+    @property
+    def output_train(self) -> Path:
+        """Default training split file."""
+
+        return Path(self.root) / "train.txt"
+
+    @property
+    def output_val(self) -> Path:
+        """Default validation split file."""
+
+        return Path(self.root) / "val.txt"
+
+    @property
+    def output_test(self) -> Path:
+        """Default test split file."""
+
+        return Path(self.root) / "test.txt"
+
+    @property
+    def output_dataset_yaml(self) -> Path:
+        """Default dataset YAML file."""
+
+        return Path(self.root) / "dataset.yaml"
 
     def _warmup_(self) -> None:
         if self.init_layout:

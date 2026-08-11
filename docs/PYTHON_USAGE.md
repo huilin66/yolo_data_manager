@@ -249,6 +249,30 @@ Python API 与 CLI 使用相同的默认输出规则；显式传入 `out`、`csv
 必要时在 `ydm_stats/plots/`、`ydm_vis/draw/` 等目录下按模态建立子目录，不存在独立的
 `ydm_multimodal` 功能模块。
 
+这些默认位置也可以直接从 `YoloManager` 获取：
+
+```python
+mgr.output_stats
+mgr.output_vis
+mgr.output_evaluation
+mgr.output_labels_backup
+mgr.output_dataset_yaml
+```
+
+上述属性返回 `Path`，不会创建目录；实际操作仍会在调用对应 manager 方法时按需创建输出。
+
+这些默认位置也可以直接从 `YoloManager` 获取：
+
+```python
+mgr.output_stats
+mgr.output_vis
+mgr.output_evaluation
+mgr.output_labels_backup
+mgr.output_dataset_yaml
+```
+
+上述属性返回 `Path`，不会创建目录；实际操作仍会在调用对应 manager 方法时按需创建输出。
+
 `layout_detect()` 打印的是布局检测结果，不是 `check` 校验结果。输出中 `report_type` 为 `layout_detect`，并包含 `class_source`、`class_count`、`classes`，可用于确认类别文件来源。
 
 `stats_list` 支持：`all`、`class_counts`、`box_number`、`box_width`、`box_height`、`box_area`、`image_shape`、`box_shape`、`box_shape_pix`、`box_shape_rate`、`box_pos_start`、`box_pos_center`、`box_pos_end`、`attribute`、`legacy_csv`。
