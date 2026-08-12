@@ -10,7 +10,7 @@ except ImportError:  # Support direct execution of this module.
     from _manager import YoloManagerInput, get_yolo_manager
 
 
-def yolo_update(
+def yolo_update_by_pred(
     dataset_input: YoloManagerInput,
     crops_dir: str | Path,
     to: str | int | None,
@@ -26,7 +26,9 @@ def yolo_update(
 ) -> int:
     """Correct GT, delete GT, or add/replace predictions referenced by crops."""
 
-    mgr = get_yolo_manager(dataset_input, layout="auto", init_check=False, init_layout=False)
+    mgr = get_yolo_manager(
+        dataset_input, layout="auto", init_check=False, init_layout=False
+    )
     return mgr.ann_correct_from_error_crops(
         crops_dir=crops_dir,
         to=to,

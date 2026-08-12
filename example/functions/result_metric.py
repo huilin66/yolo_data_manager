@@ -31,7 +31,7 @@ def yolo_metric(
     min_pixels: float | None = None,
     conf_thres: float = 0.001,
     only_val: bool = True,
-    show_original: bool = False,
+    show_original: bool = True,
     out: str | Path | None = None,
     csv: str | Path | None = None,
 ) -> int:

@@ -7,6 +7,7 @@ details in ``example/functions``.
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -17,7 +18,7 @@ if __package__ in (None, ""):
     if str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
 
-from example.functions import yolo_error_ana
+from example.functions import yolo_metric
 
 DATA_DIR = Path(
     r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_t.yaml"
@@ -35,12 +36,16 @@ PRED_NAMES = [
     "val-169",
 ]
 
-# crops_map = {
-#     "/localnvme/data/bdd_hmt/bp_cube/ydm_vis/crop_change/2_b": "broken",
-#     "/localnvme/data/bdd_hmt/bp_cube/ydm_vis/crop_change/b_2_none": None,
-#     "/localnvme/data/bdd_hmt/bp_cube/ydm_vis/crop_change/e_2_none": None,
-#     "/localnvme/data/bdd_hmt/bp_cube/ydm_vis/crop_change/p_2_none": None,
-# }
+PRED_DIR = "/localnvme/data/bdd_hmt/sua_t/ydm_evaluation/error_analysis/val-169/review/pred_txt"
+CROP_ROOT = (
+    "/localnvme/data/bdd_hmt/sua_t/ydm_evaluation/error_analysis/val-169/crop_change"
+)
+CROP_MAP = {
+    os.path.join(CROP_ROOT, "2_h_high"): "Hollow High Risk",
+    os.path.join(CROP_ROOT, "2_h_low"): "Hollow Low Risk",
+    os.path.join(CROP_ROOT, "none_2_h_high"): "Hollow High Risk",
+    os.path.join(CROP_ROOT, "none_2_h_low"): "Hollow Low Risk",
+}
 MERGE_CLASS_MAP = {
     "Hollow": [
         "Hollow Low Risk",
@@ -57,10 +62,9 @@ def main() -> None:
     # yolo_sta(
     #     DATA_DIR,
     #     stats_list=["all"],
-    #     only_val=False,
     # )
 
-    # yolo_vis(DATA_DIR, crop=True, only_val=False)
+    # yolo_vis(DATA_DIR, crop=True)
 
     # yolo_metric(
     #     DATA_DIR,
@@ -86,18 +90,22 @@ def main() -> None:
     # )
 
     for PRED_NAME in PRED_NAMES:
-        # yolo_metric(
-        #     DATA_DIR,
-        #     PRED_RUNS_DIR,
-        #     PRED_NAME,
-        #     merge_class_map=MERGE_CLASS_MAP,
-        # )
-        yolo_error_ana(
+        yolo_metric(
             DATA_DIR,
             PRED_RUNS_DIR,
             PRED_NAME,
-            only_val=True,
+            merge_class_map=MERGE_CLASS_MAP,
+            # min_pixels=20,
         )
+        # yolo_error_ana(
+        #     DATA_DIR,
+        #     PRED_RUNS_DIR,
+        #     PRED_NAME,
+        #     only_val=True,
+        # )
+
+    # for k, v in CROP_MAP.items():
+    #     yolo_update_by_pred(DATA_DIR, crops_dir=k, to=v, pred_dir=PRED_DIR)
 
 
 if __name__ == "__main__":
