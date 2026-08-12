@@ -47,7 +47,7 @@ def yolo_error_ana(
         dataset_input, layout="auto", init_check=False, init_layout=False
     )
     if out is None:
-        out = Path(mgr.output_evaluation) / "error_analysis"
+        out = Path(mgr.output_evaluation) / "error_analysis" / pred_name
     return mgr.eval_error_analysis(
         pred_root=resolved_pred_dir,
         out=out,
