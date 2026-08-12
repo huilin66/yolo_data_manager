@@ -5,7 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Mapping
 
-from ._manager import YoloManagerInput, get_yolo_manager
+try:
+    from ._manager import YoloManagerInput, get_yolo_manager
+except ImportError:  # Support direct execution of this module.
+    from _manager import YoloManagerInput, get_yolo_manager
 
 
 def yolo_filter_small(

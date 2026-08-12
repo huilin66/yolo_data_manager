@@ -6,7 +6,10 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from ._manager import YoloManagerInput, get_yolo_manager
+try:
+    from ._manager import YoloManagerInput, get_yolo_manager
+except ImportError:  # Support direct execution of this module.
+    from _manager import YoloManagerInput, get_yolo_manager
 
 
 def yolo_error_ana(

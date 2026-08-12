@@ -5,7 +5,10 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
-from ._manager import YoloManagerInput, get_yolo_manager
+try:
+    from ._manager import YoloManagerInput, get_yolo_manager
+except ImportError:  # Support direct execution of this module.
+    from _manager import YoloManagerInput, get_yolo_manager
 
 
 def yolo_metric(
