@@ -17,29 +17,39 @@ if __package__ in (None, ""):
     if str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
 
-from example.functions import yolo_metric
+from example.functions import yolo_error_ana
 
 DATA_DIR = Path(
-    r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_bp_cube.yaml"
+    r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_t.yaml"
 )
 
 # Select the operations for this dataset by uncommenting the calls in main().
 PRED_RUNS_DIR = Path(r"/localnvme/project/aic_mdet/models/ultralytics/runs/detect")
 # PRED_NAME = "val-161"
 PRED_NAMES = [
-    "val-176",
-    "val-177",
-    "val-172",
-    "val-173",
-    "val-174",
-    "val-175",
+    "val-164",
+    "val-165",
+    "val-166",
+    "val-167",
+    "val-168",
+    "val-169",
 ]
 
-crops_map = {
-    "/localnvme/data/bdd_hmt/bp_cube/ydm_vis/crop_change/2_b": "broken",
-    "/localnvme/data/bdd_hmt/bp_cube/ydm_vis/crop_change/b_2_none": None,
-    "/localnvme/data/bdd_hmt/bp_cube/ydm_vis/crop_change/e_2_none": None,
-    "/localnvme/data/bdd_hmt/bp_cube/ydm_vis/crop_change/p_2_none": None,
+# crops_map = {
+#     "/localnvme/data/bdd_hmt/bp_cube/ydm_vis/crop_change/2_b": "broken",
+#     "/localnvme/data/bdd_hmt/bp_cube/ydm_vis/crop_change/b_2_none": None,
+#     "/localnvme/data/bdd_hmt/bp_cube/ydm_vis/crop_change/e_2_none": None,
+#     "/localnvme/data/bdd_hmt/bp_cube/ydm_vis/crop_change/p_2_none": None,
+# }
+MERGE_CLASS_MAP = {
+    "Hollow": [
+        "Hollow Low Risk",
+        "Hollow High Risk",
+    ],
+    "Temperature": [
+        "Temperature Medium Risk",
+        "Temperature High Risk",
+    ],
 }
 
 
@@ -65,15 +75,29 @@ def main() -> None:
     #         crops_dir=k,
     #         to=v,
     #     )
-    yolo_metric(
-        DATA_DIR,
-        PRED_RUNS_DIR,
-        PRED_NAME,
-        # merge_class_map=merge_class_map,
-        # # exclude_class_=exclude_class_,
-        min_pixels=20,
-        # conf_thres=0.20,
-    )
+    # yolo_metric(
+    #     DATA_DIR,
+    #     PRED_RUNS_DIR,
+    #     PRED_NAME,
+    #     # merge_class_map=merge_class_map,
+    #     # # exclude_class_=exclude_class_,
+    #     min_pixels=20,
+    #     # conf_thres=0.20,
+    # )
+
+    for PRED_NAME in PRED_NAMES:
+        # yolo_metric(
+        #     DATA_DIR,
+        #     PRED_RUNS_DIR,
+        #     PRED_NAME,
+        #     merge_class_map=MERGE_CLASS_MAP,
+        # )
+        yolo_error_ana(
+            DATA_DIR,
+            PRED_RUNS_DIR,
+            PRED_NAME,
+            only_val=True,
+        )
 
 
 if __name__ == "__main__":
