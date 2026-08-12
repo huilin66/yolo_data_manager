@@ -310,6 +310,7 @@ When `gt_root` or `class_file` is omitted, `YoloManager` falls back to the manag
 
 `eval_error_analysis` supports the same class and size filters: `class_` selects classes, `exclude_class_` excludes classes, and `min_width`, `min_height`, `min_area`, `min_size_logic`, and `min_pixels` filter both GT and predictions. Width and height/area use normalized YOLO coordinates; `min_pixels` checks pixel width or height.
 `class_rules` overrides the global size rule per class using `width`, `height`, and `logic`; classes without a rule continue to use the global parameters.
+`eval_error_analysis` and `eval_metrics` use the same one-to-one IoU matching rule: each GT and prediction can participate in at most one match. Duplicate predictions are not removed; error analysis marks them as `duplicate_prediction`, corresponding to FPs in metrics.
 
 ## Multimodal YOLO Datasets
 

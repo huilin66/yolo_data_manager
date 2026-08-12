@@ -11,6 +11,7 @@ import numpy as np
 
 from yolo_data_manager.annotation.edit import merge_classes
 from yolo_data_manager.core.models import YoloAnnotation, YoloDataset
+from yolo_data_manager.evaluation.matching import greedy_match_indices
 
 
 DEFAULT_IOU_THRESHOLDS = tuple(float(v) for v in np.linspace(0.5, 0.95, 10))
@@ -457,22 +458,11 @@ def _match_predictions(
     if not gt_anns or not pred_anns:
         return correct
 
-    iou = _box_iou_matrix(
-        np.array([_annotation_box_xyxy(ann) for ann in gt_anns], dtype=np.float64),
-        np.array([_annotation_box_xyxy(ann) for ann in pred_anns], dtype=np.float64),
-    )
-    true_classes = np.array([ann.class_id for ann in gt_anns])
-    pred_classes = np.array([ann.class_id for ann in pred_anns])
-    iou *= true_classes[:, None] == pred_classes[None, :]
-
     for idx, threshold in enumerate(iouv):
-        matches = np.array(np.nonzero(iou >= threshold)).T
-        if matches.shape[0]:
-            if matches.shape[0] > 1:
-                matches = matches[iou[matches[:, 0], matches[:, 1]].argsort()[::-1]]
-                matches = matches[np.unique(matches[:, 1], return_index=True)[1]]
-                matches = matches[np.unique(matches[:, 0], return_index=True)[1]]
-            correct[matches[:, 1].astype(int), idx] = True
+        for _iou, _gt_idx, pred_idx in greedy_match_indices(
+            gt_anns, pred_anns, float(threshold)
+        ):
+            correct[pred_idx, idx] = True
     return correct
 
 
@@ -589,31 +579,6 @@ def _build_class_metrics(
 
 def _format_metric(value: float, precision: int) -> str:
     return f"{float(value):.{precision}g}"
-
-
-def _annotation_box_xyxy(annotation: YoloAnnotation) -> list[float]:
-    box = annotation.geometry_box()
-    if box is None:
-        return [0.0, 0.0, 0.0, 0.0]
-    return [
-        box.cx - box.width / 2.0,
-        box.cy - box.height / 2.0,
-        box.cx + box.width / 2.0,
-        box.cy + box.height / 2.0,
-    ]
-
-
-def _box_iou_matrix(boxes_a: np.ndarray, boxes_b: np.ndarray) -> np.ndarray:
-    if boxes_a.size == 0 or boxes_b.size == 0:
-        return np.zeros((boxes_a.shape[0], boxes_b.shape[0]), dtype=np.float64)
-    tl = np.maximum(boxes_a[:, None, :2], boxes_b[None, :, :2])
-    br = np.minimum(boxes_a[:, None, 2:], boxes_b[None, :, 2:])
-    wh = np.clip(br - tl, 0, None)
-    inter = wh[:, :, 0] * wh[:, :, 1]
-    area_a = np.clip(boxes_a[:, 2] - boxes_a[:, 0], 0, None) * np.clip(boxes_a[:, 3] - boxes_a[:, 1], 0, None)
-    area_b = np.clip(boxes_b[:, 2] - boxes_b[:, 0], 0, None) * np.clip(boxes_b[:, 3] - boxes_b[:, 1], 0, None)
-    union = area_a[:, None] + area_b[None, :] - inter
-    return inter / np.clip(union, 1e-16, None)
 
 
 def _confidence(annotation: YoloAnnotation) -> float:
