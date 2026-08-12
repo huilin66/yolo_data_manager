@@ -5,7 +5,7 @@ detailed error subtypes (background FP, localisation FP, duplicate
 prediction, class-error, missed-due-to-class-error, missed-due-to-low-iou,
 missed-no-prediction) and detects duplicate / overlapping GT annotations.
 
-The matching logic is adapted from the ``demo.py`` reference script.
+The one-to-one matching logic is shared with ``eval_metrics``.
 """
 
 from __future__ import annotations
@@ -28,6 +28,11 @@ from yolo_data_manager.core.models import ClassSchema, YoloAnnotation, YoloDatas
 from yolo_data_manager.core.errors import ClassNotFoundError
 from yolo_data_manager.core.schema import read_class_schema
 from yolo_data_manager.io.loader import load_yolo_dataset, parse_label_file
+from yolo_data_manager.evaluation.matching import (
+    annotation_box_xyxy,
+    box_iou_matrix,
+    greedy_match_indices,
+)
 from yolo_data_manager.runtime import iter_progress, normalize_workers
 
 # ---------------------------------------------------------------------------
@@ -133,41 +138,9 @@ class DuplicateGt:
 # ---------------------------------------------------------------------------
 
 
-def _xywh_to_xyxy_norm(box: tuple[float, float, float, float]) -> list[float]:
-    """Convert normalised *cx-cy-w-h* to normalised *x1-y1-x2-y2*."""
-    cx, cy, w, h = box
-    return [cx - w / 2.0, cy - h / 2.0, cx + w / 2.0, cy + h / 2.0]
-
-
 def _annotation_box_norm(ann: YoloAnnotation) -> list[float]:
     """Return the normalised *x1-y1-x2-y2* bounding box of *ann*."""
-    geo = ann.geometry_box()
-    if geo is None:
-        return [0.0, 0.0, 0.0, 0.0]
-    return _xywh_to_xyxy_norm(geo.as_tuple())
-
-
-def _box_iou_matrix(
-    boxes_a: np.ndarray,
-    boxes_b: np.ndarray,
-) -> np.ndarray:
-    """Vectorised IoU matrix (N x M) for two sets of xyxy boxes."""
-    if boxes_a.size == 0 or boxes_b.size == 0:
-        return np.zeros((boxes_a.shape[0], boxes_b.shape[0]), dtype=np.float64)
-
-    tl = np.maximum(boxes_a[:, None, :2], boxes_b[None, :, :2])
-    br = np.minimum(boxes_a[:, None, 2:], boxes_b[None, :, 2:])
-    wh = np.clip(br - tl, 0, None)
-    inter = wh[:, :, 0] * wh[:, :, 1]
-
-    area_a = np.clip(boxes_a[:, 2] - boxes_a[:, 0], 0, None) * np.clip(
-        boxes_a[:, 3] - boxes_a[:, 1], 0, None
-    )
-    area_b = np.clip(boxes_b[:, 2] - boxes_b[:, 0], 0, None) * np.clip(
-        boxes_b[:, 3] - boxes_b[:, 1], 0, None
-    )
-    union = area_a[:, None] + area_b[None, :] - inter + 1e-9
-    return inter / union
+    return annotation_box_xyxy(ann)
 
 
 def _serialise_box(box: list[float]) -> str:
@@ -701,48 +674,39 @@ def analyze_errors(
             else np.zeros((0, 4), dtype=np.float64)
         )
 
-        ious = _box_iou_matrix(pred_boxes_np, gt_boxes_np)
+        ious = box_iou_matrix(pred_boxes_np, gt_boxes_np)
 
-        matched_pred: set[int] = set()
-        matched_gt: set[int] = set()
+        matches = greedy_match_indices(gt_anns, pred_anns, match_iou)
+        matched_pred = {pred_idx for _iou, _gt_idx, pred_idx in matches}
+        matched_gt = {gt_idx for _iou, gt_idx, _pred_idx in matches}
 
-        # ---- 1. class-aware greedy matching (same class, IoU >= match_iou) ----
-        candidates: list[tuple[float, int, int]] = []
-        for pi, p_ann in enumerate(pred_anns):
-            for gi, g_ann in enumerate(gt_anns):
-                if p_ann.class_id == g_ann.class_id and ious[pi, gi] >= match_iou:
-                    candidates.append((float(ious[pi, gi]), pi, gi))
-        candidates.sort(key=lambda x: x[0], reverse=True)
-
-        for iou_val, pi, gi in candidates:
-            if pi not in matched_pred and gi not in matched_gt:
-                matched_pred.add(pi)
-                matched_gt.add(gi)
-                p_ann = pred_anns[pi]
-                g_ann = gt_anns[gi]
-                conf = p_ann.confidence
-                rows.append(
-                    ErrorDetail(
-                        image=stem,
-                        status="tp",
-                        error_type=TP,
-                        class_id=p_ann.class_id,
-                        class_name=gt.class_name(p_ann.class_id),
-                        pred_class_id=p_ann.class_id,
-                        pred_class_name=gt.class_name(p_ann.class_id),
-                        pred_conf=conf,
-                        gt_class_id=g_ann.class_id,
-                        gt_class_name=gt.class_name(g_ann.class_id),
-                        best_iou=iou_val,
-                        pred_box_xyxy=_serialise_box(_annotation_box_norm(p_ann)),
-                        gt_box_xyxy=_serialise_box(_annotation_box_norm(g_ann)),
-                        pred_line=p_ann.source_line,
-                        gt_line=g_ann.source_line,
-                        pred_idx=_annotation_index(p_ann, pi + 1),
-                        gt_idx=_annotation_index(g_ann, gi + 1),
-                    )
+        # ---- 1. one-to-one matching shared with eval_metrics ----
+        for iou_val, gi, pi in matches:
+            p_ann = pred_anns[pi]
+            g_ann = gt_anns[gi]
+            conf = p_ann.confidence
+            rows.append(
+                ErrorDetail(
+                    image=stem,
+                    status="tp",
+                    error_type=TP,
+                    class_id=p_ann.class_id,
+                    class_name=gt.class_name(p_ann.class_id),
+                    pred_class_id=p_ann.class_id,
+                    pred_class_name=gt.class_name(p_ann.class_id),
+                    pred_conf=conf,
+                    gt_class_id=g_ann.class_id,
+                    gt_class_name=gt.class_name(g_ann.class_id),
+                    best_iou=iou_val,
+                    pred_box_xyxy=_serialise_box(_annotation_box_norm(p_ann)),
+                    gt_box_xyxy=_serialise_box(_annotation_box_norm(g_ann)),
+                    pred_line=p_ann.source_line,
+                    gt_line=g_ann.source_line,
+                    pred_idx=_annotation_index(p_ann, pi + 1),
+                    gt_idx=_annotation_index(g_ann, gi + 1),
                 )
-                type_counter[TP] += 1
+            )
+            type_counter[TP] += 1
 
         # ---- 2. unmatched predictions → FP (with sub-type) ----
         for pi, p_ann in enumerate(pred_anns):
@@ -939,7 +903,7 @@ def find_duplicate_gt(
         boxes = np.array(
             [_annotation_box_norm(a) for a in anns], dtype=np.float64
         )
-        ious = _box_iou_matrix(boxes, boxes)
+        ious = box_iou_matrix(boxes, boxes)
         for i in range(len(anns)):
             for j in range(i + 1, len(anns)):
                 if ious[i, j] >= duplicate_iou:
