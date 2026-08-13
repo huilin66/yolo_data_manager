@@ -18,7 +18,7 @@ if __package__ in (None, ""):
     if str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
 
-from example.functions import yolo_metric
+from example.functions import yolo_error_ana
 
 DATA_DIR = Path(
     r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_t.yaml"
@@ -89,20 +89,20 @@ def main() -> None:
     #     # conf_thres=0.20,
     # )
 
-    for PRED_NAME in PRED_NAMES:
-        yolo_metric(
-            DATA_DIR,
-            PRED_RUNS_DIR,
-            PRED_NAME,
-            merge_class_map=MERGE_CLASS_MAP,
-            # min_pixels=20,
-        )
-        # yolo_error_ana(
+    for PRED_NAME in PRED_NAMES[-1:]:
+        # yolo_metric(
         #     DATA_DIR,
         #     PRED_RUNS_DIR,
         #     PRED_NAME,
-        #     only_val=True,
+        #     merge_class_map=MERGE_CLASS_MAP,
+        #     # min_pixels=20,
         # )
+        yolo_error_ana(
+            DATA_DIR,
+            PRED_RUNS_DIR,
+            PRED_NAME,
+            only_val=True,
+        )
 
     # for k, v in CROP_MAP.items():
     #     yolo_update_by_pred(DATA_DIR, crops_dir=k, to=v, pred_dir=PRED_DIR)
