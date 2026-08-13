@@ -18,13 +18,27 @@ if __package__ in (None, ""):
     if str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
 
-from example.functions import yolo_error_ana, yolo_metric
+from example.functions import (
+    yolo_error_ana,
+    yolo_metric,
+    yolo_sta,
+    yolo_update_by_pred,
+    yolo_vis,
+)
 
 DATA_DIR = Path(
     r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_t.yaml"
 )
 
-# Select the operations for this dataset by uncommenting the calls in main().
+# Select operations by uncommenting names in RUN_LIST.
+RUN_LIST = [
+    # "sta",
+    # "vis",
+    "metric",
+    "error_ana",
+    # "update",
+]
+
 PRED_RUNS_DIR = Path(r"/localnvme/project/aic_mdet/models/ultralytics/runs/detect")
 # PRED_NAME = "val-161"
 PRED_NAMES = [
@@ -59,53 +73,42 @@ MERGE_CLASS_MAP = {
 
 
 def main() -> None:
-    # yolo_sta(
-    #     DATA_DIR,
-    #     stats_list=["all"],
-    # )
-
-    # yolo_vis(DATA_DIR, crop=True)
-
-    # yolo_metric(
-    #     DATA_DIR,
-    #     PRED_RUNS_DIR,
-    #     PRED_NAME,
-    #     only_val=True,
-    #     show_original=True,
-    # )
-    # for k, v in crops_map.items():
-    #     yolo_update_from_crops(
-    #         DATA_DIR,
-    #         crops_dir=k,
-    #         to=v,
-    #     )
-    # yolo_metric(
-    #     DATA_DIR,
-    #     PRED_RUNS_DIR,
-    #     PRED_NAME,
-    #     # merge_class_map=merge_class_map,
-    #     # # exclude_class_=exclude_class_,
-    #     min_pixels=20,
-    #     # conf_thres=0.20,
-    # )
-
-    for PRED_NAME in PRED_NAMES[-1:]:
-        yolo_metric(
+    if "sta" in RUN_LIST:
+        yolo_sta(
             DATA_DIR,
-            PRED_RUNS_DIR,
-            PRED_NAME,
-            merge_class_map=MERGE_CLASS_MAP,
-            # min_pixels=20,
-        )
-        yolo_error_ana(
-            DATA_DIR,
-            PRED_RUNS_DIR,
-            PRED_NAME,
-            only_val=True,
+            stats_list=["all"],
         )
 
-    # for k, v in CROP_MAP.items():
-    #     yolo_update_by_pred(DATA_DIR, crops_dir=k, to=v, pred_dir=PRED_DIR)
+    if "vis" in RUN_LIST:
+        yolo_vis(DATA_DIR, crop=True)
+
+    if "metric" in RUN_LIST:
+        for pred_name in PRED_NAMES[-1:]:
+            yolo_metric(
+                DATA_DIR,
+                PRED_RUNS_DIR,
+                pred_name,
+                merge_class_map=MERGE_CLASS_MAP,
+                # min_pixels=20,
+            )
+
+    if "error_ana" in RUN_LIST:
+        for pred_name in PRED_NAMES[-1:]:
+            yolo_error_ana(
+                DATA_DIR,
+                PRED_RUNS_DIR,
+                pred_name,
+                only_val=True,
+            )
+
+    if "update" in RUN_LIST:
+        for crops_dir, target_class in CROP_MAP.items():
+            yolo_update_by_pred(
+                DATA_DIR,
+                crops_dir=crops_dir,
+                to=target_class,
+                pred_dir=PRED_DIR,
+            )
 
 
 if __name__ == "__main__":
