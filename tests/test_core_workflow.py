@@ -142,6 +142,7 @@ def test_build_python_task_argv():
         min_size_logic="and",
         min_pixels=8,
         class_rules=Path("rules.yaml"),
+        nms_iou=0.5,
     )
     assert "--review" in error_argv
     assert "--review-workers" in error_argv
@@ -157,6 +158,15 @@ def test_build_python_task_argv():
     assert "--min-size-logic" in error_argv
     assert "--min-pixels" in error_argv
     assert "--class-rules" in error_argv
+    assert "--nms-iou" in error_argv
+
+    no_nms_argv = build_task_argv(
+        "eval.metrics",
+        gt_root=Path("dataset"),
+        pred_root=Path("pred"),
+        no_nms=True,
+    )
+    assert "--no-nms" in no_nms_argv
 
     correction_argv = build_task_argv(
         "ann.correct_from_error_crops",
@@ -1912,6 +1922,8 @@ def test_yolo_manager_error_analysis_defaults_to_manager_root(tmp_path, monkeypa
     assert captured["review_progress"] is True
     assert captured["review_progress_leave"] is False
     assert captured["copy_pred_txt"] is True
+    assert captured["nms_iou"] == 0.5
+    assert captured["no_nms"] is False
 
     mgr.eval_error_analysis(
         pred_root="pred_labels",
@@ -1926,6 +1938,7 @@ def test_yolo_manager_error_analysis_defaults_to_manager_root(tmp_path, monkeypa
         class_rules={"car": {"width": 0.03, "height": 0.03, "logic": "or"}},
         pred_dir="prediction_txt",
         dedup_iou=0.6,
+        nms_iou=None,
     )
     assert captured["class_"] == ["car"]
     assert captured["exclude_class_"] == ["person"]
@@ -1937,6 +1950,8 @@ def test_yolo_manager_error_analysis_defaults_to_manager_root(tmp_path, monkeypa
     assert captured["class_rules"].endswith(".yaml")
     assert captured["pred_dir"] == "prediction_txt"
     assert captured["dedup_iou"] == 0.6
+    assert captured["nms_iou"] is None
+    assert captured["no_nms"] is True
 
     mgr.eval_error_analysis(
         pred_root="pred_labels",

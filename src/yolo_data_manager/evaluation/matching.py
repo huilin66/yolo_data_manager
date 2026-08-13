@@ -9,6 +9,13 @@ import numpy as np
 from yolo_data_manager.core.models import YoloAnnotation
 
 
+def validate_nms_iou(nms_iou: float | None) -> None:
+    """Validate an NMS IoU threshold; ``None`` disables NMS."""
+
+    if nms_iou is not None and not 0.0 < float(nms_iou) <= 1.0:
+        raise ValueError("nms_iou must be greater than 0 and at most 1, or None to disable NMS")
+
+
 def annotation_box_xyxy(annotation: YoloAnnotation) -> list[float]:
     """Return an annotation box as normalised ``xyxy`` coordinates."""
 
@@ -40,6 +47,48 @@ def box_iou_matrix(boxes_a: np.ndarray, boxes_b: np.ndarray) -> np.ndarray:
     )
     union = area_a[:, None] + area_b[None, :] - inter
     return inter / np.clip(union, 1e-16, None)
+
+
+def non_max_suppress_annotations(
+    annotations: Sequence[YoloAnnotation],
+    nms_iou: float | None,
+) -> list[YoloAnnotation]:
+    """Keep highest-confidence same-class boxes using greedy NMS.
+
+    ``None`` disables suppression.  The returned annotations retain their
+    original label-file order so source line indices remain stable; confidence
+    only determines which overlapping candidate wins.
+    """
+
+    validate_nms_iou(nms_iou)
+    rows = list(annotations)
+    if nms_iou is None or len(rows) < 2:
+        return rows
+
+    confidence_order = sorted(
+        range(len(rows)),
+        key=lambda index: (
+            -(1.0 if rows[index].confidence is None else float(rows[index].confidence)),
+            index,
+        ),
+    )
+    kept_indices: list[int] = []
+    kept_by_class: dict[int, list[int]] = {}
+    for index in confidence_order:
+        candidate = rows[index]
+        candidate_box = np.array([annotation_box_xyxy(candidate)], dtype=np.float64)
+        is_suppressed = False
+        for kept_index in kept_by_class.get(candidate.class_id, []):
+            kept_box = np.array([annotation_box_xyxy(rows[kept_index])], dtype=np.float64)
+            if box_iou_matrix(candidate_box, kept_box)[0, 0] >= float(nms_iou):
+                is_suppressed = True
+                break
+        if not is_suppressed:
+            kept_indices.append(index)
+            kept_by_class.setdefault(candidate.class_id, []).append(index)
+
+    kept_set = set(kept_indices)
+    return [row for index, row in enumerate(rows) if index in kept_set]
 
 
 def greedy_match_indices(

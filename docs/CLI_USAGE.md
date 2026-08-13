@@ -274,6 +274,7 @@ ydm eval error-analysis --gt-root gt_labels --pred-root pred_labels --names clas
 
 `eval error-analysis` 支持 `--class` 只保留指定类别，`--exclude-class` 独立排除类别；`--min-width`、`--min-height`、`--min-area`、`--min-size-logic` 和 `--min-pixels` 会同时过滤 GT 与预测。宽高/面积使用归一化 YOLO 尺寸，`--min-pixels` 按像素宽度或高度判断。仍兼容旧参数 `--review-workers`、`--review-progress`、`--review-progress-leave`；新脚本建议直接使用统一运行参数。
 `--class-rules` 接收 YAML/JSON 文件，按类别覆盖全局尺寸规则；规则字段可使用 `width`、`height`、`logic`，未配置的类别使用全局参数。
+两个评估命令默认按类别执行置信度优先的 NMS，阈值为 `--nms-iou 0.5`；使用 `--no-nms` 可关闭。
 
 review 输出：
 

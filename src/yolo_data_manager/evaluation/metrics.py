@@ -11,7 +11,11 @@ import numpy as np
 
 from yolo_data_manager.annotation.edit import merge_classes
 from yolo_data_manager.core.models import YoloAnnotation, YoloDataset
-from yolo_data_manager.evaluation.matching import greedy_match_indices
+from yolo_data_manager.evaluation.matching import (
+    greedy_match_indices,
+    non_max_suppress_annotations,
+    validate_nms_iou,
+)
 
 
 DEFAULT_IOU_THRESHOLDS = tuple(float(v) for v in np.linspace(0.5, 0.95, 10))
@@ -48,6 +52,7 @@ class DetectionMetrics:
     excluded_class_ids: list[int] | None
     merge_class_map: dict[str, list[str]] | None
     iou_thresholds: list[float]
+    nms_iou: float | None
     size_filter: dict[str, float | str | None]
     ignore_empty_classes: bool
 
@@ -65,6 +70,7 @@ def compute_detection_metrics(
     exclude_class_ids: Iterable[int | str] | int | str | None = None,
     merge_class_map: Mapping[int | str, int | str | Iterable[int | str]] | None = None,
     conf_thres: float = 0.0,
+    nms_iou: float | None = 0.5,
     min_width: float | None = None,
     min_height: float | None = None,
     min_area: float | None = None,
@@ -76,6 +82,8 @@ def compute_detection_metrics(
     """Compute Ultralytics-style detection metrics from YOLO GT/prediction txt.
 
     Predictions without an explicit confidence are treated as confidence 1.0.
+    Same-class predictions are deduplicated with confidence-prioritized NMS
+    before matching; pass ``nms_iou=None`` to disable it.
     If *class_ids* is provided, GT and predictions outside that class set are
     ignored before matching and averaging. *exclude_class_ids* removes classes
     from evaluation even when no inclusion list is provided. If
@@ -84,6 +92,7 @@ def compute_detection_metrics(
     """
     if min_size_logic not in {"or", "and"}:
         raise ValueError("min_size_logic must be 'or' or 'and'")
+    validate_nms_iou(nms_iou)
     gt, pred, normalized_merge_map = _prepare_eval_datasets(gt, pred, merge_class_map)
     selected = None if class_ids is None else set(resolve_eval_class_ids(gt, class_ids))
     excluded = None if exclude_class_ids is None else set(resolve_eval_class_ids(gt, exclude_class_ids))
@@ -133,6 +142,7 @@ def compute_detection_metrics(
             min_size_logic=min_size_logic,
             min_pixels=min_pixels,
         )
+        pred_anns = non_max_suppress_annotations(pred_anns, nms_iou)
         target_cls_values.extend(ann.class_id for ann in gt_anns)
         for class_id in {ann.class_id for ann in gt_anns}:
             image_count_by_class[class_id] = image_count_by_class.get(class_id, 0) + 1
@@ -162,6 +172,7 @@ def compute_detection_metrics(
             min_size_logic=min_size_logic,
             min_pixels=min_pixels,
         )
+        pred_anns = non_max_suppress_annotations(pred_anns, nms_iou)
         if not pred_anns:
             continue
         tp_parts.append(np.zeros((len(pred_anns), len(iouv)), dtype=bool))
@@ -217,6 +228,7 @@ def compute_detection_metrics(
         excluded_class_ids=sorted(excluded) if excluded is not None else None,
         merge_class_map=normalized_merge_map,
         iou_thresholds=[float(v) for v in iouv],
+        nms_iou=None if nms_iou is None else float(nms_iou),
         size_filter={
             "min_width": min_width,
             "min_height": min_height,

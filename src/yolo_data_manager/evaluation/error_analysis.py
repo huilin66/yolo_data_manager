@@ -32,6 +32,8 @@ from yolo_data_manager.evaluation.matching import (
     annotation_box_xyxy,
     box_iou_matrix,
     greedy_match_indices,
+    non_max_suppress_annotations,
+    validate_nms_iou,
 )
 from yolo_data_manager.runtime import iter_progress, normalize_workers
 
@@ -569,6 +571,7 @@ def analyze_errors(
     match_iou: float = 0.5,
     low_iou: float = 0.1,
     conf_thres: float = 0.0,
+    nms_iou: float | None = 0.5,
     *,
     class_ids: int | str | Iterable[int | str] | None = None,
     exclude_class_ids: int | str | Iterable[int | str] | None = None,
@@ -595,6 +598,9 @@ def analyze_errors(
     conf_thres:
         Minimum confidence for a prediction to be considered (predictions
         with ``confidence is None`` are always kept).
+    nms_iou:
+        Same-class NMS IoU threshold applied before matching.  The highest
+        confidence overlapping prediction is kept.  Pass ``None`` to disable.
     class_ids / exclude_class_ids:
         Optional class ids or names to include or exclude.
     min_width / min_height / min_area / min_pixels:
@@ -626,6 +632,7 @@ def analyze_errors(
             class_rules,
         )
     )
+    validate_nms_iou(nms_iou)
     if has_filters:
         gt, pred = filter_error_analysis_datasets(
             gt,
@@ -650,6 +657,7 @@ def analyze_errors(
                 for a in annotations
                 if a.confidence is None or a.confidence >= conf_thres
             ]
+        annotations = non_max_suppress_annotations(annotations, nms_iou)
         pred_by_stem[image.stem] = annotations
         pred_lines_by_stem[image.stem] = [a.source_line for a in annotations]
 
@@ -851,9 +859,7 @@ def analyze_errors(
         stem = pred_image.stem
         if stem in gt_stems:
             continue
-        for pi, p_ann in enumerate(pred_image.annotations):
-            if conf_thres > 0 and p_ann.confidence is not None and p_ann.confidence < conf_thres:
-                continue
+        for pi, p_ann in enumerate(pred_by_stem.get(stem, [])):
             rows.append(
                 ErrorDetail(
                     image=stem,

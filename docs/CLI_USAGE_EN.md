@@ -274,6 +274,7 @@ ydm eval error-analysis --gt-root gt_labels --pred-root pred_labels --names clas
 
 `eval error-analysis` supports `--class` to keep selected classes and `--exclude-class` to exclude classes independently. `--min-width`, `--min-height`, `--min-area`, `--min-size-logic`, and `--min-pixels` filter both GT and predictions. Width/height/area use normalized YOLO coordinates; `--min-pixels` checks pixel width or height. It still accepts legacy `--review-workers`, `--review-progress`, and `--review-progress-leave`; new scripts should prefer the common runtime flags.
 `--class-rules` accepts a YAML/JSON file and overrides the global size rule per class using `width`, `height`, and `logic`; classes without a rule use the global parameters.
+Both evaluation commands apply confidence-prioritized, class-aware NMS by default with `--nms-iou 0.5`; use `--no-nms` to disable it.
 
 Review output:
 

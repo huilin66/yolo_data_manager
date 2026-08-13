@@ -514,6 +514,8 @@ def build_parser() -> argparse.ArgumentParser:
     error_analysis.add_argument("--match-iou", type=float, default=0.5)
     error_analysis.add_argument("--low-iou", type=float, default=0.1)
     error_analysis.add_argument("--conf-thres", type=float, default=0.0, help="confidence threshold for predictions")
+    error_analysis.add_argument("--nms-iou", type=float, default=0.5, help="same-class NMS IoU threshold; default 0.5")
+    error_analysis.add_argument("--no-nms", dest="nms_iou", action="store_const", const=None, help="disable prediction NMS")
     error_analysis.add_argument("--duplicate-iou", type=float, default=0.9, help="IoU threshold for duplicate GT detection")
     error_analysis.add_argument("--class", dest="class_values", default=None, help="class ids/names to evaluate, comma-separated")
     error_analysis.add_argument("--exclude-class", dest="exclude_class_values", default=None, help="class ids/names to exclude, comma-separated")
@@ -560,6 +562,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="target-to-source class mapping as inline JSON/YAML or a JSON/YAML file",
     )
     metrics.add_argument("--conf-thres", type=float, default=0.0, help="confidence threshold for predictions")
+    metrics.add_argument("--nms-iou", type=float, default=0.5, help="same-class NMS IoU threshold; default 0.5")
+    metrics.add_argument("--no-nms", dest="nms_iou", action="store_const", const=None, help="disable prediction NMS")
     metrics.add_argument("--min-width", type=float, default=None, help="ignore boxes narrower than this normalized width")
     metrics.add_argument("--min-height", type=float, default=None, help="ignore boxes shorter than this normalized height")
     metrics.add_argument("--min-area", type=float, default=None, help="ignore boxes smaller than this normalized area")
@@ -1460,6 +1464,7 @@ def handle_eval_error_analysis(args: argparse.Namespace) -> int:
         match_iou=args.match_iou,
         low_iou=args.low_iou,
         conf_thres=args.conf_thres,
+        nms_iou=args.nms_iou,
     )
     dup_rows = find_duplicate_gt(gt, duplicate_iou=args.duplicate_iou)
     write_error_csvs(error_rows, out)
@@ -1484,6 +1489,7 @@ def handle_eval_error_analysis(args: argparse.Namespace) -> int:
         json.dumps(
             {
                 "summary": summary,
+                "nms_iou": args.nms_iou,
                 "duplicate_gt_pairs": len(dup_rows),
                 "review": review_counts,
                 "pred_txt_copied": len(copied_pred_txt),
@@ -1541,6 +1547,7 @@ def handle_eval_metrics(args: argparse.Namespace) -> int:
             gt,
             pred,
             conf_thres=args.conf_thres,
+            nms_iou=args.nms_iou,
             min_width=args.min_width,
             min_height=args.min_height,
             min_area=args.min_area,
@@ -1554,6 +1561,7 @@ def handle_eval_metrics(args: argparse.Namespace) -> int:
         exclude_class_ids=exclude_class_values,
         merge_class_map=merge_class_map,
         conf_thres=args.conf_thres,
+        nms_iou=args.nms_iou,
         min_width=args.min_width,
         min_height=args.min_height,
         min_area=args.min_area,
