@@ -1357,6 +1357,7 @@ def test_cli_eval_metrics_writes_json_and_csv(tmp_path, capsys):
     (pred_labels / "b.txt").write_text("1 0.1 0.1 0.2 0.1 0.90\n", encoding="utf-8")
     out = tmp_path / "metrics.json"
     csv_path = tmp_path / "metrics.csv"
+    size_csv_path = tmp_path / "metrics_size.csv"
 
     code = cli_main(
         [
@@ -1387,6 +1388,9 @@ def test_cli_eval_metrics_writes_json_and_csv(tmp_path, capsys):
     assert round(payload["precision"], 6) == 1.0
     assert round(payload["recall"], 6) == 1.0
     assert "car" in csv_path.read_text(encoding="utf-8")
+    assert set(payload["size_metrics"]) == {"small", "medium", "large"}
+    assert size_csv_path.exists()
+    assert "small" in size_csv_path.read_text(encoding="utf-8")
     assert "detection_metrics" in captured.out
 
 

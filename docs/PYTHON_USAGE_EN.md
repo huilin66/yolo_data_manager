@@ -305,6 +305,8 @@ mgr.eval_error_analysis(
 ```
 
 `eval_metrics` uses `class_` to select classes and the independent `exclude_class_` parameter to exclude classes; both can be supplied together. `merge_class_map` accepts a target-to-source mapping such as `{"vehicle": ["car", "truck"]}` and applies it to GT and predictions before class selection, matching, and aggregation. Class selection and exclusion use the merged target class names. With `show_original=True`, when class, merge, or `min_pixels` filters are supplied, the original metrics are output before the final metrics; JSON output contains `original` and `final`, while the `out` file still stores the final metrics.
+`eval_metrics` also reports COCO-style small, medium, and large target metrics by pixel area: area `< 32²` is small, `32² <= area < 96²` is medium, and area `>= 96²` is large. They are stored under `size_metrics` in JSON and written separately to `metrics_size.csv`; valid image dimensions are required for size classification.
+
 Statistics, visualization, and evaluation process all data by default; set `only_val=True` or provide `val_source` explicitly to limit processing to validation data.
 
 When `gt_root` or `class_file` is omitted, `YoloManager` falls back to the manager root and `class.txt` when available. Evaluation uses all data by default; set `only_val=True` or provide `val_source` to limit it to validation data.

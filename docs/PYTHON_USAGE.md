@@ -294,6 +294,8 @@ mgr.output_dataset_yaml
 `eval_error_analysis` 与 `eval_metrics` 默认先按类别执行置信度优先的 NMS（`nms_iou=0.5`），再使用相同的一对一 IoU 匹配规则；传入 `nms_iou=None` 可关闭 NMS。关闭 NMS 时，重复预测会在错误分析中标记为 `duplicate_prediction`，并在 metrics 中作为 FP 统计。
 
 `eval_metrics` 使用 `class_` 指定只评估的类别，使用独立的 `exclude_class_` 排除类别；两者可以同时传入。`merge_class_map` 接受“目标类别: 原始类别列表”的字典，例如 `{"vehicle": ["car", "truck"]}`，并在 GT 和预测的类别选择、匹配、统计前同时应用。类别选择和排除使用合并后的目标类别名。设置 `show_original=True` 后，如果使用了类别、合并或 `min_pixels` 参数，会在最终结果前输出原始结果；JSON 输出包含 `original` 和 `final`，而 `out` 文件仍保存最终结果。
+`eval_metrics` 还会按 COCO 风格的像素面积输出 `small`、`medium`、`large` 目标指标：面积 `< 32²` 为 small、`32² <= 面积 < 96²` 为 medium、面积 `>= 96²` 为 large。JSON 中位于 `size_metrics`，并额外写出 `metrics_size.csv`；图片需要有有效宽高才能进行尺寸分类。
+
 统计、可视化和评估默认处理全部数据；设置 `only_val=True` 或显式提供 `val_source` 才限制为验证集。
 
 `import_mask` 用于把语义分割 mask 转成 YOLO segmentation。单通道 mask 使用像素值作为类别 id；RGB mask 可在 `class_map` 中使用 `"#ff0000"` 或 `"255,0,0"` 作为 key。若环境中有 OpenCV，会用轮廓提取；否则退回为外接矩形 polygon。

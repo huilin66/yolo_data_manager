@@ -63,6 +63,7 @@ from yolo_data_manager.evaluation.metrics import (
     format_metrics_table,
     write_metrics_csv,
     write_metrics_json,
+    write_size_metrics_csv,
 )
 from yolo_data_manager.evaluation.review_pack import write_review_pack
 
@@ -1506,6 +1507,10 @@ def handle_eval_metrics(args: argparse.Namespace) -> int:
     output_dir = ydm_dir(_eval_output_root(args.gt_root), "evaluation")
     out = _value_or_default(args.out, output_dir / "metrics.json")
     csv_out = _value_or_default(args.csv, output_dir / "metrics.csv")
+    csv_path = Path(csv_out)
+    size_csv_out = csv_path.with_name(
+        f"{csv_path.stem}_size{csv_path.suffix or '.csv'}"
+    )
     val_source = _resolve_eval_val_source(args.gt_root, args.val_source, getattr(args, "only_val", False))
     stems = collect_stems_from_source(val_source)
     gt = load_error_analysis_dataset(
@@ -1571,6 +1576,7 @@ def handle_eval_metrics(args: argparse.Namespace) -> int:
     )
     write_metrics_json(metrics, out)
     write_metrics_csv(metrics, csv_out)
+    write_size_metrics_csv(metrics, size_csv_out)
     if original_metrics is not None and args.print_table:
         print("Original metrics:")
         print(format_metrics_table(original_metrics))
