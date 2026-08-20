@@ -1,4 +1,5 @@
 from example.functions._manager import get_yolo_manager
+from example.functions.data_resize import yolo_resize
 from example.functions.data_split import yolo_split
 from yolo_data_manager import YoloManager
 
@@ -19,6 +20,13 @@ def test_example_function_does_not_initialize_existing_manager(monkeypatch):
     monkeypatch.setattr(YoloManager, "__init__", fail_if_initialized)
 
     assert yolo_split(manager) == 7
+
+
+def test_example_resize_reuses_existing_manager():
+    manager = object.__new__(YoloManager)
+    manager.resize_images = lambda **_kwargs: 9
+
+    assert yolo_resize(manager, width=640) == 9
 
 
 def test_yolo_manager_exposes_default_output_paths(tmp_path):

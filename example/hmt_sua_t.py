@@ -22,6 +22,7 @@ from example.functions import (
     yolo_draw,
     yolo_error_ana,
     yolo_metric,
+    yolo_resize,
     yolo_sta,
     yolo_update_by_pred,
     yolo_vis,
@@ -118,8 +119,8 @@ def main() -> None:
         yolo_draw(DATA_DIR, "DJI_20260211161740_1654.png")
 
     if "resize" in RUN_LIST:
-        mgr.resize_images(
-            out="resized",
+        yolo_resize(
+            DATA_DIR,
             width=640,
         )
 
