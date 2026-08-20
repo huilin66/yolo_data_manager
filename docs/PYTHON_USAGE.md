@@ -150,6 +150,8 @@ mgr.export_xany(out="xany_json")
 # 转换
 mgr.convert_seg2det(out="yolo_det")
 mgr.convert_pseudo(out="pseudo_labels", conf=0.5, drop_confidence=True)
+mgr.resize_images(out="yolo_640", width=640, height=640, keep_ratio=True)
+mgr.resize_images(out="yolo_half", scale=0.5)
 
 # 评估 —— gt_root / pred_root 独立传入
 mgr.eval_compare(gt_root=r"E:\datasets\gt", pred_root=r"E:\datasets\pred",
@@ -201,6 +203,8 @@ mgr.import_mask(
     min_area=20,
 )
 ```
+
+`resize_images` 默认保持宽高比；使用 letterbox 时会自动同步变换检测框和分割多边形，`keep_ratio=False` 则直接拉伸图像，归一化 YOLO 坐标保持不变。默认输出目录为 Manager 根目录下的 `ydm_conversion/resize`。
 
 `YoloManager(..., layout="auto")` 初始化时会先做 layout 扫描，再加载图片和 label，最后执行 check。
 
@@ -360,6 +364,7 @@ mgr.output_dataset_yaml
 | `import_mask(images_dir=..., masks_dir=..., out=...)` | `ydm import mask` |
 | `convert_seg2det(out=...)` | `ydm convert seg2det` |
 | `convert_pseudo(out=..., ...)` | `ydm convert pseudo` |
+| `resize_images(out=..., width=..., height=...)` | `ydm convert resize` |
 | `eval_compare(gt_root=..., pred_root=..., out=...)` | `ydm eval compare` |
 | `eval_review_pack(gt_root=..., pred_root=..., out=...)` | `ydm eval review-pack` |
 | `eval_error_analysis(gt_root=..., pred_root=..., out=...)` | `ydm eval error-analysis` |

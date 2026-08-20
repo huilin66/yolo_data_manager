@@ -34,7 +34,7 @@ python -m pytest -q
 | Layout management | Detect and normalize YOLO dataset layouts | `images_dir`, `labels_dir`, `split_file` |
 | Query | Find images, labels, and instances by class or attribute | `class_`, `name`, `value`, `copy_images` |
 | Annotation edits | Delete, replace, merge, rename classes; set/delete attributes | `compact`, `dry_run`, `report` |
-| Dataset operations | select, split, merge, filter, yaml, duplicate/bad-image checks | `train`, `val`, `absolute_paths`, `class_rules` |
+| Dataset operations | select, split, merge, filter, resize, yaml, duplicate/bad-image checks | `train`, `val`, `absolute_paths`, `class_rules` |
 | Statistics | Class distribution, object counts, box shapes, image shapes, attributes, plots | `stats_list`, `plots_dir`, `ann_csv` |
 | Visualization | Draw boxes/masks, show confidence/attributes/txt order id, crop objects, temporary manual boxes | `show_id`, `show_conf`, `workers` |
 | Import/export | Convert between YOLO and LabelMe/COCO/VOC/masks/x-anylabeling | `class_map`, `background`, `min_area` |

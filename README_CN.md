@@ -34,7 +34,7 @@ python -m pytest -q
 | 布局管理 | 自动识别并标准化不同 YOLO 目录结构 | `images_dir`、`labels_dir`、`split_file` |
 | 查询 | 按类别或属性查找图片、label、实例行 | `class_`、`name`、`value`、`copy_images` |
 | 标注修改 | 删除、替换、合并、重命名类别，设置或删除属性 | `compact`、`dry_run`、`report` |
-| 数据集管理 | select、split、merge、filter、yaml、重复图、坏图检测 | `train`、`val`、`absolute_paths`、`class_rules` |
+| 数据集管理 | select、split、merge、filter、resize、yaml、重复图、坏图检测 | `train`、`val`、`absolute_paths`、`class_rules` |
 | 统计 | 类别分布、目标数、框宽高面积、图片尺寸、属性统计、图表 | `stats_list`、`plots_dir`、`ann_csv` |
 | 可视化 | 画框、画 mask、显示 confidence/属性/txt 顺序号、裁剪目标、临时手动画框 | `show_id`、`show_conf`、`workers` |
 | 导入导出 | 在 YOLO 与 LabelMe/COCO/VOC/mask/x-anylabeling 之间转换 | `class_map`、`background`、`min_area` |

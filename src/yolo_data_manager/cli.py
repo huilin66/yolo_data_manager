@@ -43,6 +43,7 @@ from yolo_data_manager.io.writer import write_split_file, write_yolo_dataset
 from yolo_data_manager.stats.compute import compute_stats
 from yolo_data_manager.stats.export import write_annotation_csv, write_attribute_csv, write_stats_plots
 from yolo_data_manager.stats.report import write_class_counts_csv, write_json_report
+from yolo_data_manager.tools.image_resize import resize_yolo_dataset, validate_resize_options
 from yolo_data_manager.vis.manual_box import draw_manual_box, find_dataset_image
 from yolo_data_manager.vis.renderer import crop_dataset, render_dataset
 from yolo_data_manager.evaluation.compare import compare_datasets, write_compare_csv
@@ -475,6 +476,27 @@ def build_parser() -> argparse.ArgumentParser:
         handler=handle_pseudo,
         drop_confidence=True,
         _output_operation="pseudo",
+    )
+    resize = convert_sub.add_parser("resize", help="resize dataset images and transform YOLO labels")
+    add_dataset_args(resize)
+    resize.add_argument("--out", default=None, help="output dataset root; defaults to <root>/ydm_conversion/resize")
+    resize.add_argument("--width", type=int, default=None, help="target image width in pixels")
+    resize.add_argument("--height", type=int, default=None, help="target image height in pixels")
+    resize.add_argument("--scale", type=float, default=None, help="uniform scale factor; cannot be combined with --width/--height")
+    resize.add_argument("--keep-ratio", dest="keep_ratio", action="store_true", help="keep aspect ratio and letterbox when both dimensions are provided")
+    resize.add_argument("--no-keep-ratio", dest="keep_ratio", action="store_false", help="stretch images to the target dimensions")
+    resize.add_argument(
+        "--interpolation",
+        choices=["nearest", "box", "bilinear", "hamming", "bicubic", "lanczos"],
+        default="lanczos",
+    )
+    resize.add_argument("--fill-color", default="114,114,114", help="letterbox fill color as gray or R,G,B")
+    resize.add_argument("--drop-empty-labels", dest="keep_empty_labels", action="store_false", help="do not write empty label files")
+    resize.add_argument("--dry-run", action="store_true", help="validate and report without writing output")
+    resize.set_defaults(
+        handler=handle_resize,
+        keep_ratio=True,
+        keep_empty_labels=True,
     )
 
     eval_cmd = subparsers.add_parser("eval", help="evaluate or compare predictions")
@@ -1346,6 +1368,46 @@ def handle_pseudo(args: argparse.Namespace) -> int:
     return 0
 
 
+def handle_resize(args: argparse.Namespace) -> int:
+    dataset = load_from_args(args)
+    out = _value_or_default(
+        args.out,
+        default_conversion_output(_resolved_output_root(args.root), "resize"),
+    )
+    fill_color = _parse_fill_color(args.fill_color)
+    validate_resize_options(
+        width=args.width,
+        height=args.height,
+        scale=args.scale,
+        interpolation=args.interpolation,
+    )
+    if args.dry_run:
+        payload = {
+            "images": len(dataset.images),
+            "annotations": dataset.annotation_count(),
+            "out": None,
+            "dry_run": True,
+        }
+    else:
+        result = resize_yolo_dataset(
+            dataset,
+            out,
+            width=args.width,
+            height=args.height,
+            scale=args.scale,
+            keep_ratio=args.keep_ratio,
+            interpolation=args.interpolation,
+            fill_color=fill_color,
+            keep_empty_labels=args.keep_empty_labels,
+            workers=args.workers,
+            progress=args.progress,
+            progress_leave=args.progress_leave,
+        )
+        payload = result.to_dict()
+    print(json.dumps(payload, indent=2, ensure_ascii=False))
+    return 0
+
+
 def _eval_load_kwargs(args: argparse.Namespace) -> dict:
     """Shared kwargs for loading GT/pred datasets in eval handlers."""
     return {
@@ -1642,6 +1704,19 @@ def _write_edit_result(
 
 def _split_values(text: str) -> list[str]:
     return [item.strip() for item in text.split(",") if item.strip()]
+
+
+def _parse_fill_color(value: str) -> int | tuple[int, ...]:
+    values = _split_values(value)
+    if len(values) not in {1, 3, 4}:
+        raise ValueError("fill color must be a gray value or R,G,B/R,G,B,A")
+    try:
+        numbers = tuple(int(item) for item in values)
+    except ValueError as exc:
+        raise ValueError("fill color values must be integers") from exc
+    if any(number < 0 or number > 255 for number in numbers):
+        raise ValueError("fill color values must be between 0 and 255")
+    return numbers[0] if len(numbers) == 1 else numbers
 
 
 def _parse_optional_class_value(value: str | None) -> str | None:

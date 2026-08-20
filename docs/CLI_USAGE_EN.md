@@ -247,7 +247,11 @@ RGB mask example:
 ```bash
 ydm convert seg2det --root yolo_seg --out yolo_det
 ydm convert pseudo --root pred_yolo --conf 0.5 --out pseudo_yolo
+ydm convert resize --root yolo_data --width 640 --height 640 --out yolo_640
+ydm convert resize --root yolo_data --scale 0.5 --out yolo_half
 ```
+
+`convert resize` preserves the aspect ratio by default. When both `--width` and `--height` are specified, it uses gray letterboxing and transforms detection boxes and segmentation polygons accordingly. Use `--no-keep-ratio` to stretch directly to the target dimensions. The default output is `<root>/ydm_conversion/resize`; the source dataset is not overwritten.
 
 ## Evaluation and Error Analysis
 

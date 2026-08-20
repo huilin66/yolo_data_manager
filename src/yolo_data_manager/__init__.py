@@ -35,6 +35,7 @@ from yolo_data_manager.scripting import YoloManager, build_task_argv, run_task
 from yolo_data_manager.stats.multimodal import compute_multimodal_stats, write_multimodal_stats_plots
 from yolo_data_manager.vis.multimodal import crop_multimodal_dataset, render_multimodal_dataset
 from yolo_data_manager.vis.manual_box import ManualBoxResult, draw_manual_box, format_yolo_line
+from yolo_data_manager.tools.image_resize import ResizeResult, resize_image, resize_yolo_dataset
 
 __all__ = [
     "AttributeSchema",
@@ -70,4 +71,7 @@ __all__ = [
     "write_multimodal_stats_plots",
     "build_task_argv",
     "run_task",
+    "ResizeResult",
+    "resize_image",
+    "resize_yolo_dataset",
 ]

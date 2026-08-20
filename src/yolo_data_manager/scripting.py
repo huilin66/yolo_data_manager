@@ -48,6 +48,7 @@ TASK_COMMANDS: Mapping[str, tuple[str, ...]] = {
     "import.mask": ("import", "mask"),
     "convert.seg2det": ("convert", "seg2det"),
     "convert.pseudo": ("convert", "pseudo"),
+    "convert.resize": ("convert", "resize"),
     "eval.compare": ("eval", "compare"),
     "eval.review_pack": ("eval", "review-pack"),
     "eval.error_analysis": ("eval", "error-analysis"),
@@ -70,6 +71,7 @@ _FALSE_FLAGS = {
     "rename_duplicates": "--no-rename-duplicates",
     "fill_mask": "--no-fill-mask",
     "drop_confidence": "--keep-conf",
+    "keep_ratio": "--no-keep-ratio",
     "skip_difficult": "--keep-difficult",
     "ignore_empty_classes": "--include-empty-classes",
 }
@@ -236,6 +238,7 @@ _ROOT_TASKS: frozenset[str] = frozenset(
         "export.xany",
         "convert.seg2det",
         "convert.pseudo",
+        "convert.resize",
     }
 )
 
@@ -1377,6 +1380,41 @@ class YoloManager:
             keep_empty_labels=keep_empty_labels,
             backup_dir=backup_dir,
             dry_run=dry_run,
+            **kwargs,
+        )
+
+    def resize_images(
+        self,
+        out: str | Path | None = None,
+        *,
+        width: int | None = None,
+        height: int | None = None,
+        scale: float | None = None,
+        keep_ratio: bool = True,
+        interpolation: str = "lanczos",
+        fill_color: int | Sequence[int] = (114, 114, 114),
+        keep_empty_labels: bool = True,
+        dry_run: bool = False,
+        workers: int = 8,
+        progress: bool = True,
+        progress_leave: bool = False,
+        **kwargs: Any,
+    ) -> int:
+        """Resize dataset images and transform labels when letterboxing."""
+        return self._run(
+            "convert.resize",
+            out=out,
+            width=width,
+            height=height,
+            scale=scale,
+            keep_ratio=keep_ratio,
+            interpolation=interpolation,
+            fill_color=fill_color,
+            keep_empty_labels=keep_empty_labels,
+            dry_run=dry_run,
+            workers=workers,
+            progress=progress,
+            progress_leave=progress_leave,
             **kwargs,
         )
 

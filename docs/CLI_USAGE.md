@@ -247,7 +247,11 @@ RGB mask：
 ```bash
 ydm convert seg2det --root yolo_seg --out yolo_det
 ydm convert pseudo --root pred_yolo --conf 0.5 --out pseudo_yolo
+ydm convert resize --root yolo_data --width 640 --height 640 --out yolo_640
+ydm convert resize --root yolo_data --scale 0.5 --out yolo_half
 ```
+
+`convert resize` 默认保持宽高比；同时指定 `--width` 和 `--height` 时会使用灰色 letterbox，并同步变换检测框和分割多边形。使用 `--no-keep-ratio` 可直接拉伸到目标尺寸。输出默认位于 `<root>/ydm_conversion/resize`，原始数据不会被覆盖。
 
 ## 评估与错误分析
 

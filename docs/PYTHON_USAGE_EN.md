@@ -255,7 +255,11 @@ mgr.import_mask(
 ```python
 mgr.convert_seg2det(out="yolo_det")
 mgr.convert_pseudo(out="pseudo_labels", conf=0.5, drop_confidence=True)
+mgr.resize_images(out="yolo_640", width=640, height=640, keep_ratio=True)
+mgr.resize_images(out="yolo_half", scale=0.5)
 ```
+
+`resize_images` keeps the aspect ratio by default. For a letterboxed resize, labels are transformed automatically; `keep_ratio=False` performs a direct stretch, so normalized YOLO coordinates retain their values. The default output is `ydm_conversion/resize` under the manager root.
 
 ## Evaluation and Error Analysis
 
