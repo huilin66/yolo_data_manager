@@ -13,6 +13,7 @@ from .data_select_copy import yolo_select_val
 from .data_split import yolo_split
 from .data_sta import yolo_sta
 from .data_resize import yolo_resize
+from .data_update_class import DEFAULT_CLASS_MAP, yolo_update_class
 from .data_vis import yolo_vis
 from .mdet_tools import (
     convert_depth_to_uint8,
@@ -33,6 +34,7 @@ from .result_object_label_update import yolo_update_by_pred
 
 __all__ = [
     "convert_depth_to_uint8",
+    "DEFAULT_CLASS_MAP",
     "load_mdet_manager",
     "yolo_check",
     "yolo_draw",
@@ -48,6 +50,7 @@ __all__ = [
     "yolo_sta",
     "yolo_resize",
     "yolo_update_by_label",
+    "yolo_update_class",
     "yolo_update_by_pred",
     "yolo_vis",
 ]
