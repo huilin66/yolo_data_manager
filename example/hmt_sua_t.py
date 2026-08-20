@@ -68,10 +68,11 @@ MERGE_CLASS_MAP = {
 RUN_LIST = [
     # "sta",
     # "vis",
-    "metric",
+    # "metric",
     # "error_ana",
     # "update",
     # "draw",
+    "resize",
 ]
 
 
@@ -115,6 +116,12 @@ def main() -> None:
 
     if "draw" in RUN_LIST:
         yolo_draw(DATA_DIR, "DJI_20260211161740_1654.png")
+
+    if "resize" in RUN_LIST:
+        mgr.resize_images(
+            out="resized",
+            width=640,
+        )
 
 
 if __name__ == "__main__":
