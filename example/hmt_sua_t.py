@@ -19,6 +19,7 @@ if __package__ in (None, ""):
         sys.path.insert(0, str(project_root))
 
 from example.functions import (
+    yolo_draw,
     yolo_error_ana,
     yolo_metric,
     yolo_sta,
@@ -30,14 +31,6 @@ DATA_DIR = Path(
     r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_t.yaml"
 )
 
-# Select operations by uncommenting names in RUN_LIST.
-RUN_LIST = [
-    # "sta",
-    # "vis",
-    "metric",
-    "error_ana",
-    # "update",
-]
 
 PRED_RUNS_DIR = Path(r"/localnvme/project/aic_mdet/models/ultralytics/runs/detect")
 # PRED_NAME = "val-161"
@@ -71,6 +64,16 @@ MERGE_CLASS_MAP = {
     ],
 }
 
+# Select operations by uncommenting names in RUN_LIST.
+RUN_LIST = [
+    # "sta",
+    # "vis",
+    "metric",
+    # "error_ana",
+    # "update",
+    # "draw",
+]
+
 
 def main() -> None:
     if "sta" in RUN_LIST:
@@ -83,7 +86,7 @@ def main() -> None:
         yolo_vis(DATA_DIR, crop=True)
 
     if "metric" in RUN_LIST:
-        for pred_name in PRED_NAMES[-1:]:
+        for pred_name in PRED_NAMES[:]:
             yolo_metric(
                 DATA_DIR,
                 PRED_RUNS_DIR,
@@ -93,7 +96,7 @@ def main() -> None:
             )
 
     if "error_ana" in RUN_LIST:
-        for pred_name in PRED_NAMES[-1:]:
+        for pred_name in PRED_NAMES[:]:
             yolo_error_ana(
                 DATA_DIR,
                 PRED_RUNS_DIR,
@@ -109,6 +112,9 @@ def main() -> None:
                 to=target_class,
                 pred_dir=PRED_DIR,
             )
+
+    if "draw" in RUN_LIST:
+        yolo_draw(DATA_DIR, "DJI_20260211161740_1654.png")
 
 
 if __name__ == "__main__":
