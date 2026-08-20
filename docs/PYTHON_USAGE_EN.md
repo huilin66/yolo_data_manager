@@ -216,6 +216,7 @@ mgr.vis_manual_box(
     image="images/0001.jpg",
     class_id=5,
     show_existing=False,
+    mask_outside=True,
     out="manual_box.json",
 )
 ```
@@ -226,6 +227,8 @@ coordinates (and a complete row when `class_id` is provided) without changing
 the source label file. Existing annotations are shown by default; press `L` to
 toggle them, or pass `show_existing=False` to start hidden.
 Use the mouse wheel or `+/-` to zoom and `0` to reset the view.
+With `mask_outside=True`, a valid selected box remains visible while the area
+outside it is masked black; press `R` to redraw.
 
 `show_id=True` displays the 1-based annotation order from the label txt file.
 

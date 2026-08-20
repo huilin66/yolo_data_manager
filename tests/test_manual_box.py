@@ -10,6 +10,8 @@ from yolo_data_manager.io.loader import load_yolo_dataset, parse_yolo_line
 from yolo_data_manager.scripting import YoloManager, build_task_argv
 from yolo_data_manager.vis.manual_box import (
     _add_existing_annotation_artists,
+    _create_outside_mask_artists,
+    _set_outside_mask,
     _zoom_axes,
     _zoom_interval,
     draw_manual_box,
@@ -69,9 +71,11 @@ def test_manual_box_finds_relative_dataset_image_and_builds_cli_argv(tmp_path):
         root=Path("dataset"),
         image="sample.jpg",
         show_existing=False,
+        mask_outside=True,
     )
     assert "--hide-existing" in hidden_argv
     assert "--show-existing" not in hidden_argv
+    assert "--mask-outside" in hidden_argv
 
 
 def test_existing_annotation_artists_can_be_toggled():
@@ -90,6 +94,31 @@ def test_existing_annotation_artists_can_be_toggled():
     assert all(artist.get_visible() for artist in artists)
     for artist in artists:
         artist.set_visible(False)
+    assert not any(artist.get_visible() for artist in artists)
+    plt.close(figure)
+
+
+def test_outside_mask_only_shows_selected_box():
+    figure, axes = plt.subplots()
+    artists = _create_outside_mask_artists(axes, display_size=(100, 80))
+
+    _set_outside_mask(
+        artists,
+        (20, 10, 60, 50),
+        display_size=(100, 80),
+    )
+
+    visible = [artist for artist in artists if artist.get_visible()]
+    assert len(visible) == 4
+    assert all(artist.get_facecolor()[:3] == (0.0, 0.0, 0.0) for artist in visible)
+    assert not any(
+        artist.get_xy() == (20, 10)
+        and artist.get_width() == 40
+        and artist.get_height() == 40
+        for artist in visible
+    )
+
+    _set_outside_mask(artists, None, display_size=(100, 80))
     assert not any(artist.get_visible() for artist in artists)
     plt.close(figure)
 
@@ -124,9 +153,14 @@ def test_yolo_manager_manual_box_delegates_without_write_options(tmp_path, monke
         init_check=False,
     )
 
-    assert manager.vis_manual_box("images/sample.jpg", class_id=4) == 0
+    assert manager.vis_manual_box(
+        "images/sample.jpg",
+        class_id=4,
+        mask_outside=True,
+    ) == 0
     assert captured["command"] == "vis.manual_box"
     assert captured["image"] == "images/sample.jpg"
     assert captured["class_id"] == 4
     assert captured["show_existing"] is True
+    assert captured["mask_outside"] is True
     assert "out" in captured

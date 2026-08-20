@@ -136,10 +136,12 @@ mgr.vis_manual_box(
     image="images/0001.jpg",
     class_id=5,
     show_existing=False,
+    mask_outside=True,
     out="manual_box.json",
 )
 
 # 交互窗口中按 L 可切换已有标注显示/隐藏；滚轮或 +/- 缩放，0 恢复整图；临时框始终独立显示
+# mask_outside=True 时，拖出有效框后只保留框内图像，其余区域显示为黑色；按 R 可重新选择。
 
 # 已有标注默认显示；show_existing=False 可在启动时隐藏已有标注。
 

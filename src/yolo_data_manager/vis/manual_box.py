@@ -132,6 +132,7 @@ def draw_manual_box(
     min_pixels: int = 2,
     precision: int = 6,
     show_existing: bool = True,
+    mask_outside: bool = False,
     title: str | None = None,
 ) -> ManualBoxResult | None:
     """Show one image and let the user draw one temporary detection box.
@@ -174,6 +175,7 @@ def draw_manual_box(
         display_size=(display_width, display_height),
         scale=scale,
         min_pixels=min_pixels,
+        mask_outside=mask_outside,
         title=title or f"Manual box - {image_path.name}",
     )
     if pixel_box is None:
@@ -262,6 +264,7 @@ def _run_box_window(
     display_size: tuple[int, int],
     scale: float,
     min_pixels: int,
+    mask_outside: bool,
     title: str,
 ) -> tuple[int, int, int, int] | None:
     try:
@@ -309,6 +312,10 @@ def _run_box_window(
         existing_state = {"visible": bool(show_existing)}
         for artist in existing_artists:
             artist.set_visible(existing_state["visible"])
+        mask_artists = _create_outside_mask_artists(
+            axes,
+            display_size=display_size,
+        )
         figure.suptitle(
             f"{title}\nDrag box; wheel/+/- zoom; 0 reset; L labels; Enter save; R redraw; Esc cancel",
             fontsize=10,
@@ -316,7 +323,7 @@ def _run_box_window(
         status = figure.text(
             0.01,
             0.01,
-            _status_text(existing_state["visible"]),
+            _status_text(existing_state["visible"], mask_outside),
             ha="left",
             va="bottom",
             fontsize=9,
@@ -357,9 +364,16 @@ def _run_box_window(
             left, top, right, bottom = pixel_xyxy
             if right - left < min_pixels or bottom - top < min_pixels:
                 state["result"] = None
+                _set_outside_mask(mask_artists, None, display_size=display_size)
                 status.set_text(f"box too small; minimum is {min_pixels} pixels")
             else:
                 state["result"] = pixel_xyxy
+                if mask_outside:
+                    _set_outside_mask(
+                        mask_artists,
+                        display_xyxy,
+                        display_size=display_size,
+                    )
                 status.set_text(f"pixel xyxy: {pixel_xyxy}; press Enter to save")
             figure.canvas.draw_idle()
 
@@ -371,13 +385,14 @@ def _run_box_window(
                 plt.close(figure)
             elif event.key in {"r", "c"}:
                 state["result"] = None
-                status.set_text(_status_text(existing_state["visible"]))
+                _set_outside_mask(mask_artists, None, display_size=display_size)
+                status.set_text(_status_text(existing_state["visible"], mask_outside))
                 figure.canvas.draw_idle()
             elif event.key in {"l", "L"}:
                 existing_state["visible"] = not existing_state["visible"]
                 for artist in existing_artists:
                     artist.set_visible(existing_state["visible"])
-                status.set_text(_status_text(existing_state["visible"]))
+                status.set_text(_status_text(existing_state["visible"], mask_outside))
                 figure.canvas.draw_idle()
             elif event.key in {"+", "="}:
                 zoom_at(None, None, 0.8)
@@ -419,9 +434,75 @@ def _run_box_window(
     return state["result"]
 
 
-def _status_text(show_existing: bool) -> str:
+def _create_outside_mask_artists(
+    axes: Any,
+    *,
+    display_size: tuple[int, int],
+) -> list[Any]:
+    """Create four hidden patches that can mask everything outside a box."""
+
+    from matplotlib.patches import Rectangle
+
+    width, height = display_size
+    artists: list[Any] = []
+    for _ in range(4):
+        artist = Rectangle(
+            (0, 0),
+            0,
+            0,
+            facecolor="black",
+            edgecolor="none",
+            linewidth=0,
+            zorder=5,
+            visible=False,
+        )
+        axes.add_patch(artist)
+        artists.append(artist)
+    return artists
+
+
+def _set_outside_mask(
+    artists: Sequence[Any],
+    display_xyxy: tuple[float, float, float, float] | None,
+    *,
+    display_size: tuple[int, int],
+) -> None:
+    """Update or hide the four black patches around the selected box."""
+
+    if len(artists) != 4:
+        raise ValueError("outside mask requires exactly four artists")
+
+    if display_xyxy is None:
+        for artist in artists:
+            artist.set_visible(False)
+        return
+
+    width, height = display_size
+    left, top, right, bottom = display_xyxy
+    left = max(0.0, min(float(width), left))
+    top = max(0.0, min(float(height), top))
+    right = max(0.0, min(float(width), right))
+    bottom = max(0.0, min(float(height), bottom))
+    left, right = sorted((left, right))
+    top, bottom = sorted((top, bottom))
+
+    rectangles = (
+        (0.0, 0.0, left, float(height)),
+        (right, 0.0, float(width) - right, float(height)),
+        (left, 0.0, right - left, top),
+        (left, bottom, right - left, float(height) - bottom),
+    )
+    for artist, (x, y, rectangle_width, rectangle_height) in zip(artists, rectangles):
+        artist.set_xy((x, y))
+        artist.set_width(max(0.0, rectangle_width))
+        artist.set_height(max(0.0, rectangle_height))
+        artist.set_visible(rectangle_width > 0 and rectangle_height > 0)
+
+
+def _status_text(show_existing: bool, mask_outside: bool = False) -> str:
     existing = "shown" if show_existing else "hidden"
-    return f"pixel xyxy: draw a box | labels: {existing} (L) | wheel/+/- zoom | 0 reset"
+    mask = " | outside mask: on" if mask_outside else ""
+    return f"pixel xyxy: draw a box | labels: {existing} (L){mask} | wheel/+/- zoom | 0 reset"
 
 
 def _zoom_axes(

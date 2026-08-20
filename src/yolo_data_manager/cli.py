@@ -406,6 +406,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_false",
         help="start with existing txt annotations hidden; press L to toggle them",
     )
+    manual_box.add_argument(
+        "--mask-outside",
+        action="store_true",
+        help="after drawing a box, mask the area outside it with black",
+    )
     manual_box.add_argument("--out", default=None, help="JSON output path; defaults to <root>/ydm_vis/manual_box/<image>.json")
     manual_box.set_defaults(handler=handle_vis_manual_box, show_existing=True)
 
@@ -1193,6 +1198,7 @@ def handle_vis_manual_box(args: argparse.Namespace) -> int:
             min_pixels=args.min_pixels,
             precision=args.precision,
             show_existing=args.show_existing,
+            mask_outside=args.mask_outside,
         )
     except (FileNotFoundError, RuntimeError, ValueError) as exc:
         print(f"ydm vis manual-box failed: {exc}", file=sys.stderr)

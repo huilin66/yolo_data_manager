@@ -17,6 +17,7 @@ def yolo_draw(
     label: str | Path | None = None,
     class_id: int | None = None,
     show_existing: bool = True,
+    mask_outside: bool = False,
     out: str | Path | None = None,
 ) -> int:
     """Draw one temporary box and save its coordinates without editing labels."""
@@ -27,5 +28,6 @@ def yolo_draw(
         label=label,
         class_id=class_id,
         show_existing=show_existing,
+        mask_outside=mask_outside,
         out=out,
     )
