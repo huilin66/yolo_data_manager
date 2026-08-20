@@ -25,6 +25,7 @@ from example.functions import (
     yolo_resize,
     yolo_sta,
     yolo_update_by_pred,
+    yolo_update_class,
     yolo_vis,
 )
 
@@ -65,6 +66,20 @@ MERGE_CLASS_MAP = {
     ],
 }
 
+UPDATE_CLASS_MAP = {
+    "merge": {
+        "Hollow Confirmed": ["Hollow High Risk"],
+        "Hollow Suspected": ["Hollow Low Risk"],
+        "Leakage": ["Leakage High Risk"],
+    },
+    "drop": [
+        "background",
+        "Hollow High Risk Line",
+        "Temperature Medium Risk",
+        "Temperature High Risk",
+    ],
+}
+
 # Select operations by uncommenting names in RUN_LIST.
 RUN_LIST = [
     # "sta",
@@ -74,6 +89,7 @@ RUN_LIST = [
     # "update",
     # "draw",
     "resize",
+    "update_class",
 ]
 
 
@@ -123,6 +139,8 @@ def main() -> None:
             DATA_DIR,
             width=640,
         )
+    if "update_class" in RUN_LIST:
+        yolo_update_class(DATA_DIR, class_map=UPDATE_CLASS_MAP)
 
 
 if __name__ == "__main__":
