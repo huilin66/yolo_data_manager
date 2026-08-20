@@ -22,6 +22,25 @@ def test_example_function_does_not_initialize_existing_manager(monkeypatch):
     assert yolo_split(manager) == 7
 
 
+def test_example_split_passes_include_lists_to_manager():
+    manager = object.__new__(YoloManager)
+    captured = {}
+
+    def fake_split(**kwargs):
+        captured.update(kwargs)
+        return 7
+
+    manager.dataset_split = fake_split
+
+    assert yolo_split(
+        manager,
+        train_include_list=["a.jpg"],
+        val_include_list="val_include.txt",
+    ) == 7
+    assert captured["train_include_list"] == ["a.jpg"]
+    assert captured["val_include_list"] == "val_include.txt"
+
+
 def test_example_resize_reuses_existing_manager():
     manager = object.__new__(YoloManager)
     manager.resize_images = lambda **_kwargs: 9

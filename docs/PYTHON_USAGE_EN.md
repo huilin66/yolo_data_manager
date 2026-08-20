@@ -86,6 +86,11 @@ The Python API and CLI use the same defaults. Explicit `out`, `csv`, or `plots_d
 
 `dataset_split()` keeps split files in the dataset root, and `dataset_yaml()` keeps
 `dataset.yaml` there as well. `only_val` changes the data scope, not the output group.
+`train_include_list` and `val_include_list` accept an image-name/path list or a
+txt file with one image name/path per line. These images are removed from the
+random pool before splitting, then forced into train or val. The two lists may
+not overlap. Relative image paths are matched from the dataset root; bare file
+names and stems are also supported.
 Multimodal data uses these same functional groups; modality subdirectories are added only
 where needed, and there is no separate `ydm_multimodal` feature module.
 
@@ -140,6 +145,12 @@ mgr.query_attr(name="quality", nonzero=True)
 mgr.dataset_normalize(out="normalized_yolo")
 mgr.dataset_split(train=0.8, val=0.1, test=0.1, seed=233)
 mgr.dataset_split(train=0.8, val=0.1, test=0.1, absolute_paths=True)
+mgr.dataset_split(
+    train=0.8,
+    val=0.2,
+    train_include_list=["images/keep_train_001.jpg", "keep_train_002.jpg"],
+    val_include_list="val_include.txt",
+)
 mgr.dataset_select(file="val.txt", out="val_subset")
 mgr.dataset_yaml(out="dataset.yaml", train="images/train", val="images/val")
 mgr.dataset_duplicates(out="duplicates.csv")

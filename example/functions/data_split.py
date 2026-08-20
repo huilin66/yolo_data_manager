@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 
 try:
@@ -19,8 +20,15 @@ def yolo_split(
     absolute_paths: bool = True,
     *,
     out: str | Path | None = None,
+    train_include_list: str | Path | Sequence[str] | None = None,
+    val_include_list: str | Path | Sequence[str] | None = None,
 ) -> int:
-    """Write train/val/test lists; omitted output stays at the dataset root."""
+    """Write train/val/test lists with optional forced train/val images.
+
+    Include values can be image names/paths, a comma-separated string, or a
+    txt file containing one image name/path per line. Included images are
+    removed from the random pool before the requested ratios are applied.
+    """
 
     mgr = get_yolo_manager(dataset_input, layout="flat", init_check=False, init_layout=False)
     return mgr.dataset_split(
@@ -30,4 +38,6 @@ def yolo_split(
         seed=seed,
         absolute_paths=absolute_paths,
         out=out,
+        train_include_list=train_include_list,
+        val_include_list=val_include_list,
     )

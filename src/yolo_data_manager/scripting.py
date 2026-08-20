@@ -587,6 +587,8 @@ class YoloManager:
         seed: int = 233,
         out: str | None = None,
         absolute_paths: bool = False,
+        train_include_list: str | Path | Sequence[str] | None = None,
+        val_include_list: str | Path | Sequence[str] | None = None,
         **kwargs: Any,
     ) -> int:
         """Write train/val/test split files (``ydm dataset split``)."""
@@ -598,6 +600,8 @@ class YoloManager:
             seed=seed,
             out=out,
             absolute_paths=absolute_paths,
+            train_include_list=train_include_list,
+            val_include_list=val_include_list,
             **kwargs,
         )
 

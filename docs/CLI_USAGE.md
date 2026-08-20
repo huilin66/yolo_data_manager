@@ -130,6 +130,8 @@ ydm ann correct-from-error-crops --root path/to/yolo --crops-dir result_ana/val-
 ydm dataset select --root path/to/yolo --file val.txt --out yolo_val
 ydm dataset split --root path/to/yolo --train 0.8 --val 0.2 --seed 233
 ydm dataset split --root path/to/yolo --train 0.8 --val 0.1 --test 0.1 --absolute-paths
+ydm dataset split --root path/to/yolo --train 0.8 --val 0.2 \
+  --train-include-list train_include.txt --val-include-list val_include.txt
 ydm dataset yaml --root path/to/yolo --out dataset.yaml
 ydm dataset merge --roots data1,data2 --out merged_yolo
 ydm dataset duplicates --root path/to/yolo --out duplicate_images.csv
@@ -137,6 +139,7 @@ ydm dataset bad-images --root path/to/yolo --out bad_images.csv
 ```
 
 split 会打印总类别 box 数量和 val 类别 box 数量，方便检查验证集分布。
+`--train-include-list` 和 `--val-include-list` 可以传 txt 文件，也可以传逗号分隔的图片名/路径。指定的图片会先从随机池中排除，再强制加入对应 split；两个参数不能包含同一张图片。
 
 ## 过滤
 

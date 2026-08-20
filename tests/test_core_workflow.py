@@ -2,6 +2,7 @@ from pathlib import Path
 import json
 
 from PIL import Image
+import pytest
 
 from yolo_data_manager.annotation.edit import delete_by_attribute, merge_classes, set_attribute
 from yolo_data_manager.annotation.crop_correction import (
@@ -74,6 +75,17 @@ def test_build_python_task_argv():
         "--no-copy-images",
         "--dry-run",
     ]
+
+    split_argv = build_task_argv(
+        "dataset.split",
+        root=Path("dataset"),
+        train_include_list=["images/a.jpg", "images/b.jpg"],
+        val_include_list=Path("val_include.txt"),
+    )
+    assert "--train-include-list" in split_argv
+    assert "images/a.jpg,images/b.jpg" in split_argv
+    assert "--val-include-list" in split_argv
+    assert "val_include.txt" in split_argv
 
     stats_argv = build_task_argv(
         "stats",
@@ -508,6 +520,40 @@ def test_split_dataset_can_write_absolute_paths(tmp_path):
     assert sorted(absolute["train"]) == sorted(
         str((root / "images" / name).resolve()) for name in ["a.jpg", "b.jpg"]
     )
+
+
+def test_split_dataset_forces_include_lists_and_excludes_them_from_random_pool(tmp_path):
+    root = make_dataset(tmp_path / "yolo")
+    dataset = load_yolo_dataset(root)
+    val_include = tmp_path / "val_include.txt"
+    val_include.write_text("images/b.jpg\n", encoding="utf-8")
+
+    splits = split_dataset(
+        dataset,
+        train=0.8,
+        val=0.2,
+        seed=1,
+        train_include_list=["images/a.jpg"],
+        val_include_list=val_include,
+    )
+
+    assert splits == {
+        "train": ["a.jpg"],
+        "val": ["b.jpg"],
+        "test": [],
+    }
+
+
+def test_split_dataset_rejects_overlapping_include_lists(tmp_path):
+    root = make_dataset(tmp_path / "yolo")
+    dataset = load_yolo_dataset(root)
+
+    with pytest.raises(ValueError, match="overlap"):
+        split_dataset(
+            dataset,
+            train_include_list=["a.jpg"],
+            val_include_list=["images/a.jpg"],
+        )
 
 
 def test_split_class_counts_for_images(tmp_path):

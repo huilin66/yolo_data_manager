@@ -164,6 +164,16 @@ def build_parser() -> argparse.ArgumentParser:
     dataset_split.add_argument("--seed", type=int, default=233)
     dataset_split.add_argument("--out", default=None, help="output directory; defaults to dataset root")
     dataset_split.add_argument("--absolute-paths", action="store_true", help="write absolute image paths instead of image file names")
+    dataset_split.add_argument(
+        "--train-include-list",
+        default=None,
+        help="txt file or comma-separated image names/paths forced into train",
+    )
+    dataset_split.add_argument(
+        "--val-include-list",
+        default=None,
+        help="txt file or comma-separated image names/paths forced into val",
+    )
     dataset_split.set_defaults(handler=handle_dataset_split)
 
     dataset_yaml = dataset_sub.add_parser("yaml", help="write dataset.yaml")
@@ -852,6 +862,8 @@ def handle_dataset_split(args: argparse.Namespace) -> int:
         test=args.test,
         seed=args.seed,
         absolute_paths=args.absolute_paths,
+        train_include_list=args.train_include_list,
+        val_include_list=args.val_include_list,
     )
     out_dir = Path(args.out) if args.out else _resolved_output_root(args.root)
     for split_name, names in splits.items():

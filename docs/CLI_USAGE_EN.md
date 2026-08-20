@@ -129,6 +129,8 @@ Commands that write GT label txt files, including `dataset filter`, `dataset mer
 ydm dataset select --root path/to/yolo --file val.txt --out yolo_val
 ydm dataset split --root path/to/yolo --train 0.8 --val 0.2 --seed 233
 ydm dataset split --root path/to/yolo --train 0.8 --val 0.1 --test 0.1 --absolute-paths
+ydm dataset split --root path/to/yolo --train 0.8 --val 0.2 \
+  --train-include-list train_include.txt --val-include-list val_include.txt
 ydm dataset yaml --root path/to/yolo --out dataset.yaml
 ydm dataset merge --roots data1,data2 --out merged_yolo
 ydm dataset duplicates --root path/to/yolo --out duplicate_images.csv
@@ -136,6 +138,7 @@ ydm dataset bad-images --root path/to/yolo --out bad_images.csv
 ```
 
 `dataset split` prints total box counts by class and validation box counts by class.
+`--train-include-list` and `--val-include-list` accept txt files or comma-separated image names/paths. Listed images are removed from the random pool before splitting and then forced into the corresponding split; the two parameters may not overlap.
 
 ## Filtering
 

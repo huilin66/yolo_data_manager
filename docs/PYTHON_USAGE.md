@@ -61,6 +61,12 @@ mgr.query_attr(name="quality", nonzero=True)
 mgr.dataset_normalize(out=r"E:\datasets\normalized_yolo")
 mgr.dataset_split(train=0.8, val=0.1, test=0.1, seed=233)
 mgr.dataset_split(train=0.8, val=0.1, test=0.1, seed=233, absolute_paths=True)
+mgr.dataset_split(
+    train=0.8,
+    val=0.2,
+    train_include_list=["images/keep_train_001.jpg", "keep_train_002.jpg"],
+    val_include_list="val_include.txt",
+)
 mgr.dataset_filter(out="filtered", min_area=0.001, class_=["car", "truck"], backup_dir="label_backups")
 mgr.dataset_filter(out="filtered_small", min_width=0.01, min_height=0.01,
                    min_size_logic="and")
@@ -288,6 +294,7 @@ mgr.output_dataset_yaml
 选择 `box_shape`、`box_shape_pix`、`box_shape_rate`、`box_width`、`box_height` 时，会额外按类别输出 `box_shape_ratios/`、`box_shape_pixels/`、`aspect_ratio/`、`width_image_ratio/`、`height_image_ratio/` 五个目录，每个目录内为每个类别生成一张图。`box_width` 和 `box_height` 还会分别生成 `box_width_boxplot.png`、`box_height_boxplot.png`，箱线图横轴为类别，纵轴为归一化 box 宽度或高度。
 
 `dataset_split` 会写出 `train.txt`、`val.txt`、`test.txt`，并在输出中显示 `total_class_counts` 和 `val_class_counts`，方便检查验证集类别分布。
+`train_include_list` 和 `val_include_list` 可以传图片名/路径列表，也可以传一个 txt 文件路径（每行一个图片名或路径）。这些图片会先从随机池中排除，再分别加入 train 或 val；两个列表不能包含同一张图片。相对图片路径按数据集根目录匹配，也支持图片文件名和 stem。
 
 `dataset_filter` 中 `min_width` 和 `min_height` 默认按 `or` 逻辑删除小框：`w < min_width` 或 `h < min_height` 即删除。设置 `min_size_logic="and"` 时，只有 `w < min_width` 且 `h < min_height` 才删除。`class_rules` 可以给不同类别设置不同过滤规则；类别没有命中规则时，继续使用全局过滤参数。
 类别规则也支持简写字段：`{"类别": {"width": 0.03, "height": 0.03, "logic": "or"}}`，其中 `width`/`height` 是归一化 YOLO 尺寸，`logic` 为 `or` 或 `and`。
