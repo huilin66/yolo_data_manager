@@ -91,6 +91,9 @@ txt file with one image name/path per line. These images are removed from the
 random pool before splitting, then forced into train or val. The two lists may
 not overlap. Relative image paths are matched from the dataset root; bare file
 names and stems are also supported.
+If `train.txt`, `val.txt`, or `test.txt` already exists in the output directory,
+split moves it before writing into `<dataset-root>/labels_backup/<timestamp>/`;
+pass `backup_dir` to override the backup directory.
 Multimodal data uses these same functional groups; modality subdirectories are added only
 where needed, and there is no separate `ydm_multimodal` feature module.
 

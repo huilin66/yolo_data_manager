@@ -20,6 +20,7 @@ def yolo_split(
     absolute_paths: bool = True,
     *,
     out: str | Path | None = None,
+    backup_dir: str | Path | None = None,
     train_include_list: str | Path | Sequence[str] | None = None,
     val_include_list: str | Path | Sequence[str] | None = None,
 ) -> int:
@@ -38,6 +39,7 @@ def yolo_split(
         seed=seed,
         absolute_paths=absolute_paths,
         out=out,
+        backup_dir=backup_dir,
         train_include_list=train_include_list,
         val_include_list=val_include_list,
     )

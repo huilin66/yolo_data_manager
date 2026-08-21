@@ -39,7 +39,11 @@ from yolo_data_manager.io.output_paths import (
     ydm_dir,
 )
 from yolo_data_manager.io.validator import fill_missing_label_files, validate_dataset
-from yolo_data_manager.io.writer import write_split_file, write_yolo_dataset
+from yolo_data_manager.io.writer import (
+    move_existing_split_files_to_backup,
+    write_split_file,
+    write_yolo_dataset,
+)
 from yolo_data_manager.stats.compute import compute_stats
 from yolo_data_manager.stats.export import write_annotation_csv, write_attribute_csv, write_stats_plots
 from yolo_data_manager.stats.report import write_class_counts_csv, write_json_report
@@ -163,6 +167,11 @@ def build_parser() -> argparse.ArgumentParser:
     dataset_split.add_argument("--test", type=float, default=0.0)
     dataset_split.add_argument("--seed", type=int, default=233)
     dataset_split.add_argument("--out", default=None, help="output directory; defaults to dataset root")
+    dataset_split.add_argument(
+        "--backup-dir",
+        default=None,
+        help="backup directory for existing train/val/test txt; defaults to <dataset-root>/labels_backup",
+    )
     dataset_split.add_argument("--absolute-paths", action="store_true", help="write absolute image paths instead of image file names")
     dataset_split.add_argument(
         "--train-include-list",
@@ -866,12 +875,19 @@ def handle_dataset_split(args: argparse.Namespace) -> int:
         val_include_list=args.val_include_list,
     )
     out_dir = Path(args.out) if args.out else _resolved_output_root(args.root)
+    backup_root = (
+        Path(args.backup_dir)
+        if args.backup_dir is not None
+        else _resolved_output_root(args.root) / "labels_backup"
+    )
+    backup_snapshot = move_existing_split_files_to_backup(out_dir, backup_root)
     for split_name, names in splits.items():
         write_split_file(names, out_dir / f"{split_name}.txt")
     print(
         json.dumps(
             {
                 "splits": {name: len(values) for name, values in splits.items()},
+                "backup_dir": str(backup_snapshot) if backup_snapshot is not None else None,
                 "total_class_counts": class_counts_for_images(dataset),
                 "val_class_counts": class_counts_for_images(dataset, splits.get("val", [])),
             },

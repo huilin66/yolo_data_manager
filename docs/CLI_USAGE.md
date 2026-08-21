@@ -140,6 +140,7 @@ ydm dataset bad-images --root path/to/yolo --out bad_images.csv
 
 split 会打印总类别 box 数量和 val 类别 box 数量，方便检查验证集分布。
 `--train-include-list` 和 `--val-include-list` 可以传 txt 文件，也可以传逗号分隔的图片名/路径。指定的图片会先从随机池中排除，再强制加入对应 split；两个参数不能包含同一张图片。
+如果输出目录中已存在 `train.txt`、`val.txt` 或 `test.txt`，写入前会将其移动到 `<数据集根目录>/labels_backup/<时间戳>/`；可通过 `--backup-dir` 指定其他备份目录。
 
 ## 过滤
 

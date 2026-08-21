@@ -79,6 +79,7 @@ def test_build_python_task_argv():
     split_argv = build_task_argv(
         "dataset.split",
         root=Path("dataset"),
+        backup_dir=Path("labels_backup"),
         train_include_list=["images/a.jpg", "images/b.jpg"],
         val_include_list=Path("val_include.txt"),
     )
@@ -86,6 +87,8 @@ def test_build_python_task_argv():
     assert "images/a.jpg,images/b.jpg" in split_argv
     assert "--val-include-list" in split_argv
     assert "val_include.txt" in split_argv
+    assert "--backup-dir" in split_argv
+    assert "labels_backup" in split_argv
 
     stats_argv = build_task_argv(
         "stats",
@@ -554,6 +557,40 @@ def test_split_dataset_rejects_overlapping_include_lists(tmp_path):
             train_include_list=["a.jpg"],
             val_include_list=["images/a.jpg"],
         )
+
+
+def test_dataset_split_moves_existing_split_files_to_timestamped_backup(tmp_path):
+    root = make_dataset(tmp_path / "yolo")
+    (root / "train.txt").write_text("a.jpg\n", encoding="utf-8")
+    (root / "val.txt").write_text("b.jpg\n", encoding="utf-8")
+    (root / "test.txt").write_text("\n", encoding="utf-8")
+
+    assert cli_main(
+        [
+            "dataset",
+            "split",
+            "--root",
+            str(root),
+            "--train",
+            "1",
+            "--val",
+            "0",
+            "--test",
+            "0",
+            "--progress",
+        ]
+    ) == 0
+
+    snapshots = list((root / "labels_backup").iterdir())
+    assert len(snapshots) == 1
+    snapshot = snapshots[0]
+    assert snapshot.is_dir()
+    assert (snapshot / "train.txt").read_text(encoding="utf-8") == "a.jpg\n"
+    assert (snapshot / "val.txt").read_text(encoding="utf-8") == "b.jpg\n"
+    assert (snapshot / "test.txt").read_text(encoding="utf-8") == "\n"
+    assert (root / "train.txt").exists()
+    assert (root / "val.txt").exists()
+    assert (root / "test.txt").exists()
 
 
 def test_split_class_counts_for_images(tmp_path):

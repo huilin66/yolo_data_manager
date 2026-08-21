@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 import shutil
 from pathlib import Path
 
@@ -95,3 +96,37 @@ def write_split_file(image_names: list[str], path: str | Path) -> None:
     out_path = Path(path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text("\n".join(image_names) + ("\n" if image_names else ""), encoding="utf-8")
+
+
+def move_existing_split_files_to_backup(
+    split_root: str | Path,
+    backup_dir: str | Path,
+) -> Path | None:
+    """Move existing train/val/test lists into one timestamped snapshot.
+
+    The snapshot directory is created only when at least one split file
+    already exists.  This is intentionally a move because split files are
+    regenerated immediately after the backup is made.
+    """
+
+    source_root = Path(split_root)
+    existing = [
+        source_root / f"{split_name}.txt"
+        for split_name in ("train", "val", "test")
+        if (source_root / f"{split_name}.txt").is_file()
+    ]
+    if not existing:
+        return None
+
+    backup_root = Path(backup_dir)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    snapshot = backup_root / timestamp
+    counter = 1
+    while snapshot.exists():
+        snapshot = backup_root / f"{timestamp}_{counter}"
+        counter += 1
+    snapshot.mkdir(parents=True, exist_ok=False)
+
+    for source in existing:
+        shutil.move(str(source), str(snapshot / source.name))
+    return snapshot

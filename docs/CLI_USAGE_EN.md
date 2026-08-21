@@ -139,6 +139,7 @@ ydm dataset bad-images --root path/to/yolo --out bad_images.csv
 
 `dataset split` prints total box counts by class and validation box counts by class.
 `--train-include-list` and `--val-include-list` accept txt files or comma-separated image names/paths. Listed images are removed from the random pool before splitting and then forced into the corresponding split; the two parameters may not overlap.
+If `train.txt`, `val.txt`, or `test.txt` already exists in the output directory, split moves it before writing into `<dataset-root>/labels_backup/<timestamp>/`; use `--backup-dir` to override the backup directory.
 
 ## Filtering
 

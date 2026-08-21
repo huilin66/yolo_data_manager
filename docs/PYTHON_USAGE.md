@@ -295,6 +295,8 @@ mgr.output_dataset_yaml
 
 `dataset_split` 会写出 `train.txt`、`val.txt`、`test.txt`，并在输出中显示 `total_class_counts` 和 `val_class_counts`，方便检查验证集类别分布。
 `train_include_list` 和 `val_include_list` 可以传图片名/路径列表，也可以传一个 txt 文件路径（每行一个图片名或路径）。这些图片会先从随机池中排除，再分别加入 train 或 val；两个列表不能包含同一张图片。相对图片路径按数据集根目录匹配，也支持图片文件名和 stem。
+如果目标目录中原本存在 `train.txt`、`val.txt` 或 `test.txt`，split 写入前会将它们移动到 `<数据集根目录>/labels_backup/<时间戳>/`；可用 `backup_dir` 覆盖备份目录。
+如果目标目录中原本存在 `train.txt`、`val.txt` 或 `test.txt`，split 写入前会将它们移动到 `<数据集根目录>/labels_backup/<时间戳>/`；可用 `backup_dir` 覆盖备份目录。
 
 `dataset_filter` 中 `min_width` 和 `min_height` 默认按 `or` 逻辑删除小框：`w < min_width` 或 `h < min_height` 即删除。设置 `min_size_logic="and"` 时，只有 `w < min_width` 且 `h < min_height` 才删除。`class_rules` 可以给不同类别设置不同过滤规则；类别没有命中规则时，继续使用全局过滤参数。
 类别规则也支持简写字段：`{"类别": {"width": 0.03, "height": 0.03, "logic": "or"}}`，其中 `width`/`height` 是归一化 YOLO 尺寸，`logic` 为 `or` 或 `and`。
