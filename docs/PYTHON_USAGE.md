@@ -170,6 +170,10 @@ mgr.eval_metrics(
     pred_root=r"E:\datasets\pred_labels",
     exclude_class_=["ignore", "background"],
     merge_class_map={"vehicle": ["car", "truck"]},
+    class_rules={
+        "Hollow": {"width": 0.03, "height": 0.03, "logic": "or"},
+        "Leakage": {"min_pixels": 20},
+    },
     show_original=True,
     out="metrics.json",
 )
@@ -308,7 +312,8 @@ mgr.output_dataset_yaml
 `class_rules` 可以按类别覆盖全局尺寸规则，格式为 `{类别: {"width": ..., "height": ..., "logic": "or" 或 "and"}}`；命中类别使用自己的规则，未命中类别继续使用全局参数。
 `eval_error_analysis` 与 `eval_metrics` 默认先按类别执行置信度优先的 NMS（`nms_iou=0.5`），再使用相同的一对一 IoU 匹配规则；传入 `nms_iou=None` 可关闭 NMS。关闭 NMS 时，重复预测会在错误分析中标记为 `duplicate_prediction`，并在 metrics 中作为 FP 统计。
 
-`eval_metrics` 使用 `class_` 指定只评估的类别，使用独立的 `exclude_class_` 排除类别；两者可以同时传入。`merge_class_map` 接受“目标类别: 原始类别列表”的字典，例如 `{"vehicle": ["car", "truck"]}`，并在 GT 和预测的类别选择、匹配、统计前同时应用。类别选择和排除使用合并后的目标类别名。设置 `show_original=True` 后，如果使用了类别、合并或 `min_pixels` 参数，会在最终结果前输出原始结果；JSON 输出包含 `original` 和 `final`，而 `out` 文件仍保存最终结果。
+`eval_metrics` 使用 `class_` 指定只评估的类别，使用独立的 `exclude_class_` 排除类别；两者可以同时传入。`merge_class_map` 接受“目标类别: 原始类别列表”的字典，例如 `{"vehicle": ["car", "truck"]}`，并在 GT 和预测的类别选择、匹配、统计前同时应用。类别选择和排除使用合并后的目标类别名。设置 `show_original=True` 后，如果使用了类别、合并、`class_rules` 或 `min_pixels` 参数，会在最终结果前输出原始结果；JSON 输出包含 `original` 和 `final`，而 `out` 文件仍保存最终结果。
+`eval_metrics` 的 `class_rules` 可以按类别覆盖全局尺寸过滤规则；支持类别名或类别 id，字段为 `width`/`min_width`、`height`/`min_height`、`min_area`、`min_pixels` 和 `logic`/`min_size_logic`。配置了规则的类别使用自己的完整规则，未配置的类别继续使用全局参数；如果使用 `merge_class_map`，规则按合并后的目标类别名匹配。
 `eval_metrics` 还会按 COCO 风格的像素面积输出 `small`、`medium`、`large` 目标指标：面积 `< 32²` 为 small、`32² <= 面积 < 96²` 为 medium、面积 `>= 96²` 为 large。JSON 中位于 `size_metrics`，并额外写出 `metrics_size.csv`；图片需要有有效宽高才能进行尺寸分类。
 
 统计、可视化和评估默认处理全部数据；设置 `only_val=True` 或显式提供 `val_source` 才限制为验证集。

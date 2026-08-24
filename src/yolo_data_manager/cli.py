@@ -598,7 +598,7 @@ def build_parser() -> argparse.ArgumentParser:
     metrics.add_argument(
         "--show-original",
         action="store_true",
-        help="when class/exclude/min-pixels/merge filters are set, show original metrics before final metrics",
+        help="when class/exclude/min-pixels/class-rules/merge filters are set, show original metrics before final metrics",
     )
     metrics.add_argument("--class", dest="class_values", default=None, help="class ids/names to evaluate, comma-separated")
     metrics.add_argument("--exclude-class", dest="exclude_class_values", default=None, help="class ids/names to exclude, comma-separated")
@@ -616,6 +616,11 @@ def build_parser() -> argparse.ArgumentParser:
     metrics.add_argument("--min-area", type=float, default=None, help="ignore boxes smaller than this normalized area")
     metrics.add_argument("--min-size-logic", choices=["or", "and"], default="or", help="combine min-width/min-height checks")
     metrics.add_argument("--min-pixels", type=float, default=None, help="ignore boxes whose pixel width or height is smaller than this")
+    metrics.add_argument(
+        "--class-rules",
+        default=None,
+        help="YAML/JSON per-class size filter rules; overrides global size filters for matching classes",
+    )
     metrics.add_argument("--include-empty-classes", dest="ignore_empty_classes", action="store_false", help="include classes with zero GT instances in metrics output")
     metrics.add_argument("--val-source", default=None, help="validation image dir or txt list used to limit evaluated stems")
     metrics.add_argument("--only-val", action="store_true", help="use the dataset validation split; default is all data")
@@ -1634,6 +1639,7 @@ def handle_eval_metrics(args: argparse.Namespace) -> int:
         progress_leave=args.progress_leave,
     )
     merge_class_map = _load_merge_class_map(args.merge_class_map)
+    class_rules = _read_class_rules(args.class_rules)
     class_values = _split_values(args.class_values) if args.class_values else None
     exclude_class_values = _split_values(args.exclude_class_values) if args.exclude_class_values else None
     show_original = args.show_original and (
@@ -1641,6 +1647,7 @@ def handle_eval_metrics(args: argparse.Namespace) -> int:
         or bool(exclude_class_values)
         or args.min_pixels is not None
         or bool(merge_class_map)
+        or bool(class_rules)
     )
     original_metrics = None
     if show_original:
@@ -1668,6 +1675,7 @@ def handle_eval_metrics(args: argparse.Namespace) -> int:
         min_area=args.min_area,
         min_size_logic=args.min_size_logic,
         min_pixels=args.min_pixels,
+        class_rules=class_rules,
         ignore_empty_classes=args.ignore_empty_classes,
     )
     write_metrics_json(metrics, out)

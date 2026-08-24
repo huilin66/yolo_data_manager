@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import Any
 
 try:
     from ._manager import YoloManagerInput, get_yolo_manager
@@ -29,6 +30,7 @@ def yolo_metric(
     min_area: float | None = None,
     min_size_logic: str = "or",
     min_pixels: float | None = None,
+    class_rules: Mapping[str | int, Mapping[str, Any]] | str | Path | None = None,
     conf_thres: float = 0.001,
     nms_iou: float | None = 0.5,
     only_val: bool = True,
@@ -58,6 +60,7 @@ def yolo_metric(
         min_area=min_area,
         min_size_logic=min_size_logic,
         min_pixels=min_pixels,
+        class_rules=class_rules,
         conf_thres=conf_thres,
         nms_iou=nms_iou,
         only_val=only_val,

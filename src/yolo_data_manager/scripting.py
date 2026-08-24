@@ -1603,6 +1603,7 @@ class YoloManager:
         min_area: float | None = None,
         min_size_logic: str = "or",
         min_pixels: float | None = None,
+        class_rules: str | Path | Mapping[int | str, Mapping[str, Any]] | None = None,
         ignore_empty_classes: bool = True,
         val_source: str | None = None,
         only_val: bool | None = None,
@@ -1625,35 +1626,51 @@ class YoloManager:
             or self.class_file
             or _default_existing_path(self.root, "class.txt")
         )
-        return run_task(
-            "eval.metrics",
-            gt_root=resolved_gt_root,
-            pred_root=pred_root,
-            out=out,
-            csv=csv,
-            print_table=print_table,
-            show_original=show_original,
-            class_=class_,
-            exclude_class_=exclude_class_,
-            merge_class_map=merge_class_map,
-            conf_thres=conf_thres,
-            nms_iou=nms_iou,
-            no_nms=nms_iou is None,
-            min_width=min_width,
-            min_height=min_height,
-            min_area=min_area,
-            min_size_logic=min_size_logic,
-            min_pixels=min_pixels,
-            ignore_empty_classes=ignore_empty_classes,
-            val_source=resolved_val_source,
-            only_val=requested_only_val,
-            class_file=resolved_class_file,
-            workers=workers,
-            progress=progress,
-            progress_leave=progress_leave,
-            task=self.task,
-            layout=self.layout,
-            images_dir=self.images_dir,
-            labels_dir=self.labels_dir,
-            **kwargs,
-        )
+        temporary_class_rules_path: str | None = None
+        class_rules_path: str | Path | None = class_rules
+        if isinstance(class_rules, Mapping):
+            with tempfile.NamedTemporaryFile(
+                "w", suffix=".yaml", encoding="utf-8", delete=False
+            ) as f:
+                yaml.safe_dump(
+                    dict(class_rules), f, allow_unicode=True, sort_keys=False
+                )
+                temporary_class_rules_path = f.name
+            class_rules_path = temporary_class_rules_path
+        try:
+            return run_task(
+                "eval.metrics",
+                gt_root=resolved_gt_root,
+                pred_root=pred_root,
+                out=out,
+                csv=csv,
+                print_table=print_table,
+                show_original=show_original,
+                class_=class_,
+                exclude_class_=exclude_class_,
+                merge_class_map=merge_class_map,
+                conf_thres=conf_thres,
+                nms_iou=nms_iou,
+                no_nms=nms_iou is None,
+                min_width=min_width,
+                min_height=min_height,
+                min_area=min_area,
+                min_size_logic=min_size_logic,
+                min_pixels=min_pixels,
+                class_rules=class_rules_path,
+                ignore_empty_classes=ignore_empty_classes,
+                val_source=resolved_val_source,
+                only_val=requested_only_val,
+                class_file=resolved_class_file,
+                workers=workers,
+                progress=progress,
+                progress_leave=progress_leave,
+                task=self.task,
+                layout=self.layout,
+                images_dir=self.images_dir,
+                labels_dir=self.labels_dir,
+                **kwargs,
+            )
+        finally:
+            if temporary_class_rules_path is not None:
+                Path(temporary_class_rules_path).unlink(missing_ok=True)

@@ -282,6 +282,7 @@ def test_yolo_manager_methods(tmp_path):
         pred_root=str(root),
         exclude_class_=["person"],
         merge_class_map={"vehicle": ["car"]},
+        class_rules={"vehicle": {"width": 0.0}},
         out=str(metrics_out),
         progress=False,
     )
@@ -289,6 +290,7 @@ def test_yolo_manager_methods(tmp_path):
     assert code == 0
     assert metrics_payload["excluded_class_ids"] == [0]
     assert metrics_payload["merge_class_map"] == {"vehicle": ["car"]}
+    assert metrics_payload["class_rules"] == {"vehicle": {"width": 0.0}}
     assert [row["class_name"] for row in metrics_payload["classes"]] == ["vehicle"]
 
 
@@ -1582,6 +1584,65 @@ def test_detection_metrics_can_filter_small_targets(tmp_path):
     assert round(filtered.precision, 6) == 1.0
     assert round(filtered.recall, 6) == 1.0
     assert filtered.size_filter["min_pixels"] == 5
+
+
+def test_detection_metrics_class_rules_override_global_size_rule(tmp_path):
+    root = make_dataset(tmp_path / "class_rule_metrics")
+    gt = load_yolo_dataset(root, task="detect")
+    pred = load_yolo_dataset(root, task="detect")
+    class_rules = {
+        "person": {"width": 0.19, "height": 0.29, "logic": "or"},
+        "car": {"width": 0.21, "height": 0.15, "logic": "and"},
+    }
+
+    metrics = compute_detection_metrics(
+        gt,
+        pred,
+        min_width=0.0,
+        min_height=0.0,
+        class_rules=class_rules,
+    )
+
+    assert metrics.labels == 2
+    assert metrics.predictions == 2
+    assert metrics.class_rules == class_rules
+    assert [row.class_name for row in metrics.classes] == ["person", "car"]
+
+
+def test_cli_eval_metrics_supports_class_rules_file(tmp_path, capsys):
+    gt_root = make_dataset(tmp_path / "gt_metrics_class_rules")
+    pred_root = make_dataset(tmp_path / "pred_metrics_class_rules")
+    rules_path = tmp_path / "metrics_rules.yaml"
+    rules_path.write_text("person:\n  width: 0.0\n", encoding="utf-8")
+    out = tmp_path / "metrics_class_rules.json"
+
+    code = cli_main(
+        [
+            "eval",
+            "metrics",
+            "--gt-root",
+            str(gt_root),
+            "--pred-root",
+            str(pred_root),
+            "--names",
+            str(gt_root / "class.txt"),
+            "--min-width",
+            "0.21",
+            "--class-rules",
+            str(rules_path),
+            "--out",
+            str(out),
+            "--no-progress",
+        ]
+    )
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    capsys.readouterr()
+
+    assert code == 0
+    assert payload["class_rules"] == {"person": {"width": 0.0}}
+    assert payload["labels"] == 1
+    assert payload["predictions"] == 1
+    assert [row["class_name"] for row in payload["classes"]] == ["person"]
 
 
 def test_pseudo_labels_and_review_pack(tmp_path):

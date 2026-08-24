@@ -5,11 +5,12 @@ from copy import deepcopy
 import csv
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Any, Iterable, Sequence
 
 import numpy as np
 
 from yolo_data_manager.annotation.edit import merge_classes
+from yolo_data_manager.core.errors import ClassNotFoundError
 from yolo_data_manager.core.models import YoloAnnotation, YoloDataset
 from yolo_data_manager.evaluation.matching import (
     greedy_match_indices,
@@ -76,6 +77,7 @@ class DetectionMetrics:
     size_metrics: dict[str, SizeMetric]
     target_size_thresholds: dict[str, int]
     size_filter: dict[str, float | str | None]
+    class_rules: dict[str, dict[str, Any]] | None
     ignore_empty_classes: bool
 
     def to_dict(self) -> dict[str, object]:
@@ -98,6 +100,7 @@ def compute_detection_metrics(
     min_area: float | None = None,
     min_size_logic: str = "or",
     min_pixels: float | None = None,
+    class_rules: Mapping[int | str, Mapping[str, Any]] | None = None,
     ignore_empty_classes: bool = True,
     iou_thresholds: Sequence[float] = DEFAULT_IOU_THRESHOLDS,
 ) -> DetectionMetrics:
@@ -114,11 +117,19 @@ def compute_detection_metrics(
     from evaluation even when no inclusion list is provided. If
     *merge_class_map* is provided, its target-to-source mapping is applied to
     both datasets before class selection, filtering, matching, and averaging.
+    ``class_rules`` maps a class id or name to a size filter.  A matching rule
+    replaces the global size filter for that class; classes without a rule use
+    the global values.  Rule keys support ``width``/``min_width``,
+    ``height``/``min_height``, ``min_area``, ``min_pixels``, and
+    ``logic``/``min_size_logic``.
     """
     if min_size_logic not in {"or", "and"}:
         raise ValueError("min_size_logic must be 'or' or 'and'")
     validate_nms_iou(nms_iou)
     gt, pred, normalized_merge_map = _prepare_eval_datasets(gt, pred, merge_class_map)
+    resolved_class_rules, normalized_class_rules = _resolve_eval_class_rules(
+        gt, pred, class_rules
+    )
     selected = None if class_ids is None else set(resolve_eval_class_ids(gt, class_ids))
     excluded = None if exclude_class_ids is None else set(resolve_eval_class_ids(gt, exclude_class_ids))
     if selected is not None and excluded:
@@ -157,6 +168,7 @@ def compute_detection_metrics(
             min_area=min_area,
             min_size_logic=min_size_logic,
             min_pixels=min_pixels,
+            class_rules=resolved_class_rules,
         )
         pred_anns = _filter_annotations(
             pred_image.annotations if pred_image is not None else [],
@@ -171,6 +183,7 @@ def compute_detection_metrics(
             min_area=min_area,
             min_size_logic=min_size_logic,
             min_pixels=min_pixels,
+            class_rules=resolved_class_rules,
         )
         pred_anns = non_max_suppress_annotations(pred_anns, nms_iou)
         gt_sizes = [
@@ -223,6 +236,7 @@ def compute_detection_metrics(
             min_area=min_area,
             min_size_logic=min_size_logic,
             min_pixels=min_pixels,
+            class_rules=resolved_class_rules,
         )
         pred_anns = non_max_suppress_annotations(pred_anns, nms_iou)
         if not pred_anns:
@@ -310,6 +324,7 @@ def compute_detection_metrics(
             "min_size_logic": min_size_logic,
             "min_pixels": min_pixels,
         },
+        class_rules=normalized_class_rules or None,
         ignore_empty_classes=ignore_empty_classes,
     )
 
@@ -323,6 +338,33 @@ def resolve_eval_class_ids(
     if isinstance(values, (int, str)):
         values = [values]
     return [dataset.class_id(value) for value in values]
+
+
+def _resolve_eval_class_rules(
+    gt: YoloDataset,
+    pred: YoloDataset,
+    class_rules: Mapping[int | str, Mapping[str, Any]] | None,
+) -> tuple[dict[int, dict[str, Any]], dict[str, dict[str, Any]]]:
+    """Resolve per-class rules against GT, falling back to prediction names."""
+    if not class_rules:
+        return {}, {}
+    resolved: dict[int, dict[str, Any]] = {}
+    normalized: dict[str, dict[str, Any]] = {}
+    for class_value, rule in class_rules.items():
+        if not isinstance(rule, Mapping):
+            raise TypeError(
+                f"class_rules[{class_value!r}] must be a mapping of filter options"
+            )
+        try:
+            class_id = gt.class_id(class_value)
+        except ClassNotFoundError:
+            class_id = pred.class_id(class_value)
+        resolved[class_id] = dict(rule)
+        class_name = gt.class_name(class_id)
+        if class_name == str(class_id) and pred.class_name(class_id) != str(class_id):
+            class_name = pred.class_name(class_id)
+        normalized[str(class_name)] = dict(rule)
+    return resolved, normalized
 
 
 def _prepare_eval_datasets(
@@ -529,6 +571,7 @@ def _filter_annotations(
     min_area: float | None,
     min_size_logic: str,
     min_pixels: float | None,
+    class_rules: Mapping[int, Mapping[str, Any]] | None,
 ) -> list[YoloAnnotation]:
     rows = [
         ann
@@ -536,36 +579,50 @@ def _filter_annotations(
         if (selected is None or ann.class_id in selected)
         and (excluded is None or ann.class_id not in excluded)
     ]
-    if not is_prediction or conf_thres <= 0:
-        return [
-            ann
-            for ann in rows
-            if _keep_by_size(
-                ann,
-                image_width=image_width,
-                image_height=image_height,
-                min_width=min_width,
-                min_height=min_height,
-                min_area=min_area,
-                min_size_logic=min_size_logic,
-                min_pixels=min_pixels,
-            )
-        ]
-    return [
-        ann
-        for ann in rows
-        if (ann.confidence is None or ann.confidence >= conf_thres)
-        and _keep_by_size(
+
+    def keep_by_size(ann: YoloAnnotation) -> bool:
+        rule = class_rules.get(ann.class_id) if class_rules else None
+        rule_min_width = (
+            rule.get("min_width", rule.get("width"))
+            if rule is not None
+            else min_width
+        )
+        rule_min_height = (
+            rule.get("min_height", rule.get("height"))
+            if rule is not None
+            else min_height
+        )
+        rule_min_area = rule.get("min_area") if rule is not None else min_area
+        rule_logic = (
+            rule.get("min_size_logic", rule.get("logic", "or"))
+            if rule is not None
+            else min_size_logic
+        )
+        rule_min_pixels = (
+            rule.get("min_pixels") if rule is not None else min_pixels
+        )
+        return _keep_by_size(
             ann,
             image_width=image_width,
             image_height=image_height,
-            min_width=min_width,
-            min_height=min_height,
-            min_area=min_area,
-            min_size_logic=min_size_logic,
-            min_pixels=min_pixels,
+            min_width=rule_min_width,
+            min_height=rule_min_height,
+            min_area=rule_min_area,
+            min_size_logic=rule_logic,
+            min_pixels=rule_min_pixels,
         )
-    ]
+
+    def keep(ann: YoloAnnotation) -> bool:
+        if (
+            is_prediction
+            and conf_thres > 0
+            and ann.confidence is not None
+            and ann.confidence < conf_thres
+        ):
+            return False
+        return keep_by_size(ann)
+
+    return [ann for ann in rows if keep(ann)]
 
 
 def _keep_by_size(
@@ -579,6 +636,8 @@ def _keep_by_size(
     min_size_logic: str,
     min_pixels: float | None,
 ) -> bool:
+    if min_size_logic not in {"or", "and"}:
+        raise ValueError("min_size_logic must be 'or' or 'and'")
     box = annotation.geometry_box()
     if box is None:
         return False
