@@ -294,6 +294,45 @@ def test_yolo_manager_methods(tmp_path):
     assert [row["class_name"] for row in metrics_payload["classes"]] == ["vehicle"]
 
 
+def test_yolo_manager_query_prediction_uses_ultralytics_yaml_names(tmp_path, monkeypatch):
+    root = make_dataset(tmp_path / "yaml_query")
+    yaml_path = tmp_path / "data.yaml"
+    yaml_path.write_text(
+        "path: yaml_query\n"
+        "names:\n"
+        "  0: person\n"
+        "  1: car\n",
+        encoding="utf-8",
+    )
+    captured = {}
+
+    def fake_run_task(task_name, **params):
+        captured["command"] = task_name
+        captured.update(params)
+        return 0
+
+    import yolo_data_manager.scripting as scripting
+
+    monkeypatch.setattr(scripting, "run_task", fake_run_task)
+    mgr = YoloManager(
+        yaml_path,
+        layout="flat",
+        task="detect",
+        init_check=False,
+        init_layout=False,
+    )
+
+    code = mgr.query_class(
+        class_="car",
+        source="pred",
+        pred_root="pred_labels",
+    )
+
+    assert code == 0
+    assert captured["command"] == "query.class"
+    assert captured["class_file"] == str(yaml_path)
+
+
 def test_yolo_manager_can_initialize_from_dataset_yaml(tmp_path):
     root = make_dataset(tmp_path / "yaml_yolo")
     (root / "val.txt").write_text("images/a.jpg\n", encoding="utf-8")

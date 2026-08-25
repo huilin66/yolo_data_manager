@@ -504,17 +504,21 @@ class YoloManager:
         **kwargs: Any,
     ) -> int:
         """Query annotations by class (``ydm query class``)."""
+        params: dict[str, Any] = {
+            "class_": class_,
+            "source": source,
+            "pred_root": pred_root,
+            "out": out,
+            "copy_images": copy_images,
+            "copy_labels": copy_labels,
+            "filtered_labels": filtered_labels,
+            **kwargs,
+        }
+        if class_file is not None:
+            params["class_file"] = class_file
         return self._run(
             "query.class",
-            class_=class_,
-            source=source,
-            pred_root=pred_root,
-            class_file=class_file,
-            out=out,
-            copy_images=copy_images,
-            copy_labels=copy_labels,
-            filtered_labels=filtered_labels,
-            **kwargs,
+            **params,
         )
 
     def query_attr(
