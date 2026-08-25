@@ -54,6 +54,20 @@ class QueryResult:
     def image_paths(self) -> list[Path]:
         return sorted({match.image.path for match in self.matches})
 
+    def image_names(self) -> list[str]:
+        """Return unique matching image filenames in sorted order."""
+        return sorted({match.image.file_name for match in self.matches})
+
+    def label_names(self) -> list[str]:
+        """Return unique matching label filenames in sorted order."""
+        return sorted(
+            {
+                match.image.label_path.name
+                for match in self.matches
+                if match.image.label_path is not None
+            }
+        )
+
     def to_rows(self) -> list[dict[str, object]]:
         return [match.to_row(self.dataset) for match in self.matches]
 

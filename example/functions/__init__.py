@@ -9,6 +9,7 @@ from .data_filter_small import yolo_filter_small
 from .data_manual_draw_box import yolo_draw
 from .data_merge_class import yolo_merge_class
 from .data_object_label_update import yolo_update_by_label
+from .data_query import yolo_query_class
 from .data_select_copy import yolo_select_val
 from .data_split import yolo_split
 from .data_sta import yolo_sta
@@ -42,6 +43,7 @@ __all__ = [
     "yolo_filter_small",
     "yolo_merge_class",
     "yolo_metric",
+    "yolo_query_class",
     "yolo_multimodal_check",
     "yolo_multimodal_sta",
     "yolo_multimodal_vis",

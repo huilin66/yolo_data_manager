@@ -492,8 +492,11 @@ class YoloManager:
 
     def query_class(
         self,
-        class_: str | list[str],
+        class_: str | int | list[str | int],
         *,
+        source: str = "gt",
+        pred_root: str | Path | None = None,
+        class_file: str | Path | None = None,
         out: str | None = None,
         copy_images: str | None = None,
         copy_labels: str | None = None,
@@ -504,6 +507,9 @@ class YoloManager:
         return self._run(
             "query.class",
             class_=class_,
+            source=source,
+            pred_root=pred_root,
+            class_file=class_file,
             out=out,
             copy_images=copy_images,
             copy_labels=copy_labels,

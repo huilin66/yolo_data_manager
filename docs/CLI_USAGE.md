@@ -97,9 +97,12 @@ ydm dataset normalize --root path/to/yolo --layout auto --out normalized_yolo
 ydm query class --root path/to/yolo --class person --out person_labels.csv
 ydm query class --root path/to/yolo --class person --copy-images out/images --copy-labels out/labels
 ydm query class --root path/to/yolo --class person --copy-labels out/labels --filtered-labels
+ydm query class --root gt_yolo --source pred --pred-root pred_yolo --class car --class-file gt_yolo/class.txt --out pred_car.csv
 ydm query attr --root path/to/yolo --name defect --value yes --out defect.csv
 ydm query attr --root path/to/yolo --name defect --nonzero --copy-labels out/labels
 ```
+
+`query class` 默认查询 `--root` 中的 GT。查询预测结果时使用 `--source pred --pred-root ...`；`--pred-root` 可以是完整 YOLO 预测目录，也可以直接是 `labels` 目录。预测目录没有类别文件时，可使用 GT 的 `--class-file`。终端 JSON 会同时输出匹配的 `image_files` 和 `label_files`，CSV 中每条记录对应一个匹配标注。
 
 ## 标注修改
 

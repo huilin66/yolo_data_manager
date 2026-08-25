@@ -119,6 +119,19 @@ def build_parser() -> argparse.ArgumentParser:
     query_class = query_sub.add_parser("class", help="query labels containing a class")
     add_dataset_args(query_class)
     query_class.add_argument("--class", dest="class_values", required=True, help="class id/name, comma-separated allowed")
+    query_class.add_argument(
+        "--source",
+        choices=["gt", "pred"],
+        default="gt",
+        help="query GT labels from --root or prediction labels from --pred-root",
+    )
+    query_class.add_argument(
+        "--pred-root",
+        "--prediction-root",
+        dest="pred_root",
+        default=None,
+        help="prediction dataset root or labels directory; required with --source pred",
+    )
     query_class.add_argument("--out", default=None, help="CSV output path; defaults to ydm_quality/query/class_<class>.csv")
     query_class.add_argument("--copy-images", default=None, help="copy matching images to this directory")
     query_class.add_argument("--copy-labels", default=None, help="copy matching labels to this directory")
@@ -790,10 +803,70 @@ def handle_stats(args: argparse.Namespace) -> int:
     return 0
 
 
+def _load_query_dataset(args: argparse.Namespace):
+    source = getattr(args, "source", "gt")
+    if source == "gt":
+        return load_from_args(args)
+    if source != "pred":
+        raise ValueError("query source must be 'gt' or 'pred'")
+
+    pred_root_value = getattr(args, "pred_root", None)
+    if pred_root_value is None:
+        raise ValueError("--pred-root is required when --source pred")
+    pred_root = Path(pred_root_value)
+    prediction_source = pred_root
+    images_dir = getattr(args, "images_dir", "images")
+    labels_dir = getattr(args, "labels_dir", "labels")
+    if (
+        (pred_root / labels_dir).is_dir()
+        and not (pred_root / images_dir).exists()
+    ):
+        prediction_source = pred_root / labels_dir
+
+    class_file = getattr(args, "class_file", None)
+    if class_file is None:
+        class_file_candidates = [
+            prediction_source / "class.txt",
+            pred_root / "class.txt",
+            pred_root.parent / "class.txt",
+            _resolved_output_root(args.root) / "class.txt",
+        ]
+        class_file = next(
+            (str(path) for path in class_file_candidates if path.is_file()),
+            None,
+        )
+
+    stems = None
+    if getattr(args, "only_val", False):
+        split_source = getattr(args, "split_file", None)
+        if split_source is None:
+            root = _resolved_output_root(args.root)
+            for candidate in (root / "val.txt", root / "val"):
+                if candidate.exists():
+                    split_source = str(candidate)
+                    break
+        stems = collect_stems_from_source(split_source) if split_source else None
+
+    return load_error_analysis_dataset(
+        prediction_source,
+        task=args.task,
+        layout=args.layout,
+        images_dir=images_dir,
+        labels_dir=labels_dir,
+        class_file=class_file,
+        stems=stems,
+        workers=getattr(args, "workers", 8),
+        progress=getattr(args, "progress", True),
+        progress_leave=getattr(args, "progress_leave", False),
+    )
+
+
 def handle_query_class(args: argparse.Namespace) -> int:
-    dataset = load_from_args(args)
-    result = query_by_class(dataset, _split_values(args.class_values))
-    query_name = _safe_stem("_".join(_split_values(args.class_values)))
+    source = getattr(args, "source", "gt")
+    dataset = _load_query_dataset(args)
+    class_values = _split_values(args.class_values)
+    result = query_by_class(dataset, class_values)
+    query_name = _safe_stem("_".join(class_values))
     out = _value_or_default(
         args.out,
         ydm_dir(_resolved_output_root(args.root), "quality") / "query" / f"class_{query_name}.csv",
@@ -805,7 +878,20 @@ def handle_query_class(args: argparse.Namespace) -> int:
         labels_dir=args.copy_labels,
         filtered_labels=args.filtered_labels,
     )
-    print(json.dumps({"matches": len(result), "labels": [str(p) for p in result.label_paths()]}, indent=2, ensure_ascii=False))
+    print(
+        json.dumps(
+            {
+                "source": source,
+                "classes": class_values,
+                "matches": len(result),
+                "image_files": result.image_names(),
+                "label_files": result.label_names(),
+                "labels": [str(p) for p in result.label_paths()],
+            },
+            indent=2,
+            ensure_ascii=False,
+        )
+    )
     return 0
 
 

@@ -491,6 +491,46 @@ def test_load_query_and_validate(tmp_path):
     result = query_by_class(dataset, ["car"])
     assert len(result) == 2
     assert [path.name for path in result.label_paths()] == ["a.txt", "b.txt"]
+    assert result.image_names() == ["a.jpg", "b.jpg"]
+    assert result.label_names() == ["a.txt", "b.txt"]
+
+
+def test_cli_query_class_can_query_prediction_labels(tmp_path, capsys):
+    gt_root = make_dataset(tmp_path / "gt_query")
+    pred_root = tmp_path / "pred_query"
+    (pred_root / "labels").mkdir(parents=True)
+    (pred_root / "labels" / "a.txt").write_text(
+        "1 0.4 0.4 0.2 0.2 0.95\n", encoding="utf-8"
+    )
+    (pred_root / "labels" / "b.txt").write_text(
+        "0 0.1 0.1 0.2 0.1 0.90\n", encoding="utf-8"
+    )
+    out = tmp_path / "prediction_query.csv"
+
+    code = cli_main(
+        [
+            "query",
+            "class",
+            "--root",
+            str(gt_root),
+            "--source",
+            "pred",
+            "--pred-root",
+            str(pred_root),
+            "--class",
+            "car",
+            "--out",
+            str(out),
+            "--no-progress",
+        ]
+    )
+    payload = json.loads(capsys.readouterr().out)
+
+    assert code == 0
+    assert payload["source"] == "pred"
+    assert payload["image_files"] == ["a.jpg"]
+    assert payload["label_files"] == ["a.txt"]
+    assert "a.txt" in out.read_text(encoding="utf-8")
 
 
 def test_load_classes_from_data_yaml(tmp_path):

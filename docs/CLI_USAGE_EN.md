@@ -96,9 +96,12 @@ ydm dataset normalize --root path/to/yolo --layout auto --out normalized_yolo
 ydm query class --root path/to/yolo --class person --out person_labels.csv
 ydm query class --root path/to/yolo --class person --copy-images out/images --copy-labels out/labels
 ydm query class --root path/to/yolo --class person --copy-labels out/labels --filtered-labels
+ydm query class --root gt_yolo --source pred --pred-root pred_yolo --class car --class-file gt_yolo/class.txt --out pred_car.csv
 ydm query attr --root path/to/yolo --name defect --value yes --out defect.csv
 ydm query attr --root path/to/yolo --name defect --nonzero --copy-labels out/labels
 ```
+
+`query class` searches GT under `--root` by default. To query predictions, use `--source pred --pred-root ...`; `--pred-root` may be a full YOLO prediction root or its `labels` directory. If the prediction directory has no class file, pass the GT/shared names file with `--class-file`. The terminal JSON includes matching `image_files` and `label_files`, while the CSV contains one row per matching annotation.
 
 ## Annotation Edits
 

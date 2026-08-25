@@ -138,9 +138,18 @@ Selecting `box_shape`, `box_shape_pix`, `box_shape_rate`, `box_width`, or `box_h
 ```python
 mgr.query_class(class_=["car", "truck"], out="vehicles.csv")
 mgr.query_class(class_=["person"], copy_images="persons/images", copy_labels="persons/labels", filtered_labels=True)
+mgr.query_class(
+    class_="car",
+    source="pred",
+    pred_root="datasets/pred_labels",
+    class_file="datasets/class.txt",
+    out="pred_car.csv",
+)
 mgr.query_attr(name="occluded", value=["yes"], out="occluded.csv")
 mgr.query_attr(name="quality", nonzero=True)
 ```
+
+The query CSV contains one row per matching annotation. For direct Python access, `query_by_class(dataset, ["car"])` returns a `QueryResult`; use `result.image_names()` or `result.label_names()` to get unique matching filenames.
 
 ## Dataset Operations
 

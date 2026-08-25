@@ -52,6 +52,13 @@ mgr.layout_detect()
 mgr.query_class(class_=["car", "truck"], out="vehicles.csv")
 mgr.query_class(class_=["person"], copy_images="persons/images", copy_labels="persons/labels",
                 filtered_labels=True)
+mgr.query_class(
+    class_="car",
+    source="pred",
+    pred_root=r"E:\datasets\pred_labels",
+    class_file=r"E:\datasets\class.txt",
+    out="pred_car.csv",
+)
 
 # 按属性查询
 mgr.query_attr(name="occluded", value=["yes"], out="occluded.csv")
@@ -531,9 +538,13 @@ from yolo_data_manager.annotation.query import query_by_attribute, query_by_clas
 dataset = load_yolo_dataset(r"E:\datasets\my_yolo", layout="auto")
 cars = query_by_class(dataset, ["car"])
 occluded = query_by_attribute(dataset, "occluded", values=["yes"])
+print(cars.image_names())
+print(cars.label_names())
 for match in occluded.matches:
     print(match.image.path, match.annotation.to_yolo_line())
 ```
+
+`query_by_class()` 返回 `QueryResult`；使用 `result.image_names()` 或 `result.label_names()` 可直接获取匹配的图片文件名或 label 文件名。
 
 ## 查看支持的任务
 

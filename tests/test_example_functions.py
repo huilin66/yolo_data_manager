@@ -1,4 +1,5 @@
 from example.functions._manager import get_yolo_manager
+from example.functions.data_query import yolo_query_class
 from example.functions.data_resize import yolo_resize
 from example.functions.data_split import yolo_split
 from yolo_data_manager import YoloManager
@@ -48,6 +49,29 @@ def test_example_resize_reuses_existing_manager():
     manager.resize_images = lambda **_kwargs: 9
 
     assert yolo_resize(manager, width=640) == 9
+
+
+def test_example_query_passes_prediction_source_to_manager():
+    manager = object.__new__(YoloManager)
+    captured = {}
+
+    def fake_query(**kwargs):
+        captured.update(kwargs)
+        return 8
+
+    manager.query_class = fake_query
+
+    assert yolo_query_class(
+        manager,
+        "car",
+        source="pred",
+        pred_root="pred/labels",
+        class_file="class.txt",
+    ) == 8
+    assert captured["class_"] == "car"
+    assert captured["source"] == "pred"
+    assert captured["pred_root"] == "pred/labels"
+    assert captured["class_file"] == "class.txt"
 
 
 def test_yolo_manager_exposes_default_output_paths(tmp_path):
