@@ -127,6 +127,8 @@ def _boolean_flag(task: str, name: str, value: bool, default_flag: str) -> str |
         return "--compact" if value else None
     if name == "filter_no_attrs" and task == "vis.crop":
         return None if value else "--keep-no-attrs"
+    if name == "clean" and task in {"vis.draw", "vis.crop"}:
+        return None if value else "--no-clean"
     if name in _FALSE_FLAGS:
         return None if value else _FALSE_FLAGS[name]
     return default_flag if value else None
@@ -1144,6 +1146,7 @@ class YoloManager:
         show_attrs: bool = False,
         show_id: bool = False,
         filter_no_attrs: bool = False,
+        clean: bool = True,
         only_val: bool | None = None,
         workers: int = 8,
         progress: bool = True,
@@ -1163,6 +1166,7 @@ class YoloManager:
             show_attrs=show_attrs,
             show_id=show_id,
             filter_no_attrs=filter_no_attrs,
+            clean=clean,
             only_val=only_val,
             workers=workers,
             progress=progress,
@@ -1181,6 +1185,7 @@ class YoloManager:
         conf: float | None = None,
         by_attr: bool = False,
         filter_no_attrs: bool = True,
+        clean: bool = True,
         only_val: bool | None = None,
         workers: int = 8,
         progress: bool = True,
@@ -1198,6 +1203,7 @@ class YoloManager:
             conf=conf,
             by_attr=by_attr,
             filter_no_attrs=filter_no_attrs,
+            clean=clean,
             only_val=only_val,
             workers=workers,
             progress=progress,

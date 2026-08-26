@@ -158,6 +158,7 @@ Supported:
 - confidence threshold
 - multi-threaded rendering
 - progress bars
+- `vis draw` / `vis crop` clear the output directory before running by default (`clean=True`), so stale files from previous runs (e.g. outdated crops) do not accumulate; pass `clean=False` in Python or `--no-clean` in the CLI to keep existing outputs. The cleanup is guarded: it refuses to clear a directory that is the dataset root (or an ancestor) or that contains source images/labels (raises `ValueError`), so source data cannot be deleted accidentally.
 
 ### Evaluation and Error Analysis
 

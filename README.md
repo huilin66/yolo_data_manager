@@ -124,6 +124,7 @@ ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --names class.
 - The CLI and `YoloManager` use common runtime defaults: `workers=8`, temporary tqdm progress bars, and `leave=False`. Tune them with `--workers/--no-progress/--progress-leave` or Python `workers/progress/progress_leave`.
 - `check` writes the full validation report to JSON, while the terminal prints only a red warning/error summary or a green OK summary. Without an output path, the default report is `<root>/ydm_quality/check.json`.
 - Default analysis outputs use `ydm_quality/`, `ydm_stats/`, `ydm_vis/`, `ydm_evaluation/`, `ydm_dataset/`, `ydm_annotation/`, and `ydm_conversion/`; `labels_backup/` remains unprefixed.
+- `vis draw` and `vis crop` clear their output directory before running by default (pass `clean=False` in Python or `--no-clean` in the CLI to keep existing outputs).
 - `train.txt`, `val.txt`, `test.txt`, and `dataset.yaml` remain at the dataset root. Multimodal workflows add `rgb/`, `depth/`, and similar subdirectories only inside the relevant functional group; there is no `ydm_multimodal/` directory.
 - Standard YOLO output includes `images/`, `labels/`, `class.txt`, and `dataset.yaml`.
 - Error-analysis review output includes `review/pred_gt`, `confusion_matrix.png`, grouped `pred_<pred_class>_gt_<gt_class>` folders, and optional `review/pred_txt`.
