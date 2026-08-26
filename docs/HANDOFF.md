@@ -2,6 +2,10 @@
 
 本文档用于项目交接，说明当前设计原则、功能边界、包结构、关键约定和后续迁移方向。面向使用者的教程在 [README](../README.md)，Python 细节在 [PYTHON_USAGE.md](PYTHON_USAGE.md)，CLI 细节在 [CLI_USAGE.md](CLI_USAGE.md)。
 
+## 版本维护要求
+
+每次更新代码后，交付前必须同步更新项目版本号。版本号唯一维护在根目录 `pyproject.toml` 的 `[project].version`：向后兼容的修复或功能更新递增 patch 版本；新增不兼容的公开 API 或行为变更时按需递增 minor/major 版本。提交代码、测试或文档变更时，应确认版本号与本次变更保持一致。
+
 ## 目标与原则
 
 `YOLO Data Manager` 用来统一管理 YOLO 数据集，避免现有脚本中“读取、转换、统计、可视化、路径配置、临时逻辑”混在一起的问题。

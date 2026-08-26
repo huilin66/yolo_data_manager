@@ -20,12 +20,19 @@ def yolo_vis(
     workers: int = 8,
     show_id: bool = True,
     padding: int | float = 0,
+    style: str = "cv2",
 ) -> int:
-    """Render boxes and optionally crops for all data by default."""
+    """Render boxes and optionally crops for all data by default.
+
+    ``style`` accepts ``"cv2"`` (default, with ``"cv"`` as an alias) or
+    ``"pil"``. Drawing and crop generation are separate operations; each uses
+    the configured worker pool independently.
+    """
 
     mgr = get_yolo_manager(dataset_input, layout="auto", init_check=False, init_layout=False)
     result = mgr.vis_draw(
         draw_out,
+        style=style,
         workers=workers,
         show_id=show_id,
         only_val=only_val,
@@ -33,6 +40,7 @@ def yolo_vis(
     if crop:
         result = mgr.vis_crop(
             crop_out,
+            style=style,
             workers=workers,
             padding=padding,
             only_val=only_val,

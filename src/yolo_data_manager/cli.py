@@ -381,6 +381,12 @@ def build_parser() -> argparse.ArgumentParser:
     draw = vis_sub.add_parser("draw", help="draw labels on images")
     add_dataset_args(draw)
     draw.add_argument("--out", default=None, help="output image directory; defaults to <root>/ydm_vis/draw")
+    draw.add_argument(
+        "--style",
+        choices=["pil", "cv2", "cv"],
+        default="cv2",
+        help="rendering backend: pil or cv2 (cv is an alias for cv2)",
+    )
     draw.add_argument("--limit", type=int, default=None)
     draw.add_argument("--show-conf", action="store_true")
     draw.add_argument("--conf", type=float, default=None, help="optional confidence threshold")
@@ -394,6 +400,12 @@ def build_parser() -> argparse.ArgumentParser:
     crop = vis_sub.add_parser("crop", help="crop annotation regions into class folders")
     add_dataset_args(crop)
     crop.add_argument("--out", default=None, help="output crop directory; defaults to <root>/ydm_vis/crop")
+    crop.add_argument(
+        "--style",
+        choices=["pil", "cv2", "cv"],
+        default="cv2",
+        help="crop I/O backend: pil or cv2 (cv is an alias for cv2)",
+    )
     crop.add_argument("--keep-shape", action="store_true")
     crop.add_argument("--min-size", type=int, default=1)
     crop.add_argument(
@@ -1247,6 +1259,7 @@ def handle_vis_draw(args: argparse.Namespace) -> int:
     render_dataset(
         dataset,
         out,
+        style=args.style,
         limit=args.limit,
         show_confidence=args.show_conf,
         confidence_threshold=args.conf,
@@ -1272,6 +1285,7 @@ def handle_vis_crop(args: argparse.Namespace) -> int:
     saved = crop_dataset(
         dataset,
         out,
+        style=args.style,
         keep_shape=args.keep_shape,
         min_size=args.min_size,
         padding=args.padding,

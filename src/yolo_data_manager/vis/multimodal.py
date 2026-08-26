@@ -11,6 +11,7 @@ def render_multimodal_dataset(
     dataset: MultimodalYoloDataset,
     out_dir: str | Path,
     *,
+    style: str = "cv2",
     modalities: Iterable[str] | None = None,
     limit: int | None = None,
     show_confidence: bool = False,
@@ -34,6 +35,7 @@ def render_multimodal_dataset(
         render_dataset(
             view,
             output / modality,
+            style=style,
             limit=limit,
             show_confidence=show_confidence,
             confidence_threshold=confidence_threshold,
@@ -54,6 +56,7 @@ def crop_multimodal_dataset(
     dataset: MultimodalYoloDataset,
     out_dir: str | Path,
     *,
+    style: str = "cv2",
     modalities: Iterable[str] | None = None,
     keep_shape: bool = False,
     min_size: int = 1,
@@ -74,6 +77,7 @@ def crop_multimodal_dataset(
         counts[modality] = crop_dataset(
             dataset.to_yolo_dataset(modality),
             output / modality,
+            style=style,
             keep_shape=keep_shape,
             min_size=min_size,
             padding=padding,

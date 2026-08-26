@@ -62,7 +62,7 @@ mgr_yaml = YoloManager(r"E:\repository\yolo8\ultralytics\cfg\datasets\data_fire.
 
 mgr.check(fill_missing_txt=True)
 mgr.stats(stats_list=["all"])
-mgr.vis_draw(show_id=True, show_conf=True)
+mgr.vis_draw(show_id=True, show_conf=True, style="cv2")
 
 mgr.dataset_filter(
     min_width=0.01,
@@ -95,7 +95,7 @@ from example.functions import yolo_sta, yolo_vis
 DATA_DIR = r"/path/to/my_dataset.yaml"
 
 yolo_sta(DATA_DIR, stats_list=["all"], only_val=False)
-yolo_vis(DATA_DIR, crop=True, only_val=False)
+yolo_vis(DATA_DIR, crop=True, only_val=False, style="cv2")
 ```
 
 There is no generic `example/datasets/` runner and no need for `run_ydm.py`.
@@ -108,6 +108,8 @@ TT100K conversion is an independent repository tool at
 ydm check --root path/to/yolo --layout auto --fill-missing-txt --out validation.json
 ydm stats --root path/to/yolo --stats-list all
 ydm vis draw --root path/to/yolo --show-id --show-conf
+ydm vis draw --root path/to/yolo --style cv2
+ydm vis crop --root path/to/yolo --style cv2 --workers 16
 ydm vis manual-box --root path/to/yolo --image images/0001.jpg --class-id 5
 ydm dataset filter --root path/to/yolo --min-width 0.01 --min-height 0.01 --min-size-logic and
 ydm eval metrics --gt-root gt_yolo --pred-root pred_labels --names class.txt --class car,bus --min-pixels 8 --show-original --print-table

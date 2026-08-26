@@ -202,6 +202,8 @@ box_pos_start, box_pos_center, box_pos_end, attribute, legacy_csv
 
 ```bash
 ydm vis draw --root path/to/yolo
+ydm vis draw --root path/to/yolo --style cv2
+ydm vis crop --root path/to/yolo --style pil --workers 16
 ydm vis crop --root path/to/yolo --padding 20
 ydm vis crop --root path/to/yolo --out crops --padding 0.2
 ydm vis draw --root path/to/yolo --out images_vis --show-conf --show-attrs --filter-no-attrs

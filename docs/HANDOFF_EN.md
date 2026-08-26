@@ -2,6 +2,10 @@
 
 This document summarizes the project design, current scope, module boundaries, and follow-up work. User-facing docs are in [README](../README.md), [PYTHON_USAGE_EN.md](PYTHON_USAGE_EN.md), and [CLI_USAGE_EN.md](CLI_USAGE_EN.md).
 
+## Version Maintenance Requirement
+
+After every code update, the project version must be updated before handoff. The single source of truth is `[project].version` in the root `pyproject.toml`: increment the patch version for backward-compatible fixes or features, and use a minor/major increment when a new public API or behavior change is incompatible. Before delivering code, tests, or documentation changes, verify that the version matches the change.
+
 ## Goals and Principles
 
 YOLO Data Manager exists to keep dataset loading, conversion, statistics, visualization, path handling, and temporary project logic out of one-off scripts.

@@ -1135,6 +1135,7 @@ class YoloManager:
         self,
         out: str | None = None,
         *,
+        style: str = "cv2",
         limit: int | None = None,
         show_conf: bool = False,
         conf: float | None = None,
@@ -1153,6 +1154,7 @@ class YoloManager:
         return self._run(
             "vis.draw",
             out=out,
+            style=style,
             limit=limit,
             show_conf=show_conf,
             conf=conf,
@@ -1172,6 +1174,7 @@ class YoloManager:
         self,
         out: str | None = None,
         *,
+        style: str = "cv2",
         keep_shape: bool = False,
         min_size: int = 1,
         padding: int | float = 0,
@@ -1188,6 +1191,7 @@ class YoloManager:
         return self._run(
             "vis.crop",
             out=out,
+            style=style,
             keep_shape=keep_shape,
             min_size=min_size,
             padding=padding,

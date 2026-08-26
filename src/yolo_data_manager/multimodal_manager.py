@@ -194,6 +194,7 @@ class MultiModalYoloManager:
         self,
         out: str | Path | None = None,
         *,
+        style: str = "cv2",
         modalities: Sequence[str] | None = None,
         limit: int | None = None,
         show_conf: bool = False,
@@ -214,6 +215,7 @@ class MultiModalYoloManager:
         counts = render_multimodal_dataset(
             self.load(reload=reload, progress=progress, progress_leave=progress_leave),
             output_path,
+            style=style,
             modalities=modalities,
             limit=limit,
             show_confidence=show_conf,
@@ -238,6 +240,7 @@ class MultiModalYoloManager:
         self,
         out: str | Path | None = None,
         *,
+        style: str = "cv2",
         modalities: Sequence[str] | None = None,
         keep_shape: bool = False,
         min_size: int = 1,
@@ -256,6 +259,7 @@ class MultiModalYoloManager:
         counts = crop_multimodal_dataset(
             self.load(reload=reload, progress=progress, progress_leave=progress_leave),
             output_path,
+            style=style,
             modalities=modalities,
             keep_shape=keep_shape,
             min_size=min_size,

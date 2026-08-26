@@ -132,7 +132,7 @@ mgr.ann_correct_from_error_crops(
 # backup_dir 指定写出 GT 前的备份目录；省略时默认是 `<数据集根目录>/labels_backup`。每次实际写入会创建带时间戳的快照子目录，dry_run=True 不会创建备份。
 
 # 可视化
-mgr.vis_draw(out="images_vis", show_conf=True, show_attrs=True)
+mgr.vis_draw(out="images_vis", show_conf=True, show_attrs=True, style="cv2")  # 默认使用 cv2，也可使用 style="pil"
 mgr.vis_draw(out="images_vis", conf=0.25, fill_mask=True, mask_alpha=64)
 mgr.vis_draw(out="images_vis", show_id=True)  # 显示 txt 中从 1 开始的标注顺序号
 mgr.vis_draw(out="images_vis", workers=16)
