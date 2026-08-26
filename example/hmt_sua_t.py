@@ -38,7 +38,7 @@ HMT_V4_DIR = r"/localnvme/data/bdd_hmt/hmt_t_update_v4"
 #     r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_t.yaml"
 # )
 DATA_DIR = Path(
-    r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_t_update_v4.yaml"
+    r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_t_update_v5.yaml"
 )
 
 PRED_RUNS_DIR = Path(r"/localnvme/project/aic_mdet/models/ultralytics/runs/detect")
@@ -57,10 +57,8 @@ LEAKAGE_ONLY_LIST = (
     "/localnvme/data/bdd_hmt/hmt_t_update_v3/train_leakage_loss_mask.txt"
 )
 PRED_DIR = "/localnvme/data/bdd_hmt/sua_t/ydm_evaluation/error_analysis/val-169/review/pred_txt"
-CROP_ROOT_LABEL = "/localnvme/data/bdd_hmt/sua_t/ydm_vis/crop_change"
-CROP_ROOT_PRED = (
-    "/localnvme/data/bdd_hmt/sua_t/ydm_evaluation/error_analysis/val-169/crop_change"
-)
+CROP_ROOT_LABEL = "/localnvme/data/bdd_hmt/hmt_t_update_v4/ydm_vis/crop_change"
+CROP_ROOT_PRED = "/localnvme/data/bdd_hmt/hmt_t_update_v4/ydm_evaluation/error_analysis/val-169/crop_change"
 
 CROP_MAP_LABEL = {
     os.path.join(CROP_ROOT_LABEL, "2_broken"): "Broken",
@@ -100,14 +98,14 @@ UPDATE_CLASS_MAP = {
 # Select operations by uncommenting names in RUN_LIST.
 RUN_LIST = [
     # "sta",
-    # "vis",
+    "vis",
     # "metric",
     # "error_ana",
     # "update",
     # "draw",
     # "resize",
     # "update_class",
-    "update_class_by_label",
+    # "update_class_by_label",
     # "split"
 ]
 
