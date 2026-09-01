@@ -96,6 +96,7 @@ def render_dataset(
     show_attributes: bool = False,
     show_txt_id: bool = False,
     filter_no_attributes: bool = False,
+    clean: bool = True,
     workers: int = 8,
     progress: bool = True,
     progress_leave: bool = False,
@@ -107,7 +108,7 @@ def render_dataset(
     if visual_style == "cv2":
         _require_cv2()
     out_path = Path(out_dir)
-    out_path.mkdir(parents=True, exist_ok=True)
+    _prepare_vis_output_dir(dataset, out_path, clean=clean)
     images = dataset.images[:limit] if limit is not None else dataset.images
     worker_count = normalize_workers(workers)
     attribute_separate_path = None
@@ -184,6 +185,40 @@ def render_dataset(
         executor.shutdown(wait=True)
 
 
+def _prepare_vis_output_dir(
+    dataset: YoloDataset, out_path: Path, *, clean: bool
+) -> None:
+    """Create ``out_path``, optionally clearing any existing contents first.
+
+    With ``clean=True`` (the default), stale files from previous runs are
+    removed before rendering.  For safety the output is never allowed to be,
+    or contain, the dataset root or a source image/label directory.
+    """
+    if not clean:
+        out_path.mkdir(parents=True, exist_ok=True)
+        return
+    resolved = out_path.resolve()
+    root = dataset.root.resolve()
+    if root.is_relative_to(resolved):
+        raise ValueError(
+            f"refusing to clear {out_path!s}: it is the dataset root or one of "
+            "its parent directories"
+        )
+    source_dirs = {
+        path.parent.resolve()
+        for image in dataset.images
+        for path in (image.path, image.label_path)
+        if path is not None
+    }
+    if resolved in source_dirs:
+        raise ValueError(
+            f"refusing to clear {out_path!s}: it contains source images or labels"
+        )
+    if resolved.exists():
+        shutil.rmtree(resolved)
+    resolved.mkdir(parents=True, exist_ok=True)
+
+
 def crop_dataset(
     dataset: YoloDataset,
     out_dir: str | Path,
@@ -193,6 +228,7 @@ def crop_dataset(
     confidence_threshold: float | None = None,
     by_attribute: bool = False,
     filter_no_attributes: bool = True,
+    clean: bool = True,
     workers: int = 8,
     progress: bool = True,
     progress_leave: bool = False,
@@ -203,7 +239,7 @@ def crop_dataset(
         _require_cv2()
     _validate_crop_padding(padding)
     out_path = Path(out_dir)
-    out_path.mkdir(parents=True, exist_ok=True)
+    _prepare_vis_output_dir(dataset, out_path, clean=clean)
     worker_count = normalize_workers(workers)
 
     def crop_image(image: YoloImage) -> int:

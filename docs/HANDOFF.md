@@ -207,6 +207,7 @@ ydm ann delete-attr --root yolo --name defect --value yes --out yolo_attr_clean
 - 多线程渲染和进度条
 - `style=pil/cv2` 两种绘制风格，默认使用 `cv2`
 - `show_attrs=True, att_seperate=True` 时按 `attribute/level` 复制 draw 结果；`filter_no_attrs=True` 会跳过 `no` 等无效值目录
+- `vis draw` / `vis crop` 默认在运行前**清空输出目录**（`clean=True`），避免上次残留文件（如过期 crop）累积；Python 传 `clean=False` 或 CLI 加 `--no-clean` 可保留已有输出。清空带安全护栏：输出目录等于数据集根或其祖先、或与任一源 image/label 同目录时拒绝执行（抛 `ValueError`），防止误删源数据。
 
 典型命令：
 

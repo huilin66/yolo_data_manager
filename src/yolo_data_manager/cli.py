@@ -381,6 +381,7 @@ def build_parser() -> argparse.ArgumentParser:
     draw = vis_sub.add_parser("draw", help="draw labels on images")
     add_dataset_args(draw)
     draw.add_argument("--out", default=None, help="output image directory; defaults to <root>/ydm_vis/draw")
+    draw.add_argument("--no-clean", dest="clean", action="store_false", default=True, help="do not clear the output directory before rendering")
     draw.add_argument(
         "--style",
         choices=["pil", "cv2", "cv"],
@@ -405,6 +406,7 @@ def build_parser() -> argparse.ArgumentParser:
     crop = vis_sub.add_parser("crop", help="crop annotation regions into class folders")
     add_dataset_args(crop)
     crop.add_argument("--out", default=None, help="output crop directory; defaults to <root>/ydm_vis/crop")
+    crop.add_argument("--no-clean", dest="clean", action="store_false", default=True, help="do not clear the output directory before cropping")
     crop.add_argument(
         "--style",
         choices=["pil", "cv2", "cv"],
@@ -1274,6 +1276,7 @@ def handle_vis_draw(args: argparse.Namespace) -> int:
         show_txt_id=args.show_id,
         filter_no_attributes=args.filter_no_attrs,
         att_seperate=args.att_seperate,
+        clean=args.clean,
         workers=args.workers,
         progress=args.progress,
         progress_leave=args.progress_leave,
@@ -1298,6 +1301,7 @@ def handle_vis_crop(args: argparse.Namespace) -> int:
         confidence_threshold=args.conf,
         by_attribute=args.by_attr,
         filter_no_attributes=args.filter_no_attrs,
+        clean=args.clean,
         workers=args.workers,
         progress=args.progress,
         progress_leave=args.progress_leave,

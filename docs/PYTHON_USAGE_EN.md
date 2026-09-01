@@ -61,6 +61,7 @@ Most methods that load, write, validate, visualize, or evaluate datasets support
 mgr.check(workers=16)
 mgr.stats(only_val=True)
 mgr.vis_draw(out="images_vis", progress=False)
+mgr.vis_crop(clean=False)  # keep outputs from previous runs instead of clearing
 mgr.eval_error_analysis(pred_root="pred", out="error_report", review=True, workers=16)
 ```
 

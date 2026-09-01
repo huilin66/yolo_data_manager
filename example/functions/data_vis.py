@@ -17,6 +17,7 @@ def yolo_vis(
     draw_out: str | Path | None = None,
     crop_out: str | Path | None = None,
     only_val: bool = False,
+    clean: bool = True,
     workers: int = 8,
     show_id: bool = True,
     padding: float = 0,
@@ -26,6 +27,9 @@ def yolo_vis(
 ) -> int:
     """Render boxes and optionally crops for all data by default.
 
+    ``clean=True`` (default) clears the output directory before rendering /
+    cropping, so stale files from previous runs are removed; pass
+    ``clean=False`` to keep existing outputs.
     ``style`` accepts ``"cv2"`` (default, with ``"cv"`` as an alias) or
     ``"pil"``. Drawing and crop generation are separate operations; each uses
     the configured worker pool independently.
@@ -41,6 +45,7 @@ def yolo_vis(
         show_id=show_id,
         att_seperate=att_seperate,
         only_val=only_val,
+        clean=clean,
         **kwargs,
     )
     if crop:
@@ -50,5 +55,6 @@ def yolo_vis(
             workers=workers,
             padding=padding,
             only_val=only_val,
+            clean=clean,
         )
     return result

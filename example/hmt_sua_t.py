@@ -38,39 +38,37 @@ HMT_V4_DIR = r"/localnvme/data/bdd_hmt/hmt_t_update_v4"
 #     r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_t.yaml"
 # )
 DATA_DIR = Path(
-    r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_t_update_v4.yaml"
+    r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_t_update_v6.yaml"
 )
 
-PRED_RUNS_DIR = Path(r"/localnvme/project/aic_mdet/models/ultralytics/runs/detect")
+# PRED_RUNS_DIR = Path(r"/localnvme/project/aic_mdet/models/ultralytics/runs/detect")
+PRED_RUNS_DIR = Path(r"//localnvme/project/ultralytics/runs/detect")
 # PRED_NAME = "val-161"
 PRED_NAMES = [
-    "predict-9",
-    "predict-10",
-    # "val-219",
-    # "val-165",
-    # "val-166",
-    # "val-167",
-    # "val-168",
-    # "val-169",
+    # "predict-2",
+    # "predict-3",
+    # "predict-4",
+    # "predict-5",
+    # "predict-6",
+    "predict-13",
 ]
 LEAKAGE_ONLY_LIST = (
     "/localnvme/data/bdd_hmt/hmt_t_update_v3/train_leakage_loss_mask.txt"
 )
-PRED_DIR = "/localnvme/data/bdd_hmt/sua_t/ydm_evaluation/error_analysis/val-169/review/pred_txt"
-CROP_ROOT_LABEL = "/localnvme/data/bdd_hmt/sua_t/ydm_vis/crop_change"
-CROP_ROOT_PRED = (
-    "/localnvme/data/bdd_hmt/sua_t/ydm_evaluation/error_analysis/val-169/crop_change"
-)
+PRED_DIR = "/localnvme/data/bdd_hmt/hmt_t_update_v6/ydm_evaluation/error_analysis/predict-13/review/pred_txt"
+CROP_ROOT_LABEL = "/localnvme/data/bdd_hmt/hmt_t_update_v6/ydm_vis/crop_change"
+CROP_ROOT_PRED = "/localnvme/data/bdd_hmt/hmt_t_update_v6/ydm_evaluation/error_analysis/predict-13/crop_change"
 
 CROP_MAP_LABEL = {
-    os.path.join(CROP_ROOT_LABEL, "2_broken"): "Broken",
+    os.path.join(CROP_ROOT_LABEL, "2_l"): "Leakage",
+    os.path.join(CROP_ROOT_LABEL, "2_none"): "none",
 }
 
 CROP_MAP_PRED = {
-    os.path.join(CROP_ROOT_PRED, "2_h_high"): "Hollow High Risk",
-    os.path.join(CROP_ROOT_PRED, "2_h_low"): "Hollow Low Risk",
-    os.path.join(CROP_ROOT_PRED, "none_2_h_high"): "Hollow High Risk",
-    os.path.join(CROP_ROOT_PRED, "none_2_h_low"): "Hollow Low Risk",
+    # os.path.join(CROP_ROOT_PRED, "2_at"): "Abnormal Temperature",
+    os.path.join(CROP_ROOT_PRED, "2_h"): "Hollow",
+    os.path.join(CROP_ROOT_PRED, "2_l"): "Leakage",
+    # os.path.join(CROP_ROOT_PRED, "2_none"): "none",
 }
 MERGE_CLASS_MAP = {
     "Hollow": [
@@ -83,19 +81,26 @@ MERGE_CLASS_MAP = {
     ],
 }
 
-UPDATE_CLASS_MAP = {
-    "merge": {
-        "Hollow Confirmed": ["Hollow High Risk"],
-        "Hollow Suspected": ["Hollow Low Risk"],
-        "Leakage": ["Leakage High Risk"],
-    },
-    "drop": [
-        "background",
-        "Hollow High Risk Line",
-        "Temperature Medium Risk",
-        "Temperature High Risk",
-    ],
+# Per-class size filter applied in yolo_metric. `logic="and"` keeps a box
+# unless BOTH normalized width and height are < 0.05 (i.e. long & wide small).
+METRIC_CLASS_RULES = {
+    "Leakage": {"width": 0.05, "height": 0.03, "logic": "and"},
 }
+
+UPDATE_CLASS_MAP = {
+    # "merge": {
+    #     "Hollow Confirmed": ["Hollow High Risk"],
+    #     "Hollow Suspected": ["Hollow Low Risk"],
+    #     "Leakage": ["Leakage High Risk"],
+    # },
+    # "drop": [
+    #     "background",
+    #     "Hollow High Risk Line",
+    #     "Temperature Medium Risk",
+    #     "Temperature High Risk",
+    # ],
+}
+
 
 # Select operations by uncommenting names in RUN_LIST.
 RUN_LIST = [
@@ -106,8 +111,8 @@ RUN_LIST = [
     # "update",
     # "draw",
     # "resize",
-    # "update_class",
-    "update_class_by_label",
+    "update_class_by_pred",
+    # "update_class_by_label",
     # "split"
 ]
 
@@ -117,6 +122,7 @@ def main() -> None:
         yolo_sta(
             DATA_DIR,
             stats_list=["all"],
+            only_val=True,
         )
 
     if "vis" in RUN_LIST:
@@ -135,6 +141,7 @@ def main() -> None:
                 DATA_DIR,
                 PRED_RUNS_DIR,
                 pred_name,
+                # class_rules=METRIC_CLASS_RULES,
                 # merge_class_map=MERGE_CLASS_MAP,
                 # min_pixels=50,
             )
@@ -148,7 +155,7 @@ def main() -> None:
                 # only_val=True,
             )
 
-    if "update" in RUN_LIST:
+    if "update_class_by_pred" in RUN_LIST:
         for crops_dir, target_class in CROP_MAP_PRED.items():
             yolo_update_by_pred(
                 DATA_DIR,
