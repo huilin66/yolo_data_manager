@@ -28,7 +28,7 @@
 labels_backup/       label 写入前的时间戳备份
 ydm_quality/         check、query、duplicates、bad-images
 ydm_stats/           stats JSON、CSV、plots/
-ydm_vis/             draw/、crop/、manual_box/
+ydm_vis/             draw/、crop/、att_seperate/、manual_box/
 ydm_evaluation/      compare、review_pack、error_analysis、metrics
 ydm_dataset/         select、normalize、filter、merge
 ydm_annotation/      标注编辑输出和 report
@@ -205,13 +205,15 @@ ydm ann delete-attr --root yolo --name defect --value yes --out yolo_attr_clean
 - gallery
 - prediction threshold
 - 多线程渲染和进度条
-- 后续迁移现有 `data_vis/yolo_vis.py` 中更完整的 OpenCV 风格
+- `style=pil/cv2` 两种绘制风格，默认使用 `cv2`
+- `show_attrs=True, att_seperate=True` 时按 `attribute/level` 复制 draw 结果；`filter_no_attrs=True` 会跳过 `no` 等无效值目录
 
 典型命令：
 
 ```bash
 ydm vis draw --root yolo --out images_vis
 ydm vis draw --root yolo --out images_vis --show-conf --show-attrs --filter-no-attrs --mask-alpha 80
+ydm vis draw --root yolo --out images_vis --show-attrs --filter-no-attrs --att-seperate
 ydm vis draw --root yolo --out images_vis --show-id
 ydm vis crop --root yolo --out crops --by-attr
 ```

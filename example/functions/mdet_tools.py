@@ -88,14 +88,32 @@ def yolo_vis(
     crop: bool = False,
     output_name: str | None = None,
     style: str = "cv2",
+    show_attrs: bool = False,
+    filter_no_attrs: bool = False,
+    att_seperate: bool = False,
 ) -> dict[str, int]:
     """Render all configured modalities from the already-loaded manager."""
 
     if output_name is None:
-        rendered = mgr.vis_draw(style=style, workers=8, show_id=True)
+        rendered = mgr.vis_draw(
+            style=style,
+            workers=8,
+            show_id=True,
+            show_attrs=show_attrs,
+            filter_no_attrs=filter_no_attrs,
+            att_seperate=att_seperate,
+        )
     else:
         vis_dir = Path(mgr.root) / output_name
-        rendered = mgr.vis_draw(vis_dir / "full", style=style, workers=8, show_id=True)
+        rendered = mgr.vis_draw(
+            vis_dir / "full",
+            style=style,
+            workers=8,
+            show_id=True,
+            show_attrs=show_attrs,
+            filter_no_attrs=filter_no_attrs,
+            att_seperate=att_seperate,
+        )
     if crop:
         if output_name is None:
             mgr.vis_crop(style=style, workers=8)

@@ -24,6 +24,7 @@ def render_multimodal_dataset(
     workers: int = 8,
     progress: bool = True,
     progress_leave: bool = False,
+    att_seperate: bool = False,
 ) -> dict[str, int]:
     """Render every selected modality using the same already-parsed annotations."""
 
@@ -47,6 +48,8 @@ def render_multimodal_dataset(
             workers=workers,
             progress=progress,
             progress_leave=progress_leave,
+            att_seperate=att_seperate,
+            att_seperate_dir=output.parent / "att_seperate" / modality,
         )
         counts[modality] = len(view.images[:limit] if limit is not None else view.images)
     return counts

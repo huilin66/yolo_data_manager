@@ -3,6 +3,7 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import math
 from pathlib import Path
+import shutil
 import sys
 
 import numpy as np
@@ -99,6 +100,8 @@ def render_dataset(
     progress: bool = True,
     progress_leave: bool = False,
     style: str = "cv2",
+    att_seperate: bool = False,
+    att_seperate_dir: str | Path | None = None,
 ) -> None:
     visual_style = normalize_visual_style(style)
     if visual_style == "cv2":
@@ -107,6 +110,10 @@ def render_dataset(
     out_path.mkdir(parents=True, exist_ok=True)
     images = dataset.images[:limit] if limit is not None else dataset.images
     worker_count = normalize_workers(workers)
+    attribute_separate_path = None
+    if att_seperate and show_attributes:
+        attribute_separate_path = Path(att_seperate_dir) if att_seperate_dir is not None else out_path.parent / "att_seperate"
+        attribute_separate_path.mkdir(parents=True, exist_ok=True)
 
     def save_image(image: YoloImage) -> None:
         save_path = out_path / image.file_name
@@ -137,6 +144,15 @@ def render_dataset(
                 filter_no_attributes=filter_no_attributes,
             )
             _write_cv2_image(save_path, rendered)
+        if attribute_separate_path is not None:
+            _copy_attribute_separated_images(
+                dataset,
+                image,
+                save_path,
+                attribute_separate_path,
+                confidence_threshold=confidence_threshold,
+                filter_no_attributes=filter_no_attributes,
+            )
 
     if worker_count == 1:
         for image in iter_progress(images, enabled=progress, total=len(images), desc="vis draw", leave=progress_leave):
@@ -517,6 +533,43 @@ def _crop_image_cv2(
             _write_cv2_image(save_dir / f"{image.stem}_{idx + 1}{image.path.suffix}", crop)
             saved += 1
     return saved
+
+
+def _copy_attribute_separated_images(
+    dataset: YoloDataset,
+    image: YoloImage,
+    rendered_path: Path,
+    out_path: Path,
+    *,
+    confidence_threshold: float | None,
+    filter_no_attributes: bool,
+) -> None:
+    """Copy one rendered image into folders grouped by attribute and value."""
+
+    copied_targets: set[Path] = set()
+    for annotation in image.annotations:
+        if (
+            confidence_threshold is not None
+            and annotation.confidence is not None
+            and annotation.confidence < confidence_threshold
+        ):
+            continue
+        for attr_name, attr_value in _attribute_values(
+            dataset,
+            annotation,
+            filter_no=filter_no_attributes,
+        ):
+            target = (
+                out_path
+                / _safe_name(attr_name)
+                / _safe_name(str(attr_value))
+                / Path(image.file_name)
+            )
+            if target in copied_targets:
+                continue
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(rendered_path, target)
+            copied_targets.add(target)
 
 
 def _read_cv2_image(path: str | Path) -> np.ndarray:

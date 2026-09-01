@@ -25,7 +25,7 @@ The default output groups below a dataset root are:
 labels_backup/       timestamped backups before label writes
 ydm_quality/         check, query, duplicates, bad-images
 ydm_stats/           stats JSON, CSV files, plots/
-ydm_vis/             draw/, crop/, manual_box/
+ydm_vis/             draw/, crop/, att_seperate/, manual_box/
 ydm_evaluation/      compare, review_pack, error_analysis, metrics
 ydm_dataset/         select, normalize, filter, merge
 ydm_annotation/      annotation edits and reports
@@ -158,6 +158,8 @@ Supported:
 - confidence threshold
 - multi-threaded rendering
 - progress bars
+- `style=pil/cv2` rendering backends, with `cv2` as the default
+- `show_attrs=True, att_seperate=True` copies rendered images into `attribute/level` folders; `filter_no_attrs=True` skips `no` and other no-value folders
 
 ### Evaluation and Error Analysis
 

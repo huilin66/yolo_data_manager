@@ -19,8 +19,10 @@ def yolo_vis(
     only_val: bool = False,
     workers: int = 8,
     show_id: bool = True,
-    padding: int | float = 0,
+    padding: float = 0,
     style: str = "cv2",
+    att_seperate: bool = False,
+    **kwargs,
 ) -> int:
     """Render boxes and optionally crops for all data by default.
 
@@ -29,13 +31,17 @@ def yolo_vis(
     the configured worker pool independently.
     """
 
-    mgr = get_yolo_manager(dataset_input, layout="auto", init_check=False, init_layout=False)
+    mgr = get_yolo_manager(
+        dataset_input, layout="auto", init_check=False, init_layout=False
+    )
     result = mgr.vis_draw(
         draw_out,
         style=style,
         workers=workers,
         show_id=show_id,
+        att_seperate=att_seperate,
         only_val=only_val,
+        **kwargs,
     )
     if crop:
         result = mgr.vis_crop(

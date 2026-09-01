@@ -395,6 +395,11 @@ def build_parser() -> argparse.ArgumentParser:
     draw.add_argument("--show-attrs", action="store_true")
     draw.add_argument("--show-id", action="store_true", help="show annotation order id from YOLO txt before class name")
     draw.add_argument("--filter-no-attrs", action="store_true")
+    draw.add_argument(
+        "--att-seperate",
+        action="store_true",
+        help="copy rendered images into attribute/value folders beside draw; requires --show-attrs",
+    )
     draw.set_defaults(fill_mask=True)
     draw.set_defaults(handler=handle_vis_draw)
     crop = vis_sub.add_parser("crop", help="crop annotation regions into class folders")
@@ -1268,6 +1273,7 @@ def handle_vis_draw(args: argparse.Namespace) -> int:
         show_attributes=args.show_attrs,
         show_txt_id=args.show_id,
         filter_no_attributes=args.filter_no_attrs,
+        att_seperate=args.att_seperate,
         workers=args.workers,
         progress=args.progress,
         progress_leave=args.progress_leave,

@@ -133,6 +133,7 @@ mgr.ann_correct_from_error_crops(
 
 # 可视化
 mgr.vis_draw(out="images_vis", show_conf=True, show_attrs=True, style="cv2")  # 默认使用 cv2，也可使用 style="pil"
+mgr.vis_draw(out="images_vis", show_attrs=True, filter_no_attrs=True, att_seperate=True)
 mgr.vis_draw(out="images_vis", conf=0.25, fill_mask=True, mask_alpha=64)
 mgr.vis_draw(out="images_vis", show_id=True)  # 显示 txt 中从 1 开始的标注顺序号
 mgr.vis_draw(out="images_vis", workers=16)

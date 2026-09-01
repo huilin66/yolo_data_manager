@@ -36,7 +36,7 @@ python -m pytest -q
 | Annotation edits | Delete, replace, merge, rename classes; set/delete attributes | `compact`, `dry_run`, `report` |
 | Dataset operations | select, split, merge, filter, resize, yaml, duplicate/bad-image checks | `train`, `val`, `absolute_paths`, `class_rules` |
 | Statistics | Class distribution, object counts, box shapes, image shapes, attributes, plots | `stats_list`, `plots_dir`, `ann_csv` |
-| Visualization | Draw boxes/masks, show confidence/attributes/txt order id, crop objects, temporary manual boxes | `show_id`, `show_conf`, `workers` |
+| Visualization | Draw boxes/masks, show confidence/attributes/txt order id, crop objects, attribute-separated image groups, temporary manual boxes | `show_id`, `show_conf`, `att_seperate`, `workers` |
 | Import/export | Convert between YOLO and LabelMe/COCO/VOC/masks/x-anylabeling | `class_map`, `background`, `min_area` |
 | Evaluation | Compare GT vs predictions, build FP/FN review packs, error analysis, confusion matrix | `match_iou`, `low_iou`, `review_workers` |
 
@@ -63,6 +63,7 @@ mgr_yaml = YoloManager(r"E:\repository\yolo8\ultralytics\cfg\datasets\data_fire.
 mgr.check(fill_missing_txt=True)
 mgr.stats(stats_list=["all"])
 mgr.vis_draw(show_id=True, show_conf=True, style="cv2")
+mgr.vis_draw(show_attrs=True, filter_no_attrs=True, att_seperate=True)
 
 mgr.dataset_filter(
     min_width=0.01,
@@ -109,6 +110,7 @@ ydm check --root path/to/yolo --layout auto --fill-missing-txt --out validation.
 ydm stats --root path/to/yolo --stats-list all
 ydm vis draw --root path/to/yolo --show-id --show-conf
 ydm vis draw --root path/to/yolo --style cv2
+ydm vis draw --root path/to/yolo --show-attrs --filter-no-attrs --att-seperate
 ydm vis crop --root path/to/yolo --style cv2 --workers 16
 ydm vis manual-box --root path/to/yolo --image images/0001.jpg --class-id 5
 ydm dataset filter --root path/to/yolo --min-width 0.01 --min-height 0.01 --min-size-logic and
