@@ -25,7 +25,7 @@ The default output groups below a dataset root are:
 labels_backup/       timestamped backups before label writes
 ydm_quality/         check, query, duplicates, bad-images
 ydm_stats/           stats JSON, CSV files, plots/
-ydm_vis/             draw/, crop/, att_seperate/, manual_box/
+ydm_vis/             draw/, crop/, att_seperate/(attribute_crop/), manual_box/
 ydm_evaluation/      compare, review_pack, error_analysis, metrics
 ydm_dataset/         select, normalize, filter, merge
 ydm_annotation/      annotation edits and reports
@@ -159,7 +159,7 @@ Supported:
 - multi-threaded rendering
 - progress bars
 - `style=pil/cv2` rendering backends, with `cv2` as the default
-- `show_attrs=True, att_seperate=True` copies rendered images into `attribute/level` folders; `filter_no_attrs=True` skips `no` and other no-value folders
+- `show_attrs=True, att_seperate=True` copies rendered images into `attribute/level` folders; `vis_crop(..., att_seperate=True)` adds `att_seperate/attribute_crop/` grouped from the actual crop files rather than draw files; `filter_no_attrs=True` skips `no` and other no-value folders
 - `vis draw` / `vis crop` clear the output directory before running by default (`clean=True`), so stale files from previous runs (e.g. outdated crops) do not accumulate; pass `clean=False` in Python or `--no-clean` in the CLI to keep existing outputs. The cleanup is guarded: it refuses to clear a directory that is the dataset root (or an ancestor) or that contains source images/labels (raises `ValueError`), so source data cannot be deleted accidentally.
 
 ### Evaluation and Error Analysis

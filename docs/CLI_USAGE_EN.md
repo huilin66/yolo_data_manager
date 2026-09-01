@@ -212,6 +212,7 @@ ydm vis draw --root path/to/yolo --out images_vis --show-id
 ydm vis draw --root path/to/yolo --out images_vis --workers 16
 ydm vis draw --root path/to/yolo --out images_vis --no-progress
 ydm vis crop --root path/to/yolo --out crops --by-attr
+ydm vis crop --root path/to/yolo --out crops --att-seperate
 ydm vis crop --root path/to/yolo --out crops --workers 16
 ydm vis draw --root path/to/yolo --out images_vis --no-clean
 ydm vis crop --root path/to/yolo --out crops --no-clean

@@ -114,7 +114,7 @@ def render_dataset(
     attribute_separate_path = None
     if att_seperate and show_attributes:
         attribute_separate_path = Path(att_seperate_dir) if att_seperate_dir is not None else out_path.parent / "att_seperate"
-        attribute_separate_path.mkdir(parents=True, exist_ok=True)
+        _prepare_vis_output_dir(dataset, attribute_separate_path, clean=clean)
 
     def save_image(image: YoloImage) -> None:
         save_path = out_path / image.file_name
@@ -233,6 +233,8 @@ def crop_dataset(
     progress: bool = True,
     progress_leave: bool = False,
     style: str = "cv2",
+    att_seperate: bool = False,
+    att_seperate_dir: str | Path | None = None,
 ) -> int:
     visual_style = normalize_visual_style(style)
     if visual_style == "cv2":
@@ -240,6 +242,11 @@ def crop_dataset(
     _validate_crop_padding(padding)
     out_path = Path(out_dir)
     _prepare_vis_output_dir(dataset, out_path, clean=clean)
+    attribute_crop_path = None
+    if att_seperate:
+        attribute_root = Path(att_seperate_dir) if att_seperate_dir is not None else out_path.parent / "att_seperate"
+        attribute_crop_path = attribute_root / "attribute_crop"
+        _prepare_vis_output_dir(dataset, attribute_crop_path, clean=clean)
     worker_count = normalize_workers(workers)
 
     def crop_image(image: YoloImage) -> int:
@@ -252,8 +259,19 @@ def crop_dataset(
             filter_no_attributes=filter_no_attributes,
         )
         if visual_style == "pil":
-            return _crop_image(dataset, image, out_path, **crop_kwargs)
-        return _crop_image_cv2(dataset, image, out_path, **crop_kwargs)
+            saved = _crop_image(dataset, image, out_path, **crop_kwargs)
+        else:
+            saved = _crop_image_cv2(dataset, image, out_path, **crop_kwargs)
+        if attribute_crop_path is not None:
+            _copy_attribute_crops_for_image(
+                dataset,
+                image,
+                out_path,
+                attribute_crop_path,
+                confidence_threshold=confidence_threshold,
+                filter_no_attributes=filter_no_attributes,
+            )
+        return saved
 
     if worker_count == 1:
         return sum(
@@ -605,6 +623,53 @@ def _copy_attribute_separated_images(
                 continue
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(rendered_path, target)
+            copied_targets.add(target)
+
+
+def _copy_attribute_crops_for_image(
+    dataset: YoloDataset,
+    image: YoloImage,
+    crop_path: Path,
+    out_path: Path,
+    *,
+    confidence_threshold: float | None,
+    filter_no_attributes: bool,
+) -> None:
+    """Copy generated class crops into attribute/value folders.
+
+    The source is always the crop output, never the full rendered image.  A
+    missing crop file means that the annotation was skipped by crop filters or
+    was outside the valid image area, so it is not copied.
+    """
+
+    copied_targets: set[Path] = set()
+    for annotation_idx, annotation in enumerate(image.annotations):
+        if (
+            confidence_threshold is not None
+            and annotation.confidence is not None
+            and annotation.confidence < confidence_threshold
+        ):
+            continue
+        class_crop = crop_path / dataset.class_name(annotation.class_id) / (
+            f"{image.stem}_{annotation_idx + 1}{image.path.suffix}"
+        )
+        if not class_crop.is_file():
+            continue
+        for attr_name, attr_value in _attribute_values(
+            dataset,
+            annotation,
+            filter_no=filter_no_attributes,
+        ):
+            target = (
+                out_path
+                / _safe_name(attr_name)
+                / _safe_name(str(attr_value))
+                / class_crop.name
+            )
+            if target in copied_targets:
+                continue
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(class_crop, target)
             copied_targets.add(target)
 
 

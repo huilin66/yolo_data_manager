@@ -94,6 +94,7 @@ def yolo_vis(
 ) -> dict[str, int]:
     """Render all configured modalities from the already-loaded manager."""
 
+    separate_attributes = att_seperate and show_attrs
     if output_name is None:
         rendered = mgr.vis_draw(
             style=style,
@@ -101,7 +102,7 @@ def yolo_vis(
             show_id=True,
             show_attrs=show_attrs,
             filter_no_attrs=filter_no_attrs,
-            att_seperate=att_seperate,
+            att_seperate=separate_attributes,
         )
     else:
         vis_dir = Path(mgr.root) / output_name
@@ -112,11 +113,22 @@ def yolo_vis(
             show_id=True,
             show_attrs=show_attrs,
             filter_no_attrs=filter_no_attrs,
-            att_seperate=att_seperate,
+            att_seperate=separate_attributes,
         )
     if crop:
         if output_name is None:
-            mgr.vis_crop(style=style, workers=8)
+            mgr.vis_crop(
+                style=style,
+                workers=8,
+                filter_no_attrs=filter_no_attrs,
+                att_seperate=separate_attributes,
+            )
         else:
-            mgr.vis_crop(vis_dir / "crops", style=style, workers=8)
+            mgr.vis_crop(
+                vis_dir / "crops",
+                style=style,
+                workers=8,
+                filter_no_attrs=filter_no_attrs,
+                att_seperate=separate_attributes,
+            )
     return rendered

@@ -139,6 +139,7 @@ mgr.vis_draw(out="images_vis", show_id=True)  # 显示 txt 中从 1 开始的标
 mgr.vis_draw(out="images_vis", workers=16)
 mgr.vis_draw(out="images_vis", progress=False)
 mgr.vis_crop(out="crops", by_attr=True, min_size=32)
+mgr.vis_crop(out="crops", filter_no_attrs=True, att_seperate=True)  # 从 crop 结果复制到 att_seperate/attribute_crop
 mgr.vis_crop(out="crops", workers=16)
 mgr.vis_crop(out="crops", padding=20)    # 每边增加 20 像素
 mgr.vis_crop(out="crops", padding=0.2)   # 每边增加 box 宽/高的 20%

@@ -70,6 +70,7 @@ def crop_multimodal_dataset(
     workers: int = 8,
     progress: bool = True,
     progress_leave: bool = False,
+    att_seperate: bool = False,
 ) -> dict[str, int]:
     """Crop objects for each selected modality without reparsing label files."""
 
@@ -87,6 +88,8 @@ def crop_multimodal_dataset(
             confidence_threshold=confidence_threshold,
             by_attribute=by_attribute,
             filter_no_attributes=filter_no_attributes,
+            att_seperate=att_seperate,
+            att_seperate_dir=output.parent / "att_seperate" / modality,
             workers=workers,
             progress=progress,
             progress_leave=progress_leave,

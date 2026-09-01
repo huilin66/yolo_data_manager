@@ -20,6 +20,8 @@ def yolo_vis(
     clean: bool = True,
     workers: int = 8,
     show_id: bool = True,
+    show_attrs: bool = False,
+    filter_no_attrs: bool = False,
     padding: float = 0,
     style: str = "cv2",
     att_seperate: bool = False,
@@ -38,12 +40,15 @@ def yolo_vis(
     mgr = get_yolo_manager(
         dataset_input, layout="auto", init_check=False, init_layout=False
     )
+    separate_attributes = att_seperate and show_attrs
     result = mgr.vis_draw(
         draw_out,
         style=style,
         workers=workers,
         show_id=show_id,
-        att_seperate=att_seperate,
+        show_attrs=show_attrs,
+        filter_no_attrs=filter_no_attrs,
+        att_seperate=separate_attributes,
         only_val=only_val,
         clean=clean,
         **kwargs,
@@ -54,6 +59,8 @@ def yolo_vis(
             style=style,
             workers=workers,
             padding=padding,
+            filter_no_attrs=filter_no_attrs,
+            att_seperate=separate_attributes,
             only_val=only_val,
             clean=clean,
         )

@@ -140,7 +140,64 @@ def test_attribute_separate_copies_drawn_images_and_filters_no(tmp_path, style):
     )
 
 
+@pytest.mark.parametrize("style", ["pil", "cv2"])
+def test_attribute_separate_copies_crops_into_attribute_crop(tmp_path, style):
+    root = tmp_path / "attribute_crops"
+    (root / "images").mkdir(parents=True)
+    (root / "labels").mkdir(parents=True)
+    Image.new("RGB", (100, 80), color="white").save(root / "images" / "yes.jpg")
+    (root / "class.txt").write_text("object\n", encoding="utf-8")
+    (root / "attribute.yaml").write_text(
+        "attributes:\n  defect: [no, yes]\n",
+        encoding="utf-8",
+    )
+    (root / "labels" / "yes.txt").write_text(
+        "0 1 1 0.5 0.5 0.4 0.4\n",
+        encoding="utf-8",
+    )
+    dataset = load_yolo_dataset(root, progress=False)
+    draw_dir = tmp_path / "ydm_vis" / "draw"
+    crop_dir = tmp_path / "ydm_vis" / "crop"
+
+    render_dataset(
+        dataset,
+        draw_dir,
+        style=style,
+        show_attributes=True,
+        filter_no_attributes=True,
+        att_seperate=True,
+        workers=1,
+        progress=False,
+    )
+    crop_dataset(
+        dataset,
+        crop_dir,
+        style=style,
+        filter_no_attributes=True,
+        att_seperate=True,
+        workers=1,
+        progress=False,
+    )
+
+    separated_dir = tmp_path / "ydm_vis" / "att_seperate"
+    source_crop = crop_dir / "object" / "yes_1.jpg"
+    attribute_crop = separated_dir / "attribute_crop" / "defect" / "yes" / "yes_1.jpg"
+    assert source_crop.exists()
+    assert attribute_crop.exists()
+    assert not (separated_dir / "attribute_crop" / "defect" / "no").exists()
+    assert attribute_crop.read_bytes() == source_crop.read_bytes()
+    with Image.open(draw_dir / "yes.jpg") as drawn, Image.open(attribute_crop) as cropped:
+        assert drawn.size == (100, 80)
+        assert cropped.size == (40, 32)
+
+
 def test_attribute_separate_argument_is_forwarded_to_cli():
     argv = build_task_argv("vis.draw", root="dataset", att_seperate=True)
+
+    assert "--att-seperate" in argv
+
+
+def test_attribute_crop_argument_is_forwarded_to_cli():
+    argv = build_task_argv("vis.crop", root="dataset", att_seperate=True)
 
     assert "--att-seperate" in argv

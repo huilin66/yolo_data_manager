@@ -408,6 +408,11 @@ def build_parser() -> argparse.ArgumentParser:
     crop.add_argument("--out", default=None, help="output crop directory; defaults to <root>/ydm_vis/crop")
     crop.add_argument("--no-clean", dest="clean", action="store_false", default=True, help="do not clear the output directory before cropping")
     crop.add_argument(
+        "--att-seperate",
+        action="store_true",
+        help="copy generated crops into attribute/value folders under att_seperate",
+    )
+    crop.add_argument(
         "--style",
         choices=["pil", "cv2", "cv"],
         default="cv2",
@@ -1301,6 +1306,7 @@ def handle_vis_crop(args: argparse.Namespace) -> int:
         confidence_threshold=args.conf,
         by_attribute=args.by_attr,
         filter_no_attributes=args.filter_no_attrs,
+        att_seperate=args.att_seperate,
         clean=args.clean,
         workers=args.workers,
         progress=args.progress,

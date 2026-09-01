@@ -64,6 +64,7 @@ mgr.check(fill_missing_txt=True)
 mgr.stats(stats_list=["all"])
 mgr.vis_draw(show_id=True, show_conf=True, style="cv2")
 mgr.vis_draw(show_attrs=True, filter_no_attrs=True, att_seperate=True)
+mgr.vis_crop(out="crops", filter_no_attrs=True, att_seperate=True)  # crops are copied into att_seperate/attribute_crop
 
 mgr.dataset_filter(
     min_width=0.01,
