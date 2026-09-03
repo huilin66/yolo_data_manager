@@ -225,6 +225,7 @@ ydm vis crop --root yolo --out crops --by-attr
 - 输出 TP/FP/FN 明细 CSV
 - 支持 confidence threshold
 - 细粒度错误分析：background FP、localisation FP、duplicate prediction、class error、FN 子类型
+- 属性错误分析：对一对一匹配成功的同类框逐属性比较，输出 `attribute_error.csv` 和可选的属性错误 review pack；外部预测 label 可共享 GT 的 `attribute.yaml`
 - 生成 Ultralytics 风格完整混淆矩阵，包含 `background`
 - review 目录按 `pred_<预测类别>_gt_<真实类别>` 组织，包含 background 情况
 - review crop 文件名使用 `原图名_pred预测txt顺序id_gtGTtxt顺序id`

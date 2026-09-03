@@ -289,6 +289,7 @@ ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --val-source val
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --names class.txt --class car,bus --exclude-class ignore --min-width 0.01 --min-height 0.01 --min-size-logic and --min-pixels 8 --out error_report
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --names class.txt --class-rules error_rules.yaml --out error_report
 ydm eval error-analysis --gt-root gt_labels --pred-root pred_labels --names class.txt --out error_report
+ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --attribute-file gt_yolo/attribute.yaml --out error_report --review
 ```
 
 `eval metrics` 计算 Precision、Recall、mAP@0.5、mAP@0.5:0.95。`--class` 只评估指定类别，`--exclude-class` 单独排除指定类别；两者可同时使用，未选/被排除类别的 GT 和预测都会被忽略。`--merge-class-map` 接受目标类别到原始类别列表的 JSON/YAML 映射，也可以传入映射文件，例如 `{"vehicle":["car","truck"]}`；映射会同时作用于 GT 和预测，并在类别选择、匹配和统计前生效。设置 `--show-original` 时，如果使用了类别、合并、`--class-rules` 或 `--min-pixels` 参数，会在最终结果前输出原始结果；原始结果不应用这些筛选/合并参数，但保留其他过滤参数。JSON 输出为 `detection_metrics_comparison`，包含 `original` 和 `final`；`--out` 文件仍写入最终结果。默认不输出、不计入 `Instances=0` 的类别；如需保留这些空 GT 类用于排查误检，可加 `--include-empty-classes`。小目标过滤可使用 `--min-width`、`--min-height`、`--min-area`、`--min-size-logic`，或按像素使用 `--min-pixels`。加 `--print-table` 可输出接近 Ultralytics 的对齐表格，方便人工对比。
@@ -308,6 +309,7 @@ metrics 还会按 COCO 风格的像素面积输出 small、medium、large 目标
 `eval error-analysis` 支持 `--class` 只保留指定类别，`--exclude-class` 独立排除类别；`--min-width`、`--min-height`、`--min-area`、`--min-size-logic` 和 `--min-pixels` 会同时过滤 GT 与预测。宽高/面积使用归一化 YOLO 尺寸，`--min-pixels` 按像素宽度或高度判断。仍兼容旧参数 `--review-workers`、`--review-progress`、`--review-progress-leave`；新脚本建议直接使用统一运行参数。
 `--class-rules` 接收 YAML/JSON 文件，按类别覆盖全局尺寸规则；规则字段可使用 `width`、`height`、`logic`，未配置的类别使用全局参数。
 两个评估命令默认按类别执行置信度优先的 NMS，阈值为 `--nms-iou 0.5`；使用 `--no-nms` 可关闭。
+如果存在 `attribute.yaml`/`attributes.yaml`，或显式指定 `--attribute-file`，错误分析会在一对一匹配成功的同类框上逐属性比较，并写出 `attribute_error.csv`。使用 `--review` 时，属性错误位于 `review/attribute_error/attribute_<属性名>/gt_<GT值>_pred_<预测值>/images` 和 `crops`；外部预测 label 目录会共享 GT 的属性 schema。未匹配框不会重复计入属性错误。
 
 review 输出：
 
@@ -319,6 +321,11 @@ review/
       images/
       crops/
   pred_txt/
+  attribute_error/
+    attribute_defect/
+      gt_yes_pred_no/
+        images/
+        crops/
 ```
 
 crop 文件名格式：

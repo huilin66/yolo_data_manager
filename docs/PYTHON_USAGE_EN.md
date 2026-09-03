@@ -313,6 +313,12 @@ mgr.eval_error_analysis(pred_root="datasets/pred_labels", out="error_report")
 mgr.eval_error_analysis(
     pred_root="datasets/pred_labels",
     out="error_report",
+    attribute_file="datasets/gt/attribute.yaml",
+    review=True,
+)
+mgr.eval_error_analysis(
+    pred_root="datasets/pred_labels",
+    out="error_report",
     match_iou=0.5,
     low_iou=0.1,
     conf_thres=0.25,
@@ -352,6 +358,7 @@ When `gt_root` or `class_file` is omitted, `YoloManager` falls back to the manag
 `eval_error_analysis` supports the same class and size filters: `class_` selects classes, `exclude_class_` excludes classes, and `min_width`, `min_height`, `min_area`, `min_size_logic`, and `min_pixels` filter both GT and predictions. Width and height/area use normalized YOLO coordinates; `min_pixels` checks pixel width or height.
 `class_rules` overrides the global size rule per class using `width`, `height`, and `logic`; classes without a rule continue to use the global parameters.
 `eval_error_analysis` and `eval_metrics` apply confidence-prioritized, class-aware NMS first by default (`nms_iou=0.5`), then use the same one-to-one IoU matching rule. Pass `nms_iou=None` to disable NMS; disabled-NMS duplicates are marked as `duplicate_prediction` in error analysis and counted as FPs in metrics.
+When `attribute.yaml` is found or `attribute_file` is supplied, error analysis compares each attribute only on a matched same-class box pair. Mismatches and missing values are written to `attribute_error.csv`; with `review=True`, visual results are grouped under `review/attribute_error/attribute_<name>/gt_<gt_value>_pred_<pred_value>/images` and `crops`. For an external prediction-label directory, the GT schema is shared with predictions. Unmatched boxes remain class/geometry errors and are not counted again as attribute errors.
 
 ## Multimodal YOLO Datasets
 

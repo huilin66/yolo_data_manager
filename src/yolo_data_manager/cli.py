@@ -27,7 +27,7 @@ from yolo_data_manager.dataset.merge import merge_datasets
 from yolo_data_manager.dataset.quality import find_bad_images, write_image_quality_csv
 from yolo_data_manager.dataset.select import select_from_file
 from yolo_data_manager.dataset.split import class_counts_for_images, split_dataset
-from yolo_data_manager.core.schema import write_dataset_yaml
+from yolo_data_manager.core.schema import find_attribute_file, write_dataset_yaml
 from yolo_data_manager.io.layout import detect_layout
 from yolo_data_manager.io.loader import load_yolo_dataset
 from yolo_data_manager.io.output_paths import (
@@ -53,15 +53,19 @@ from yolo_data_manager.vis.renderer import crop_dataset, render_dataset
 from yolo_data_manager.evaluation.compare import compare_datasets, write_compare_csv
 from yolo_data_manager.evaluation.error_analysis import (
     analyze_errors,
+    analyze_attribute_errors,
     collect_stems_from_source,
     copy_prediction_txt_to_review,
     find_duplicate_gt,
     filter_error_analysis_datasets,
     load_error_analysis_dataset,
+    print_attribute_error_summary,
     print_error_summary,
     write_duplicate_gt_csv,
+    write_attribute_error_csv,
     write_error_csvs,
     write_error_review_pack,
+    write_attribute_error_review_pack,
 )
 from yolo_data_manager.evaluation.metrics import (
     compute_detection_metrics,
@@ -590,7 +594,7 @@ def build_parser() -> argparse.ArgumentParser:
     review.set_defaults(handler=handle_eval_review_pack)
     error_analysis = eval_sub.add_parser(
         "error-analysis",
-        help="fine-grained error analysis: FP/FN sub-types, class errors, duplicate GT",
+        help="fine-grained error analysis: FP/FN sub-types, class/attribute errors, duplicate GT",
     )
     error_analysis.add_argument("--gt-root", required=True)
     error_analysis.add_argument("--pred-root", required=True)
@@ -613,6 +617,7 @@ def build_parser() -> argparse.ArgumentParser:
     error_analysis.add_argument("--only-val", action="store_true", help="use the dataset validation split; default is all data")
     error_analysis.add_argument("--class-file", default=None, help="optional class names file; supports 'id name' or one name per line")
     error_analysis.add_argument("--names", dest="class_file", default=None, help="alias of --class-file")
+    error_analysis.add_argument("--attribute-file", default=None, help="optional attribute schema YAML; shared by GT and predictions")
     error_analysis.add_argument("--review", action="store_true", help="write visual review images and box crops grouped by error type")
     error_analysis.add_argument("--crop-padding", type=int, default=12, help="pixel padding around review crops")
     error_analysis.add_argument("--review-workers", type=int, default=None, help="legacy alias for review visualization workers; defaults to --workers")
@@ -1576,6 +1581,32 @@ def _eval_load_kwargs(args: argparse.Namespace) -> dict:
     }
 
 
+def _resolve_eval_attribute_file(
+    gt_root: str | Path,
+    pred_root: str | Path,
+    explicit: str | Path | None,
+) -> str | Path | None:
+    """Find one attribute schema to parse both GT and prediction labels."""
+
+    if explicit is not None:
+        return explicit
+    checked: set[Path] = set()
+    for raw_root in (gt_root, pred_root):
+        root = Path(raw_root)
+        candidates = [root if root.is_dir() else root.parent]
+        if root.is_dir() and root.name.lower() in {"label", "labels"}:
+            candidates.append(root.parent)
+        for candidate in candidates:
+            candidate = candidate.resolve()
+            if candidate in checked:
+                continue
+            checked.add(candidate)
+            attribute_file = find_attribute_file(candidate)
+            if attribute_file is not None:
+                return attribute_file
+    return None
+
+
 def handle_eval_compare(args: argparse.Namespace) -> int:
     kw = _eval_load_kwargs(args)
     gt = load_yolo_dataset(args.gt_root, **kw)
@@ -1616,6 +1647,11 @@ def handle_eval_error_analysis(args: argparse.Namespace) -> int:
     )
     val_source = _resolve_eval_val_source(args.gt_root, args.val_source, getattr(args, "only_val", False))
     stems = collect_stems_from_source(val_source)
+    attribute_file = _resolve_eval_attribute_file(
+        args.gt_root,
+        args.pred_root,
+        getattr(args, "attribute_file", None),
+    )
     gt = load_error_analysis_dataset(
         args.gt_root,
         task=args.task,
@@ -1623,6 +1659,7 @@ def handle_eval_error_analysis(args: argparse.Namespace) -> int:
         images_dir=args.images_dir,
         labels_dir=args.labels_dir,
         class_file=args.class_file,
+        attribute_file=attribute_file,
         stems=stems,
         workers=args.workers,
         progress=args.progress,
@@ -1635,6 +1672,8 @@ def handle_eval_error_analysis(args: argparse.Namespace) -> int:
         images_dir=args.images_dir,
         labels_dir=args.labels_dir,
         class_file=args.class_file,
+        attribute_file=attribute_file,
+        attributes=gt.attributes,
         stems=stems,
         workers=args.workers,
         progress=args.progress,
@@ -1684,8 +1723,16 @@ def handle_eval_error_analysis(args: argparse.Namespace) -> int:
         conf_thres=args.conf_thres,
         nms_iou=args.nms_iou,
     )
+    attribute_error_rows, attribute_summary = analyze_attribute_errors(
+        gt,
+        pred,
+        match_iou=args.match_iou,
+        conf_thres=args.conf_thres,
+        nms_iou=args.nms_iou,
+    )
     dup_rows = find_duplicate_gt(gt, duplicate_iou=args.duplicate_iou)
     write_error_csvs(error_rows, out)
+    write_attribute_error_csv(attribute_error_rows, out)
     write_duplicate_gt_csv(dup_rows, out)
     review_counts = (
         write_error_review_pack(
@@ -1701,15 +1748,33 @@ def handle_eval_error_analysis(args: argparse.Namespace) -> int:
         if args.review
         else {}
     )
+    attribute_review_counts = (
+        write_attribute_error_review_pack(
+            attribute_error_rows,
+            gt,
+            pred,
+            out,
+            crop_padding=args.crop_padding,
+            workers=args.review_workers if args.review_workers is not None else args.workers,
+            progress=args.review_progress or args.progress,
+            progress_leave=args.review_progress_leave or args.progress_leave,
+        )
+        if args.review
+        else {}
+    )
     copied_pred_txt = copy_prediction_txt_to_review(pred, out, stems=stems) if args.copy_pred_txt else []
     print_error_summary(error_rows, dup_rows)
+    print_attribute_error_summary(attribute_error_rows, attribute_summary)
     print(
         json.dumps(
             {
                 "summary": summary,
+                "attribute_summary": attribute_summary,
+                "attribute_error_count": len(attribute_error_rows),
                 "nms_iou": args.nms_iou,
                 "duplicate_gt_pairs": len(dup_rows),
                 "review": review_counts,
+                "attribute_review": attribute_review_counts,
                 "pred_txt_copied": len(copied_pred_txt),
                 "out": out,
             },

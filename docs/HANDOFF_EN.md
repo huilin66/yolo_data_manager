@@ -177,6 +177,7 @@ Supported:
   - FN class error
   - FN low IoU
   - FN no prediction
+- attribute error analysis on one-to-one matched same-class boxes, with `attribute_error.csv` and an optional attribute-error review pack; external prediction labels can share the GT `attribute.yaml`
 - duplicate GT detection
 - Ultralytics-style confusion matrix with `background`
 - `review/pred_gt/pred_<pred_class>_gt_<gt_class>` folders

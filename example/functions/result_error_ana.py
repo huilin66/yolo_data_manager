@@ -30,6 +30,7 @@ def yolo_error_ana(
     min_size_logic: str = "or",
     min_pixels: float | None = None,
     class_rules: Mapping[str | int, Mapping[str, Any]] | str | Path | None = None,
+    attribute_file: str | Path | None = None,
     out: str | Path | None = None,
     **kwargs: Any,
 ) -> int:
@@ -65,6 +66,7 @@ def yolo_error_ana(
         min_size_logic=min_size_logic,
         min_pixels=min_pixels,
         class_rules=class_rules,
+        attribute_file=attribute_file,
         workers=workers,
         **kwargs,
     )

@@ -3,7 +3,8 @@
 Categorises every unmatched prediction and ground-truth annotation into
 detailed error subtypes (background FP, localisation FP, duplicate
 prediction, class-error, missed-due-to-class-error, missed-due-to-low-iou,
-missed-no-prediction) and detects duplicate / overlapping GT annotations.
+missed-no-prediction), detects duplicate / overlapping GT annotations, and
+compares attributes on matched same-class pairs.
 
 The one-to-one matching logic is shared with ``eval_metrics``.
 """
@@ -24,9 +25,16 @@ from typing import Any
 import numpy as np
 from PIL import Image, ImageDraw
 
-from yolo_data_manager.core.models import ClassSchema, YoloAnnotation, YoloDataset, YoloImage, is_image_file
+from yolo_data_manager.core.models import (
+    AttributeSchema,
+    ClassSchema,
+    YoloAnnotation,
+    YoloDataset,
+    YoloImage,
+    is_image_file,
+)
 from yolo_data_manager.core.errors import ClassNotFoundError
-from yolo_data_manager.core.schema import read_class_schema
+from yolo_data_manager.core.schema import read_attribute_schema, read_class_schema
 from yolo_data_manager.io.loader import load_yolo_dataset, parse_label_file
 from yolo_data_manager.evaluation.matching import (
     annotation_box_xyxy,
@@ -64,6 +72,11 @@ FN_LOW_IOU = "fn_low_iou"
 #: Unmatched GT with no prediction above low_iou – the model completely
 #: missed this object.
 FN_NO_PRED = "fn_no_pred"
+#: A matched prediction and GT have different attribute values.
+ATTRIBUTE_ERROR = "attribute_error"
+ATTRIBUTE_VALUE_MISMATCH = "attribute_value_mismatch"
+ATTRIBUTE_MISSING_IN_PRED = "attribute_missing_in_prediction"
+ATTRIBUTE_MISSING_IN_GT = "attribute_missing_in_gt"
 
 # ---------------------------------------------------------------------------
 # Data structures
@@ -116,6 +129,29 @@ class ErrorDetail:
 
     gt_idx: int | None = None
     """Index of this GT within its label file."""
+
+
+@dataclass
+class AttributeErrorDetail:
+    """A single attribute mismatch on a matched GT/prediction pair."""
+
+    image: str
+    attribute_name: str
+    error_type: str
+    gt_value: Any = None
+    pred_value: Any = None
+    class_id: int = -1
+    class_name: str = ""
+    pred_class_id: int | None = None
+    pred_class_name: str | None = None
+    pred_conf: float | None = None
+    best_iou: float = 0.0
+    pred_box_xyxy: str | None = None
+    gt_box_xyxy: str | None = None
+    pred_line: str | None = None
+    gt_line: str | None = None
+    pred_idx: int | None = None
+    gt_idx: int | None = None
 
 
 @dataclass
@@ -207,6 +243,8 @@ def load_error_analysis_dataset(
     images_dir: str | Path = "images",
     labels_dir: str | Path = "labels",
     class_file: str | Path | None = None,
+    attribute_file: str | Path | None = None,
+    attributes: AttributeSchema | None = None,
     stems: set[str] | None = None,
     workers: int = 8,
     progress: bool = False,
@@ -215,10 +253,16 @@ def load_error_analysis_dataset(
     """Load either a full YOLO dataset root or a plain label-txt directory."""
     root_path = Path(root)
     if _looks_like_label_dir(root_path, images_dir=images_dir, labels_dir=labels_dir):
+        shared_attributes = (
+            attributes
+            if attributes is not None
+            else read_attribute_schema(attribute_file)
+        )
         return _load_label_dir_dataset(
             root_path,
             task=task,
             class_file=class_file,
+            attributes=shared_attributes,
             stems=stems,
             workers=workers,
             progress=progress,
@@ -230,6 +274,8 @@ def load_error_analysis_dataset(
         images_dir=images_dir,
         labels_dir=labels_dir,
         class_file=class_file,
+        attribute_file=attribute_file,
+        attributes=attributes,
         task=task,
         layout=layout,
         workers=workers,
@@ -254,6 +300,7 @@ def _load_label_dir_dataset(
     *,
     task: str,
     class_file: str | Path | None,
+    attributes: AttributeSchema | None,
     stems: set[str] | None,
     workers: int,
     progress: bool,
@@ -264,6 +311,7 @@ def _load_label_dir_dataset(
         labels,
         label_dir=label_dir,
         task=task,
+        attributes=attributes,
         workers=workers,
         progress=progress,
         progress_leave=progress_leave,
@@ -272,6 +320,7 @@ def _load_label_dir_dataset(
         root=label_dir,
         images=images,
         classes=read_eval_class_schema(class_file),
+        attributes=attributes,
         task=task,
     )
 
@@ -281,6 +330,7 @@ def _load_label_dir_images(
     *,
     label_dir: Path,
     task: str,
+    attributes: AttributeSchema | None,
     workers: int,
     progress: bool,
     progress_leave: bool,
@@ -289,7 +339,11 @@ def _load_label_dir_images(
         return YoloImage(
             path=label_dir / f"{label_path.stem}.jpg",
             label_path=label_path,
-            annotations=parse_label_file(label_path, task=task),
+            annotations=parse_label_file(
+                label_path,
+                task=task,
+                attributes=attributes,
+            ),
         )
 
     worker_count = normalize_workers(workers)
@@ -882,6 +936,215 @@ def analyze_errors(
     return rows, summary
 
 
+_MISSING_ATTRIBUTE = object()
+
+
+def analyze_attribute_errors(
+    gt: YoloDataset,
+    pred: YoloDataset,
+    match_iou: float = 0.5,
+    conf_thres: float = 0.0,
+    nms_iou: float | None = 0.5,
+    *,
+    class_ids: int | str | Iterable[int | str] | None = None,
+    exclude_class_ids: int | str | Iterable[int | str] | None = None,
+    min_width: float | None = None,
+    min_height: float | None = None,
+    min_area: float | None = None,
+    min_size_logic: str = "or",
+    min_pixels: float | None = None,
+    class_rules: Mapping[int | str, Mapping[str, Any]] | None = None,
+) -> tuple[list[AttributeErrorDetail], dict[str, int]]:
+    """Compare attributes on the one-to-one class/box matches.
+
+    Attribute comparison is deliberately limited to matched pairs produced by
+    the same class-aware IoU rule used by :func:`analyze_errors`.  Unmatched
+    predictions and GT annotations remain class/geometry errors and are not
+    guessed as attribute pairs.
+
+    The returned summary contains the total under ``attribute_error``, a
+    breakdown by mismatch type, and per-attribute counts under keys such as
+    ``attribute_error:defect``.
+    """
+
+    has_filters = any(
+        value is not None
+        for value in (
+            class_ids,
+            exclude_class_ids,
+            min_width,
+            min_height,
+            min_area,
+            min_pixels,
+            class_rules,
+        )
+    )
+    validate_nms_iou(nms_iou)
+    if has_filters:
+        gt, pred = filter_error_analysis_datasets(
+            gt,
+            pred,
+            class_ids=class_ids,
+            exclude_class_ids=exclude_class_ids,
+            min_width=min_width,
+            min_height=min_height,
+            min_area=min_area,
+            min_size_logic=min_size_logic,
+            min_pixels=min_pixels,
+            class_rules=class_rules,
+        )
+
+    pred_by_stem: dict[str, list[YoloAnnotation]] = {}
+    for image in pred.images:
+        annotations = list(image.annotations)
+        if conf_thres > 0:
+            annotations = [
+                annotation
+                for annotation in annotations
+                if annotation.confidence is None
+                or annotation.confidence >= conf_thres
+            ]
+        pred_by_stem[image.stem] = non_max_suppress_annotations(annotations, nms_iou)
+
+    rows: list[AttributeErrorDetail] = []
+    counter: Counter[str] = Counter()
+    for gt_image in gt.images:
+        pred_annotations = pred_by_stem.get(gt_image.stem, [])
+        for iou_value, gt_idx, pred_idx in greedy_match_indices(
+            gt_image.annotations,
+            pred_annotations,
+            match_iou,
+        ):
+            gt_annotation = gt_image.annotations[gt_idx]
+            pred_annotation = pred_annotations[pred_idx]
+            class_name = _error_analysis_class_name(gt, gt_annotation.class_id)
+            gt_schema = gt.attributes or pred.attributes
+            pred_schema = pred.attributes or gt.attributes
+            gt_values = _attribute_values_for_error_analysis(
+                gt,
+                gt_annotation,
+                class_name=class_name,
+                schema=gt_schema,
+            )
+            pred_values = _attribute_values_for_error_analysis(
+                pred,
+                pred_annotation,
+                class_name=class_name,
+                schema=pred_schema,
+            )
+            attribute_names = _attribute_names_for_error_analysis(
+                gt,
+                gt_values,
+                pred,
+                pred_values,
+                class_name=class_name,
+            )
+            for attribute_name in attribute_names:
+                gt_value = gt_values.get(attribute_name, _MISSING_ATTRIBUTE)
+                pred_value = pred_values.get(attribute_name, _MISSING_ATTRIBUTE)
+                if _attribute_values_equal(gt_value, pred_value):
+                    continue
+
+                if pred_value is _MISSING_ATTRIBUTE:
+                    error_type = ATTRIBUTE_MISSING_IN_PRED
+                elif gt_value is _MISSING_ATTRIBUTE:
+                    error_type = ATTRIBUTE_MISSING_IN_GT
+                else:
+                    error_type = ATTRIBUTE_VALUE_MISMATCH
+
+                rows.append(
+                    AttributeErrorDetail(
+                        image=gt_image.stem,
+                        attribute_name=attribute_name,
+                        error_type=error_type,
+                        gt_value=(
+                            None if gt_value is _MISSING_ATTRIBUTE else gt_value
+                        ),
+                        pred_value=(
+                            None if pred_value is _MISSING_ATTRIBUTE else pred_value
+                        ),
+                        class_id=gt_annotation.class_id,
+                        class_name=class_name,
+                        pred_class_id=pred_annotation.class_id,
+                        pred_class_name=class_name,
+                        pred_conf=pred_annotation.confidence,
+                        best_iou=iou_value,
+                        pred_box_xyxy=_serialise_box(
+                            _annotation_box_norm(pred_annotation)
+                        ),
+                        gt_box_xyxy=_serialise_box(
+                            _annotation_box_norm(gt_annotation)
+                        ),
+                        pred_line=pred_annotation.source_line,
+                        gt_line=gt_annotation.source_line,
+                        pred_idx=_annotation_index(pred_annotation, pred_idx + 1),
+                        gt_idx=_annotation_index(gt_annotation, gt_idx + 1),
+                    )
+                )
+                counter[ATTRIBUTE_ERROR] += 1
+                counter[error_type] += 1
+                counter[f"{ATTRIBUTE_ERROR}:{attribute_name}"] += 1
+
+    return rows, dict(counter)
+
+
+def _attribute_values_for_error_analysis(
+    dataset: YoloDataset,
+    annotation: YoloAnnotation,
+    *,
+    class_name: str | None = None,
+    schema: AttributeSchema | None = None,
+) -> dict[str, Any]:
+    attribute_schema = dataset.attributes or schema
+    if attribute_schema is not None:
+        return attribute_schema.decode(
+            annotation.attributes,
+            class_name=class_name or dataset.class_name(annotation.class_id),
+        )
+    return {
+        f"attribute_{index + 1}": value
+        for index, value in enumerate(annotation.attributes)
+    }
+
+
+def _attribute_names_for_error_analysis(
+    gt: YoloDataset,
+    gt_values: Mapping[str, Any],
+    pred: YoloDataset,
+    pred_values: Mapping[str, Any],
+    *,
+    class_name: str | None = None,
+) -> list[str]:
+    names: list[str] = []
+    if gt.attributes is not None:
+        names.extend(gt.attributes.names_for_class(class_name))
+    if pred.attributes is not None:
+        names.extend(
+            name
+            for name in pred.attributes.names_for_class(class_name)
+            if name not in names
+        )
+    for name in (*gt_values.keys(), *pred_values.keys()):
+        if name not in names:
+            names.append(name)
+    return names
+
+
+def _attribute_values_equal(left: Any, right: Any) -> bool:
+    if left is _MISSING_ATTRIBUTE or right is _MISSING_ATTRIBUTE:
+        return left is right
+    if left == right:
+        return True
+    return str(left).strip() == str(right).strip()
+
+
+def _error_analysis_class_name(dataset: YoloDataset, class_id: int) -> str:
+    try:
+        return dataset.class_name(class_id)
+    except (IndexError, KeyError, ValueError):
+        return str(class_id)
+
+
 def find_duplicate_gt(
     dataset: YoloDataset,
     duplicate_iou: float = 0.9,
@@ -959,6 +1222,26 @@ _ERROR_CSV_COLUMNS = [
     "gt_idx",
 ]
 
+_ATTRIBUTE_ERROR_CSV_COLUMNS = [
+    "image",
+    "attribute_name",
+    "error_type",
+    "gt_value",
+    "pred_value",
+    "class_id",
+    "class_name",
+    "pred_class_id",
+    "pred_class_name",
+    "pred_conf",
+    "best_iou",
+    "pred_box_xyxy",
+    "gt_box_xyxy",
+    "pred_line",
+    "gt_line",
+    "pred_idx",
+    "gt_idx",
+]
+
 _DUP_CSV_COLUMNS = [
     "image",
     "gt_idx_i",
@@ -1027,6 +1310,17 @@ def write_error_csvs(
     )
 
 
+def write_attribute_error_csv(
+    error_rows: list[AttributeErrorDetail],
+    out_dir: str | Path,
+) -> None:
+    """Write attribute mismatches to ``attribute_error.csv``."""
+
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    _write_rows(out / "attribute_error.csv", _ATTRIBUTE_ERROR_CSV_COLUMNS, error_rows)
+
+
 def write_duplicate_gt_csv(
     dup_rows: list[DuplicateGt],
     out_dir: str | Path,
@@ -1090,6 +1384,78 @@ def write_error_review_pack(
                     counts[error_type] += 1
 
     _write_ultralytics_confusion_matrix(error_rows, gt, pred, output / "pred_gt")
+    return dict(counts)
+
+
+def write_attribute_error_review_pack(
+    error_rows: list[AttributeErrorDetail],
+    gt: YoloDataset,
+    pred: YoloDataset,
+    out_dir: str | Path,
+    *,
+    crop_padding: int = 12,
+    workers: int = 1,
+    progress: bool = False,
+    progress_leave: bool = False,
+) -> dict[str, int]:
+    """Write visual review images and crops for attribute mismatches.
+
+    Results are grouped under ``review/attribute_error/attribute_<name>`` and
+    then by the ``gt_<value>_pred_<value>`` pair.  The full image contains the
+    matched GT and prediction boxes; the crop is centred on the GT box.
+    """
+
+    output = Path(out_dir) / "review" / "attribute_error"
+    output.mkdir(parents=True, exist_ok=True)
+    gt_images = _images_by_stem(gt)
+    pred_images = _images_by_stem(pred)
+    counts: dict[str, int] = Counter()
+    worker_count = normalize_workers(workers)
+    work_items = list(enumerate(error_rows, start=1))
+
+    if worker_count == 1:
+        iterator = (
+            _write_one_attribute_error_review(
+                item,
+                gt_images,
+                pred_images,
+                output,
+                crop_padding,
+            )
+            for item in work_items
+        )
+        for group_name in iter_progress(
+            iterator,
+            enabled=progress,
+            total=len(work_items),
+            desc="attribute error review",
+            leave=progress_leave,
+        ):
+            if group_name:
+                counts[group_name] += 1
+    else:
+        with ThreadPoolExecutor(max_workers=worker_count) as executor:
+            futures = [
+                executor.submit(
+                    _write_one_attribute_error_review,
+                    item,
+                    gt_images,
+                    pred_images,
+                    output,
+                    crop_padding,
+                )
+                for item in work_items
+            ]
+            for future in iter_progress(
+                as_completed(futures),
+                enabled=progress,
+                total=len(futures),
+                desc="attribute error review",
+                leave=progress_leave,
+            ):
+                group_name = future.result()
+                if group_name:
+                    counts[group_name] += 1
     return dict(counts)
 
 
@@ -1158,6 +1524,31 @@ def print_error_summary(
     print("==============================================\n")
 
 
+def print_attribute_error_summary(
+    error_rows: list[AttributeErrorDetail],
+    summary: Mapping[str, int] | None = None,
+) -> None:
+    """Print a compact summary of attribute mismatches."""
+
+    if not error_rows:
+        print("Attribute errors: 0")
+        return
+
+    counts = Counter(row.attribute_name for row in error_rows)
+    type_counts = Counter(row.error_type for row in error_rows)
+    print("\n========== ATTRIBUTE ERROR SUMMARY ==========")
+    print(f"Total attribute errors: {len(error_rows)}")
+    print("Error type breakdown:")
+    for error_type, count in sorted(type_counts.items()):
+        print(f"  {error_type}: {count}")
+    print("Attribute breakdown:")
+    for attribute_name, count in sorted(counts.items()):
+        print(f"  {attribute_name}: {count}")
+    if summary and summary.get(ATTRIBUTE_ERROR) != len(error_rows):
+        print(f"Summary total: {summary.get(ATTRIBUTE_ERROR, 0)}")
+    print("==============================================\n")
+
+
 # ---------------------------------------------------------------------------
 # Internal
 # ---------------------------------------------------------------------------
@@ -1220,6 +1611,66 @@ def _write_one_error_review(
     return group_name
 
 
+def _write_one_attribute_error_review(
+    item: tuple[int, AttributeErrorDetail],
+    gt_images: dict[str, YoloImage],
+    pred_images: dict[str, YoloImage],
+    output: Path,
+    crop_padding: int,
+) -> str | None:
+    idx, row = item
+    source_image = gt_images.get(row.image) or pred_images.get(row.image)
+    if source_image is None or not source_image.path.exists():
+        return None
+    box = _parse_box_json(row.gt_box_xyxy) or _parse_box_json(row.pred_box_xyxy)
+    if box is None:
+        return None
+
+    group_name = _attribute_review_group_name(row)
+    type_dir = output / group_name
+    image_dir = type_dir / "images"
+    crop_dir = type_dir / "crops"
+    image_dir.mkdir(parents=True, exist_ok=True)
+    crop_dir.mkdir(parents=True, exist_ok=True)
+
+    with Image.open(source_image.path) as src:
+        canvas = src.convert("RGB")
+    width, height = canvas.size
+    draw = ImageDraw.Draw(canvas)
+    _draw_review_box(
+        draw,
+        row.pred_box_xyxy,
+        width,
+        height,
+        outline=(255, 42, 4),
+        label="pred",
+    )
+    _draw_review_box(
+        draw,
+        row.gt_box_xyxy,
+        width,
+        height,
+        outline=(0, 192, 38),
+        label="gt",
+    )
+
+    safe_image = _safe_file_name(row.image)
+    image_name = (
+        f"{safe_image}_{idx}_attribute_"
+        f"{_safe_file_name(row.attribute_name)}_{row.error_type}"
+        f"{source_image.path.suffix}"
+    )
+    canvas.save(image_dir / image_name)
+    crop = _crop_norm_box(canvas, box, padding=crop_padding)
+    crop_name = (
+        f"{safe_image}_pred{row.pred_idx if row.pred_idx is not None else 'none'}"
+        f"_gt{row.gt_idx if row.gt_idx is not None else 'none'}"
+        f"_{_safe_file_name(row.attribute_name)}{source_image.path.suffix}"
+    )
+    crop.save(crop_dir / crop_name)
+    return group_name
+
+
 def _review_crop_name(row: ErrorDetail, suffix: str) -> str:
     safe_image = _safe_file_name(row.image)
     pred_id = "none" if row.error_type == FN_NO_PRED else (str(row.pred_idx) if row.pred_idx is not None else "none")
@@ -1235,6 +1686,16 @@ def _review_group_name(row: ErrorDetail) -> str:
     elif row.status == "fn" and row.error_type not in {CLASS_ERROR_PRED, FN_CLASS_ERROR}:
         pred_name = "background"
     return f"pred_gt/pred_{_safe_file_name(pred_name)}_gt_{_safe_file_name(gt_name)}"
+
+
+def _attribute_review_group_name(row: AttributeErrorDetail) -> str:
+    gt_value = "missing" if row.gt_value is None else str(row.gt_value)
+    pred_value = "missing" if row.pred_value is None else str(row.pred_value)
+    return (
+        f"attribute_{_safe_file_name(row.attribute_name)}"
+        f"/gt_{_safe_file_name(gt_value)}"
+        f"_pred_{_safe_file_name(pred_value)}"
+    )
 
 
 def _class_label(class_id: int | None, class_name: str | None) -> str:

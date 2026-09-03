@@ -38,7 +38,7 @@ python -m pytest -q
 | Statistics | Class distribution, object counts, box shapes, image shapes, attributes, plots | `stats_list`, `plots_dir`, `ann_csv` |
 | Visualization | Draw boxes/masks, show confidence/attributes/txt order id, crop objects, attribute-separated image groups, temporary manual boxes | `show_id`, `show_conf`, `att_seperate`, `workers` |
 | Import/export | Convert between YOLO and LabelMe/COCO/VOC/masks/x-anylabeling | `class_map`, `background`, `min_area` |
-| Evaluation | Compare GT vs predictions, build FP/FN review packs, error analysis, confusion matrix | `match_iou`, `low_iou`, `review_workers` |
+| Evaluation | Compare GT vs predictions, build FP/FN review packs, class/attribute error analysis, confusion matrix | `match_iou`, `low_iou`, `attribute_file`, `review_workers` |
 
 `MultiModalYoloManager` provides modality-aware loading, scene alignment, and caching while reusing the same functional output groups as the single-modal manager; it does not add a separate multimodal output module.
 
@@ -82,6 +82,8 @@ mgr.eval_error_analysis(
     workers=8,
     copy_pred_txt=True,
 )
+# Attribute mismatches are written to error_report/attribute_error.csv;
+# review=True also creates review/attribute_error/attribute_<name>/...
 ```
 
 ## Example Organization
@@ -131,6 +133,7 @@ ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --names class.
 - `train.txt`, `val.txt`, `test.txt`, and `dataset.yaml` remain at the dataset root. Multimodal workflows add `rgb/`, `depth/`, and similar subdirectories only inside the relevant functional group; there is no `ydm_multimodal/` directory.
 - Standard YOLO output includes `images/`, `labels/`, `class.txt`, and `dataset.yaml`.
 - Error-analysis review output includes `review/pred_gt`, `confusion_matrix.png`, grouped `pred_<pred_class>_gt_<gt_class>` folders, and optional `review/pred_txt`.
+- When an attribute schema is available, error analysis also writes `attribute_error.csv`; `review=True` adds `review/attribute_error/attribute_<name>/gt_<gt_value>_pred_<pred_value>/` with the matched image and crop.
 - Review crop names use `image_pred<pred_txt_order>_gt<gt_txt_order>`, with `none` for missing sides.
 
 ## Git Ignore Policy

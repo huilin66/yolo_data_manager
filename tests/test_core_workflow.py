@@ -2163,6 +2163,7 @@ def test_yolo_manager_error_analysis_defaults_to_manager_root(tmp_path, monkeypa
         min_size_logic="and",
         min_pixels=8,
         class_rules={"car": {"width": 0.03, "height": 0.03, "logic": "or"}},
+        attribute_file="attribute.yaml",
         pred_dir="prediction_txt",
         dedup_iou=0.6,
         nms_iou=None,
@@ -2175,6 +2176,7 @@ def test_yolo_manager_error_analysis_defaults_to_manager_root(tmp_path, monkeypa
     assert captured["min_size_logic"] == "and"
     assert captured["min_pixels"] == 8
     assert captured["class_rules"].endswith(".yaml")
+    assert captured["attribute_file"] == "attribute.yaml"
     assert captured["pred_dir"] == "prediction_txt"
     assert captured["dedup_iou"] == 0.6
     assert captured["nms_iou"] is None

@@ -1520,6 +1520,7 @@ class YoloManager:
         val_source: str | None = None,
         only_val: bool | None = None,
         class_file: str | None = None,
+        attribute_file: str | None = None,
         class_rules: str | Path | Mapping[int | str, Mapping[str, Any]] | None = None,
         class_: str | list[str] | None = None,
         exclude_class_: str | list[str] | None = None,
@@ -1539,7 +1540,7 @@ class YoloManager:
         copy_pred_txt: bool = True,
         **kwargs: Any,
     ) -> int:
-        """Fine-grained error analysis of predictions vs GT (``ydm eval error-analysis``)."""
+        """Analyze class and attribute errors of predictions vs GT (``ydm eval error-analysis``)."""
         resolved_gt_root = gt_root or self.root
         requested_only_val = self.only_val if only_val is None else only_val
         resolved_val_source = val_source
@@ -1578,6 +1579,7 @@ class YoloManager:
                 val_source=resolved_val_source,
                 only_val=requested_only_val,
                 class_file=resolved_class_file,
+                attribute_file=attribute_file or self.attribute_file,
                 class_rules=class_rules_path,
                 class_=class_,
                 exclude_class_=exclude_class_,

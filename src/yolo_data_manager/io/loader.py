@@ -41,6 +41,7 @@ def load_yolo_dataset(
     workers: int = 8,
     progress: bool = False,
     progress_leave: bool = False,
+    attributes: AttributeSchema | None = None,
 ) -> YoloDataset:
     root_path = Path(root)
     layout_info = resolve_layout(
@@ -64,7 +65,7 @@ def load_yolo_dataset(
         classes = read_class_schema(class_file)
 
     attr_path = Path(attribute_file) if attribute_file is not None else find_attribute_file(root_path)
-    attributes = read_attribute_schema(attr_path)
+    attributes = attributes if attributes is not None else read_attribute_schema(attr_path)
 
     if layout_info.layout == "image_list":
         if effective_split_file is not None and Path(effective_split_file).is_dir():

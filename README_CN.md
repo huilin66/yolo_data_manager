@@ -38,7 +38,7 @@ python -m pytest -q
 | 统计 | 类别分布、目标数、框宽高面积、图片尺寸、属性统计、图表 | `stats_list`、`plots_dir`、`ann_csv` |
 | 可视化 | 画框、画 mask、显示 confidence/属性/txt 顺序号、裁剪目标、临时手动画框 | `show_id`、`show_conf`、`workers` |
 | 导入导出 | 在 YOLO 与 LabelMe/COCO/VOC/mask/x-anylabeling 之间转换 | `class_map`、`background`、`min_area` |
-| 评估分析 | GT vs pred 对比、FP/FN review、细粒度错误分析、混淆矩阵 | `match_iou`、`low_iou`、`review_workers` |
+| 评估分析 | GT vs pred 对比、FP/FN review、类别/属性错误分析、混淆矩阵 | `match_iou`、`low_iou`、`attribute_file`、`review_workers` |
 
 多模态通过 `MultiModalYoloManager` 提供模态感知的加载、scene 对齐和缓存；它复用统计、校验、可视化和转换的同一套功能目录，不增加独立的多模态输出模块。
 
@@ -80,6 +80,8 @@ mgr.eval_error_analysis(
     workers=8,
     copy_pred_txt=True,
 )
+# 有属性 schema 时会额外写出 error_report/attribute_error.csv；
+# review=True 还会生成 review/attribute_error/attribute_<name>/...
 ```
 
 ## 示例代码组织
@@ -118,6 +120,7 @@ ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --review --wor
 - `train.txt`、`val.txt`、`test.txt` 和 `dataset.yaml` 默认保留在数据集根目录。多模态只在同一功能目录下按需增加 `rgb/`、`depth/` 等子目录，不创建 `ydm_multimodal/`。
 - 标准 YOLO 输出包含 `images/`、`labels/`、`class.txt`、`dataset.yaml`。
 - error analysis 的 review 输出包含 `pred_gt/`、`confusion_matrix.png`、按 `pred_<预测类别>_gt_<真实类别>` 组织的图片和 crop。
+- 有属性 schema 时，error analysis 还会写出 `attribute_error.csv`；`review=True` 会在 `review/attribute_error/attribute_<属性名>/gt_<GT值>_pred_<预测值>/` 下保存匹配图片和 crop。
 - review crop 文件名使用 `原图名_pred预测txt顺序id_gtGTtxt顺序id`，没有的一侧为 `none`。
 
 ## Git Ignore 策略

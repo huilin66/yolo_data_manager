@@ -289,6 +289,7 @@ ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --val-source val
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --names class.txt --class car,bus --exclude-class ignore --min-width 0.01 --min-height 0.01 --min-size-logic and --min-pixels 8 --out error_report
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --names class.txt --class-rules error_rules.yaml --out error_report
 ydm eval error-analysis --gt-root gt_labels --pred-root pred_labels --names class.txt --out error_report
+ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --attribute-file gt_yolo/attribute.yaml --out error_report --review
 ```
 
 `eval metrics` computes Precision, Recall, mAP@0.5, and mAP@0.5:0.95. `--class` evaluates only selected classes, while `--exclude-class` independently excludes classes; both can be used together. `--merge-class-map` accepts a target-to-source class mapping as inline JSON/YAML or as a JSON/YAML file, for example `{"vehicle":["car","truck"]}`. The mapping is applied to both GT and predictions before class selection, matching, and aggregation. With `--show-original`, when class, merge, `--class-rules`, or `--min-pixels` filters are supplied, the original metrics are printed before the final metrics; the original run omits those filters/remapping but preserves other filters. JSON output uses `report_type=detection_metrics_comparison` with `original` and `final` entries, while `--out` still writes the final metrics. Classes with `Instances=0` are omitted from output and mean metrics by default; add `--include-empty-classes` to keep them for false-positive checks. Small-object filtering supports `--min-width`, `--min-height`, `--min-area`, `--min-size-logic`, or pixel filtering with `--min-pixels`. Add `--print-table` to print an aligned Ultralytics-style table for manual comparison.
@@ -308,6 +309,7 @@ Metrics also report COCO-style small, medium, and large target metrics by pixel 
 `eval error-analysis` supports `--class` to keep selected classes and `--exclude-class` to exclude classes independently. `--min-width`, `--min-height`, `--min-area`, `--min-size-logic`, and `--min-pixels` filter both GT and predictions. Width/height/area use normalized YOLO coordinates; `--min-pixels` checks pixel width or height. It still accepts legacy `--review-workers`, `--review-progress`, and `--review-progress-leave`; new scripts should prefer the common runtime flags.
 `--class-rules` accepts a YAML/JSON file and overrides the global size rule per class using `width`, `height`, and `logic`; classes without a rule use the global parameters.
 Both evaluation commands apply confidence-prioritized, class-aware NMS by default with `--nms-iou 0.5`; use `--no-nms` to disable it.
+When `attribute.yaml`/`attributes.yaml` is available or `--attribute-file` is supplied, error analysis compares attributes on matched same-class box pairs and writes mismatches or missing values to `attribute_error.csv`. With `--review`, visual results are grouped under `review/attribute_error/attribute_<name>/gt_<gt_value>_pred_<pred_value>/images` and `crops`; an external prediction-label directory shares the GT attribute schema. Unmatched boxes remain class/geometry errors and are not counted again as attribute errors.
 
 Review output:
 
@@ -319,6 +321,11 @@ review/
       images/
       crops/
   pred_txt/
+  attribute_error/
+    attribute_defect/
+      gt_yes_pred_no/
+        images/
+        crops/
 ```
 
 Crop filename format:
