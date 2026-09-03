@@ -316,7 +316,8 @@ def _bar_plot(plt, values: dict[str, int], path: Path, title: str, xlabel: str, 
     plt.figure(figsize=(max(8, len(values) * 0.6), 5))
     keys = list(values.keys())
     vals = [values[key] for key in keys]
-    plt.bar(keys, vals)
+    bars = plt.bar(keys, vals)
+    plt.bar_label(bars, fontsize=8)
     plt.title(title)
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
