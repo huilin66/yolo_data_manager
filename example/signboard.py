@@ -37,7 +37,7 @@ HMT_V4_DIR = r"/localnvme/data/bdd_hmt/hmt_t_update_v4"
 # DATA_DIR = Path(
 #     r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_t.yaml"
 # )
-DATA_DIR = Path(r"\\158.132.186.40\isds\huilin\signboard\yolo_rgb_detection5_10_c")
+DATA_DIR = Path(r"E:\repository\isds_project\data\risk_data\data_risk_b_split\set_31")
 
 PRED_RUNS_DIR = Path(r"/localnvme/project/aic_mdet/models/ultralytics/runs/detect")
 # PRED_NAME = "val-161"
@@ -119,7 +119,13 @@ def main() -> None:
         )
 
     if "vis" in RUN_LIST:
-        yolo_vis(DATA_DIR, crop=True, show_attrs=True, filter_no_attrs=True)
+        yolo_vis(
+            DATA_DIR,
+            crop=True,
+            show_attrs=True,
+            filter_no_attrs=True,
+            att_seperate=True,
+        )
     if "update_class_by_label" in RUN_LIST:
         for crops_dir, target_class in CROP_MAP_LABEL.items():
             yolo_update_by_label(
