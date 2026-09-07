@@ -102,7 +102,8 @@ its images to `<out>/<set>` as a standalone flat dataset (`images/` + `labels/` 
 txt file with one image name/path per line. Omitted sets are skipped, empty sets are
 reported as 0 images without writing; `dry_run=True` reports counts and output paths
 without writing, `copy_images=False` skips copying images, and
-`keep_empty_labels=False` omits empty label files.
+`keep_empty_labels=False` omits empty label files. `out` defaults to
+`<dataset-root>/ydm_subsets`; pass `out` to override.
 Multimodal data uses these same functional groups; modality subdirectories are added only
 where needed, and there is no separate `ydm_multimodal` feature module.
 
@@ -176,8 +177,7 @@ mgr.dataset_extract_split(
     train_include_list="train.txt",
     val_include_list="val.txt",
     test_include_list="test.txt",
-    out="out",
-)
+)  # out defaults to <dataset-root>/ydm_subsets; pass out="out" to override
 mgr.dataset_select(file="val.txt", out="val_subset")
 mgr.dataset_yaml(out="dataset.yaml", train="images/train", val="images/val")
 mgr.dataset_duplicates(out="duplicates.csv")

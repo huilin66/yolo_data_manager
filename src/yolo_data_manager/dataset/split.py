@@ -254,7 +254,7 @@ def extract_splits(
     train_include_list: SplitIncludeList = None,
     val_include_list: SplitIncludeList = None,
     test_include_list: SplitIncludeList = None,
-    out_root: str | Path,
+    out_root: str | Path | None = None,
     copy_images: bool = True,
     keep_empty_labels: bool = True,
     include_confidence: bool = False,
@@ -270,7 +270,8 @@ def extract_splits(
     Each non-empty include list (a txt file path, a comma-separated string, or
     an iterable of image names/paths) selects the images for that split, which
     are written to ``<out_root>/<split>`` as a standalone flat YOLO dataset
-    (``images/`` + ``labels/``). Pass ``dry_run`` to report the counts and
+    (``images/`` + ``labels/``). ``out_root`` defaults to
+    ``<dataset.root>/ydm_subsets``. Pass ``dry_run`` to report the counts and
     output paths without writing anything.
 
     This is a copy operation: source labels are not modified, so no label
@@ -284,7 +285,7 @@ def extract_splits(
         "val": val_include_list,
         "test": test_include_list,
     }
-    out = Path(out_root)
+    out = Path(out_root) if out_root is not None else Path(dataset.root) / "ydm_subsets"
     result: dict[str, dict[str, object]] = {}
     for split_name, include_list in splits.items():
         if include_list is None:

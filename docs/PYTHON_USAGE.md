@@ -78,8 +78,7 @@ mgr.dataset_extract_split(
     train_include_list="train.txt",
     val_include_list="val.txt",
     test_include_list="test.txt",
-    out="out",
-)
+)  # out 默认 <数据集根目录>/ydm_subsets；可传 out="out" 指定
 mgr.dataset_filter(out="filtered", min_area=0.001, class_=["car", "truck"], backup_dir="label_backups")
 mgr.dataset_filter(out="filtered_small", min_width=0.01, min_height=0.01,
                    min_size_logic="and")
@@ -324,7 +323,7 @@ mgr.output_dataset_yaml
 `train_include_list` 和 `val_include_list` 可以传图片名/路径列表，也可以传一个 txt 文件路径（每行一个图片名或路径）。这些图片会先从随机池中排除，再分别加入 train 或 val；两个列表不能包含同一张图片。相对图片路径按数据集根目录匹配，也支持图片文件名和 stem。
 如果目标目录中原本存在 `train.txt`、`val.txt` 或 `test.txt`，split 写入前会将它们移动到 `<数据集根目录>/labels_backup/<时间戳>/`；可用 `backup_dir` 覆盖备份目录。
 
-`dataset_extract_split` 用已有的 split txt 把各 set 物化出来：每个传入的 `train_include_list` / `val_include_list` / `test_include_list` 会把对应图片写到 `<out>/<set>`，作为独立扁平数据集（`images/` + `labels/` + `class.txt` + `dataset.yaml`）。这几个参数可以传图片名/路径列表，也可以传一个 txt 文件路径（每行一个图片名或路径）。未传入的 set 会跳过，空 set 会报告为 0 张且不落盘；`dry_run=True` 只报告数量和输出路径而不写文件，`copy_images=False` 不复制图片，`keep_empty_labels=False` 丢弃空标签文件。
+`dataset_extract_split` 用已有的 split txt 把各 set 物化出来：每个传入的 `train_include_list` / `val_include_list` / `test_include_list` 会把对应图片写到 `<out>/<set>`，作为独立扁平数据集（`images/` + `labels/` + `class.txt` + `dataset.yaml`）。这几个参数可以传图片名/路径列表，也可以传一个 txt 文件路径（每行一个图片名或路径）。未传入的 set 会跳过，空 set 会报告为 0 张且不落盘；`dry_run=True` 只报告数量和输出路径而不写文件，`copy_images=False` 不复制图片，`keep_empty_labels=False` 丢弃空标签文件。`out` 默认为 `<数据集根目录>/ydm_subsets`，可用 `out` 参数指定其他目录。
 
 `dataset_filter` 中 `min_width` 和 `min_height` 默认按 `or` 逻辑删除小框：`w < min_width` 或 `h < min_height` 即删除。设置 `min_size_logic="and"` 时，只有 `w < min_width` 且 `h < min_height` 才删除。`class_rules` 可以给不同类别设置不同过滤规则；类别没有命中规则时，继续使用全局过滤参数。
 类别规则也支持简写字段：`{"类别": {"width": 0.03, "height": 0.03, "logic": "or"}}`，其中 `width`/`height` 是归一化 YOLO 尺寸，`logic` 为 `or` 或 `and`。

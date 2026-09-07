@@ -730,6 +730,23 @@ def test_extract_splits_dry_run_writes_nothing(tmp_path):
     assert not (out_root / "train").exists()
 
 
+def test_extract_splits_default_out_root_is_ydm_subsets(tmp_path):
+    root = make_dataset(tmp_path / "yolo")
+    dataset = load_yolo_dataset(root)
+    (tmp_path / "train.txt").write_text("a.jpg\n", encoding="utf-8")
+
+    result = extract_splits(
+        dataset,
+        train_include_list=tmp_path / "train.txt",
+        workers=1,
+    )
+
+    default_out = Path(root) / "ydm_subsets"
+    assert result["train"]["out"] == default_out / "train"
+    assert (default_out / "train" / "images" / "a.jpg").exists()
+    assert (default_out / "train" / "dataset.yaml").exists()
+
+
 def test_extract_splits_via_cli(tmp_path):
     root = make_dataset(tmp_path / "yolo")
     (tmp_path / "train.txt").write_text("a.jpg\n", encoding="utf-8")

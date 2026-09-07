@@ -146,7 +146,7 @@ ydm dataset bad-images --root path/to/yolo --out bad_images.csv
 `--train-include-list` and `--val-include-list` accept txt files or comma-separated image names/paths. Listed images are removed from the random pool before splitting and then forced into the corresponding split; the two parameters may not overlap.
 If `train.txt`, `val.txt`, or `test.txt` already exists in the output directory, split moves it before writing into `<dataset-root>/labels_backup/<timestamp>/`; use `--backup-dir` to override the backup directory.
 
-`dataset extract-split` materializes each set from your existing split txt files (`train.txt`, `val.txt`, `test.txt`): each supplied set is written to `<out>/<set>` as a standalone flat dataset (`images/` + `labels/` + `class.txt` + `dataset.yaml`). `--*-include-list` accepts a txt file or comma-separated image names/paths; omitted sets are skipped and empty sets are reported as 0 images without writing. `--dry-run` reports counts and output paths without writing, `--no-copy-images` skips copying images, and `--drop-empty-labels` omits empty label files.
+`dataset extract-split` materializes each set from your existing split txt files (`train.txt`, `val.txt`, `test.txt`): each supplied set is written to `<out>/<set>` as a standalone flat dataset (`images/` + `labels/` + `class.txt` + `dataset.yaml`). `--*-include-list` accepts a txt file or comma-separated image names/paths; omitted sets are skipped and empty sets are reported as 0 images without writing. `--dry-run` reports counts and output paths without writing, `--no-copy-images` skips copying images, and `--drop-empty-labels` omits empty label files. Output defaults to `<dataset-root>/ydm_subsets`; use `--out` to override.
 
 ## Filtering
 

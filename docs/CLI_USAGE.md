@@ -147,7 +147,7 @@ split 会打印总类别 box 数量和 val 类别 box 数量，方便检查验�
 `--train-include-list` 和 `--val-include-list` 可以传 txt 文件，也可以传逗号分隔的图片名/路径。指定的图片会先从随机池中排除，再强制加入对应 split；两个参数不能包含同一张图片。
 如果输出目录中已存在 `train.txt`、`val.txt` 或 `test.txt`，写入前会将其移动到 `<数据集根目录>/labels_backup/<时间戳>/`；可通过 `--backup-dir` 指定其他备份目录。
 
-`dataset extract-split` 用你已有的 split txt（`train.txt`、`val.txt`、`test.txt`）把各 set 物化出来：每个提供的 set 写到 `<out>/<set>`，作为独立扁平数据集（`images/` + `labels/` + `class.txt` + `dataset.yaml`）。`--*-include-list` 可以传 txt 文件，也可以传逗号分隔的图片名/路径；未提供的 set 会跳过，空 set 会报告为 0 张且不落盘。`--dry-run` 只报告各 set 数量和输出路径而不写文件，`--no-copy-images` 不复制图片，`--drop-empty-labels` 丢弃空标签文件。
+`dataset extract-split` 用你已有的 split txt（`train.txt`、`val.txt`、`test.txt`）把各 set 物化出来：每个提供的 set 写到 `<out>/<set>`，作为独立扁平数据集（`images/` + `labels/` + `class.txt` + `dataset.yaml`）。`--*-include-list` 可以传 txt 文件，也可以传逗号分隔的图片名/路径；未提供的 set 会跳过，空 set 会报告为 0 张且不落盘。`--dry-run` 只报告各 set 数量和输出路径而不写文件，`--no-copy-images` 不复制图片，`--drop-empty-labels` 丢弃空标签文件。默认输出到 `<数据集根目录>/ydm_subsets`，可用 `--out` 指定其他目录。
 
 ## 过滤
 

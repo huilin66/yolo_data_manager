@@ -225,7 +225,8 @@ def build_parser() -> argparse.ArgumentParser:
     dataset_extract_split.add_argument(
         "--out",
         default=None,
-        help="output root; each split is written to <out>/train, <out>/val, <out>/test",
+        help="output root; each split is written to <out>/train, <out>/val, "
+        "<out>/test (default <dataset-root>/ydm_subsets)",
     )
     dataset_extract_split.add_argument(
         "--backup-dir",
@@ -1077,7 +1078,7 @@ def handle_dataset_extract_split(args: argparse.Namespace) -> int:
     dataset = load_from_args(args, progress=args.progress, progress_leave=args.progress_leave)
     out_root = _value_or_default(
         args.out,
-        default_dataset_output(_resolved_output_root(args.root), "extract-split"),
+        Path(dataset.root) / "ydm_subsets",
     )
     result = extract_splits(
         dataset,
