@@ -230,7 +230,13 @@ def build_parser() -> argparse.ArgumentParser:
     dataset_extract_split.add_argument(
         "--backup-dir",
         default=None,
-        help="backup directory; default is <dataset-root>/labels_backup",
+        help="backup directory; default is <dataset-root>/labels_backup (only used with --backup)",
+    )
+    dataset_extract_split.add_argument(
+        "--backup",
+        action="store_true",
+        dest="backup",
+        help="backup source labels before writing (off by default; extract-split is a copy)",
     )
     dataset_extract_split.add_argument("--no-copy-images", dest="copy_images", action="store_false")
     dataset_extract_split.add_argument(
@@ -248,6 +254,7 @@ def build_parser() -> argparse.ArgumentParser:
         handler=handle_dataset_extract_split,
         copy_images=True,
         keep_empty_labels=True,
+        backup=False,
     )
 
     dataset_yaml = dataset_sub.add_parser("yaml", help="write dataset.yaml")
@@ -1085,6 +1092,7 @@ def handle_dataset_extract_split(args: argparse.Namespace) -> int:
         progress=args.progress,
         progress_leave=args.progress_leave,
         backup_dir=args.backup_dir,
+        backup=args.backup,
     )
     print(
         json.dumps(

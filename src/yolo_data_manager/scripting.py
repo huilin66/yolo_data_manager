@@ -631,6 +631,7 @@ class YoloManager:
         copy_images: bool = True,
         keep_empty_labels: bool = True,
         dry_run: bool = False,
+        backup: bool = False,
         backup_dir: str | Path | None = None,
         **kwargs: Any,
     ) -> int:
@@ -644,6 +645,7 @@ class YoloManager:
             copy_images=copy_images,
             keep_empty_labels=keep_empty_labels,
             dry_run=dry_run,
+            backup=backup,
             backup_dir=backup_dir,
             **kwargs,
         )

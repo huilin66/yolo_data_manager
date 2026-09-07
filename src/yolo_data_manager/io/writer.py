@@ -22,17 +22,20 @@ def write_yolo_dataset(
     progress: bool = False,
     progress_leave: bool = False,
     backup_dir: str | Path | None = None,
-) -> LabelBackup:
+    backup: bool = True,
+) -> LabelBackup | None:
     out_path = Path(out_root)
     image_dir = out_path / "images"
     label_dir = out_path / "labels"
     image_dir.mkdir(parents=True, exist_ok=True)
     label_dir.mkdir(parents=True, exist_ok=True)
 
-    backup = LabelBackup(dataset.root, backup_dir)
-    for image in dataset.images:
-        if image.label_path is not None:
-            backup.backup(image.label_path)
+    backup_obj: LabelBackup | None = None
+    if backup:
+        backup_obj = LabelBackup(dataset.root, backup_dir)
+        for image in dataset.images:
+            if image.label_path is not None:
+                backup_obj.backup(image.label_path)
 
     write_class_schema(dataset.classes, out_path / "class.txt")
     write_dataset_yaml(dataset.classes, out_path / "dataset.yaml", train="images", val="images")
@@ -50,7 +53,7 @@ def write_yolo_dataset(
                 include_confidence=include_confidence,
                 overwrite_images=overwrite_images,
             )
-        return backup
+        return backup_obj
 
     with ThreadPoolExecutor(max_workers=worker_count) as executor:
         futures = [
@@ -68,7 +71,7 @@ def write_yolo_dataset(
         ]
         for future in iter_progress(as_completed(futures), enabled=progress, total=len(futures), desc="write dataset", leave=progress_leave):
             future.result()
-    return backup
+    return backup_obj
 
 
 def _write_image_item(

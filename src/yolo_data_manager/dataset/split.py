@@ -263,6 +263,7 @@ def extract_splits(
     progress: bool = False,
     progress_leave: bool = False,
     backup_dir: str | Path | None = None,
+    backup: bool = False,
 ) -> dict[str, dict[str, object]]:
     """Materialize each split (given by include lists) into its own dataset dir.
 
@@ -271,6 +272,10 @@ def extract_splits(
     are written to ``<out_root>/<split>`` as a standalone flat YOLO dataset
     (``images/`` + ``labels/``). Pass ``dry_run`` to report the counts and
     output paths without writing anything.
+
+    This is a copy operation: source labels are not modified, so no label
+    backup is created by default. Set ``backup=True`` (and optionally
+    ``backup_dir``) to snapshot source labels before writing.
     """
     from yolo_data_manager.io.writer import write_yolo_dataset
 
@@ -309,6 +314,7 @@ def extract_splits(
             progress=progress,
             progress_leave=progress_leave,
             backup_dir=backup_dir,
+            backup=backup,
         )
     return result
 
