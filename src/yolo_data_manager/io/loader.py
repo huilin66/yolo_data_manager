@@ -24,7 +24,12 @@ from yolo_data_manager.core.schema import (
     read_dataset_class_schema,
 )
 from yolo_data_manager.io.layout import infer_label_path_from_image, read_image_list, resolve_layout
-from yolo_data_manager.runtime import iter_progress, normalize_workers, scan_matching_files
+from yolo_data_manager.runtime import (
+    create_progress_bar,
+    iter_progress,
+    normalize_workers,
+    scan_matching_files,
+)
 
 
 def load_yolo_dataset(
@@ -162,19 +167,23 @@ def _load_images(
         ]
 
     indexed_images: list[tuple[int, YoloImage]] = []
-    with ThreadPoolExecutor(max_workers=worker_count) as executor:
-        future_to_idx = {
-            executor.submit(build_image, image_path): idx
-            for idx, image_path in enumerate(image_paths)
-        }
-        for future in iter_progress(
-            as_completed(future_to_idx),
-            enabled=progress,
-            total=len(future_to_idx),
-            desc="load parse labels",
-            leave=progress_leave,
-        ):
-            indexed_images.append((future_to_idx[future], future.result()))
+    progress_bar = create_progress_bar(
+        total=len(image_paths),
+        desc="load parse labels",
+        enabled=progress,
+        leave=progress_leave,
+    )
+    try:
+        with ThreadPoolExecutor(max_workers=worker_count) as executor:
+            future_to_idx = {
+                executor.submit(build_image, image_path): idx
+                for idx, image_path in enumerate(image_paths)
+            }
+            for future in as_completed(future_to_idx):
+                indexed_images.append((future_to_idx[future], future.result()))
+                progress_bar.update()
+    finally:
+        progress_bar.close()
     return [image for _, image in sorted(indexed_images, key=lambda item: item[0])]
 
 

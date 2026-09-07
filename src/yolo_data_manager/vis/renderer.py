@@ -16,7 +16,7 @@ except ImportError:  # pragma: no cover - exercised only in environments without
 
 from yolo_data_manager.core.geometry import normalized_points_to_pixels, xywhn_to_xyxy
 from yolo_data_manager.core.models import YoloDataset, YoloImage
-from yolo_data_manager.runtime import iter_progress, normalize_workers
+from yolo_data_manager.runtime import create_progress_bar, iter_progress, normalize_workers
 
 COLORS = [
     (255, 42, 4),
@@ -160,29 +160,28 @@ def render_dataset(
             save_image(image)
         return
 
+    progress_bar = create_progress_bar(
+        total=len(images),
+        desc="vis draw",
+        enabled=progress,
+        leave=progress_leave,
+    )
     executor = ThreadPoolExecutor(max_workers=worker_count)
-    progress_items = None
     try:
         futures = [executor.submit(save_image, image) for image in images]
-        progress_items = iter_progress(
-            as_completed(futures),
-            enabled=progress,
-            total=len(futures),
-            desc="vis draw",
-            leave=progress_leave,
-        )
-        for future in progress_items:
+        for future in as_completed(futures):
             future.result()
+            progress_bar.update()
     except KeyboardInterrupt:
-        _close_progress(progress_items)
         _cancel_parallel_work(executor, operation="vis draw")
         raise
     except BaseException:
-        _close_progress(progress_items)
         executor.shutdown(wait=False, cancel_futures=True)
         raise
     else:
         executor.shutdown(wait=True)
+    finally:
+        _close_progress(progress_bar)
 
 
 def _prepare_vis_output_dir(
@@ -280,29 +279,28 @@ def crop_dataset(
         )
 
     saved = 0
+    progress_bar = create_progress_bar(
+        total=len(dataset.images),
+        desc="vis crop",
+        enabled=progress,
+        leave=progress_leave,
+    )
     executor = ThreadPoolExecutor(max_workers=worker_count)
-    progress_items = None
     try:
         futures = [executor.submit(crop_image, image) for image in dataset.images]
-        progress_items = iter_progress(
-            as_completed(futures),
-            enabled=progress,
-            total=len(futures),
-            desc="vis crop",
-            leave=progress_leave,
-        )
-        for future in progress_items:
+        for future in as_completed(futures):
             saved += future.result()
+            progress_bar.update()
     except KeyboardInterrupt:
-        _close_progress(progress_items)
         _cancel_parallel_work(executor, operation="vis crop")
         raise
     except BaseException:
-        _close_progress(progress_items)
         executor.shutdown(wait=False, cancel_futures=True)
         raise
     else:
         executor.shutdown(wait=True)
+    finally:
+        _close_progress(progress_bar)
     return saved
 
 

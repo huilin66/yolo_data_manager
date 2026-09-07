@@ -520,6 +520,36 @@ def test_load_yolo_dataset_accepts_progress_options(tmp_path):
     assert dataset.annotation_count() == 3
 
 
+def test_parallel_load_creates_and_updates_overall_progress(tmp_path, monkeypatch):
+    from yolo_data_manager.io import loader
+
+    events = []
+
+    class FakeProgress:
+        def update(self, value=1):
+            events.append(("update", value))
+
+        def close(self):
+            events.append(("close",))
+
+    def create_progress_bar(**kwargs):
+        events.append(("create", kwargs["total"], kwargs["desc"]))
+        return FakeProgress()
+
+    monkeypatch.setattr(loader, "create_progress_bar", create_progress_bar)
+    root = make_dataset(tmp_path / "progress_yolo")
+
+    dataset = load_yolo_dataset(root, workers=2, progress=True)
+
+    assert len(dataset.images) == 2
+    assert events[0] == ("create", 2, "load parse labels")
+    assert [event for event in events if event[0] == "update"] == [
+        ("update", 1),
+        ("update", 1),
+    ]
+    assert events[-1] == ("close",)
+
+
 def make_dataset(root: Path) -> Path:
     (root / "images").mkdir(parents=True)
     (root / "labels").mkdir(parents=True)

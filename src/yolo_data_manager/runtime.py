@@ -47,6 +47,29 @@ def iter_progress(
     return tqdm(items, total=total, desc=desc, leave=leave)
 
 
+def create_progress_bar(
+    *,
+    total: int | None,
+    desc: str,
+    enabled: bool,
+    leave: bool = DEFAULT_PROGRESS_LEAVE,
+):
+    """Create a manually updated progress bar for parallel work.
+
+    The bar is created before worker tasks are submitted so callers can show
+    ``0/N`` immediately, even when the first task is slow or blocked on I/O.
+    """
+
+    if not enabled:
+        return _NoopProgress()
+    progress_stage(desc, enabled=True)
+    try:
+        from tqdm import tqdm
+    except ImportError:
+        return _SimpleProgress(desc=desc, total=total)
+    return tqdm(total=total, desc=desc, leave=leave)
+
+
 def scan_matching_files(
     root: Path,
     matcher: Callable[[Path], bool],
@@ -128,6 +151,35 @@ class _SimpleDynamicProgress:
             print(f"{self.desc}: {self.n}/{self.total}")
 
     def refresh(self) -> None:
+        return None
+
+    def close(self) -> None:
+        return None
+
+
+class _SimpleProgress:
+    def __init__(self, *, desc: str, total: int | None) -> None:
+        self.desc = desc
+        self.total = total
+        self.n = 0
+        self.step = max(1, (total or 20) // 20)
+        self._print()
+
+    def update(self, value: int = 1) -> None:
+        self.n += value
+        if self.n == 1 or self.n == self.total or self.n % self.step == 0:
+            self._print()
+
+    def close(self) -> None:
+        return None
+
+    def _print(self) -> None:
+        total = "?" if self.total is None else str(self.total)
+        print(f"{self.desc}: {self.n}/{total}", file=sys.stderr, flush=True)
+
+
+class _NoopProgress:
+    def update(self, value: int = 1) -> None:
         return None
 
     def close(self) -> None:
