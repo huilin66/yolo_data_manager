@@ -26,7 +26,7 @@ from yolo_data_manager.dataset.filter import filter_by_geometry
 from yolo_data_manager.dataset.merge import merge_datasets
 from yolo_data_manager.dataset.quality import find_bad_images, write_image_quality_csv
 from yolo_data_manager.dataset.select import select_from_file
-from yolo_data_manager.dataset.split import class_counts_for_images, split_dataset
+from yolo_data_manager.dataset.split import class_counts_for_images, extract_splits, split_dataset
 from yolo_data_manager.core.schema import find_attribute_file, write_dataset_yaml
 from yolo_data_manager.io.layout import detect_layout
 from yolo_data_manager.io.loader import load_yolo_dataset
@@ -201,6 +201,54 @@ def build_parser() -> argparse.ArgumentParser:
         help="txt file or comma-separated image names/paths forced into val",
     )
     dataset_split.set_defaults(handler=handle_dataset_split)
+
+    dataset_extract_split = dataset_sub.add_parser(
+        "extract-split",
+        help="materialize train/val/test subsets into separate flat dataset directories",
+    )
+    add_dataset_args(dataset_extract_split)
+    dataset_extract_split.add_argument(
+        "--train-include-list",
+        default=None,
+        help="txt file or comma-separated image names/paths for the train set",
+    )
+    dataset_extract_split.add_argument(
+        "--val-include-list",
+        default=None,
+        help="txt file or comma-separated image names/paths for the val set",
+    )
+    dataset_extract_split.add_argument(
+        "--test-include-list",
+        default=None,
+        help="txt file or comma-separated image names/paths for the test set",
+    )
+    dataset_extract_split.add_argument(
+        "--out",
+        default=None,
+        help="output root; each split is written to <out>/train, <out>/val, <out>/test",
+    )
+    dataset_extract_split.add_argument(
+        "--backup-dir",
+        default=None,
+        help="backup directory; default is <dataset-root>/labels_backup",
+    )
+    dataset_extract_split.add_argument("--no-copy-images", dest="copy_images", action="store_false")
+    dataset_extract_split.add_argument(
+        "--drop-empty-labels",
+        dest="keep_empty_labels",
+        action="store_false",
+        help="do not write empty label files",
+    )
+    dataset_extract_split.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="report counts without writing output",
+    )
+    dataset_extract_split.set_defaults(
+        handler=handle_dataset_extract_split,
+        copy_images=True,
+        keep_empty_labels=True,
+    )
 
     dataset_yaml = dataset_sub.add_parser("yaml", help="write dataset.yaml")
     add_dataset_args(dataset_yaml)
@@ -1013,6 +1061,37 @@ def handle_dataset_split(args: argparse.Namespace) -> int:
             },
             indent=2,
             ensure_ascii=False,
+        )
+    )
+    return 0
+
+
+def handle_dataset_extract_split(args: argparse.Namespace) -> int:
+    dataset = load_from_args(args, progress=args.progress, progress_leave=args.progress_leave)
+    out_root = _value_or_default(
+        args.out,
+        default_dataset_output(_resolved_output_root(args.root), "extract-split"),
+    )
+    result = extract_splits(
+        dataset,
+        train_include_list=args.train_include_list,
+        val_include_list=args.val_include_list,
+        test_include_list=args.test_include_list,
+        out_root=out_root,
+        copy_images=args.copy_images,
+        keep_empty_labels=args.keep_empty_labels,
+        dry_run=args.dry_run,
+        workers=args.workers,
+        progress=args.progress,
+        progress_leave=args.progress_leave,
+        backup_dir=args.backup_dir,
+    )
+    print(
+        json.dumps(
+            {"out": out_root, "splits": result},
+            indent=2,
+            ensure_ascii=False,
+            default=str,
         )
     )
     return 0

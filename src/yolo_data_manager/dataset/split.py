@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import os
 import random
 from collections.abc import Iterable
@@ -222,3 +223,74 @@ def _image_keys(image) -> set[str]:
         image.path.name,
         image.path.stem,
     }
+
+
+def extract_splits(
+    dataset: YoloDataset,
+    *,
+    train_include_list: SplitIncludeList = None,
+    val_include_list: SplitIncludeList = None,
+    test_include_list: SplitIncludeList = None,
+    out_root: str | Path,
+    copy_images: bool = True,
+    keep_empty_labels: bool = True,
+    include_confidence: bool = False,
+    dry_run: bool = False,
+    workers: int = 8,
+    progress: bool = False,
+    progress_leave: bool = False,
+    backup_dir: str | Path | None = None,
+) -> dict[str, dict[str, object]]:
+    """Materialize each split (given by include lists) into its own dataset dir.
+
+    Each non-empty include list (a txt file path, a comma-separated string, or
+    an iterable of image names/paths) selects the images for that split, which
+    are written to ``<out_root>/<split>`` as a standalone flat YOLO dataset
+    (``images/`` + ``labels/``). Pass ``dry_run`` to report the counts and
+    output paths without writing anything.
+    """
+    from yolo_data_manager.io.writer import write_yolo_dataset
+
+    splits = {
+        "train": train_include_list,
+        "val": val_include_list,
+        "test": test_include_list,
+    }
+    out = Path(out_root)
+    result: dict[str, dict[str, object]] = {}
+    for split_name, include_list in splits.items():
+        if include_list is None:
+            continue
+        indices = _resolve_include_indices(
+            dataset, include_list, parameter=f"{split_name}_include_list"
+        )
+        selected = _select_by_indices(dataset, indices)
+        if not selected.images:
+            result[split_name] = {"out": None, "images": 0, "annotations": 0}
+            continue
+        split_out = out / split_name
+        result[split_name] = {
+            "out": split_out,
+            "images": len(selected.images),
+            "annotations": selected.annotation_count(),
+        }
+        if dry_run:
+            continue
+        write_yolo_dataset(
+            selected,
+            split_out,
+            copy_images=copy_images,
+            keep_empty_labels=keep_empty_labels,
+            include_confidence=include_confidence,
+            workers=workers,
+            progress=progress,
+            progress_leave=progress_leave,
+            backup_dir=backup_dir,
+        )
+    return result
+
+
+def _select_by_indices(dataset: YoloDataset, indices: list[int]) -> YoloDataset:
+    result = copy.deepcopy(dataset)
+    result.images = [result.images[index] for index in indices]
+    return result

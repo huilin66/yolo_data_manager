@@ -23,6 +23,7 @@ TASK_COMMANDS: Mapping[str, tuple[str, ...]] = {
     "dataset.select": ("dataset", "select"),
     "dataset.normalize": ("dataset", "normalize"),
     "dataset.split": ("dataset", "split"),
+    "dataset.extract_split": ("dataset", "extract-split"),
     "dataset.yaml": ("dataset", "yaml"),
     "dataset.filter": ("dataset", "filter"),
     "dataset.merge": ("dataset", "merge"),
@@ -220,6 +221,7 @@ _ROOT_TASKS: frozenset[str] = frozenset(
         "dataset.select",
         "dataset.normalize",
         "dataset.split",
+        "dataset.extract_split",
         "dataset.yaml",
         "dataset.filter",
         "dataset.duplicates",
@@ -616,6 +618,33 @@ class YoloManager:
             absolute_paths=absolute_paths,
             train_include_list=train_include_list,
             val_include_list=val_include_list,
+            **kwargs,
+        )
+
+    def dataset_extract_split(
+        self,
+        *,
+        train_include_list: str | Path | Sequence[str] | None = None,
+        val_include_list: str | Path | Sequence[str] | None = None,
+        test_include_list: str | Path | Sequence[str] | None = None,
+        out: str | None = None,
+        copy_images: bool = True,
+        keep_empty_labels: bool = True,
+        dry_run: bool = False,
+        backup_dir: str | Path | None = None,
+        **kwargs: Any,
+    ) -> int:
+        """Materialize train/val/test subsets into separate dataset dirs (``ydm dataset extract-split``)."""
+        return self._run(
+            "dataset.extract_split",
+            train_include_list=train_include_list,
+            val_include_list=val_include_list,
+            test_include_list=test_include_list,
+            out=out,
+            copy_images=copy_images,
+            keep_empty_labels=keep_empty_labels,
+            dry_run=dry_run,
+            backup_dir=backup_dir,
             **kwargs,
         )
 

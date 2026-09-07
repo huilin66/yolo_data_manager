@@ -95,6 +95,14 @@ names and stems are also supported.
 If `train.txt`, `val.txt`, or `test.txt` already exists in the output directory,
 split moves it before writing into `<dataset-root>/labels_backup/<timestamp>/`;
 pass `backup_dir` to override the backup directory.
+`dataset_extract_split` materializes each set from your existing split txt files:
+every non-null `train_include_list` / `val_include_list` / `test_include_list` writes
+its images to `<out>/<set>` as a standalone flat dataset (`images/` + `labels/` +
+`class.txt` + `dataset.yaml`). These parameters accept an image-name/path list or a
+txt file with one image name/path per line. Omitted sets are skipped, empty sets are
+reported as 0 images without writing; `dry_run=True` reports counts and output paths
+without writing, `copy_images=False` skips copying images, and
+`keep_empty_labels=False` omits empty label files.
 Multimodal data uses these same functional groups; modality subdirectories are added only
 where needed, and there is no separate `ydm_multimodal` feature module.
 
@@ -163,6 +171,12 @@ mgr.dataset_split(
     val=0.2,
     train_include_list=["images/keep_train_001.jpg", "keep_train_002.jpg"],
     val_include_list="val_include.txt",
+)
+mgr.dataset_extract_split(
+    train_include_list="train.txt",
+    val_include_list="val.txt",
+    test_include_list="test.txt",
+    out="out",
 )
 mgr.dataset_select(file="val.txt", out="val_subset")
 mgr.dataset_yaml(out="dataset.yaml", train="images/train", val="images/val")

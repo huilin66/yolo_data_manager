@@ -23,7 +23,7 @@ from yolo_data_manager.dataset.filter import filter_by_geometry
 from yolo_data_manager.dataset.duplicates import find_duplicate_images
 from yolo_data_manager.dataset.merge import merge_datasets
 from yolo_data_manager.dataset.quality import find_bad_images
-from yolo_data_manager.dataset.split import class_counts_for_images, split_dataset
+from yolo_data_manager.dataset.split import class_counts_for_images, extract_splits, split_dataset
 from yolo_data_manager.evaluation.compare import compare_datasets
 from yolo_data_manager.evaluation.error_analysis import (
     analyze_errors,
@@ -681,6 +681,78 @@ def test_split_class_counts_for_images(tmp_path):
 
     assert class_counts_for_images(dataset) == {"person": 1, "car": 2}
     assert class_counts_for_images(dataset, absolute_b) == {"person": 0, "car": 1}
+
+
+def test_extract_splits_to_flat_directories(tmp_path):
+    root = make_dataset(tmp_path / "yolo")
+    dataset = load_yolo_dataset(root)
+    out_root = tmp_path / "extracted"
+    (tmp_path / "train.txt").write_text("a.jpg\n", encoding="utf-8")
+    (tmp_path / "val.txt").write_text("b.jpg\n", encoding="utf-8")
+    (tmp_path / "test.txt").write_text("", encoding="utf-8")
+
+    result = extract_splits(
+        dataset,
+        train_include_list=tmp_path / "train.txt",
+        val_include_list=tmp_path / "val.txt",
+        test_include_list=tmp_path / "test.txt",
+        out_root=out_root,
+        workers=1,
+    )
+
+    assert set(result) == {"train", "val", "test"}
+    assert result["train"]["images"] == 1
+    assert result["val"]["images"] == 1
+    assert result["test"]["images"] == 0
+    assert result["test"]["out"] is None
+    assert (out_root / "train" / "images" / "a.jpg").exists()
+    assert (out_root / "train" / "labels" / "a.txt").exists()
+    assert (out_root / "val" / "images" / "b.jpg").exists()
+    assert (out_root / "val" / "labels" / "b.txt").exists()
+    assert (out_root / "train" / "dataset.yaml").exists()
+
+
+def test_extract_splits_dry_run_writes_nothing(tmp_path):
+    root = make_dataset(tmp_path / "yolo")
+    dataset = load_yolo_dataset(root)
+    out_root = tmp_path / "extracted"
+    (tmp_path / "train.txt").write_text("a.jpg\n", encoding="utf-8")
+
+    result = extract_splits(
+        dataset,
+        train_include_list=tmp_path / "train.txt",
+        out_root=out_root,
+        dry_run=True,
+        workers=1,
+    )
+
+    assert result["train"]["images"] == 1
+    assert not (out_root / "train").exists()
+
+
+def test_extract_splits_via_cli(tmp_path):
+    root = make_dataset(tmp_path / "yolo")
+    (tmp_path / "train.txt").write_text("a.jpg\n", encoding="utf-8")
+    (tmp_path / "test.txt").write_text("b.jpg\n", encoding="utf-8")
+    out_root = tmp_path / "extracted"
+
+    assert cli_main(
+        [
+            "dataset",
+            "extract-split",
+            "--root",
+            str(root),
+            "--train-include-list",
+            str(tmp_path / "train.txt"),
+            "--test-include-list",
+            str(tmp_path / "test.txt"),
+            "--out",
+            str(out_root),
+            "--progress",
+        ]
+    ) == 0
+    assert (out_root / "train" / "images" / "a.jpg").exists()
+    assert (out_root / "test" / "images" / "b.jpg").exists()
 
 
 def test_layout_detect_split_dirs_and_normalize(tmp_path):

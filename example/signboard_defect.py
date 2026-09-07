@@ -22,13 +22,13 @@ from example.functions import (
     yolo_vis,
 )
 
-DATA_DIR = Path(r"/localnvme/data/billboard/demo_vis")
+DATA_DIR = Path(r"\\158.132.186.40\isds\huilin\signboard\mayolo_v1")
 
 
 # Select operations by uncommenting names in RUN_LIST.
 RUN_LIST = [
-    # "sta",
-    "vis",
+    "sta",
+    # "vis",
     # "metric",
     # "error_ana",
     # "update",
