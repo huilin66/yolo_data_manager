@@ -111,6 +111,7 @@ The default locations are also available directly from `YoloManager`:
 
 ```python
 mgr.output_stats
+mgr.output_basic_info
 mgr.output_vis
 mgr.output_evaluation
 mgr.output_labels_backup
@@ -126,7 +127,7 @@ manager operation creates outputs as needed.
 
 ```python
 mgr.stats()
-mgr.stats(out="stats.json", class_csv="class_counts.csv", attr_csv="attributes.csv")
+mgr.stats(out="stats.json", class_csv="class_counts.csv", attr_csv="attributes.csv", basic_info_csv="basic info.csv")
 mgr.stats(plots_dir="labels_sta", stats_list=["all"])
 mgr.stats(plots_dir="labels_sta", stats_list=["image_shape", "box_shape_pix", "box_pos_center"])
 ```
@@ -140,6 +141,8 @@ box_pos_start, box_pos_center, box_pos_end, attribute, legacy_csv
 ```
 
 `annotations.csv` includes a `split` column. It is inferred from `train.txt`, `val.txt`, and `test.txt` under the dataset root, or from directories such as `images/train`, `images/val`, and `images/test`; the value is left empty when the split cannot be determined uniquely.
+
+The `stats` console output contains compact box counts by class/split and attribute counts by class, attribute, value, and split. The same rows are written by default to `ydm_stats/basic info.csv`; use `basic_info_csv` to override the path. The complete statistics JSON is still written as before.
 
 Selecting `box_shape`, `box_shape_pix`, `box_shape_rate`, `box_width`, or `box_height` also writes the per-class folders `box_shape_ratios/`, `box_shape_pixels/`, `aspect_ratio/`, `width_image_ratio/`, and `height_image_ratio/` respectively. Each folder contains one plot per class. `box_width` and `box_height` also write `box_width_boxplot.png` and `box_height_boxplot.png`, with classes on the x-axis and normalized box width or height on the y-axis.
 

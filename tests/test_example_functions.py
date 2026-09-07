@@ -80,6 +80,7 @@ def test_yolo_manager_exposes_default_output_paths(tmp_path):
 
     assert manager.output_quality == tmp_path / "ydm_quality"
     assert manager.output_stats == tmp_path / "ydm_stats"
+    assert manager.output_basic_info == tmp_path / "ydm_stats" / "basic info.csv"
     assert manager.output_vis == tmp_path / "ydm_vis"
     assert manager.output_evaluation == tmp_path / "ydm_evaluation"
     assert manager.output_dataset == tmp_path / "ydm_dataset"

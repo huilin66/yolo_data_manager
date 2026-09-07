@@ -41,7 +41,7 @@ mgr.check(out="validation.json")
 mgr.check(out="validation.json", fill_missing_txt=True)
 
 # 统计
-mgr.stats(out="stats.json", class_csv="class_counts.csv", attr_csv="attributes.csv")
+mgr.stats(out="stats.json", class_csv="class_counts.csv", attr_csv="attributes.csv", basic_info_csv="basic info.csv")
 mgr.stats(plots_dir="labels_sta", stats_list=["all"])
 mgr.stats(plots_dir="labels_sta", stats_list=["image_shape", "box_shape_pix", "box_pos_center"])
 
@@ -291,6 +291,7 @@ Python API 与 CLI 使用相同的默认输出规则；显式传入 `out`、`csv
 
 ```python
 mgr.output_stats
+mgr.output_basic_info
 mgr.output_vis
 mgr.output_evaluation
 mgr.output_labels_backup
@@ -316,6 +317,8 @@ mgr.output_dataset_yaml
 `stats_list` 支持：`all`、`class_counts`、`box_number`、`box_width`、`box_height`、`box_area`、`image_shape`、`box_shape`、`box_shape_pix`、`box_shape_rate`、`box_pos_start`、`box_pos_center`、`box_pos_end`、`attribute`、`legacy_csv`。
 
 `annotations.csv` 包含 `split` 列。它会根据数据集根目录下的 `train.txt`、`val.txt`、`test.txt`，或 `images/train`、`images/val`、`images/test` 等 split 目录自动填写；无法唯一判断时留空。
+
+`stats` 控制台会输出按类别/split 的 box 表和按类别/属性/属性值/split 的属性表；相同内容默认保存到 `ydm_stats/basic info.csv`，可通过 `basic_info_csv` 指定其他路径。完整统计 JSON 仍照常保存。
 
 选择 `box_shape`、`box_shape_pix`、`box_shape_rate`、`box_width`、`box_height` 时，会额外按类别输出 `box_shape_ratios/`、`box_shape_pixels/`、`aspect_ratio/`、`width_image_ratio/`、`height_image_ratio/` 五个目录，每个目录内为每个类别生成一张图。`box_width` 和 `box_height` 还会分别生成 `box_width_boxplot.png`、`box_height_boxplot.png`，箱线图横轴为类别，纵轴为归一化 box 宽度或高度。
 

@@ -46,7 +46,13 @@ from yolo_data_manager.io.writer import (
 )
 from yolo_data_manager.stats.compute import compute_stats
 from yolo_data_manager.stats.export import write_annotation_csv, write_attribute_csv, write_stats_plots
-from yolo_data_manager.stats.report import write_class_counts_csv, write_json_report
+from yolo_data_manager.stats.report import (
+    build_basic_info_rows,
+    format_basic_info_tables,
+    write_basic_info_csv,
+    write_class_counts_csv,
+    write_json_report,
+)
 from yolo_data_manager.tools.image_resize import resize_yolo_dataset, validate_resize_options
 from yolo_data_manager.vis.manual_box import draw_manual_box, find_dataset_image
 from yolo_data_manager.vis.renderer import crop_dataset, render_dataset
@@ -107,6 +113,7 @@ def build_parser() -> argparse.ArgumentParser:
     stats.add_argument("--class-csv", default=None, help="class-count CSV; defaults to <root>/ydm_stats/class_counts.csv")
     stats.add_argument("--ann-csv", default=None, help="annotation CSV; defaults to <root>/ydm_stats/annotations.csv")
     stats.add_argument("--attr-csv", default=None, help="attribute CSV; defaults to <root>/ydm_stats/attributes.csv")
+    stats.add_argument("--basic-info-csv", default=None, help="compact box/attribute CSV; defaults to <root>/ydm_stats/basic info.csv")
     stats.add_argument("--plots-dir", default=None, help="PNG plot directory; defaults to <root>/ydm_stats/plots")
     stats.add_argument("--stats-list", default=None, help="comma-separated stats to plot/export; use all for every stats output")
     stats.set_defaults(handler=handle_stats)
@@ -879,12 +886,18 @@ def handle_stats(args: argparse.Namespace) -> int:
     class_csv = _value_or_default(args.class_csv, stats_dir / "class_counts.csv")
     ann_csv = _value_or_default(args.ann_csv, stats_dir / "annotations.csv")
     attr_csv = _value_or_default(args.attr_csv, stats_dir / "attributes.csv")
+    basic_info_csv = _value_or_default(args.basic_info_csv, stats_dir / "basic info.csv")
     plots_dir = _value_or_default(args.plots_dir, stats_dir / "plots")
+    basic_info_rows = build_basic_info_rows(dataset)
     write_class_counts_csv(payload, class_csv)
     write_annotation_csv(dataset, ann_csv)
     write_attribute_csv(dataset, attr_csv)
+    write_basic_info_csv(basic_info_rows, basic_info_csv)
     write_stats_plots(dataset, plots_dir, stats_list=args.stats_list)
-    _emit_json(payload, out)
+    write_json_report(payload, out)
+    print(format_basic_info_tables(basic_info_rows))
+    print(f"\nStats JSON: {out}")
+    print(f"Basic info CSV: {basic_info_csv}")
     return 0
 
 

@@ -187,7 +187,7 @@ defect:
 
 ```bash
 ydm stats --root path/to/yolo
-ydm stats --root path/to/yolo --out stats.json --ann-csv annotations.csv --attr-csv attributes.csv --plots-dir stats_plots
+ydm stats --root path/to/yolo --out stats.json --ann-csv annotations.csv --attr-csv attributes.csv --basic-info-csv "basic info.csv" --plots-dir stats_plots
 ydm stats --root path/to/yolo --stats-list all
 ydm stats --root path/to/yolo --plots-dir labels_sta --stats-list image_shape,box_shape_pix,box_pos_center
 ```
@@ -201,6 +201,8 @@ box_pos_start, box_pos_center, box_pos_end, attribute, legacy_csv
 ```
 
 `annotations.csv` 包含 `split` 列，优先根据数据集根目录下的 `train.txt`、`val.txt`、`test.txt`，或 `images/train`、`images/val`、`images/test` 等目录推断；无法唯一判断时为空。
+
+`stats` 控制台只输出两张基础表：按类别和 split 统计的 box 数量，以及按类别/属性/属性值和 split 统计的属性数量。相同内容默认保存到 `ydm_stats/basic info.csv`，也可以通过 `--basic-info-csv` 指定路径；完整统计仍保存到 `stats.json`。
 
 选择 `box_shape`、`box_shape_pix`、`box_shape_rate`、`box_width`、`box_height` 时，还会按类别生成 `box_shape_ratios/`、`box_shape_pixels/`、`aspect_ratio/`、`width_image_ratio/`、`height_image_ratio/` 五个目录；`box_width` 和 `box_height` 还会生成按类别比较的 `box_width_boxplot.png` 和 `box_height_boxplot.png`。
 

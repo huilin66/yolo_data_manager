@@ -19,6 +19,7 @@ def yolo_sta(
     class_csv: str | Path | None = None,
     ann_csv: str | Path | None = None,
     attr_csv: str | Path | None = None,
+    basic_info_csv: str | Path | None = None,
     plots_dir: str | Path | None = None,
 ) -> int:
     """Compute statistics for all input data unless ``only_val`` is enabled."""
@@ -31,5 +32,6 @@ def yolo_sta(
         class_csv=class_csv,
         ann_csv=ann_csv,
         attr_csv=attr_csv,
+        basic_info_csv=basic_info_csv,
         plots_dir=plots_dir,
     )

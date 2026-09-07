@@ -24,7 +24,7 @@ The default output groups below a dataset root are:
 ```text
 labels_backup/       timestamped backups before label writes
 ydm_quality/         check, query, duplicates, bad-images
-ydm_stats/           stats JSON, CSV files, plots/
+ydm_stats/           stats JSON, CSV files, basic info.csv, plots/
 ydm_vis/             draw/, crop/, att_seperate/(attribute_crop/), manual_box/
 ydm_evaluation/      compare, review_pack, error_analysis, metrics
 ydm_dataset/         select, normalize, filter, merge
@@ -142,6 +142,7 @@ Implemented statistics include:
 - attribute distribution
 - class-attribute cross distribution
 - annotation CSV, including an inferred `split` column when available
+- basic info.csv with class/attribute counts grouped by train, val, and test
 - attribute long-form CSV
 - optional PNG plots
 

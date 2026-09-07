@@ -322,6 +322,12 @@ class YoloManager:
         return ydm_dir(self.root, "stats")
 
     @property
+    def output_basic_info(self) -> Path:
+        """Default compact box/attribute statistics CSV."""
+
+        return self.output_stats / "basic info.csv"
+
+    @property
     def output_vis(self) -> Path:
         """Default visualization output directory."""
 
@@ -461,6 +467,7 @@ class YoloManager:
         class_csv: str | None = None,
         ann_csv: str | None = None,
         attr_csv: str | None = None,
+        basic_info_csv: str | None = None,
         plots_dir: str | None = None,
         stats_list: str | list[str] | None = None,
         only_val: bool | None = None,
@@ -473,6 +480,7 @@ class YoloManager:
             class_csv=class_csv,
             ann_csv=ann_csv,
             attr_csv=attr_csv,
+            basic_info_csv=basic_info_csv,
             plots_dir=plots_dir,
             stats_list=stats_list,
             only_val=only_val,

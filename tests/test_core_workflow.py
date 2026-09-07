@@ -50,6 +50,11 @@ from yolo_data_manager.stats.export import (
     write_attribute_csv,
     write_stats_plots,
 )
+from yolo_data_manager.stats.report import (
+    build_basic_info_rows,
+    format_basic_info_tables,
+    write_basic_info_csv,
+)
 from yolo_data_manager.scripting import YoloManager, build_task_argv
 from yolo_data_manager.vis.renderer import _annotation_label
 from yolo_data_manager.vis.renderer import crop_dataset
@@ -98,11 +103,14 @@ def test_build_python_task_argv():
     stats_argv = build_task_argv(
         "stats",
         root=Path("dataset"),
+        basic_info_csv=Path("basic info.csv"),
         plots_dir=Path("stats_plots"),
         stats_list=["image_shape", "box_pos_center"],
         only_val=True,
     )
     assert stats_argv[-3:-1] == ["--stats-list", "image_shape,box_pos_center"]
+    assert "--basic-info-csv" in stats_argv
+    assert "basic info.csv" in stats_argv
     assert "--only-val" in stats_argv
 
     filter_argv = build_task_argv(
@@ -366,6 +374,7 @@ def test_yolo_manager_can_initialize_from_dataset_yaml(tmp_path):
     assert mgr.split_file == str(root / "val.txt")
     assert payload["image_count"] == 2
     assert payload["class_counts"] == {"flame": 1, "smoke": 2}
+    assert (root / "ydm_stats" / "basic info.csv").exists()
 
     code = mgr.stats(out=str(val_out), only_val=True)
     val_payload = json.loads(val_out.read_text(encoding="utf-8"))
@@ -1012,6 +1021,18 @@ def test_stats_list_outputs_legacy_plots_and_csv(tmp_path):
     assert stats["box_pos_center_x"]["count"] == 3
 
 
+def test_stats_prints_basic_tables_and_writes_basic_info_csv(tmp_path, capsys):
+    root = make_dataset(tmp_path / "stats_basic_info")
+
+    assert cli_main(["stats", "--root", str(root), "--no-progress"]) == 0
+
+    output = capsys.readouterr().out
+    assert "Box counts" in output
+    assert "Attribute counts" in output
+    assert '"image_count"' not in output
+    assert (root / "ydm_stats" / "basic info.csv").exists()
+
+
 def test_annotation_csv_includes_split_from_split_lists(tmp_path):
     root = make_dataset(tmp_path / "yolo")
     (root / "train.txt").write_text("images/a.jpg\n", encoding="utf-8")
@@ -1059,6 +1080,63 @@ def test_annotation_csv_includes_split_from_split_directories(tmp_path):
         "a.jpg": "train",
         "b.jpg": "val",
     }
+
+
+def test_basic_info_reports_box_and_attribute_counts_by_split(tmp_path):
+    root = make_dataset(tmp_path / "basic_info_yolo")
+    (root / "train.txt").write_text("images/a.jpg\n", encoding="utf-8")
+    (root / "val.txt").write_text("images/b.jpg\n", encoding="utf-8")
+    (root / "attribute.yaml").write_text(
+        "attributes:\n  defect: [no, yes]\n", encoding="utf-8"
+    )
+    (root / "labels" / "a.txt").write_text(
+        "0 1 1 0.5 0.5 0.2 0.3\n"
+        "1 1 0 0.4 0.4 0.2 0.2\n",
+        encoding="utf-8",
+    )
+    (root / "labels" / "b.txt").write_text(
+        "1 1 1 0.1 0.1 0.2 0.1\n", encoding="utf-8"
+    )
+    dataset = load_yolo_dataset(root, task="detect", workers=1)
+    rows = build_basic_info_rows(dataset)
+    out = tmp_path / "basic info.csv"
+
+    write_basic_info_csv(rows, out)
+    table = format_basic_info_tables(rows)
+
+    box_rows = {
+        row["class_name"]: row
+        for row in rows
+        if row["section"] == "box"
+    }
+    attribute_rows = {
+        (row["class_name"], row["attribute"], row["value"]): row
+        for row in rows
+        if row["section"] == "attribute"
+    }
+    assert box_rows["person"] == {
+        "section": "box",
+        "class_name": "person",
+        "attribute": "",
+        "value": "",
+        "total": 1,
+        "train": 1,
+        "val": 0,
+        "test": 0,
+    }
+    assert box_rows["car"]["total"] == 2
+    assert box_rows["car"]["train"] == 1
+    assert box_rows["car"]["val"] == 1
+    assert attribute_rows[("person", "defect", "yes")]["train"] == 1
+    assert attribute_rows[("car", "defect", "no")]["train"] == 1
+    assert attribute_rows[("car", "defect", "yes")]["val"] == 1
+    assert "Box counts" in table
+    assert "Attribute counts" in table
+
+    with out.open("r", encoding="utf-8", newline="") as fp:
+        csv_rows = list(csv.DictReader(fp))
+    assert csv_rows[0]["section"] == "box"
+    assert {row["section"] for row in csv_rows} == {"box", "attribute"}
 
 
 def test_merge_datasets_with_output_name_prefix(tmp_path):
