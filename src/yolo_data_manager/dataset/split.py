@@ -129,9 +129,17 @@ def _read_include_values(
         if not text:
             return []
         candidate = Path(text).expanduser()
-        if not candidate.is_absolute() and not candidate.exists():
+        if not _looks_absolute(candidate) and not candidate.exists():
             candidate = dataset_root / candidate
         if candidate.is_file() and not is_image_file(candidate):
+            return _read_include_file(candidate)
+        if candidate.suffix.lower() == ".txt":
+            # A .txt suffix marks an include-list file. Reading it must not
+            # rely on is_file()/is_absolute() being reliable for the path
+            # (e.g. UNC shares); surface a clear error instead of treating the
+            # path itself as an image name.
+            if not candidate.is_file():
+                raise FileNotFoundError(f"include list file not found: {candidate}")
             return _read_include_file(candidate)
         if "," in text:
             return [part.strip() for part in text.split(",") if part.strip()]
@@ -143,6 +151,21 @@ def _read_include_values(
         if text:
             values.append(text)
     return values
+
+
+def _looks_absolute(path: Path) -> bool:
+    """Return True for drive/UNC/POSIX-root paths.
+
+    ``Path.is_absolute()`` treats ``\\server\\share`` as relative on some
+    runtimes, so include-list resolution checks these forms explicitly.
+    """
+    text = str(path)
+    return (
+        text.startswith("\\\\")
+        or text.startswith("/")
+        or text.startswith("\\")
+        or (len(text) >= 2 and text[1] == ":")
+    )
 
 
 def _read_include_file(path: Path) -> list[str]:

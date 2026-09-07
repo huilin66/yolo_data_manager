@@ -22,12 +22,12 @@ from example.functions import (
     yolo_vis,
 )
 
-DATA_DIR = Path(r"\\158.132.186.40\isds\huilin\signboard\mayolo_v1")
+DATA_DIR = Path(r"\\158.132.186.40\isds\huilin\signboard\mayolo_v2")
 
 
 # Select operations by uncommenting names in RUN_LIST.
 RUN_LIST = [
-    "sta",
+    # "sta",
     # "vis",
     # "metric",
     # "error_ana",
@@ -37,6 +37,7 @@ RUN_LIST = [
     # "update_class",
     # "update_class_by_label",
     # "split"
+    "split_vis"
 ]
 
 
@@ -53,6 +54,19 @@ def main() -> None:
             crop=True,
             show_attrs=True,
         )
+    if "split_vis" in RUN_LIST:
+        from yolo_data_manager.dataset.split import extract_splits
+        from yolo_data_manager.io.loader import load_yolo_dataset
+
+        dataset = load_yolo_dataset(DATA_DIR)
+        result = extract_splits(
+            dataset,
+            train_include_list=DATA_DIR / "train.txt",
+            val_include_list=DATA_DIR / "val.txt",
+            test_include_list=DATA_DIR / "test.txt",
+            out_root=DATA_DIR,
+        )
+        print(f"extracted splits: {result}")
 
 
 if __name__ == "__main__":
