@@ -204,6 +204,8 @@ box_pos_start, box_pos_center, box_pos_end, attribute, legacy_csv
 
 `stats` 控制台只输出两张基础表：按类别和 split 统计的 box 数量，以及按类别/属性/属性值和 split 统计的属性数量。相同内容默认保存到 `ydm_stats/basic info.csv`，也可以通过 `--basic-info-csv` 指定路径；完整统计仍保存到 `stats.json`。
 
+使用 `--stats-list attribute` 时，属性图表只生成 `attribute_num.png`，并生成对应的 `attribute_num.csv`；不再生成按单个属性拆分的图片。
+
 选择 `box_shape`、`box_shape_pix`、`box_shape_rate`、`box_width`、`box_height` 时，还会按类别生成 `box_shape_ratios/`、`box_shape_pixels/`、`aspect_ratio/`、`width_image_ratio/`、`height_image_ratio/` 五个目录；`box_width` 和 `box_height` 还会生成按类别比较的 `box_width_boxplot.png` 和 `box_height_boxplot.png`。
 
 ## 可视化与裁剪

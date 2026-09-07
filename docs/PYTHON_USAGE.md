@@ -320,6 +320,8 @@ mgr.output_dataset_yaml
 
 `stats` 控制台会输出按类别/split 的 box 表和按类别/属性/属性值/split 的属性表；相同内容默认保存到 `ydm_stats/basic info.csv`，可通过 `basic_info_csv` 指定其他路径。完整统计 JSON 仍照常保存。
 
+选择 `attribute` 时，属性图表仅输出 `attribute_num.png`，并同时生成对应的 `attribute_num.csv`；不再生成按单个属性拆分的图片。
+
 选择 `box_shape`、`box_shape_pix`、`box_shape_rate`、`box_width`、`box_height` 时，会额外按类别输出 `box_shape_ratios/`、`box_shape_pixels/`、`aspect_ratio/`、`width_image_ratio/`、`height_image_ratio/` 五个目录，每个目录内为每个类别生成一张图。`box_width` 和 `box_height` 还会分别生成 `box_width_boxplot.png`、`box_height_boxplot.png`，箱线图横轴为类别，纵轴为归一化 box 宽度或高度。
 
 选择 `box_shape`、`box_shape_pix`、`box_shape_rate`、`box_width`、`box_height` 时，会额外按类别输出 `box_shape_ratios/`、`box_shape_pixels/`、`aspect_ratio/`、`width_image_ratio/`、`height_image_ratio/` 五个目录，每个目录内为每个类别生成一张图。`box_width` 和 `box_height` 还会分别生成 `box_width_boxplot.png`、`box_height_boxplot.png`，箱线图横轴为类别，纵轴为归一化 box 宽度或高度。

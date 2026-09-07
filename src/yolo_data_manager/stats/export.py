@@ -116,7 +116,6 @@ def write_stats_plots(dataset: YoloDataset, out_dir: str | Path, stats_list: str
     widths: list[float] = []
     heights: list[float] = []
     areas: list[float] = []
-    attribute_counts: dict[str, dict[str, int]] = {}
 
     for image in dataset.images:
         objects_per_image.append(len(image.annotations))
@@ -127,10 +126,6 @@ def write_stats_plots(dataset: YoloDataset, out_dir: str | Path, stats_list: str
                 widths.append(box.width)
                 heights.append(box.height)
                 areas.append(box.width * box.height)
-            for attr_name, attr_value in dataset.annotation_attributes(annotation).items():
-                attribute_counts.setdefault(attr_name, {})
-                value_text = str(attr_value)
-                attribute_counts[attr_name][value_text] = attribute_counts[attr_name].get(value_text, 0) + 1
 
     annotation_rows = _annotation_rows(dataset)
     rows_by_class: dict[str, list[dict[str, object]]] = {
@@ -215,8 +210,7 @@ def write_stats_plots(dataset: YoloDataset, out_dir: str | Path, stats_list: str
     if "box_pos_end" in selected:
         _box_position_plot(plt, annotation_rows, "end_x", "end_y", output / "box_pos_end.png", "Box End Position")
     if "attribute" in selected:
-        for attr_name, counts in attribute_counts.items():
-            _bar_plot(plt, counts, output / f"attribute_{_safe_name(attr_name)}.png", f"Attribute: {attr_name}", "value", "count")
+        _clear_attribute_outputs(output)
         if dataset.attributes is not None:
             _attribute_distribution_outputs(plt, dataset, output)
 
@@ -543,7 +537,6 @@ def _attribute_distribution_outputs(plt, dataset: YoloDataset, out_dir: Path) ->
     if not attr_names:
         return
 
-    defects_per_box: dict[str, int] = {}
     category_defects: dict[str, dict[str, int]] = {}
     total_by_attr = {name: 0 for name in attr_names}
 
@@ -551,23 +544,17 @@ def _attribute_distribution_outputs(plt, dataset: YoloDataset, out_dir: Path) ->
         for annotation in image.annotations:
             class_name = dataset.class_name(annotation.class_id)
             decoded = dataset.annotation_attributes(annotation)
-            positive_count = 0
             category_defects.setdefault(class_name, {name: 0 for name in attr_names})
             for name in attr_names:
                 value = decoded.get(name, "")
                 if value != "" and not AttributeSchema.is_no_value(value):
-                    positive_count += 1
                     category_defects[class_name][name] += 1
                     total_by_attr[name] += 1
-            key = str(positive_count)
-            defects_per_box[key] = defects_per_box.get(key, 0) + 1
-
-    _bar_plot(plt, defects_per_box, out_dir / "defects_num.png", "Defects Number Per Box", "defect count", "box count")
-    _write_attribute_distribution_csv(category_defects, total_by_attr, out_dir / "sta_attribute_distributions.csv")
+    _write_attribute_num_csv(category_defects, total_by_attr, out_dir / "attribute_num.csv")
     _attribute_distribution_plot(plt, category_defects, total_by_attr, out_dir / "attribute_num.png")
 
 
-def _write_attribute_distribution_csv(category_defects: dict[str, dict[str, int]], total_by_attr: dict[str, int], path: Path) -> None:
+def _write_attribute_num_csv(category_defects: dict[str, dict[str, int]], total_by_attr: dict[str, int], path: Path) -> None:
     categories = list(category_defects)
     fieldnames = ["attribute", *categories, "total"]
     with path.open("w", newline="", encoding="utf-8") as fp:
@@ -578,6 +565,16 @@ def _write_attribute_distribution_csv(category_defects: dict[str, dict[str, int]
             for category in categories:
                 row[category] = category_defects[category].get(attr_name, 0)
             writer.writerow(row)
+
+
+def _clear_attribute_outputs(out_dir: Path) -> None:
+    """Clear attribute outputs before writing the consolidated result."""
+
+    for path in out_dir.glob("attribute_*.png"):
+        if path.is_file():
+            path.unlink()
+    for name in ("defects_num.png", "sta_attribute_distributions.csv"):
+        (out_dir / name).unlink(missing_ok=True)
 
 
 def _attribute_distribution_plot(plt, category_defects: dict[str, dict[str, int]], total_by_attr: dict[str, int], path: Path) -> None:

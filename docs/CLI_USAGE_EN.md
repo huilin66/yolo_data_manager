@@ -204,6 +204,8 @@ box_pos_start, box_pos_center, box_pos_end, attribute, legacy_csv
 
 The `stats` command now prints only two compact tables: box counts by class and split, and attribute counts by class, attribute, value, and split. The same rows are written by default to `ydm_stats/basic info.csv`; use `--basic-info-csv` to override the path. The complete statistics remain available in `stats.json`.
 
+With `--stats-list attribute`, the attribute output is limited to `attribute_num.png` plus the corresponding `attribute_num.csv`; per-attribute image files are no longer generated.
+
 Selecting `box_shape`, `box_shape_pix`, `box_shape_rate`, `box_width`, or `box_height` also creates the per-class folders `box_shape_ratios/`, `box_shape_pixels/`, `aspect_ratio/`, `width_image_ratio/`, and `height_image_ratio/`. The `box_width` and `box_height` selections additionally create the class-comparison boxplots `box_width_boxplot.png` and `box_height_boxplot.png`.
 
 ## Visualization and Cropping

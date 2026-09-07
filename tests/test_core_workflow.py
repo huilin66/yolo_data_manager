@@ -1020,6 +1020,36 @@ def test_stats_list_outputs_legacy_plots_and_csv(tmp_path):
     assert stats["box_pos_center_x"]["count"] == 3
 
 
+def test_attribute_stats_keep_only_attribute_num_outputs(tmp_path):
+    root = make_dataset(tmp_path / "attribute_plots")
+    (root / "attribute.yaml").write_text(
+        "attributes:\n  defect: [no, yes]\n", encoding="utf-8"
+    )
+    (root / "labels" / "a.txt").write_text(
+        "0 1 1 0.5 0.5 0.2 0.3\n", encoding="utf-8"
+    )
+    (root / "labels" / "b.txt").write_text(
+        "1 1 1 0.1 0.1 0.2 0.1\n", encoding="utf-8"
+    )
+    dataset = load_yolo_dataset(root, task="detect", workers=1)
+    out_dir = tmp_path / "plots"
+    out_dir.mkdir()
+    (out_dir / "attribute_defect.png").write_bytes(b"old")
+    (out_dir / "defects_num.png").write_bytes(b"old")
+    (out_dir / "sta_attribute_distributions.csv").write_text("old", encoding="utf-8")
+
+    write_stats_plots(dataset, out_dir, stats_list=["attribute"])
+
+    assert (out_dir / "attribute_num.png").exists()
+    assert (out_dir / "attribute_num.csv").exists()
+    assert not (out_dir / "attribute_defect.png").exists()
+    assert not (out_dir / "defects_num.png").exists()
+    assert not (out_dir / "sta_attribute_distributions.csv").exists()
+    csv_text = (out_dir / "attribute_num.csv").read_text(encoding="utf-8")
+    assert "attribute,person,car,total" in csv_text
+    assert "defect,1,1,2" in csv_text
+
+
 def test_stats_prints_basic_tables_and_writes_basic_info_csv(tmp_path, capsys):
     root = make_dataset(tmp_path / "stats_basic_info")
 

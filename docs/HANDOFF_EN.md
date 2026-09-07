@@ -143,6 +143,7 @@ Implemented statistics include:
 - class-attribute cross distribution
 - annotation CSV, including an inferred `split` column when available
 - basic info.csv with class/attribute counts grouped by train, val, and test
+- attribute_num.png and attribute_num.csv for aggregate attribute counts
 - optional PNG plots
 
 ### Visualization
