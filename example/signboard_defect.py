@@ -22,7 +22,7 @@ from example.functions import (
     yolo_vis,
 )
 
-DATA_DIR = Path(r"\\158.132.186.40\isds\huilin\signboard\mayolo_v2")
+DATA_DIR = Path(r"\\158.132.186.40\isds\huilin\mayolo\mayolo_v2")
 
 
 # Select operations by uncommenting names in RUN_LIST.
@@ -58,13 +58,16 @@ def main() -> None:
         from yolo_data_manager.dataset.split import extract_splits
         from yolo_data_manager.io.loader import load_yolo_dataset
 
-        dataset = load_yolo_dataset(DATA_DIR)
+        dataset = load_yolo_dataset(DATA_DIR, workers=16, progress=True)
         result = extract_splits(
             dataset,
             train_include_list=DATA_DIR / "train.txt",
             val_include_list=DATA_DIR / "val.txt",
             test_include_list=DATA_DIR / "test.txt",
             out_root=DATA_DIR,
+            workers=16,
+            progress=True,
+            progress_leave=True,
         )
         print(f"extracted splits: {result}")
 
