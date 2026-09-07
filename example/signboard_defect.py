@@ -10,7 +10,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from example.functions._manager import YoloManagerInput
+from example.functions._manager import get_yolo_manager
 
 # Support both ``python example/my_dataset.py`` and
 # ``python -m example.my_dataset`` from a repository checkout.
@@ -57,8 +57,8 @@ def main() -> None:
             show_attrs=True,
         )
     if "split_vis" in RUN_LIST:
-        ydm = YoloManagerInput(DATA_DIR)
-        ydm.extract_splits(
+        ydm = get_yolo_manager(DATA_DIR, layout="flat", init_check=False, init_layout=False)
+        ydm.dataset_extract_split(
             train_include_list="train.txt",
             val_include_list="val.txt",
             test_include_list="test.txt",
