@@ -318,7 +318,7 @@ mgr.output_dataset_yaml
 
 `annotations.csv` 包含 `split` 列。它会根据数据集根目录下的 `train.txt`、`val.txt`、`test.txt`，或 `images/train`、`images/val`、`images/test` 等 split 目录自动填写；无法唯一判断时留空。
 
-`stats` 控制台会输出图像 total/train/val/test 表、按类别/split 的 box 表和按类别/属性/属性值/split 的属性表；相同内容默认保存到 `ydm_stats/basic_info.csv`，可通过 `basic_info_csv` 指定其他路径。完整统计 JSON 仍照常保存。
+`stats` 控制台会输出图像 total/train/val/test 表、按类别/split 的 box 表和按 attribute/value 汇总的属性表；相同内容默认保存到 `ydm_stats/basic_info.csv`，可通过 `basic_info_csv` 指定其他路径。完整统计 JSON 中仍保留 class-attribute 交叉统计。
 
 选择 `attribute` 时，属性图表仅输出 `attribute_num.png`，并同时生成对应的 `attribute_num.csv`；不再生成按单个属性拆分的图片。
 

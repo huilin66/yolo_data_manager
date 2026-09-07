@@ -40,16 +40,16 @@ def write_class_counts_csv(data: dict[str, object], path: str | Path) -> None:
 
 
 def build_basic_info_rows(dataset: YoloDataset) -> list[dict[str, object]]:
-    """Build compact image, class, and attribute counts by dataset split."""
+    """Build compact image, class, and standalone attribute counts by split."""
 
     split_by_image = infer_image_splits(dataset)
     image_counts = _empty_split_counts()
     class_counts: dict[str, dict[str, int]] = {
         name: _empty_split_counts() for name in dataset.classes.names
     }
-    attribute_counts: dict[tuple[str, str, str], dict[str, int]] = {}
+    attribute_counts: dict[tuple[str, str], dict[str, int]] = {}
     class_order = list(dataset.classes.names)
-    attribute_order: list[tuple[str, str, str]] = []
+    attribute_order: list[tuple[str, str]] = []
 
     for image in dataset.images:
         split = split_by_image.get(id(image))
@@ -62,7 +62,7 @@ def build_basic_info_rows(dataset: YoloDataset) -> list[dict[str, object]]:
             _increment_split_count(class_counts[class_name], split)
 
             for attribute_name, attribute_value in dataset.annotation_attributes(annotation).items():
-                key = (class_name, attribute_name, str(attribute_value))
+                key = (attribute_name, str(attribute_value))
                 if key not in attribute_counts:
                     attribute_counts[key] = _empty_split_counts()
                     attribute_order.append(key)
@@ -89,14 +89,14 @@ def build_basic_info_rows(dataset: YoloDataset) -> list[dict[str, object]]:
                 **counts,
             }
         )
-    for class_name, attribute_name, attribute_value in attribute_order:
+    for attribute_name, attribute_value in attribute_order:
         rows.append(
             {
                 "section": "attribute",
-                "class_name": class_name,
+                "class_name": "",
                 "attribute": attribute_name,
                 "value": attribute_value,
-                **attribute_counts[(class_name, attribute_name, attribute_value)],
+                **attribute_counts[(attribute_name, attribute_value)],
             }
         )
     return rows
@@ -129,7 +129,6 @@ def format_basic_info_tables(rows: Iterable[dict[str, object]]) -> str:
     ]
     attribute_rows = [
         [
-            row["class_name"],
             row["attribute"],
             row["value"],
             row["total"],
@@ -157,7 +156,7 @@ def format_basic_info_tables(rows: Iterable[dict[str, object]]) -> str:
     if attribute_rows:
         sections.append(
             _format_table(
-                ["class_name", "attribute", "value", "total", "train", "val", "test"],
+                ["attribute", "value", "total", "train", "val", "test"],
                 attribute_rows,
             )
         )

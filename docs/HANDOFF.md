@@ -192,7 +192,7 @@ ydm ann delete-attr --root yolo --name defect --value yes --out yolo_attr_clean
 - segmentation polygon 点数、外接框
 - 属性分布、类别-属性交叉分布
 - annotation CSV 明细（包含可推断的 `split` 列）
-- basic_info.csv（图像、类别、属性按 total/train/val/test 分组）
+- basic_info.csv（图像、类别、属性值按 total/train/val/test 分组；属性表不叠加 class_name）
 - attribute_num.png 和 attribute_num.csv（属性数量图表及表格）
 - 可选 PNG 图表输出
 

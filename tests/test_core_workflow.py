@@ -1140,7 +1140,7 @@ def test_basic_info_reports_box_and_attribute_counts_by_split(tmp_path):
         if row["section"] == "box"
     }
     attribute_rows = {
-        (row["class_name"], row["attribute"], row["value"]): row
+        (row["attribute"], row["value"]): row
         for row in rows
         if row["section"] == "attribute"
     }
@@ -1157,9 +1157,12 @@ def test_basic_info_reports_box_and_attribute_counts_by_split(tmp_path):
     assert box_rows["car"]["total"] == 2
     assert box_rows["car"]["train"] == 1
     assert box_rows["car"]["val"] == 1
-    assert attribute_rows[("person", "defect", "yes")]["train"] == 1
-    assert attribute_rows[("car", "defect", "no")]["train"] == 1
-    assert attribute_rows[("car", "defect", "yes")]["val"] == 1
+    assert attribute_rows[("defect", "yes")]["total"] == 2
+    assert attribute_rows[("defect", "yes")]["train"] == 1
+    assert attribute_rows[("defect", "yes")]["val"] == 1
+    assert attribute_rows[("defect", "no")]["total"] == 1
+    assert attribute_rows[("defect", "no")]["train"] == 1
+    assert all(row["class_name"] == "" for row in attribute_rows.values())
     image_rows = {
         row["class_name"]: row
         for row in rows
@@ -1178,6 +1181,9 @@ def test_basic_info_reports_box_and_attribute_counts_by_split(tmp_path):
     assert "Image counts" in table
     assert "Box counts" in table
     assert "Attribute counts" in table
+    attribute_table = table.split("Attribute counts", 1)[1]
+    assert "attribute | value" in attribute_table
+    assert "class_name | attribute" not in attribute_table
 
     with out.open("r", encoding="utf-8", newline="") as fp:
         csv_rows = list(csv.DictReader(fp))
