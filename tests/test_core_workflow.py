@@ -1,4 +1,5 @@
 from pathlib import Path
+import csv
 import json
 
 from PIL import Image
@@ -44,7 +45,11 @@ from yolo_data_manager.io.layout import detect_layout
 from yolo_data_manager.io.validator import validate_dataset
 from yolo_data_manager.io.writer import write_yolo_dataset
 from yolo_data_manager.stats.compute import compute_stats
-from yolo_data_manager.stats.export import write_attribute_csv, write_stats_plots
+from yolo_data_manager.stats.export import (
+    write_annotation_csv,
+    write_attribute_csv,
+    write_stats_plots,
+)
 from yolo_data_manager.scripting import YoloManager, build_task_argv
 from yolo_data_manager.vis.renderer import _annotation_label
 from yolo_data_manager.vis.renderer import crop_dataset
@@ -1005,6 +1010,55 @@ def test_stats_list_outputs_legacy_plots_and_csv(tmp_path):
     assert (out_dir / "sta_box.csv").exists()
     assert stats["box_width_pix"]["count"] == 3
     assert stats["box_pos_center_x"]["count"] == 3
+
+
+def test_annotation_csv_includes_split_from_split_lists(tmp_path):
+    root = make_dataset(tmp_path / "yolo")
+    (root / "train.txt").write_text("images/a.jpg\n", encoding="utf-8")
+    (root / "val.txt").write_text("b.jpg\n", encoding="utf-8")
+    dataset = load_yolo_dataset(root, task="detect", workers=1)
+    out = tmp_path / "annotations.csv"
+
+    write_annotation_csv(dataset, out)
+
+    with out.open("r", encoding="utf-8", newline="") as fp:
+        rows = list(csv.DictReader(fp))
+
+    assert rows
+    assert "split" in rows[0]
+    assert {row["image"]: row["split"] for row in rows} == {
+        "a.jpg": "train",
+        "b.jpg": "val",
+    }
+
+
+def test_annotation_csv_includes_split_from_split_directories(tmp_path):
+    root = tmp_path / "split_yolo"
+    (root / "images" / "train").mkdir(parents=True)
+    (root / "images" / "val").mkdir(parents=True)
+    (root / "labels" / "train").mkdir(parents=True)
+    (root / "labels" / "val").mkdir(parents=True)
+    Image.new("RGB", (100, 80), color="white").save(root / "images" / "train" / "a.jpg")
+    Image.new("RGB", (100, 80), color="white").save(root / "images" / "val" / "b.jpg")
+    (root / "labels" / "train" / "a.txt").write_text(
+        "0 0.5 0.5 0.2 0.3\n", encoding="utf-8"
+    )
+    (root / "labels" / "val" / "b.txt").write_text(
+        "0 0.4 0.4 0.2 0.2\n", encoding="utf-8"
+    )
+    (root / "class.txt").write_text("object\n", encoding="utf-8")
+    dataset = load_yolo_dataset(root, layout="auto", task="detect", workers=1)
+    out = tmp_path / "annotations.csv"
+
+    write_annotation_csv(dataset, out)
+
+    with out.open("r", encoding="utf-8", newline="") as fp:
+        rows = list(csv.DictReader(fp))
+
+    assert {row["image"]: row["split"] for row in rows} == {
+        "a.jpg": "train",
+        "b.jpg": "val",
+    }
 
 
 def test_merge_datasets_with_output_name_prefix(tmp_path):

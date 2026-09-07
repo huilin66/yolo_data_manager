@@ -191,7 +191,7 @@ ydm ann delete-attr --root yolo --name defect --value yes --out yolo_attr_clean
 - bbox 宽高、面积、长宽比
 - segmentation polygon 点数、外接框
 - 属性分布、类别-属性交叉分布
-- annotation CSV 明细
+- annotation CSV 明细（包含可推断的 `split` 列）
 - attribute long-form CSV 明细
 - 可选 PNG 图表输出
 

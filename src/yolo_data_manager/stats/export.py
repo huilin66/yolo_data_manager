@@ -30,8 +30,10 @@ ALL_STATS = DEFAULT_STATS | {
 def write_annotation_csv(dataset: YoloDataset, path: str | Path) -> None:
     out_path = Path(path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    split_by_image = _infer_image_splits(dataset)
     fieldnames = [
         "image",
+        "split",
         "label_path",
         "line_no",
         "class_id",
@@ -55,6 +57,7 @@ def write_annotation_csv(dataset: YoloDataset, path: str | Path) -> None:
                 attrs = dataset.annotation_attributes(annotation)
                 row = {
                     "image": image.file_name,
+                    "split": split_by_image.get(id(image), ""),
                     "label_path": str(image.label_path) if image.label_path else "",
                     "line_no": annotation.line_no or "",
                     "class_id": annotation.class_id,
@@ -72,6 +75,83 @@ def write_annotation_csv(dataset: YoloDataset, path: str | Path) -> None:
                 writer.writerow(
                     row
                 )
+
+
+def _infer_image_splits(dataset: YoloDataset) -> dict[int, str]:
+    """Infer train/val/test membership for the images in *dataset*.
+
+    Split directories and the conventional ``train.txt``/``val.txt``/
+    ``test.txt`` lists are both supported.  An empty value is used when an
+    image cannot be assigned unambiguously, for example when the same image
+    name occurs in multiple split lists.
+    """
+
+    root = Path(dataset.root).resolve()
+    assignments: dict[str, set[str]] = {}
+    split_names = ("train", "val", "test")
+
+    for split in split_names:
+        split_file = root / f"{split}.txt"
+        if not split_file.is_file():
+            continue
+        for raw_line in split_file.read_text(encoding="utf-8").splitlines():
+            for key in _split_key_variants(root, raw_line):
+                assignments.setdefault(key, set()).add(split)
+
+    result: dict[int, str] = {}
+    for image in dataset.images:
+        candidates: set[str] = set()
+        for key in _split_key_variants(root, image.path):
+            candidates.update(assignments.get(key, set()))
+        candidates.update(_split_names_from_image_path(root, image.path))
+        if len(candidates) == 1:
+            result[id(image)] = next(iter(candidates))
+    return result
+
+
+def _split_key_variants(root: Path, value: str | Path) -> set[str]:
+    text = str(value).strip()
+    if not text:
+        return set()
+
+    path = Path(text)
+    keys = {_normalise_split_key(text), _normalise_split_key(path.name)}
+    if path.stem:
+        keys.add(_normalise_split_key(path.stem))
+    try:
+        resolved = path.resolve() if path.is_absolute() else (root / path).resolve()
+        keys.add(_normalise_split_key(resolved))
+        keys.add(_normalise_split_key(resolved.relative_to(root)))
+    except (OSError, ValueError):
+        pass
+    return {key for key in keys if key}
+
+
+def _split_names_from_image_path(root: Path, image_path: Path) -> set[str]:
+    try:
+        relative = image_path.resolve().relative_to(root)
+    except (OSError, ValueError):
+        relative = image_path
+
+    parts = [part.casefold() for part in relative.parts]
+    split_names = {"train", "val", "test"}
+    candidates: set[str] = set()
+    for index, part in enumerate(parts):
+        if part not in split_names:
+            continue
+        previous = parts[index - 1] if index > 0 else ""
+        following = parts[index + 1] if index + 1 < len(parts) else ""
+        if (
+            index == len(parts) - 2
+            or previous in {"images", "image"}
+            or following in {"images", "image"}
+        ):
+            candidates.add(part)
+    return candidates
+
+
+def _normalise_split_key(value: str | Path) -> str:
+    return str(value).replace("\\", "/").strip().rstrip("/").casefold()
 
 
 def write_attribute_csv(dataset: YoloDataset, path: str | Path) -> None:

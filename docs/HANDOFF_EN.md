@@ -141,7 +141,7 @@ Implemented statistics include:
 - polygon point count
 - attribute distribution
 - class-attribute cross distribution
-- annotation CSV
+- annotation CSV, including an inferred `split` column when available
 - attribute long-form CSV
 - optional PNG plots
 

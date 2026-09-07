@@ -315,6 +315,8 @@ mgr.output_dataset_yaml
 
 `stats_list` 支持：`all`、`class_counts`、`box_number`、`box_width`、`box_height`、`box_area`、`image_shape`、`box_shape`、`box_shape_pix`、`box_shape_rate`、`box_pos_start`、`box_pos_center`、`box_pos_end`、`attribute`、`legacy_csv`。
 
+`annotations.csv` 包含 `split` 列。它会根据数据集根目录下的 `train.txt`、`val.txt`、`test.txt`，或 `images/train`、`images/val`、`images/test` 等 split 目录自动填写；无法唯一判断时留空。
+
 选择 `box_shape`、`box_shape_pix`、`box_shape_rate`、`box_width`、`box_height` 时，会额外按类别输出 `box_shape_ratios/`、`box_shape_pixels/`、`aspect_ratio/`、`width_image_ratio/`、`height_image_ratio/` 五个目录，每个目录内为每个类别生成一张图。`box_width` 和 `box_height` 还会分别生成 `box_width_boxplot.png`、`box_height_boxplot.png`，箱线图横轴为类别，纵轴为归一化 box 宽度或高度。
 
 选择 `box_shape`、`box_shape_pix`、`box_shape_rate`、`box_width`、`box_height` 时，会额外按类别输出 `box_shape_ratios/`、`box_shape_pixels/`、`aspect_ratio/`、`width_image_ratio/`、`height_image_ratio/` 五个目录，每个目录内为每个类别生成一张图。`box_width` 和 `box_height` 还会分别生成 `box_width_boxplot.png`、`box_height_boxplot.png`，箱线图横轴为类别，纵轴为归一化 box 宽度或高度。
