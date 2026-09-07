@@ -18,6 +18,7 @@ if __package__ in (None, ""):
         sys.path.insert(0, str(project_root))
 
 from example.functions import (
+    yolo_error_ana,
     yolo_sta,
     yolo_vis,
 )
@@ -25,20 +26,24 @@ from example.functions._manager import get_yolo_manager
 
 DATA_DIR = Path(r"\\158.132.186.40\isds\huilin\mayolo\mayolo_v3")
 
+PRED_RUNS_DIR = Path(r"//localnvme/project/ultralytics/runs/detect")
+PRED_NAMES = [
+    "predict-13",
+]
 
 # Select operations by uncommenting names in RUN_LIST.
 RUN_LIST = [
     # "sta",
     # "vis",
     # "metric",
-    # "error_ana",
+    "error_ana",
     # "update",
     # "draw",
     # "resize",
     # "update_class",
     # "update_class_by_label",
     # "split"
-    "split_vis"
+    # "split_vis"
 ]
 
 
@@ -64,6 +69,15 @@ def main() -> None:
             val_include_list="val.txt",
             test_include_list="test.txt",
         )
+    if "error_ana" in RUN_LIST:
+        for pred_name in PRED_NAMES[:]:
+            yolo_error_ana(
+                DATA_DIR,
+                PRED_RUNS_DIR,
+                pred_name,
+                attribute_file=DATA_DIR / "attribute.yaml",
+                # only_val=True,
+            )
 
 
 if __name__ == "__main__":
