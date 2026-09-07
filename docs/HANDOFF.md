@@ -27,7 +27,7 @@
 ```text
 labels_backup/       label 写入前的时间戳备份
 ydm_quality/         check、query、duplicates、bad-images
-ydm_stats/           stats JSON、CSV、basic info.csv、plots/
+ydm_stats/           stats JSON、CSV、basic_info.csv、plots/
 ydm_vis/             draw/、crop/、att_seperate/(attribute_crop/)、manual_box/
 ydm_evaluation/      compare、review_pack、error_analysis、metrics
 ydm_dataset/         select、normalize、filter、merge
@@ -192,7 +192,7 @@ ydm ann delete-attr --root yolo --name defect --value yes --out yolo_attr_clean
 - segmentation polygon 点数、外接框
 - 属性分布、类别-属性交叉分布
 - annotation CSV 明细（包含可推断的 `split` 列）
-- basic info.csv（类别/属性按 train、val、test 分组）
+- basic_info.csv（图像、类别、属性按 total/train/val/test 分组）
 - attribute_num.png 和 attribute_num.csv（属性数量图表及表格）
 - 可选 PNG 图表输出
 

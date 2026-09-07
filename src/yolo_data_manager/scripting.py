@@ -323,9 +323,9 @@ class YoloManager:
 
     @property
     def output_basic_info(self) -> Path:
-        """Default compact box/attribute statistics CSV."""
+        """Default compact image/box/attribute statistics CSV."""
 
-        return self.output_stats / "basic info.csv"
+        return self.output_stats / "basic_info.csv"
 
     @property
     def output_vis(self) -> Path:

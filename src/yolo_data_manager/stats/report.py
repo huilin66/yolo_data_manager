@@ -40,9 +40,10 @@ def write_class_counts_csv(data: dict[str, object], path: str | Path) -> None:
 
 
 def build_basic_info_rows(dataset: YoloDataset) -> list[dict[str, object]]:
-    """Build compact class/attribute counts grouped by dataset split."""
+    """Build compact image, class, and attribute counts by dataset split."""
 
     split_by_image = infer_image_splits(dataset)
+    image_counts = _empty_split_counts()
     class_counts: dict[str, dict[str, int]] = {
         name: _empty_split_counts() for name in dataset.classes.names
     }
@@ -52,6 +53,7 @@ def build_basic_info_rows(dataset: YoloDataset) -> list[dict[str, object]]:
 
     for image in dataset.images:
         split = split_by_image.get(id(image))
+        _increment_split_count(image_counts, split)
         for annotation in image.annotations:
             class_name = dataset.class_name(annotation.class_id)
             if class_name not in class_counts:
@@ -67,6 +69,15 @@ def build_basic_info_rows(dataset: YoloDataset) -> list[dict[str, object]]:
                 _increment_split_count(attribute_counts[key], split)
 
     rows: list[dict[str, object]] = []
+    rows.append(
+        {
+            "section": "image",
+            "class_name": "image",
+            "attribute": "",
+            "value": "",
+            **image_counts,
+        }
+    )
     for class_name in class_order:
         counts = class_counts[class_name]
         rows.append(
@@ -92,7 +103,7 @@ def build_basic_info_rows(dataset: YoloDataset) -> list[dict[str, object]]:
 
 
 def write_basic_info_csv(rows: Iterable[dict[str, object]], path: str | Path) -> None:
-    """Write compact box and attribute counts to one CSV file."""
+    """Write compact image, box, and attribute counts to one CSV file."""
 
     out_path = Path(path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -103,9 +114,14 @@ def write_basic_info_csv(rows: Iterable[dict[str, object]], path: str | Path) ->
 
 
 def format_basic_info_tables(rows: Iterable[dict[str, object]]) -> str:
-    """Format the compact statistics as two terminal-friendly tables."""
+    """Format the compact statistics as terminal-friendly tables."""
 
     row_list = list(rows)
+    image_rows = [
+        [row["class_name"], row["total"], row["train"], row["val"], row["test"]]
+        for row in row_list
+        if row.get("section") == "image"
+    ]
     box_rows = [
         [row["class_name"], row["total"], row["train"], row["val"], row["test"]]
         for row in row_list
@@ -126,6 +142,11 @@ def format_basic_info_tables(rows: Iterable[dict[str, object]]) -> str:
     ]
 
     sections = [
+        "Image counts",
+        _format_table(
+            ["scope", "total", "train", "val", "test"],
+            image_rows,
+        ),
         "Box counts",
         _format_table(
             ["class_name", "total", "train", "val", "test"],

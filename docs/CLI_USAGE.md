@@ -187,7 +187,7 @@ defect:
 
 ```bash
 ydm stats --root path/to/yolo
-ydm stats --root path/to/yolo --out stats.json --ann-csv annotations.csv --basic-info-csv "basic info.csv" --plots-dir stats_plots
+ydm stats --root path/to/yolo --out stats.json --ann-csv annotations.csv --basic-info-csv basic_info.csv --plots-dir stats_plots
 ydm stats --root path/to/yolo --stats-list all
 ydm stats --root path/to/yolo --plots-dir labels_sta --stats-list image_shape,box_shape_pix,box_pos_center
 ```
@@ -202,7 +202,7 @@ box_pos_start, box_pos_center, box_pos_end, attribute, legacy_csv
 
 `annotations.csv` 包含 `split` 列，优先根据数据集根目录下的 `train.txt`、`val.txt`、`test.txt`，或 `images/train`、`images/val`、`images/test` 等目录推断；无法唯一判断时为空。
 
-`stats` 控制台只输出两张基础表：按类别和 split 统计的 box 数量，以及按类别/属性/属性值和 split 统计的属性数量。相同内容默认保存到 `ydm_stats/basic info.csv`，也可以通过 `--basic-info-csv` 指定路径；完整统计仍保存到 `stats.json`。
+`stats` 控制台只输出三张基础表：图像的 total/train/val/test 数量、按类别和 split 统计的 box 数量，以及按类别/属性/属性值和 split 统计的属性数量。相同内容默认保存到 `ydm_stats/basic_info.csv`，也可以通过 `--basic-info-csv` 指定路径；完整统计仍保存到 `stats.json`。
 
 使用 `--stats-list attribute` 时，属性图表只生成 `attribute_num.png`，并生成对应的 `attribute_num.csv`；不再生成按单个属性拆分的图片。
 

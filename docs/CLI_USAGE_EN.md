@@ -187,7 +187,7 @@ defect:
 ```bash
 ydm stats --root path/to/yolo
 ydm stats --root path/to/yolo --out stats.json
-ydm stats --root path/to/yolo --ann-csv annotations.csv --basic-info-csv "basic info.csv" --plots-dir stats_plots
+ydm stats --root path/to/yolo --ann-csv annotations.csv --basic-info-csv basic_info.csv --plots-dir stats_plots
 ydm stats --root path/to/yolo --plots-dir labels_sta --stats-list all
 ydm stats --root path/to/yolo --plots-dir labels_sta --stats-list image_shape,box_shape_pix,box_pos_center
 ```
@@ -202,7 +202,7 @@ box_pos_start, box_pos_center, box_pos_end, attribute, legacy_csv
 
 `annotations.csv` includes a `split` column. It is inferred from `train.txt`, `val.txt`, and `test.txt` under the dataset root, or from directories such as `images/train`, `images/val`, and `images/test`; the value is empty when the split cannot be determined uniquely.
 
-The `stats` command now prints only two compact tables: box counts by class and split, and attribute counts by class, attribute, value, and split. The same rows are written by default to `ydm_stats/basic info.csv`; use `--basic-info-csv` to override the path. The complete statistics remain available in `stats.json`.
+The `stats` command now prints three compact tables: image total/train/val/test counts, box counts by class and split, and attribute counts by class, attribute, value, and split. The same rows are written by default to `ydm_stats/basic_info.csv`; use `--basic-info-csv` to override the path. The complete statistics remain available in `stats.json`.
 
 With `--stats-list attribute`, the attribute output is limited to `attribute_num.png` plus the corresponding `attribute_num.csv`; per-attribute image files are no longer generated.
 

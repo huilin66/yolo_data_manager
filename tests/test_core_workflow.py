@@ -102,14 +102,14 @@ def test_build_python_task_argv():
     stats_argv = build_task_argv(
         "stats",
         root=Path("dataset"),
-        basic_info_csv=Path("basic info.csv"),
+        basic_info_csv=Path("basic_info.csv"),
         plots_dir=Path("stats_plots"),
         stats_list=["image_shape", "box_pos_center"],
         only_val=True,
     )
     assert stats_argv[-3:-1] == ["--stats-list", "image_shape,box_pos_center"]
     assert "--basic-info-csv" in stats_argv
-    assert "basic info.csv" in stats_argv
+    assert "basic_info.csv" in stats_argv
     assert "--only-val" in stats_argv
 
     filter_argv = build_task_argv(
@@ -373,7 +373,7 @@ def test_yolo_manager_can_initialize_from_dataset_yaml(tmp_path):
     assert mgr.split_file == str(root / "val.txt")
     assert payload["image_count"] == 2
     assert payload["class_counts"] == {"flame": 1, "smoke": 2}
-    assert (root / "ydm_stats" / "basic info.csv").exists()
+    assert (root / "ydm_stats" / "basic_info.csv").exists()
 
     code = mgr.stats(out=str(val_out), only_val=True)
     val_payload = json.loads(val_out.read_text(encoding="utf-8"))
@@ -1056,10 +1056,11 @@ def test_stats_prints_basic_tables_and_writes_basic_info_csv(tmp_path, capsys):
     assert cli_main(["stats", "--root", str(root), "--no-progress"]) == 0
 
     output = capsys.readouterr().out
+    assert "Image counts" in output
     assert "Box counts" in output
     assert "Attribute counts" in output
     assert '"image_count"' not in output
-    assert (root / "ydm_stats" / "basic info.csv").exists()
+    assert (root / "ydm_stats" / "basic_info.csv").exists()
 
 
 def test_annotation_csv_includes_split_from_split_lists(tmp_path):
@@ -1128,7 +1129,7 @@ def test_basic_info_reports_box_and_attribute_counts_by_split(tmp_path):
     )
     dataset = load_yolo_dataset(root, task="detect", workers=1)
     rows = build_basic_info_rows(dataset)
-    out = tmp_path / "basic info.csv"
+    out = tmp_path / "basic_info.csv"
 
     write_basic_info_csv(rows, out)
     table = format_basic_info_tables(rows)
@@ -1159,13 +1160,29 @@ def test_basic_info_reports_box_and_attribute_counts_by_split(tmp_path):
     assert attribute_rows[("person", "defect", "yes")]["train"] == 1
     assert attribute_rows[("car", "defect", "no")]["train"] == 1
     assert attribute_rows[("car", "defect", "yes")]["val"] == 1
+    image_rows = {
+        row["class_name"]: row
+        for row in rows
+        if row["section"] == "image"
+    }
+    assert image_rows["image"] == {
+        "section": "image",
+        "class_name": "image",
+        "attribute": "",
+        "value": "",
+        "total": 2,
+        "train": 1,
+        "val": 1,
+        "test": 0,
+    }
+    assert "Image counts" in table
     assert "Box counts" in table
     assert "Attribute counts" in table
 
     with out.open("r", encoding="utf-8", newline="") as fp:
         csv_rows = list(csv.DictReader(fp))
-    assert csv_rows[0]["section"] == "box"
-    assert {row["section"] for row in csv_rows} == {"box", "attribute"}
+    assert csv_rows[0]["section"] == "image"
+    assert {row["section"] for row in csv_rows} == {"image", "box", "attribute"}
 
 
 def test_merge_datasets_with_output_name_prefix(tmp_path):
