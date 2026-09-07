@@ -10,8 +10,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from example.functions._manager import get_yolo_manager
-
 # Support both ``python example/my_dataset.py`` and
 # ``python -m example.my_dataset`` from a repository checkout.
 if __package__ in (None, ""):
@@ -23,8 +21,9 @@ from example.functions import (
     yolo_sta,
     yolo_vis,
 )
+from example.functions._manager import get_yolo_manager
 
-DATA_DIR = Path(r"\\158.132.186.40\isds\huilin\mayolo\mayolo_v2")
+DATA_DIR = Path(r"\\158.132.186.40\isds\huilin\mayolo\mayolo_v3")
 
 
 # Select operations by uncommenting names in RUN_LIST.
@@ -57,14 +56,13 @@ def main() -> None:
             show_attrs=True,
         )
     if "split_vis" in RUN_LIST:
-        ydm = get_yolo_manager(DATA_DIR, layout="flat", init_check=False, init_layout=False)
+        ydm = get_yolo_manager(
+            DATA_DIR, layout="flat", init_check=False, init_layout=False
+        )
         ydm.dataset_extract_split(
             train_include_list="train.txt",
             val_include_list="val.txt",
             test_include_list="test.txt",
-            workers=16,
-            progress=True,
-            progress_leave=True,
         )
 
 
