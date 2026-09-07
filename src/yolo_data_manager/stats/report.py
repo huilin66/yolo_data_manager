@@ -6,6 +6,7 @@ from collections.abc import Iterable
 from pathlib import Path
 
 from yolo_data_manager.core.models import YoloDataset
+from yolo_data_manager.runtime import iter_progress
 
 SPLIT_NAMES = ("train", "val", "test")
 BASIC_INFO_FIELDS = (
@@ -39,7 +40,12 @@ def write_class_counts_csv(data: dict[str, object], path: str | Path) -> None:
             writer.writerow({"class_name": class_name, "count": count})
 
 
-def build_basic_info_rows(dataset: YoloDataset) -> list[dict[str, object]]:
+def build_basic_info_rows(
+    dataset: YoloDataset,
+    *,
+    progress: bool = False,
+    progress_leave: bool = False,
+) -> list[dict[str, object]]:
     """Build compact image, class, and standalone attribute counts by split."""
 
     split_by_image = infer_image_splits(dataset)
@@ -51,7 +57,13 @@ def build_basic_info_rows(dataset: YoloDataset) -> list[dict[str, object]]:
     class_order = list(dataset.classes.names)
     attribute_order: list[tuple[str, str]] = []
 
-    for image in dataset.images:
+    for image in iter_progress(
+        dataset.images,
+        enabled=progress,
+        total=len(dataset.images),
+        desc="stats basic info",
+        leave=progress_leave,
+    ):
         split = split_by_image.get(id(image))
         _increment_split_count(image_counts, split)
         for annotation in image.annotations:

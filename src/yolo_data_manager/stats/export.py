@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Iterable
 
 from yolo_data_manager.core.models import AttributeSchema, YoloDataset
+from yolo_data_manager.runtime import iter_progress, progress_stage
 from yolo_data_manager.stats.compute import SHAPE_RATE_BINS
 from yolo_data_manager.stats.report import infer_image_splits
 
@@ -28,7 +29,13 @@ ALL_STATS = DEFAULT_STATS | {
 }
 
 
-def write_annotation_csv(dataset: YoloDataset, path: str | Path) -> None:
+def write_annotation_csv(
+    dataset: YoloDataset,
+    path: str | Path,
+    *,
+    progress: bool = False,
+    progress_leave: bool = False,
+) -> None:
     out_path = Path(path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     split_by_image = infer_image_splits(dataset)
@@ -52,7 +59,13 @@ def write_annotation_csv(dataset: YoloDataset, path: str | Path) -> None:
     with out_path.open("w", newline="", encoding="utf-8") as fp:
         writer = csv.DictWriter(fp, fieldnames=fieldnames)
         writer.writeheader()
-        for image in dataset.images:
+        for image in iter_progress(
+            dataset.images,
+            enabled=progress,
+            total=len(dataset.images),
+            desc="stats annotations",
+            leave=progress_leave,
+        ):
             for annotation in image.annotations:
                 box = annotation.geometry_box()
                 attrs = dataset.annotation_attributes(annotation)
@@ -95,7 +108,14 @@ def normalize_stats_list(stats_list: str | Iterable[str] | None) -> set[str]:
     return set(values)
 
 
-def write_stats_plots(dataset: YoloDataset, out_dir: str | Path, stats_list: str | Iterable[str] | None = None) -> None:
+def write_stats_plots(
+    dataset: YoloDataset,
+    out_dir: str | Path,
+    stats_list: str | Iterable[str] | None = None,
+    *,
+    progress: bool = False,
+    progress_leave: bool = False,
+) -> None:
     """Write the selected aggregate and per-class statistics plots.
 
     In addition to the legacy aggregate plots, the shape, aspect-ratio,
@@ -117,7 +137,13 @@ def write_stats_plots(dataset: YoloDataset, out_dir: str | Path, stats_list: str
     heights: list[float] = []
     areas: list[float] = []
 
-    for image in dataset.images:
+    for image in iter_progress(
+        dataset.images,
+        enabled=progress,
+        total=len(dataset.images),
+        desc="stats plot prepare",
+        leave=progress_leave,
+    ):
         objects_per_image.append(len(image.annotations))
         for annotation in image.annotations:
             class_counts[dataset.class_name(annotation.class_id)] = class_counts.get(dataset.class_name(annotation.class_id), 0) + 1
@@ -127,6 +153,7 @@ def write_stats_plots(dataset: YoloDataset, out_dir: str | Path, stats_list: str
                 heights.append(box.height)
                 areas.append(box.width * box.height)
 
+    progress_stage("stats plot annotations", enabled=progress)
     annotation_rows = _annotation_rows(dataset)
     rows_by_class: dict[str, list[dict[str, object]]] = {
         class_name: [] for class_name in dataset.classes.names
@@ -135,17 +162,22 @@ def write_stats_plots(dataset: YoloDataset, out_dir: str | Path, stats_list: str
         rows_by_class.setdefault(str(row["category"]), []).append(row)
 
     if selected & {"legacy_csv", "box_shape", "box_shape_pix", "box_shape_rate", "box_pos_start", "box_pos_center", "box_pos_end"}:
+        progress_stage("stats plot legacy box", enabled=progress)
         write_legacy_box_csv(dataset, output / "sta_box.csv")
     if selected & {"legacy_csv", "attribute"} and dataset.attributes is not None:
+        progress_stage("stats plot legacy attribute", enabled=progress)
         write_legacy_attribute_csv(dataset, output / "sta_attribute.csv")
 
     if "class_counts" in selected:
+        progress_stage("stats plot class counts", enabled=progress)
         _bar_plot(plt, class_counts, output / "class_counts.png", "Class Counts", "class", "count")
         _write_counts_csv(class_counts, output / "box_category.csv")
     if "box_number" in selected:
+        progress_stage("stats plot box number", enabled=progress)
         _hist_plot(plt, objects_per_image, output / "objects_per_image.png", "Objects Per Image", "objects")
         _box_number_plot(plt, objects_per_image, output / "box_number.png")
     if "box_width" in selected:
+        progress_stage("stats plot box width", enabled=progress)
         _hist_plot(plt, widths, output / "box_width.png", "Box Width", "normalized width")
         _write_class_hist_plots(
             plt,
@@ -163,6 +195,7 @@ def write_stats_plots(dataset: YoloDataset, out_dir: str | Path, stats_list: str
             "normalized width",
         )
     if "box_height" in selected:
+        progress_stage("stats plot box height", enabled=progress)
         _hist_plot(plt, heights, output / "box_height.png", "Box Height", "normalized height")
         _write_class_hist_plots(
             plt,
@@ -180,6 +213,7 @@ def write_stats_plots(dataset: YoloDataset, out_dir: str | Path, stats_list: str
             "normalized height",
         )
     if "box_shape" in selected:
+        progress_stage("stats plot box shape", enabled=progress)
         _box_shape_plot(plt, annotation_rows, output / "box_shape.png")
         _write_class_shape_plots(
             plt,
@@ -188,11 +222,14 @@ def write_stats_plots(dataset: YoloDataset, out_dir: str | Path, stats_list: str
             pixel=False,
         )
     if "box_area" in selected:
+        progress_stage("stats plot box area", enabled=progress)
         _hist_plot(plt, areas, output / "box_area.png", "Box Area", "normalized area")
     if "image_shape" in selected:
+        progress_stage("stats plot image shape", enabled=progress)
         write_image_shape_csv(dataset, output / "image_shape.csv")
         _image_shape_plot(plt, dataset, output / "image_shape.png")
     if "box_shape_pix" in selected:
+        progress_stage("stats plot box pixels", enabled=progress)
         _box_shape_pix_plot(plt, annotation_rows, output / "box_shape_pix.png")
         _write_class_shape_plots(
             plt,
@@ -201,15 +238,20 @@ def write_stats_plots(dataset: YoloDataset, out_dir: str | Path, stats_list: str
             pixel=True,
         )
     if "box_shape_rate" in selected:
+        progress_stage("stats plot aspect ratio", enabled=progress)
         _box_shape_rate_plot(plt, annotation_rows, output / "box_shape_rate.png")
         _write_class_aspect_ratio_plots(plt, rows_by_class, output / "aspect_ratio")
     if "box_pos_start" in selected:
+        progress_stage("stats plot box start", enabled=progress)
         _box_position_plot(plt, annotation_rows, "start_x", "start_y", output / "box_pos_start.png", "Box Start Position")
     if "box_pos_center" in selected:
+        progress_stage("stats plot box center", enabled=progress)
         _box_position_plot(plt, annotation_rows, "center_x", "center_y", output / "box_pos_center.png", "Box Center Position")
     if "box_pos_end" in selected:
+        progress_stage("stats plot box end", enabled=progress)
         _box_position_plot(plt, annotation_rows, "end_x", "end_y", output / "box_pos_end.png", "Box End Position")
     if "attribute" in selected:
+        progress_stage("stats plot attributes", enabled=progress)
         _clear_attribute_outputs(output)
         if dataset.attributes is not None:
             _attribute_distribution_outputs(plt, dataset, output)

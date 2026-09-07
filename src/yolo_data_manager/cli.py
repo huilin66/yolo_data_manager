@@ -879,18 +879,37 @@ def handle_check(args: argparse.Namespace) -> int:
 
 def handle_stats(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
-    payload = compute_stats(dataset)
+    payload = compute_stats(
+        dataset,
+        progress=args.progress,
+        progress_leave=args.progress_leave,
+    )
     stats_dir = ydm_dir(_resolved_output_root(args.root), "stats")
     out = _value_or_default(args.out, stats_dir / "stats.json")
     class_csv = _value_or_default(args.class_csv, stats_dir / "class_counts.csv")
     ann_csv = _value_or_default(args.ann_csv, stats_dir / "annotations.csv")
     basic_info_csv = _value_or_default(args.basic_info_csv, stats_dir / "basic_info.csv")
     plots_dir = _value_or_default(args.plots_dir, stats_dir / "plots")
-    basic_info_rows = build_basic_info_rows(dataset)
+    basic_info_rows = build_basic_info_rows(
+        dataset,
+        progress=args.progress,
+        progress_leave=args.progress_leave,
+    )
     write_class_counts_csv(payload, class_csv)
-    write_annotation_csv(dataset, ann_csv)
+    write_annotation_csv(
+        dataset,
+        ann_csv,
+        progress=args.progress,
+        progress_leave=args.progress_leave,
+    )
     write_basic_info_csv(basic_info_rows, basic_info_csv)
-    write_stats_plots(dataset, plots_dir, stats_list=args.stats_list)
+    write_stats_plots(
+        dataset,
+        plots_dir,
+        stats_list=args.stats_list,
+        progress=args.progress,
+        progress_leave=args.progress_leave,
+    )
     write_json_report(payload, out)
     print(format_basic_info_tables(basic_info_rows))
     print(f"\nStats JSON: {out}")

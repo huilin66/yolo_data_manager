@@ -3,6 +3,7 @@ from __future__ import annotations
 from statistics import mean
 
 from yolo_data_manager.core.models import AttributeSchema, YoloDataset
+from yolo_data_manager.runtime import iter_progress
 
 SHAPE_RATE_BINS = [
     0,
@@ -37,7 +38,12 @@ SHAPE_RATE_BINS = [
 ]
 
 
-def compute_stats(dataset: YoloDataset) -> dict[str, object]:
+def compute_stats(
+    dataset: YoloDataset,
+    *,
+    progress: bool = False,
+    progress_leave: bool = False,
+) -> dict[str, object]:
     class_counts = {name: 0 for name in dataset.classes.names}
     class_id_counts: dict[int, int] = {}
     objects_per_image: list[int] = []
@@ -61,7 +67,13 @@ def compute_stats(dataset: YoloDataset) -> dict[str, object]:
     boxes_with_attribute = 0
     images_with_attribute: set[str] = set()
 
-    for image in dataset.images:
+    for image in iter_progress(
+        dataset.images,
+        enabled=progress,
+        total=len(dataset.images),
+        desc="stats compute",
+        leave=progress_leave,
+    ):
         objects_per_image.append(len(image.annotations))
         if image.width is not None:
             image_widths.append(image.width)
