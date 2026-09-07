@@ -41,7 +41,7 @@ mgr.check(out="validation.json")
 mgr.check(out="validation.json", fill_missing_txt=True)
 
 # 统计
-mgr.stats(out="stats.json", class_csv="class_counts.csv", attr_csv="attributes.csv", basic_info_csv="basic info.csv")
+mgr.stats(out="stats.json", class_csv="class_counts.csv", basic_info_csv="basic info.csv")
 mgr.stats(plots_dir="labels_sta", stats_list=["all"])
 mgr.stats(plots_dir="labels_sta", stats_list=["image_shape", "box_shape_pix", "box_pos_center"])
 

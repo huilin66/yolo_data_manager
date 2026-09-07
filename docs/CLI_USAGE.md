@@ -71,7 +71,7 @@ python -m yolo_data_manager.cli check --root path/to/yolo
 ```
 
 `check` 默认写入 `ydm_quality/check.json`；`stats` 默认同时写入
-`ydm_stats/stats.json`、类别/标注/属性 CSV 和 `ydm_stats/plots/`。多模态数据不创建独立的
+`ydm_stats/stats.json`、类别/标注 CSV、基础统计 CSV 和 `ydm_stats/plots/`。多模态数据不创建独立的
 `ydm_multimodal` 功能目录，而是在相同的 `ydm_quality`、`ydm_stats`、`ydm_vis`、
 `ydm_conversion` 目录中按模态建立必要的子目录。
 
@@ -187,7 +187,7 @@ defect:
 
 ```bash
 ydm stats --root path/to/yolo
-ydm stats --root path/to/yolo --out stats.json --ann-csv annotations.csv --attr-csv attributes.csv --basic-info-csv "basic info.csv" --plots-dir stats_plots
+ydm stats --root path/to/yolo --out stats.json --ann-csv annotations.csv --basic-info-csv "basic info.csv" --plots-dir stats_plots
 ydm stats --root path/to/yolo --stats-list all
 ydm stats --root path/to/yolo --plots-dir labels_sta --stats-list image_shape,box_shape_pix,box_pos_center
 ```

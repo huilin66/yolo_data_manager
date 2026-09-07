@@ -47,7 +47,6 @@ from yolo_data_manager.io.writer import write_yolo_dataset
 from yolo_data_manager.stats.compute import compute_stats
 from yolo_data_manager.stats.export import (
     write_annotation_csv,
-    write_attribute_csv,
     write_stats_plots,
 )
 from yolo_data_manager.stats.report import (
@@ -1229,7 +1228,6 @@ def test_class_scoped_attribute_full_flow(tmp_path):
     query = query_by_attribute(dataset, "defect", values=["yes"])
     edited, edit_report = set_attribute(dataset, "material", "asphalt", classes=["road"])
     stats = compute_stats(edited)
-    write_attribute_csv(edited, tmp_path / "attributes.csv")
     render_dataset(edited, tmp_path / "vis", show_attributes=True, filter_no_attributes=True)
     saved = crop_dataset(edited, tmp_path / "crops", by_attribute=True)
 
@@ -1238,7 +1236,6 @@ def test_class_scoped_attribute_full_flow(tmp_path):
     assert len(edit_report.rows) == 1
     assert stats["attribute_counts"]["defect"]["yes"] == 1
     assert stats["class_attribute_counts"]["road"]["material"]["asphalt"] == 1
-    assert "material" in (tmp_path / "attributes.csv").read_text(encoding="utf-8")
     assert (tmp_path / "vis" / "a.jpg").exists()
     assert saved == 4
     assert (tmp_path / "crops" / "sign" / "defect-yes" / "a_1.jpg").exists()

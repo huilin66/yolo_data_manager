@@ -78,36 +78,6 @@ def write_annotation_csv(dataset: YoloDataset, path: str | Path) -> None:
                 )
 
 
-def write_attribute_csv(dataset: YoloDataset, path: str | Path) -> None:
-    out_path = Path(path)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    with out_path.open("w", newline="", encoding="utf-8") as fp:
-        writer = csv.DictWriter(
-            fp,
-            fieldnames=["image", "line_no", "class_id", "class_name", "attribute", "raw_value", "value"],
-        )
-        writer.writeheader()
-        if dataset.attributes is None:
-            return
-        for image in dataset.images:
-            for annotation in image.annotations:
-                class_name = dataset.class_name(annotation.class_id)
-                names = dataset.attributes.names_for_class(class_name)
-                decoded = dataset.annotation_attributes(annotation)
-                for idx, name in enumerate(names):
-                    writer.writerow(
-                        {
-                            "image": image.file_name,
-                            "line_no": annotation.line_no or "",
-                            "class_id": annotation.class_id,
-                            "class_name": class_name,
-                            "attribute": name,
-                            "raw_value": annotation.attributes[idx] if idx < len(annotation.attributes) else "",
-                            "value": decoded.get(name, ""),
-                        }
-                    )
-
-
 def normalize_stats_list(stats_list: str | Iterable[str] | None) -> set[str]:
     if stats_list is None:
         return set(DEFAULT_STATS)

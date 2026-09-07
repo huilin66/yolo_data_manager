@@ -187,7 +187,7 @@ defect:
 ```bash
 ydm stats --root path/to/yolo
 ydm stats --root path/to/yolo --out stats.json
-ydm stats --root path/to/yolo --ann-csv annotations.csv --attr-csv attributes.csv --basic-info-csv "basic info.csv" --plots-dir stats_plots
+ydm stats --root path/to/yolo --ann-csv annotations.csv --basic-info-csv "basic info.csv" --plots-dir stats_plots
 ydm stats --root path/to/yolo --plots-dir labels_sta --stats-list all
 ydm stats --root path/to/yolo --plots-dir labels_sta --stats-list image_shape,box_shape_pix,box_pos_center
 ```
