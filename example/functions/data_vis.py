@@ -21,7 +21,7 @@ def yolo_vis(
     workers: int = 8,
     show_id: bool = True,
     show_attrs: bool = False,
-    filter_no_attrs: bool = False,
+    filter_no_attrs: bool = True,
     padding: float = 0,
     style: str = "cv2",
     att_seperate: bool = True,
