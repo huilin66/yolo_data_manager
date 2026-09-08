@@ -50,7 +50,7 @@ RUN_LIST = [
     # "vis",
     # "metric",
     # "error_ana",
-    "update_att",
+    # "update_att",
     # "split_vis"
 ]
 
