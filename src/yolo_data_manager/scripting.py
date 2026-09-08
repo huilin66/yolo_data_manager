@@ -1114,12 +1114,12 @@ class YoloManager:
         self,
         crops_dir: str | Path,
         name: str | None = None,
-        value: str | int | float | None = None,
+        value: str | float | None = None,
         *,
         attribute_name: str | None = None,
-        attribute_value: str | int | float | None = None,
+        attribute_value: str | float | None = None,
         attribute: str | None = None,
-        to: str | int | float | None = None,
+        to: str | float | None = None,
         report: str | None = None,
         backup_dir: str | Path | None = None,
         dry_run: bool = False,
@@ -1130,12 +1130,16 @@ class YoloManager:
         resolved_name = (
             attribute_name
             if attribute_name is not None
-            else attribute if attribute is not None else name
+            else attribute
+            if attribute is not None
+            else name
         )
         resolved_value = (
             attribute_value
             if attribute_value is not None
-            else to if to is not None else value
+            else to
+            if to is not None
+            else value
         )
         if resolved_name is None or resolved_value is None:
             raise ValueError("name and value are required")
@@ -1155,7 +1159,7 @@ class YoloManager:
         self,
         crops_dir: str | Path,
         name: str | None = None,
-        value: str | int | float | None = None,
+        value: str | float | None = None,
         **kwargs: Any,
     ) -> int:
         """Long-form alias for :meth:`ann_correct_attr_from_error_crops`."""
@@ -1240,7 +1244,7 @@ class YoloManager:
         fill_mask: bool = True,
         show_attrs: bool = False,
         show_id: bool = False,
-        filter_no_attrs: bool = False,
+        filter_no_attrs: bool = True,
         att_seperate: bool = False,
         clean: bool = True,
         only_val: bool | None = None,
@@ -1278,7 +1282,7 @@ class YoloManager:
         style: str = "cv2",
         keep_shape: bool = False,
         min_size: int = 1,
-        padding: int | float = 0,
+        padding: float = 0,
         conf: float | None = None,
         by_attr: bool = False,
         filter_no_attrs: bool = True,

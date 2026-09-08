@@ -24,7 +24,7 @@ def yolo_vis(
     filter_no_attrs: bool = False,
     padding: float = 0,
     style: str = "cv2",
-    att_seperate: bool = False,
+    att_seperate: bool = True,
     **kwargs,
 ) -> int:
     """Render boxes and optionally crops for all data by default.
