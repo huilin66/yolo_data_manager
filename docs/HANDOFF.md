@@ -227,7 +227,7 @@ ydm vis crop --root yolo --out crops --by-attr
 - 支持 confidence threshold
 - 细粒度错误分析：background FP、localisation FP、duplicate prediction、class error、FN 子类型
 - 属性错误分析：对一对一匹配成功的同类框逐属性比较，输出 `attribute_error.csv`、可选的属性错误 review pack，以及每个 `review/attribute_error/attribute_<属性名>/confusion_matrix.png`；矩阵行是预测值、列是真值，并包含正确/错误匹配；外部预测 label 可共享 GT 的 `attribute.yaml`
-- 属性错误 crop 使用 `predX_gtY` 定位预测/GT label 行；当前 `ann_correct_from_error_crops` 只修改类别/框且不能直接解析属性后缀，按 crop 修改属性需结合 `attribute_error.csv` 编写定向更新并使用 `dry_run`/`backup_dir`
+- 属性错误 crop 使用 `predX_gtY` 定位预测/GT label 行；新增 `ann_correct_attr_from_error_crops` / `correct_gt_attributes_from_error_crops`，传入属性名和值后只修改选中 GT 框的属性，保留类别和 geometry，并支持 `dry_run`/`backup_dir`
 - 生成 Ultralytics 风格完整混淆矩阵，包含 `background`
 - review 目录按 `pred_<预测类别>_gt_<真实类别>` 组织，包含 background 情况
 - review crop 文件名使用 `原图名_pred预测txt顺序id_gtGTtxt顺序id`

@@ -31,6 +31,7 @@ from .mdet_tools import (
 )
 from .result_error_ana import yolo_error_ana
 from .result_metric import yolo_metric
+from .result_attribute_update import yolo_update_attr_by_pred
 from .result_object_label_update import yolo_update_by_pred
 
 __all__ = [
@@ -53,6 +54,7 @@ __all__ = [
     "yolo_resize",
     "yolo_update_by_label",
     "yolo_update_class",
+    "yolo_update_attr_by_pred",
     "yolo_update_by_pred",
     "yolo_vis",
 ]

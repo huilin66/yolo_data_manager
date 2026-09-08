@@ -235,9 +235,18 @@ mgr.ann_correct_from_crops(
     backup_dir="label_backups",
     dry_run=True,
 )
+# Set one attribute on GT boxes selected by attribute-error crops.
+mgr.ann_correct_attr_from_error_crops(
+    crops_dir="ydm_evaluation/error_analysis/predict/review/attribute_error/attribute_defect/gt_yes_pred_no/crops",
+    name="defect",
+    value="no",
+    report="attribute_correction.csv",
+    backup_dir="label_backups",
+    dry_run=True,
+)
 ```
 
-Write operations output to a new directory. Commands that write GT label txt files accept `backup_dir` to snapshot current input labels before writing; crop correction is the in-place exception and backs up only labels it changes. Use `dry_run=True` when you want to inspect the effect first.
+Write operations output to a new directory. Commands that write GT label txt files accept `backup_dir` to snapshot current input labels before writing; crop corrections are the in-place exceptions and back up only labels they change. Use `dry_run=True` when you want to inspect the effect first.
 Pass `to=None` to delete the corresponding annotation instead of assigning a class.
 Pass `backup_dir="label_backups"` to override the default backup directory. If omitted, backups go to `<dataset-root>/labels_backup`. Each source txt is backed up at most once per run; `dry_run=True` creates no backup.
 Use `mgr.ann_correct_from_error_crops(...)` for `eval_error_analysis` crops; in `xxx_predx_gty`, the 1-based `y` locates the GT annotation. Provide `pred_dir` to append prediction txt record `x` for `gtnone` crops, without prediction confidence. Added predictions use same-class IoU deduplication (default `dedup_iou=0.5`) and keep the higher-confidence candidate.
@@ -381,7 +390,7 @@ When `gt_root` or `class_file` is omitted, `YoloManager` falls back to the manag
 `eval_error_analysis` and `eval_metrics` apply confidence-prioritized, class-aware NMS first by default (`nms_iou=0.5`), then use the same one-to-one IoU matching rule. Pass `nms_iou=None` to disable NMS; disabled-NMS duplicates are marked as `duplicate_prediction` in error analysis and counted as FPs in metrics.
 When `attribute.yaml` is found or `attribute_file` is supplied, error analysis compares each attribute only on a matched same-class box pair. Mismatches and missing values are written to `attribute_error.csv`; with `review=True`, visual results are grouped under `review/attribute_error/attribute_<name>/gt_<gt_value>_pred_<pred_value>/images` and `crops`, and each `attribute_<name>` directory also contains `confusion_matrix.png` (predicted values by row, true values by column, including correct and incorrect matches). For an external prediction-label directory, the GT schema is shared with predictions. Unmatched boxes remain class/geometry errors and are not counted again as attribute errors.
 
-Attribute-error crop filenames contain `predX_gtY` with 1-based prediction and GT label-row indices; for example, `sample_pred1_gt3_defect.jpg` targets row 3 in `sample.txt`. `ann_correct_from_error_crops` currently edits classes/boxes, not attributes, and cannot directly parse attribute crops with suffixes such as `_defect`; `ann_set_attr` performs bulk attribute edits by class or old value. To edit only selected attribute crops, use `attribute_error.csv` and the crop filename to identify the image and GT row, then apply a targeted update script; first use `dry_run=True` and/or `backup_dir` to verify and protect the source labels.
+Attribute-error crop filenames contain `predX_gtY` with 1-based prediction and GT label-row indices; for example, `sample_pred1_gt3_defect.jpg` targets row 3 in `sample.txt`. Use `ann_correct_attr_from_error_crops` with the target `name` and `value`; it recursively processes the selected crops, uses `gtY` to locate the GT box, and changes only that box's attribute while preserving its class and geometry. Use `dry_run=True` and/or `backup_dir` first to verify and protect the source labels.
 
 ## Multimodal YOLO Datasets
 

@@ -26,7 +26,9 @@ from yolo_data_manager.evaluation.metrics import (
     format_metrics_table,
 )
 from yolo_data_manager.annotation.crop_correction import (
+    AttributeCropCorrectionResult,
     CropCorrectionResult,
+    correct_gt_attributes_from_error_crops,
     correct_gt_labels_from_error_crops,
     correct_labels_from_crops,
 )
@@ -58,7 +60,9 @@ __all__ = [
     "convert_multimodal_images_to_uint8",
     "compute_detection_metrics",
     "SizeMetric",
+    "AttributeCropCorrectionResult",
     "CropCorrectionResult",
+    "correct_gt_attributes_from_error_crops",
     "correct_labels_from_crops",
     "correct_gt_labels_from_error_crops",
     "draw_manual_box",

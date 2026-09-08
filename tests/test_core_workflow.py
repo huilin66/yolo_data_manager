@@ -7,6 +7,7 @@ import pytest
 
 from yolo_data_manager.annotation.edit import delete_by_attribute, merge_classes, set_attribute
 from yolo_data_manager.annotation.crop_correction import (
+    correct_gt_attributes_from_error_crops,
     correct_gt_labels_from_error_crops,
     correct_labels_from_crops,
 )
@@ -135,6 +136,19 @@ def test_build_python_task_argv():
         backup_dir=Path("label_backups"),
     )
     assert "--backup-dir" in merge_argv
+
+    attr_crop_argv = build_task_argv(
+        "ann.correct_attr_from_error_crops",
+        root=Path("dataset"),
+        crops_dir=Path("attribute_crops"),
+        name="defect",
+        value="no",
+        attribute_file=Path("attribute.yaml"),
+        dry_run=True,
+    )
+    assert attr_crop_argv[:2] == ["ann", "correct-attr-from-error-crops"]
+    assert "--name" in attr_crop_argv
+    assert "--value" in attr_crop_argv
 
     vis_argv = build_task_argv("vis.draw", root=Path("dataset"), out="vis", show_id=True, workers=4, progress=False)
     assert "--show-id" in vis_argv
@@ -1486,6 +1500,70 @@ def test_correct_gt_labels_from_error_crops_uses_gt_index(tmp_path):
     assert (root / "labels" / "a.txt").read_text(encoding="utf-8").splitlines() == [
         "0 0.5 0.5 0.2 0.3",
     ]
+
+
+def test_correct_gt_attributes_from_error_crops_updates_selected_gt_attribute(tmp_path):
+    root = tmp_path / "attribute_error_crop_correction"
+    (root / "images").mkdir(parents=True)
+    (root / "labels").mkdir(parents=True)
+    Image.new("RGB", (40, 40), color="white").save(root / "images" / "a.jpg")
+    (root / "class.txt").write_text("object\n", encoding="utf-8")
+    (root / "attribute.yaml").write_text(
+        "attributes:\n  defect: [no, yes]\n",
+        encoding="utf-8",
+    )
+    original = (
+        "0 1 0 0.5 0.5 0.2 0.2\n"
+        "0 1 1 0.4 0.4 0.2 0.2\n"
+    )
+    (root / "labels" / "a.txt").write_text(original, encoding="utf-8")
+
+    crops = root / "review" / "attribute_error" / "attribute_defect" / "gt_yes_pred_no" / "crops"
+    crops.mkdir(parents=True)
+    Image.new("RGB", (10, 10), color="white").save(crops / "a_pred1_gt2_defect.jpg")
+    (crops / "selected_again").mkdir()
+    Image.new("RGB", (10, 10), color="white").save(
+        crops / "selected_again" / "a_pred1_gt2_defect.jpg"
+    )
+
+    manager = YoloManager(root, layout="flat", task="detect", init_layout=False, init_check=False)
+    manager_report = tmp_path / "manager_attribute_correction.csv"
+    assert manager.ann_correct_attr_from_error_crops(
+        crops,
+        name="defect",
+        value="no",
+        report=manager_report,
+        dry_run=True,
+        progress=False,
+    ) == 0
+    assert manager_report.exists()
+    assert (root / "labels" / "a.txt").read_text(encoding="utf-8") == original
+
+    dataset = load_yolo_dataset(root, task="detect")
+    backup_root = tmp_path / "label_backups"
+    result, report = correct_gt_attributes_from_error_crops(
+        dataset,
+        crops,
+        "defect",
+        "no",
+        backup_dir=backup_root,
+    )
+
+    assert result.crop_files == 2
+    assert result.unique_targets == 1
+    assert result.duplicate_targets == 1
+    assert result.changed == 1
+    assert result.unchanged == 0
+    assert len(report.rows) == 1
+    assert report.rows[0].line_no == 2
+    assert report.rows[0].attr_name == "defect"
+    assert (root / "labels" / "a.txt").read_text(encoding="utf-8") == (
+        "0 1 0 0.5 0.5 0.2 0.2\n"
+        "0 1 0 0.4 0.4 0.2 0.2\n"
+    )
+    snapshots = list(backup_root.iterdir())
+    assert len(snapshots) == 1
+    assert (snapshots[0] / "labels" / "a.txt").read_text(encoding="utf-8") == original
 
 
 def test_correct_gt_labels_from_error_crops_appends_prediction_for_gt_none(tmp_path):

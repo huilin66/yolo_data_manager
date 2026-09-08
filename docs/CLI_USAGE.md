@@ -118,10 +118,11 @@ ydm dataset filter --root path/to/yolo --min-area 0.001 --out yolo_filtered --ba
 ydm ann merge-class --root path/to/yolo --from crack,break --to defect --out yolo_merged --backup-dir label_backups
 ydm ann correct-from-crops --root path/to/yolo --crops-dir ydm_vis/crop/car --to defect --backup-dir label_backups --report crop_correction.csv
 ydm ann correct-from-error-crops --root path/to/yolo --crops-dir result_ana/val-52/review/pred_gt/pred_car_gt_background/crops --pred-dir result_ana/val-52/review/pred_txt --dedup-iou 0.5 --to defect --delete-pred-none --backup-dir label_backups --only-val --report gt_correction.csv
+ydm ann correct-attr-from-error-crops --root path/to/yolo --crops-dir result_ana/val-52/review/attribute_error/attribute_defect/gt_yes_pred_no/crops --name defect --value no --backup-dir label_backups --report attribute_correction.csv --dry-run
 ```
 
 写操作省略 `--out` 时默认输出到对应的 `ydm_dataset` 或 `ydm_annotation` 子目录，不原地覆盖原数据。
-`correct-from-crops` 是按 crop 文件名直接修改源数据对应 label 的例外；建议先使用 `--dry-run`，或保留 `--report` 作为修改记录。`vis crop` 文件名 `<image_stem>_<序号>.<扩展名>` 中的序号从 1 开始。`--to none` 或 `--to null` 会删除对应标注。
+`correct-from-crops` 和 `correct-attr-from-error-crops` 是按 crop 文件名直接修改源数据对应 label 的例外；建议先使用 `--dry-run`，或保留 `--report` 作为修改记录。`vis crop` 文件名 `<image_stem>_<序号>.<扩展名>` 中的序号从 1 开始。`--to none` 或 `--to null` 会删除对应标注。
 `correct-from-error-crops` 使用 `xxx_predx_gty` 文件名中的 `y` 定位 GT 标注序号。提供 `--pred-dir` 后，`gt none` 的 crop 会使用预测 txt 中第 `x` 条记录追加到对应 GT label；追加时会去掉 prediction confidence。未提供 `--pred-dir` 时，`gt none` crop 会跳过。
 追加预测以及 `--replace-gt-from-pred` 产生的替换框，默认按同一类别、同一图片的 IoU `0.5` 去重，重叠候选保留置信度更高的预测；替换框被去重时，对应的重复 GT 也会删除。可用 `--dedup-iou` 调整阈值。
 指定 `--delete-pred-none` 后，`prednone_gty` 会删除对应的第 `y` 条 GT 标注，即使 `--to` 设置了目标类别。只处理删除时可使用 `--to none --delete-pred-none`；`predx_gty` 仍按 `--to` 执行类别更新或删除。指定 `--replace-gt-from-pred` 后，需要同时提供 `--pred-dir`，`predx_gty` 会用预测第 `x` 条记录完整替换 GT 第 `y` 条（类别和 geometry），`prednone_gty` 删除，`predx_gtnone` 追加。
@@ -321,7 +322,7 @@ metrics 还会按 COCO 风格的像素面积输出 small、medium、large 目标
 两个评估命令默认按类别执行置信度优先的 NMS，阈值为 `--nms-iou 0.5`；使用 `--no-nms` 可关闭。
 如果存在 `attribute.yaml`/`attributes.yaml`，或显式指定 `--attribute-file`，错误分析会在一对一匹配成功的同类框上逐属性比较，并写出 `attribute_error.csv`。使用 `--review` 时，属性错误位于 `review/attribute_error/attribute_<属性名>/gt_<GT值>_pred_<预测值>/images` 和 `crops`，每个 `attribute_<属性名>` 目录下还会生成 `confusion_matrix.png`（行是预测属性值，列是真实属性值，包含正确和错误匹配）；外部预测 label 目录会共享 GT 的属性 schema。未匹配框不会重复计入属性错误。
 
-属性错误 crop 文件名中的 `predX_gtY` 是预测/GT label 行号（从 1 开始），如 `sample_pred1_gt3_defect.jpg` 对应 `sample.txt` 第 3 条 GT 标注。`ann correct-from-error-crops` 当前只修改类别/框，不能直接解析带 `_defect` 后缀的属性 crop，也不能修改属性；`ann set-attr` 是批量修改。若要按挑选出的 crop 修改属性，应结合 `attribute_error.csv` 和文件名定位目标图片及 GT 行后定向更新 label，建议先使用 `--dry-run` 和 `--backup-dir`。
+属性错误 crop 文件名中的 `predX_gtY` 是预测/GT label 行号（从 1 开始），如 `sample_pred1_gt3_defect.jpg` 对应 `sample.txt` 第 3 条 GT 标注。`ann correct-attr-from-error-crops` 接收 `--name` 和 `--value`，会递归处理指定 crop，按 `gtY` 找到 GT 框并只修改该框属性，类别和 geometry 不变；建议先使用 `--dry-run` 和 `--backup-dir`。
 
 review 输出：
 

@@ -131,10 +131,20 @@ mgr.ann_correct_from_error_crops(
     backup_dir="label_backups",
     dry_run=True,
 )
+# 按选中的属性错误 crop 修改对应 GT 框的属性，不改类别和 geometry
+mgr.ann_correct_attr_from_error_crops(
+    crops_dir="result_ana/val-52/review/attribute_error/attribute_defect/gt_yes_pred_no/crops",
+    name="defect",
+    value="no",
+    report="attribute_correction.csv",
+    backup_dir="label_backups",
+    dry_run=True,
+)
 # error-analysis crop 使用 `xxx_predx_gty`；提供 pred_dir 后，gtnone 会按 predx 从预测 txt 追加到 GT。
 # delete_pred_none=True 时，prednone_gty 会删除第 y 条 GT，即使 to 设置为更新类别。
 # replace_gt_from_pred=True 时，predx_gty 会用预测第 x 条完整替换 GT 第 y 条（类别和 geometry），并按 dedup_iou 对同图同类替换框去重；被抑制的重复 GT 会删除。
 # backup_dir 指定写出 GT 前的备份目录；省略时默认是 `<数据集根目录>/labels_backup`。每次实际写入会创建带时间戳的快照子目录，dry_run=True 不会创建备份。
+# 属性错误 crop 使用 `xxx_predx_gty_<attribute>`，其中 `y` 定位 GT 框；去掉 dry_run=True 后只修改目标框的指定属性。
 
 # 可视化
 mgr.vis_draw(out="images_vis", show_conf=True, show_attrs=True, style="cv2")  # 默认使用 cv2，也可使用 style="pil"
@@ -338,7 +348,7 @@ mgr.output_dataset_yaml
 
 当存在 `attribute.yaml`（或显式传入 `attribute_file`）时，`eval_error_analysis` 会在一对一匹配成功的同类框上逐属性比较，仅将属性值不一致或一侧缺失的结果写入 `attribute_error.csv`。`review=True` 时，属性错误会额外输出到 `review/attribute_error/attribute_<属性名>/gt_<GT值>_pred_<预测值>/images` 和 `crops`，并在每个 `attribute_<属性名>` 目录下生成 `confusion_matrix.png`（行是预测值，列是真值，包含正确匹配和错误匹配）；外部预测 label 目录没有属性 schema 时，应使用 GT 的 `attribute.yaml` 作为共享 schema。未匹配框仍只归入 class/geometry 错误，不会重复计为属性错误。
 
-属性错误 crop 文件名中的 `predX_gtY` 使用预测和 GT label 的 1-based 行号，例如 `sample_pred1_gt3_defect.jpg` 表示修改 `sample.txt` 的第 3 条 GT 标注。当前 `ann_correct_from_error_crops` 只修改类别/框，不能直接处理带 `_defect` 这类属性后缀的 crop，也不修改属性；`ann_set_attr` 是按类别或旧属性值批量修改。若只想修改挑选出的属性 crop，应根据 `attribute_error.csv` 和 crop 文件名定位图片及 GT 行后编写定向更新脚本，先使用 `dry_run=True`/`backup_dir` 检查并备份，再写回属性值。
+属性错误 crop 文件名中的 `predX_gtY` 使用预测和 GT label 的 1-based 行号，例如 `sample_pred1_gt3_defect.jpg` 表示修改 `sample.txt` 的第 3 条 GT 标注。使用 `ann_correct_attr_from_error_crops` 时传入目标属性 `name` 和目标值 `value`，它会递归处理选中的 crop，按 `gtY` 找到 GT 框并只修改该框的属性；类别和 geometry 不变。建议先使用 `dry_run=True`/`backup_dir` 检查并备份。
 
 `eval_error_analysis` 的 `class_` 只保留指定类别，`exclude_class_` 独立排除类别；两者可以同时使用。`min_width`、`min_height`、`min_area` 和 `min_pixels` 会同时过滤 GT 与预测，宽高/面积使用归一化 YOLO 尺寸，`min_pixels` 按像素宽度或高度判断；`min_size_logic` 支持 `"or"` 或 `"and"`，语义与 `dataset_filter` 一致。
 `class_rules` 可以按类别覆盖全局尺寸规则，格式为 `{类别: {"width": ..., "height": ..., "logic": "or" 或 "and"}}`；命中类别使用自己的规则，未命中类别继续使用全局参数。
@@ -401,6 +411,7 @@ mgr.output_dataset_yaml
 | `ann_apply_map(map_file=..., out=...)` | `ydm ann apply-map` |
 | `ann_correct_from_crops(crops_dir=..., to=...)` | `ydm ann correct-from-crops` |
 | `ann_correct_from_error_crops(crops_dir=..., to=...)` | `ydm ann correct-from-error-crops` |
+| `ann_correct_attr_from_error_crops(crops_dir=..., name=..., value=...)` | `ydm ann correct-attr-from-error-crops` |
 | `ann_set_attr(name=..., value=..., ...)` | `ydm ann set-attr` |
 | `ann_delete_attr(name=..., ...)` | `ydm ann delete-attr` |
 | `vis_draw(out=..., ...)` | `ydm vis draw` |
