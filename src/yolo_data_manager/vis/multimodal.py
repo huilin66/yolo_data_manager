@@ -49,7 +49,7 @@ def render_multimodal_dataset(
             progress=progress,
             progress_leave=progress_leave,
             att_seperate=att_seperate,
-            att_seperate_dir=output.parent / "att_seperate" / modality,
+            att_seperate_dir=output.parent / "draw_att" / modality,
         )
         counts[modality] = len(view.images[:limit] if limit is not None else view.images)
     return counts
@@ -89,7 +89,7 @@ def crop_multimodal_dataset(
             by_attribute=by_attribute,
             filter_no_attributes=filter_no_attributes,
             att_seperate=att_seperate,
-            att_seperate_dir=output.parent / "att_seperate" / modality,
+            att_seperate_dir=output.parent / "crop_att" / modality,
             workers=workers,
             progress=progress,
             progress_leave=progress_leave,

@@ -113,7 +113,11 @@ def render_dataset(
     worker_count = normalize_workers(workers)
     attribute_separate_path = None
     if att_seperate and show_attributes:
-        attribute_separate_path = Path(att_seperate_dir) if att_seperate_dir is not None else out_path.parent / "att_seperate"
+        attribute_separate_path = (
+            Path(att_seperate_dir)
+            if att_seperate_dir is not None
+            else out_path.parent / "draw_att"
+        )
         _prepare_vis_output_dir(dataset, attribute_separate_path, clean=clean)
 
     def save_image(image: YoloImage) -> None:
@@ -243,8 +247,11 @@ def crop_dataset(
     _prepare_vis_output_dir(dataset, out_path, clean=clean)
     attribute_crop_path = None
     if att_seperate:
-        attribute_root = Path(att_seperate_dir) if att_seperate_dir is not None else out_path.parent / "att_seperate"
-        attribute_crop_path = attribute_root / "attribute_crop"
+        attribute_crop_path = (
+            Path(att_seperate_dir)
+            if att_seperate_dir is not None
+            else out_path.parent / "crop_att"
+        )
         _prepare_vis_output_dir(dataset, attribute_crop_path, clean=clean)
     worker_count = normalize_workers(workers)
 

@@ -511,7 +511,7 @@ def build_parser() -> argparse.ArgumentParser:
     draw.add_argument(
         "--att-seperate",
         action="store_true",
-        help="copy rendered images into attribute/value folders beside draw; requires --show-attrs",
+        help="copy rendered images into draw_att/attribute/value; requires --show-attrs",
     )
     draw.set_defaults(fill_mask=True)
     draw.set_defaults(handler=handle_vis_draw)
@@ -522,7 +522,7 @@ def build_parser() -> argparse.ArgumentParser:
     crop.add_argument(
         "--att-seperate",
         action="store_true",
-        help="copy generated crops into attribute/value folders under att_seperate",
+        help="copy generated crops into crop_att/attribute/value",
     )
     crop.add_argument(
         "--style",

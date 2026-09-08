@@ -129,7 +129,7 @@ def test_attribute_separate_copies_drawn_images_and_filters_no(tmp_path, style):
         progress=False,
     )
 
-    separated_dir = tmp_path / "ydm_vis" / "att_seperate"
+    separated_dir = tmp_path / "ydm_vis" / "draw_att"
     assert (draw_dir / "yes.jpg").exists()
     assert (draw_dir / "no.jpg").exists()
     assert (separated_dir / "defect" / "yes" / "yes.jpg").exists()
@@ -141,7 +141,7 @@ def test_attribute_separate_copies_drawn_images_and_filters_no(tmp_path, style):
 
 
 @pytest.mark.parametrize("style", ["pil", "cv2"])
-def test_attribute_separate_copies_crops_into_attribute_crop(tmp_path, style):
+def test_attribute_separate_copies_crops_into_crop_att(tmp_path, style):
     root = tmp_path / "attribute_crops"
     (root / "images").mkdir(parents=True)
     (root / "labels").mkdir(parents=True)
@@ -179,12 +179,12 @@ def test_attribute_separate_copies_crops_into_attribute_crop(tmp_path, style):
         progress=False,
     )
 
-    separated_dir = tmp_path / "ydm_vis" / "att_seperate"
+    separated_dir = tmp_path / "ydm_vis" / "crop_att"
     source_crop = crop_dir / "object" / "yes_1.jpg"
-    attribute_crop = separated_dir / "attribute_crop" / "defect" / "yes" / "yes_1.jpg"
+    attribute_crop = separated_dir / "defect" / "yes" / "yes_1.jpg"
     assert source_crop.exists()
     assert attribute_crop.exists()
-    assert not (separated_dir / "attribute_crop" / "defect" / "no").exists()
+    assert not (separated_dir / "defect" / "no").exists()
     assert attribute_crop.read_bytes() == source_crop.read_bytes()
     with Image.open(draw_dir / "yes.jpg") as drawn, Image.open(attribute_crop) as cropped:
         assert drawn.size == (100, 80)
