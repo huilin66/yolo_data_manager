@@ -954,6 +954,7 @@ def analyze_attribute_errors(
     min_size_logic: str = "or",
     min_pixels: float | None = None,
     class_rules: Mapping[int | str, Mapping[str, Any]] | None = None,
+    confusion_counts: dict[str, Counter[tuple[str, str]]] | None = None,
 ) -> tuple[list[AttributeErrorDetail], dict[str, int]]:
     """Compare attributes on the one-to-one class/box matches.
 
@@ -1042,6 +1043,13 @@ def analyze_attribute_errors(
             for attribute_name in attribute_names:
                 gt_value = gt_values.get(attribute_name, _MISSING_ATTRIBUTE)
                 pred_value = pred_values.get(attribute_name, _MISSING_ATTRIBUTE)
+                if confusion_counts is not None:
+                    confusion_counts.setdefault(attribute_name, Counter())[
+                        (
+                            _attribute_confusion_value(pred_value),
+                            _attribute_confusion_value(gt_value),
+                        )
+                    ] += 1
                 if _attribute_values_equal(gt_value, pred_value):
                     continue
 
@@ -1136,6 +1144,34 @@ def _attribute_values_equal(left: Any, right: Any) -> bool:
     if left == right:
         return True
     return str(left).strip() == str(right).strip()
+
+
+def _attribute_confusion_value(value: Any) -> str:
+    if value is _MISSING_ATTRIBUTE or value is None:
+        return "missing"
+    return str(value)
+
+
+def _attribute_confusion_counts_from_errors(
+    error_rows: Iterable[AttributeErrorDetail],
+) -> dict[str, Counter[tuple[str, str]]]:
+    """Build a best-effort attribute confusion table from mismatch rows.
+
+    ``analyze_attribute_errors`` can collect all matched pairs, including
+    correct pairs, through ``confusion_counts``.  This fallback keeps the
+    review-pack writer useful for callers that only provide the error rows;
+    in that case the matrix contains the available mismatches only.
+    """
+
+    counts: dict[str, Counter[tuple[str, str]]] = {}
+    for row in error_rows:
+        counts.setdefault(row.attribute_name, Counter())[
+            (
+                _attribute_confusion_value(row.pred_value),
+                _attribute_confusion_value(row.gt_value),
+            )
+        ] += 1
+    return counts
 
 
 def _error_analysis_class_name(dataset: YoloDataset, class_id: int) -> str:
@@ -1397,6 +1433,7 @@ def write_attribute_error_review_pack(
     workers: int = 1,
     progress: bool = False,
     progress_leave: bool = False,
+    confusion_counts: Mapping[str, Mapping[tuple[str, str], int]] | None = None,
 ) -> dict[str, int]:
     """Write visual review images and crops for attribute mismatches.
 
@@ -1456,6 +1493,12 @@ def write_attribute_error_review_pack(
                 group_name = future.result()
                 if group_name:
                     counts[group_name] += 1
+    matrix_counts = (
+        confusion_counts
+        if confusion_counts is not None
+        else _attribute_confusion_counts_from_errors(error_rows)
+    )
+    _write_attribute_confusion_matrices(matrix_counts, output, gt, pred)
     return dict(counts)
 
 
@@ -1698,26 +1741,74 @@ def _attribute_review_group_name(row: AttributeErrorDetail) -> str:
     )
 
 
-def _class_label(class_id: int | None, class_name: str | None) -> str:
-    if class_name:
-        return class_name
-    if class_id is not None:
-        return str(class_id)
-    return "unknown"
-
-
-def _write_ultralytics_confusion_matrix(
-    error_rows: list[ErrorDetail],
+def _write_attribute_confusion_matrices(
+    confusion_counts: Mapping[str, Mapping[tuple[str, str], int]],
+    output: Path,
     gt: YoloDataset,
     pred: YoloDataset,
-    out_dir: Path,
-) -> Path | None:
-    matrix, labels = _ultralytics_confusion_matrix_data(error_rows, gt, pred)
-    if matrix.size == 0:
-        return None
+) -> None:
+    """Write one predicted-vs-true confusion matrix for each attribute."""
 
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / "confusion_matrix.png"
+    for attribute_name, pairs in confusion_counts.items():
+        if not pairs:
+            continue
+
+        labels = _attribute_confusion_labels(attribute_name, pairs, gt, pred)
+        label_to_index = {label: index for index, label in enumerate(labels)}
+        matrix = np.zeros((len(labels), len(labels)), dtype=np.int64)
+        for (pred_value, gt_value), count in pairs.items():
+            matrix[
+                label_to_index[str(pred_value)],
+                label_to_index[str(gt_value)],
+            ] += int(count)
+
+        _write_confusion_matrix_plot(
+            matrix,
+            labels,
+            output / f"attribute_{_safe_file_name(attribute_name)}" / "confusion_matrix.png",
+            title=f"Attribute Confusion Matrix: {attribute_name}",
+        )
+
+
+def _attribute_confusion_labels(
+    attribute_name: str,
+    pairs: Mapping[tuple[str, str], int],
+    gt: YoloDataset,
+    pred: YoloDataset,
+) -> list[str]:
+    """Return schema order followed by values observed in the matched pairs."""
+
+    labels: list[str] = []
+    for dataset in (gt, pred):
+        if dataset.attributes is None:
+            continue
+        class_names: list[str | None] = [None, *dataset.classes.names]
+        for class_name in class_names:
+            options = dataset.attributes.options_for(attribute_name, class_name)
+            if not isinstance(options, list):
+                continue
+            for option in options:
+                text = str(option)
+                if text not in labels:
+                    labels.append(text)
+
+    for pred_value, gt_value in pairs:
+        for value in (str(pred_value), str(gt_value)):
+            if value not in labels:
+                labels.append(value)
+    return labels
+
+
+def _write_confusion_matrix_plot(
+    matrix: np.ndarray,
+    labels: list[str],
+    out_path: Path,
+    *,
+    title: str,
+) -> Path:
+    """Render a predicted-row / true-column confusion matrix image."""
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
 
     import matplotlib
 
@@ -1727,7 +1818,7 @@ def _write_ultralytics_confusion_matrix(
     size = min(24.0, max(6.0, 0.55 * len(labels) + 3.0))
     fig, ax = plt.subplots(figsize=(size, size))
     im = ax.imshow(matrix, cmap="Blues")
-    ax.set_title("Confusion Matrix")
+    ax.set_title(title)
     ax.set_xlabel("True")
     ax.set_ylabel("Predicted")
     ax.set_xticks(np.arange(len(labels)))
@@ -1749,6 +1840,32 @@ def _write_ultralytics_confusion_matrix(
     fig.savefig(out_path, dpi=200)
     plt.close(fig)
     return out_path
+
+
+def _class_label(class_id: int | None, class_name: str | None) -> str:
+    if class_name:
+        return class_name
+    if class_id is not None:
+        return str(class_id)
+    return "unknown"
+
+
+def _write_ultralytics_confusion_matrix(
+    error_rows: list[ErrorDetail],
+    gt: YoloDataset,
+    pred: YoloDataset,
+    out_dir: Path,
+) -> Path | None:
+    matrix, labels = _ultralytics_confusion_matrix_data(error_rows, gt, pred)
+    if matrix.size == 0:
+        return None
+
+    return _write_confusion_matrix_plot(
+        matrix,
+        labels,
+        out_dir / "confusion_matrix.png",
+        title="Confusion Matrix",
+    )
 
 
 def _ultralytics_confusion_matrix_data(

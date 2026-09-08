@@ -1840,12 +1840,14 @@ def handle_eval_error_analysis(args: argparse.Namespace) -> int:
         conf_thres=args.conf_thres,
         nms_iou=args.nms_iou,
     )
+    attribute_confusion_counts = {}
     attribute_error_rows, attribute_summary = analyze_attribute_errors(
         gt,
         pred,
         match_iou=args.match_iou,
         conf_thres=args.conf_thres,
         nms_iou=args.nms_iou,
+        confusion_counts=attribute_confusion_counts,
     )
     dup_rows = find_duplicate_gt(gt, duplicate_iou=args.duplicate_iou)
     write_error_csvs(error_rows, out)
@@ -1875,6 +1877,7 @@ def handle_eval_error_analysis(args: argparse.Namespace) -> int:
             workers=args.review_workers if args.review_workers is not None else args.workers,
             progress=args.review_progress or args.progress,
             progress_leave=args.review_progress_leave or args.progress_leave,
+            confusion_counts=attribute_confusion_counts,
         )
         if args.review
         else {}

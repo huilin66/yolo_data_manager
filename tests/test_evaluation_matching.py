@@ -125,6 +125,11 @@ def test_attribute_error_analysis_compares_only_matched_pairs(tmp_path):
         "0 1 1 0.5 0.5 0.4 0.4\n",
         encoding="utf-8",
     )
+    Image.new("RGB", (100, 80), color="white").save(gt_root / "images" / "sample_ok.jpg")
+    (gt_root / "labels" / "sample_ok.txt").write_text(
+        "0 1 1 0.5 0.5 0.4 0.4\n",
+        encoding="utf-8",
+    )
 
     pred_labels = tmp_path / "pred_labels"
     pred_labels.mkdir()
@@ -132,6 +137,10 @@ def test_attribute_error_analysis_compares_only_matched_pairs(tmp_path):
     # GT attribute schema is shared so the attribute index can be decoded.
     (pred_labels / "sample.txt").write_text(
         "0 1 0 0.5 0.5 0.4 0.4 0.95\n",
+        encoding="utf-8",
+    )
+    (pred_labels / "sample_ok.txt").write_text(
+        "0 1 1 0.5 0.5 0.4 0.4 0.95\n",
         encoding="utf-8",
     )
 
@@ -142,7 +151,13 @@ def test_attribute_error_analysis_compares_only_matched_pairs(tmp_path):
         class_file=gt_root / "class.txt",
         attributes=gt.attributes,
     )
-    rows, summary = analyze_attribute_errors(gt, pred, match_iou=0.5)
+    confusion_counts = {}
+    rows, summary = analyze_attribute_errors(
+        gt,
+        pred,
+        match_iou=0.5,
+        confusion_counts=confusion_counts,
+    )
 
     assert len(rows) == 1
     assert rows[0].attribute_name == "defect"
@@ -153,6 +168,8 @@ def test_attribute_error_analysis_compares_only_matched_pairs(tmp_path):
     assert rows[0].gt_idx == 1
     assert summary["attribute_error"] == 1
     assert summary["attribute_error:defect"] == 1
+    assert confusion_counts["defect"][("yes", "yes")] == 1
+    assert confusion_counts["defect"][("no", "yes")] == 1
 
     out = tmp_path / "error_report"
     write_attribute_error_csv(rows, out)
@@ -162,12 +179,14 @@ def test_attribute_error_analysis_compares_only_matched_pairs(tmp_path):
         pred,
         out,
         workers=1,
+        confusion_counts=confusion_counts,
     )
     group = "attribute_defect/gt_yes_pred_no"
     assert (out / "attribute_error.csv").exists()
     assert review_counts[group] == 1
     assert (out / "review" / "attribute_error" / group / "images").is_dir()
     assert (out / "review" / "attribute_error" / group / "crops" / "sample_pred1_gt1_defect.jpg").exists()
+    assert (out / "review" / "attribute_error" / "attribute_defect" / "confusion_matrix.png").exists()
 
 
 def test_cli_error_analysis_discovers_shared_attribute_schema(tmp_path):
@@ -211,3 +230,4 @@ def test_cli_error_analysis_discovers_shared_attribute_schema(tmp_path):
 
     assert (out / "attribute_error.csv").exists()
     assert (out / "review" / "attribute_error" / "attribute_defect" / "gt_yes_pred_no" / "crops").is_dir()
+    assert (out / "review" / "attribute_error" / "attribute_defect" / "confusion_matrix.png").exists()

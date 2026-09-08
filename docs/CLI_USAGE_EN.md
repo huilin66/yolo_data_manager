@@ -319,7 +319,9 @@ Metrics also report COCO-style small, medium, and large target metrics by pixel 
 `eval error-analysis` supports `--class` to keep selected classes and `--exclude-class` to exclude classes independently. `--min-width`, `--min-height`, `--min-area`, `--min-size-logic`, and `--min-pixels` filter both GT and predictions. Width/height/area use normalized YOLO coordinates; `--min-pixels` checks pixel width or height. It still accepts legacy `--review-workers`, `--review-progress`, and `--review-progress-leave`; new scripts should prefer the common runtime flags.
 `--class-rules` accepts a YAML/JSON file and overrides the global size rule per class using `width`, `height`, and `logic`; classes without a rule use the global parameters.
 Both evaluation commands apply confidence-prioritized, class-aware NMS by default with `--nms-iou 0.5`; use `--no-nms` to disable it.
-When `attribute.yaml`/`attributes.yaml` is available or `--attribute-file` is supplied, error analysis compares attributes on matched same-class box pairs and writes mismatches or missing values to `attribute_error.csv`. With `--review`, visual results are grouped under `review/attribute_error/attribute_<name>/gt_<gt_value>_pred_<pred_value>/images` and `crops`; an external prediction-label directory shares the GT attribute schema. Unmatched boxes remain class/geometry errors and are not counted again as attribute errors.
+When `attribute.yaml`/`attributes.yaml` is available or `--attribute-file` is supplied, error analysis compares attributes on matched same-class box pairs and writes mismatches or missing values to `attribute_error.csv`. With `--review`, visual results are grouped under `review/attribute_error/attribute_<name>/gt_<gt_value>_pred_<pred_value>/images` and `crops`; each `attribute_<name>` directory also contains `confusion_matrix.png` (predicted values by row, true values by column, including correct and incorrect matches). An external prediction-label directory shares the GT attribute schema. Unmatched boxes remain class/geometry errors and are not counted again as attribute errors.
+
+Attribute-error crop filenames use `predX_gtY` for the 1-based prediction/GT label-row indices; for example, `sample_pred1_gt3_defect.jpg` targets GT row 3 in `sample.txt`. `ann correct-from-error-crops` currently edits classes/boxes, not attributes, and cannot directly parse attribute crops with suffixes such as `_defect`; `ann set-attr` is a bulk operation. To edit only selected crops, use `attribute_error.csv` and the crop filename to locate the image and GT row, then apply a targeted label update; use `--dry-run` and `--backup-dir` first.
 
 Review output:
 
@@ -333,6 +335,7 @@ review/
   pred_txt/
   attribute_error/
     attribute_defect/
+      confusion_matrix.png
       gt_yes_pred_no/
         images/
         crops/

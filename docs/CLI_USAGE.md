@@ -319,7 +319,9 @@ metrics 还会按 COCO 风格的像素面积输出 small、medium、large 目标
 `eval error-analysis` 支持 `--class` 只保留指定类别，`--exclude-class` 独立排除类别；`--min-width`、`--min-height`、`--min-area`、`--min-size-logic` 和 `--min-pixels` 会同时过滤 GT 与预测。宽高/面积使用归一化 YOLO 尺寸，`--min-pixels` 按像素宽度或高度判断。仍兼容旧参数 `--review-workers`、`--review-progress`、`--review-progress-leave`；新脚本建议直接使用统一运行参数。
 `--class-rules` 接收 YAML/JSON 文件，按类别覆盖全局尺寸规则；规则字段可使用 `width`、`height`、`logic`，未配置的类别使用全局参数。
 两个评估命令默认按类别执行置信度优先的 NMS，阈值为 `--nms-iou 0.5`；使用 `--no-nms` 可关闭。
-如果存在 `attribute.yaml`/`attributes.yaml`，或显式指定 `--attribute-file`，错误分析会在一对一匹配成功的同类框上逐属性比较，并写出 `attribute_error.csv`。使用 `--review` 时，属性错误位于 `review/attribute_error/attribute_<属性名>/gt_<GT值>_pred_<预测值>/images` 和 `crops`；外部预测 label 目录会共享 GT 的属性 schema。未匹配框不会重复计入属性错误。
+如果存在 `attribute.yaml`/`attributes.yaml`，或显式指定 `--attribute-file`，错误分析会在一对一匹配成功的同类框上逐属性比较，并写出 `attribute_error.csv`。使用 `--review` 时，属性错误位于 `review/attribute_error/attribute_<属性名>/gt_<GT值>_pred_<预测值>/images` 和 `crops`，每个 `attribute_<属性名>` 目录下还会生成 `confusion_matrix.png`（行是预测属性值，列是真实属性值，包含正确和错误匹配）；外部预测 label 目录会共享 GT 的属性 schema。未匹配框不会重复计入属性错误。
+
+属性错误 crop 文件名中的 `predX_gtY` 是预测/GT label 行号（从 1 开始），如 `sample_pred1_gt3_defect.jpg` 对应 `sample.txt` 第 3 条 GT 标注。`ann correct-from-error-crops` 当前只修改类别/框，不能直接解析带 `_defect` 后缀的属性 crop，也不能修改属性；`ann set-attr` 是批量修改。若要按挑选出的 crop 修改属性，应结合 `attribute_error.csv` 和文件名定位目标图片及 GT 行后定向更新 label，建议先使用 `--dry-run` 和 `--backup-dir`。
 
 review 输出：
 
@@ -333,6 +335,7 @@ review/
   pred_txt/
   attribute_error/
     attribute_defect/
+      confusion_matrix.png
       gt_yes_pred_no/
         images/
         crops/
