@@ -7,6 +7,7 @@ details in ``example/functions``.
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -24,11 +25,12 @@ from example.functions import (
 )
 from example.functions._manager import get_yolo_manager
 
-DATA_DIR = Path(r"\\158.132.186.40\isds\huilin\mayolo\mayolo_v3")
+DATA_DIR = Path(r"/localnvme/data/billboard/mayolo_v2")
 
-PRED_RUNS_DIR = Path(r"//localnvme/project/ultralytics/runs/detect")
+# PRED_RUNS_DIR = Path(r"//localnvme/project/ultralytics/runs/mdetect")
+PRED_RUNS_DIR = Path(r"/localnvme/project/isds_project/runs/mdetect")
 PRED_NAMES = [
-    "predict-13",
+    "predict2",
 ]
 
 # Select operations by uncommenting names in RUN_LIST.
@@ -73,9 +75,10 @@ def main() -> None:
         for pred_name in PRED_NAMES[:]:
             yolo_error_ana(
                 DATA_DIR,
-                PRED_RUNS_DIR,
+                os.path.join(PRED_RUNS_DIR, pred_name, "labels"),
                 pred_name,
                 attribute_file=DATA_DIR / "attribute.yaml",
+                abs_path=True,
                 # only_val=True,
             )
 
