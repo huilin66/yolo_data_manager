@@ -207,6 +207,19 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="txt file or comma-separated image names/paths forced into val",
     )
+    dataset_split.add_argument(
+        "--ensure-class-presence",
+        dest="ensure_class_presence",
+        action="store_true",
+        help="spread classes across every non-empty requested split (default)",
+    )
+    dataset_split.add_argument(
+        "--no-ensure-class-presence",
+        dest="ensure_class_presence",
+        action="store_false",
+        help="disable class-presence balancing",
+    )
+    dataset_split.set_defaults(ensure_class_presence=True)
     dataset_split.set_defaults(handler=handle_dataset_split)
 
     dataset_extract_split = dataset_sub.add_parser(
@@ -1124,6 +1137,7 @@ def handle_dataset_split(args: argparse.Namespace) -> int:
         absolute_paths=args.absolute_paths,
         train_include_list=args.train_include_list,
         val_include_list=args.val_include_list,
+        ensure_class_presence=args.ensure_class_presence,
     )
     out_dir = Path(args.out) if args.out else _resolved_output_root(args.root)
     backup_root = (

@@ -66,7 +66,8 @@ mgr.query_attr(name="quality", nonzero=True)
 
 # 数据集管理
 mgr.dataset_normalize(out=r"E:\datasets\normalized_yolo")
-mgr.dataset_split(train=0.8, val=0.1, test=0.1, seed=233)
+mgr.dataset_split(train=0.8, val=0.1, test=0.1, seed=233,
+                  ensure_class_presence=True)
 mgr.dataset_split(train=0.8, val=0.1, test=0.1, seed=233, absolute_paths=True)
 mgr.dataset_split(
     train=0.8,
@@ -338,6 +339,7 @@ mgr.output_dataset_yaml
 
 `dataset_split` 会写出 `train.txt`、`val.txt`、`test.txt`，并在输出中显示 `total_class_counts` 和 `val_class_counts`，方便检查验证集类别分布。
 `train_include_list` 和 `val_include_list` 可以传图片名/路径列表，也可以传一个 txt 文件路径（每行一个图片名或路径）。这些图片会先从随机池中排除，再分别加入 train 或 val；两个列表不能包含同一张图片。相对图片路径按数据集根目录匹配，也支持图片文件名和 stem。
+`ensure_class_presence=True`（默认）会按图像中的类别分布进行启发式分配，尽量让每个有标注的类别出现在每个非空 split 中；当 `test=0` 时只约束 train 和 val。类别图片数量不足、include list 固定了分配，或 split 容量不足时无法完全保证；传 `False` 可关闭该策略。
 如果目标目录中原本存在 `train.txt`、`val.txt` 或 `test.txt`，split 写入前会将它们移动到 `<数据集根目录>/labels_backup/<时间戳>/`；可用 `backup_dir` 覆盖备份目录。
 
 `dataset_extract_split` 用已有的 split txt 把各 set 物化出来：每个传入的 `train_include_list` / `val_include_list` / `test_include_list` 会把对应图片写到 `<out>/<set>`，作为独立扁平数据集（`images/` + `labels/` + `class.txt` + `dataset.yaml`）。这几个参数可以传图片名/路径列表，也可以传一个 txt 文件路径（每行一个图片名或路径）。未传入的 set 会跳过，空 set 会报告为 0 张且不落盘；`dry_run=True` 只报告数量和输出路径而不写文件，`copy_images=False` 不复制图片，`keep_empty_labels=False` 丢弃空标签文件。`out` 默认为 `<数据集根目录>/ydm_subsets`，可用 `out` 参数指定其他目录。

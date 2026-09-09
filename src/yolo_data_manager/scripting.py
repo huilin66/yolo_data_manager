@@ -68,6 +68,7 @@ _PARAMETER_ALIASES = {
 
 _FALSE_FLAGS = {
     "copy_images": "--no-copy-images",
+    "ensure_class_presence": "--no-ensure-class-presence",
     "keep_empty_labels": "--drop-empty-labels",
     "source_prefix": "--no-source-prefix",
     "rename_duplicates": "--no-rename-duplicates",
@@ -612,6 +613,7 @@ class YoloManager:
         absolute_paths: bool = False,
         train_include_list: str | Path | Sequence[str] | None = None,
         val_include_list: str | Path | Sequence[str] | None = None,
+        ensure_class_presence: bool = True,
         **kwargs: Any,
     ) -> int:
         """Write train/val/test split files (``ydm dataset split``)."""
@@ -626,6 +628,7 @@ class YoloManager:
             absolute_paths=absolute_paths,
             train_include_list=train_include_list,
             val_include_list=val_include_list,
+            ensure_class_presence=ensure_class_presence,
             **kwargs,
         )
 

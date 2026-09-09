@@ -21,10 +21,13 @@ def split_dataset(
     absolute_paths: bool = False,
     train_include_list: SplitIncludeList = None,
     val_include_list: SplitIncludeList = None,
+    ensure_class_presence: bool = True,
 ) -> dict[str, list[str]]:
     total = train + val + test
     if total <= 0:
         raise ValueError("split ratios must sum to a positive value")
+    if min(train, val, test) < 0:
+        raise ValueError("split ratios must be non-negative")
     ratios = {"train": train / total, "val": val / total, "test": test / total}
     names = [
         str(image.path.resolve()) if absolute_paths else image.file_name
@@ -51,20 +54,137 @@ def split_dataset(
     forced = set(train_indices) | set(val_indices)
     remaining_indices = [index for index in range(len(names)) if index not in forced]
     rng = random.Random(seed)
-    rng.shuffle(remaining_indices)
 
-    n = len(remaining_indices)
-    n_train = int(n * ratios["train"])
-    n_val = int(n * ratios["val"])
+    if ensure_class_presence:
+        split_sizes = _allocate_split_sizes(len(remaining_indices), ratios)
+        split_indices = _assign_balanced_indices(
+            dataset,
+            remaining_indices,
+            split_sizes,
+            {
+                "train": train_indices,
+                "val": val_indices,
+                "test": [],
+            },
+            rng,
+        )
+    else:
+        rng.shuffle(remaining_indices)
+        n = len(remaining_indices)
+        n_train = int(n * ratios["train"])
+        n_val = int(n * ratios["val"])
+        split_indices = {
+            "train": train_indices + remaining_indices[:n_train],
+            "val": val_indices + remaining_indices[n_train : n_train + n_val],
+            "test": remaining_indices[n_train + n_val :],
+        }
 
     def output_names(indices: Iterable[int]) -> list[str]:
         return [names[index] for index in indices]
 
     return {
-        "train": output_names(train_indices + remaining_indices[:n_train]),
-        "val": output_names(val_indices + remaining_indices[n_train : n_train + n_val]),
-        "test": output_names(remaining_indices[n_train + n_val :]),
+        split_name: output_names(split_indices[split_name])
+        for split_name in ("train", "val", "test")
     }
+
+
+def _allocate_split_sizes(
+    count: int,
+    ratios: dict[str, float],
+) -> dict[str, int]:
+    """Allocate every image to a split without assigning data to zero ratios."""
+
+    raw_sizes = {name: count * ratio for name, ratio in ratios.items()}
+    sizes = {name: int(value) for name, value in raw_sizes.items()}
+    remainder = count - sum(sizes.values())
+    order = {name: index for index, name in enumerate(("train", "val", "test"))}
+    fractional = sorted(
+        (name for name, ratio in ratios.items() if ratio > 0),
+        key=lambda name: (-(raw_sizes[name] - sizes[name]), order[name]),
+    )
+    for name in fractional[:remainder]:
+        sizes[name] += 1
+    return sizes
+
+
+def _assign_balanced_indices(
+    dataset: YoloDataset,
+    remaining_indices: list[int],
+    split_sizes: dict[str, int],
+    initial: dict[str, list[int]],
+    rng: random.Random,
+) -> dict[str, list[int]]:
+    """Assign images while greedily spreading rare classes across splits.
+
+    This is an image-level stratification heuristic: one image can satisfy the
+    presence requirement for every class annotated on it. Forced include-list
+    images are kept in their requested split and are included in the current
+    class-presence state before the remaining images are assigned.
+    """
+
+    image_classes = {
+        index: {annotation.class_id for annotation in dataset.images[index].annotations}
+        for index in set(remaining_indices).union(*initial.values())
+    }
+    class_image_counts: dict[int, int] = {}
+    for classes in image_classes.values():
+        for class_id in classes:
+            class_image_counts[class_id] = class_image_counts.get(class_id, 0) + 1
+    class_weights = {
+        class_id: 1.0 / count
+        for class_id, count in class_image_counts.items()
+        if count > 0
+    }
+
+    split_indices = {
+        name: list(initial.get(name, []))
+        for name in ("train", "val", "test")
+    }
+    split_presence = {name: set() for name in split_indices}
+    for split_name, indices in split_indices.items():
+        for index in indices:
+            split_presence[split_name].update(image_classes.get(index, set()))
+
+    remaining_capacity = dict(split_sizes)
+    rng.shuffle(remaining_indices)
+    remaining_indices.sort(
+        key=lambda index: -sum(
+            class_weights.get(class_id, 0.0)
+            for class_id in image_classes.get(index, set())
+        )
+    )
+    assigned_remaining = {name: 0 for name in split_indices}
+
+    for index in remaining_indices:
+        available = [
+            name for name in ("train", "val", "test") if remaining_capacity[name] > 0
+        ]
+        if not available:
+            raise RuntimeError("split allocation did not leave a destination for every image")
+        rng.shuffle(available)
+        classes = image_classes.get(index, set())
+
+        def score(split_name: str) -> tuple[float, int, float]:
+            missing_weight = sum(
+                class_weights.get(class_id, 0.0)
+                for class_id in classes
+                if class_id not in split_presence[split_name]
+            )
+            missing_count = sum(
+                1 for class_id in classes if class_id not in split_presence[split_name]
+            )
+            fill_ratio = assigned_remaining[split_name] / max(
+                1, split_sizes[split_name]
+            )
+            return missing_weight, missing_count, -fill_ratio
+
+        split_name = max(available, key=score)
+        split_indices[split_name].append(index)
+        split_presence[split_name].update(classes)
+        assigned_remaining[split_name] += 1
+        remaining_capacity[split_name] -= 1
+
+    return split_indices
 
 
 def _resolve_include_indices(

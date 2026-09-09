@@ -97,6 +97,7 @@ Semantic mask import conventions:
 
 - select/copy subset
 - split train/val/test
+- split enables `ensure_class_presence` by default and heuristically spreads annotated classes across each non-empty split; when `test=0` it constrains train/val, and it can be disabled with `--no-ensure-class-presence` or `ensure_class_presence=False`
 - merge datasets with class-name alignment
 - remap class ids
 - generate `dataset.yaml`

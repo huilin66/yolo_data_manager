@@ -38,10 +38,12 @@ def test_example_split_passes_include_lists_to_manager():
         train_include_list=["a.jpg"],
         val_include_list="val_include.txt",
         backup_dir="labels_backup",
+        ensure_class_presence=False,
     ) == 7
     assert captured["train_include_list"] == ["a.jpg"]
     assert captured["val_include_list"] == "val_include.txt"
     assert captured["backup_dir"] == "labels_backup"
+    assert captured["ensure_class_presence"] is False
 
 
 def test_example_resize_reuses_existing_manager():

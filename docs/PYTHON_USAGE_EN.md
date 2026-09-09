@@ -92,6 +92,11 @@ txt file with one image name/path per line. These images are removed from the
 random pool before splitting, then forced into train or val. The two lists may
 not overlap. Relative image paths are matched from the dataset root; bare file
 names and stems are also supported.
+`ensure_class_presence=True` (the default) uses a heuristic image-level
+assignment to spread every class with available examples across each non-empty
+split. When `test=0`, only train and val are constrained. This is best effort:
+too few images for a class, forced include lists, or insufficient split capacity
+can make full coverage impossible. Pass `False` to disable it.
 If `train.txt`, `val.txt`, or `test.txt` already exists in the output directory,
 split moves it before writing into `<dataset-root>/labels_backup/<timestamp>/`;
 pass `backup_dir` to override the backup directory.
@@ -172,7 +177,8 @@ The query CSV contains one row per matching annotation. For direct Python access
 
 ```python
 mgr.dataset_normalize(out="normalized_yolo")
-mgr.dataset_split(train=0.8, val=0.1, test=0.1, seed=233)
+mgr.dataset_split(train=0.8, val=0.1, test=0.1, seed=233,
+                  ensure_class_presence=True)
 mgr.dataset_split(train=0.8, val=0.1, test=0.1, absolute_paths=True)
 mgr.dataset_split(
     train=0.8,

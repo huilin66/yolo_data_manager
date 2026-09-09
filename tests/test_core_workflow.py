@@ -100,6 +100,13 @@ def test_build_python_task_argv():
     assert "--backup-dir" in split_argv
     assert "labels_backup" in split_argv
 
+    split_no_balance_argv = build_task_argv(
+        "dataset.split",
+        root=Path("dataset"),
+        ensure_class_presence=False,
+    )
+    assert "--no-ensure-class-presence" in split_no_balance_argv
+
     stats_argv = build_task_argv(
         "stats",
         root=Path("dataset"),
@@ -661,6 +668,51 @@ def test_split_dataset_can_write_absolute_paths(tmp_path):
     assert sorted(absolute["train"]) == sorted(
         str((root / "images" / name).resolve()) for name in ["a.jpg", "b.jpg"]
     )
+
+
+def test_split_dataset_spreads_classes_across_nonempty_splits(tmp_path):
+    root = tmp_path / "balanced_split"
+    (root / "images").mkdir(parents=True)
+    (root / "labels").mkdir(parents=True)
+    (root / "class.txt").write_text("rare_a\nrare_b\n", encoding="utf-8")
+    for index in range(8):
+        image_name = f"image_{index}.jpg"
+        Image.new("RGB", (20, 20), color="white").save(root / "images" / image_name)
+        class_id = 0 if index < 4 else 1
+        (root / "labels" / f"image_{index}.txt").write_text(
+            f"{class_id} 0.5 0.5 0.5 0.5\n",
+            encoding="utf-8",
+        )
+
+    dataset = load_yolo_dataset(root)
+    splits = split_dataset(dataset, train=0.5, val=0.25, test=0.25, seed=7)
+
+    for split_name in ("train", "val", "test"):
+        counts = class_counts_for_images(dataset, splits[split_name])
+        assert all(count > 0 for count in counts.values())
+
+
+def test_split_dataset_spreads_classes_between_train_and_val_when_test_is_zero(tmp_path):
+    root = tmp_path / "balanced_split_no_test"
+    (root / "images").mkdir(parents=True)
+    (root / "labels").mkdir(parents=True)
+    (root / "class.txt").write_text("rare_a\nrare_b\n", encoding="utf-8")
+    for index in range(8):
+        image_name = f"image_{index}.jpg"
+        Image.new("RGB", (20, 20), color="white").save(root / "images" / image_name)
+        class_id = 0 if index < 4 else 1
+        (root / "labels" / f"image_{index}.txt").write_text(
+            f"{class_id} 0.5 0.5 0.5 0.5\n",
+            encoding="utf-8",
+        )
+
+    dataset = load_yolo_dataset(root)
+    splits = split_dataset(dataset, train=0.5, val=0.5, test=0.0, seed=7)
+
+    assert splits["test"] == []
+    for split_name in ("train", "val"):
+        counts = class_counts_for_images(dataset, splits[split_name])
+        assert all(count > 0 for count in counts.values())
 
 
 def test_split_dataset_forces_include_lists_and_excludes_them_from_random_pool(tmp_path):

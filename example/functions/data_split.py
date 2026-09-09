@@ -23,12 +23,15 @@ def yolo_split(
     backup_dir: str | Path | None = None,
     train_include_list: str | Path | Sequence[str] | None = None,
     val_include_list: str | Path | Sequence[str] | None = None,
+    ensure_class_presence: bool = True,
 ) -> int:
     """Write train/val/test lists with optional forced train/val images.
 
     Include values can be image names/paths, a comma-separated string, or a
     txt file containing one image name/path per line. Included images are
     removed from the random pool before the requested ratios are applied.
+    By default, the remaining images are assigned with a class-presence
+    balancing heuristic so classes are spread across every non-empty split.
     """
 
     mgr = get_yolo_manager(dataset_input, layout="flat", init_check=False, init_layout=False)
@@ -42,4 +45,5 @@ def yolo_split(
         backup_dir=backup_dir,
         train_include_list=train_include_list,
         val_include_list=val_include_list,
+        ensure_class_presence=ensure_class_presence,
     )
