@@ -1208,6 +1208,36 @@ def test_annotation_csv_includes_split_from_split_directories(tmp_path):
     }
 
 
+def test_annotation_csv_prefers_split_lists_over_split_directories(tmp_path):
+    root = tmp_path / "split_priority"
+    (root / "images" / "train").mkdir(parents=True)
+    (root / "images" / "val").mkdir(parents=True)
+    (root / "labels" / "train").mkdir(parents=True)
+    (root / "labels" / "val").mkdir(parents=True)
+    Image.new("RGB", (100, 80), color="white").save(root / "images" / "train" / "a.jpg")
+    Image.new("RGB", (100, 80), color="white").save(root / "images" / "val" / "b.jpg")
+    (root / "labels" / "train" / "a.txt").write_text(
+        "0 0.5 0.5 0.2 0.3\n", encoding="utf-8"
+    )
+    (root / "labels" / "val" / "b.txt").write_text(
+        "0 0.4 0.4 0.2 0.2\n", encoding="utf-8"
+    )
+    (root / "class.txt").write_text("object\n", encoding="utf-8")
+    (root / "train.txt").write_text("images/train/a.jpg\n", encoding="utf-8")
+    dataset = load_yolo_dataset(root, layout="split_dirs", task="detect", workers=1)
+    out = tmp_path / "annotations.csv"
+
+    write_annotation_csv(dataset, out)
+
+    with out.open("r", encoding="utf-8", newline="") as fp:
+        rows = list(csv.DictReader(fp))
+
+    assert {row["image"]: row["split"] for row in rows} == {
+        "a.jpg": "train",
+        "b.jpg": "",
+    }
+
+
 def test_basic_info_reports_box_and_attribute_counts_by_split(tmp_path):
     root = make_dataset(tmp_path / "basic_info_yolo")
     (root / "train.txt").write_text("images/a.jpg\n", encoding="utf-8")

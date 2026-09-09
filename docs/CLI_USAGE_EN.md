@@ -204,7 +204,11 @@ image_shape, box_shape, box_shape_pix, box_shape_rate,
 box_pos_start, box_pos_center, box_pos_end, attribute, legacy_csv
 ```
 
-`annotations.csv` includes a `split` column. It is inferred from `train.txt`, `val.txt`, and `test.txt` under the dataset root, or from directories such as `images/train`, `images/val`, and `images/test`; the value is empty when the split cannot be determined uniquely.
+`annotations.csv` includes a `split` column. If any of `train.txt`, `val.txt`, or
+`test.txt` exists under the dataset root, only those split lists are used; the
+directory layout (such as `images/train`, `images/val`, and `images/test`) is
+used only when none of the three files exists. The value is empty when the
+split cannot be determined uniquely.
 
 The `stats` command now prints three compact tables: image total/train/val/test counts, box counts by class and split, and standalone attribute/value counts by split. The same rows are written by default to `ydm_stats/basic_info.csv`; use `--basic-info-csv` to override the path. The full class-attribute cross counts remain available in `stats.json`.
 

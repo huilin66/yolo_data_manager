@@ -327,7 +327,7 @@ mgr.output_dataset_yaml
 
 `stats_list` 支持：`all`、`class_counts`、`box_number`、`box_width`、`box_height`、`box_area`、`image_shape`、`box_shape`、`box_shape_pix`、`box_shape_rate`、`box_pos_start`、`box_pos_center`、`box_pos_end`、`attribute`、`legacy_csv`。
 
-`annotations.csv` 包含 `split` 列。它会根据数据集根目录下的 `train.txt`、`val.txt`、`test.txt`，或 `images/train`、`images/val`、`images/test` 等 split 目录自动填写；无法唯一判断时留空。
+`annotations.csv` 包含 `split` 列。若数据集根目录存在任一 `train.txt`、`val.txt`、`test.txt`，则只根据这些 split txt 判断；仅当三个文件都不存在时，才退回根据 `images/train`、`images/val`、`images/test` 等 split 目录判断。无法唯一判断时留空。
 
 `stats` 控制台会输出图像 total/train/val/test 表、按类别/split 的 box 表和按 attribute/value 汇总的属性表；相同内容默认保存到 `ydm_stats/basic_info.csv`，可通过 `basic_info_csv` 指定其他路径。完整统计 JSON 中仍保留 class-attribute 交叉统计。
 

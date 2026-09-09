@@ -180,18 +180,21 @@ def format_basic_info_tables(rows: Iterable[dict[str, object]]) -> str:
 def infer_image_splits(dataset: YoloDataset) -> dict[int, str]:
     """Infer train/val/test membership for the images in *dataset*.
 
-    Split directories and the conventional ``train.txt``/``val.txt``/
-    ``test.txt`` lists are both supported. An image with ambiguous membership
-    is left without a split assignment.
+    The conventional ``train.txt``/``val.txt``/``test.txt`` lists take
+    precedence when any of them exists at the dataset root. Split directories
+    are used only when none of those list files exists. An image with
+    ambiguous membership is left without a split assignment.
     """
 
     root = Path(dataset.root).resolve()
+    split_files = {
+        split: root / f"{split}.txt"
+        for split in SPLIT_NAMES
+        if (root / f"{split}.txt").is_file()
+    }
     assignments: dict[str, set[str]] = {}
 
-    for split in SPLIT_NAMES:
-        split_file = root / f"{split}.txt"
-        if not split_file.is_file():
-            continue
+    for split, split_file in split_files.items():
         for raw_line in split_file.read_text(encoding="utf-8").splitlines():
             for key in _split_key_variants(root, raw_line):
                 assignments.setdefault(key, set()).add(split)
@@ -201,7 +204,8 @@ def infer_image_splits(dataset: YoloDataset) -> dict[int, str]:
         candidates: set[str] = set()
         for key in _split_key_variants(root, image.path):
             candidates.update(assignments.get(key, set()))
-        candidates.update(_split_names_from_image_path(root, image.path))
+        if not split_files:
+            candidates.update(_split_names_from_image_path(root, image.path))
         if len(candidates) == 1:
             result[id(image)] = next(iter(candidates))
     return result

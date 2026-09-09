@@ -204,7 +204,7 @@ image_shape, box_shape, box_shape_pix, box_shape_rate,
 box_pos_start, box_pos_center, box_pos_end, attribute, legacy_csv
 ```
 
-`annotations.csv` 包含 `split` 列，优先根据数据集根目录下的 `train.txt`、`val.txt`、`test.txt`，或 `images/train`、`images/val`、`images/test` 等目录推断；无法唯一判断时为空。
+`annotations.csv` 包含 `split` 列：如果数据集根目录存在任一 `train.txt`、`val.txt`、`test.txt`，只根据这些 split txt 推断；只有三个文件都不存在时，才退回根据 `images/train`、`images/val`、`images/test` 等目录推断。无法唯一判断时为空。
 
 `stats` 控制台只输出三张基础表：图像的 total/train/val/test 数量、按类别和 split 统计的 box 数量，以及按 attribute/value 和 split 汇总的属性数量。相同内容默认保存到 `ydm_stats/basic_info.csv`，也可以通过 `--basic-info-csv` 指定路径；完整统计中的 class-attribute 交叉信息仍保存到 `stats.json`。
 
