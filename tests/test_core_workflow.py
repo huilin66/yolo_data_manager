@@ -715,6 +715,28 @@ def test_split_dataset_spreads_classes_between_train_and_val_when_test_is_zero(t
         assert all(count > 0 for count in counts.values())
 
 
+def test_split_dataset_prioritizes_train_then_test_for_rare_classes(tmp_path):
+    root = tmp_path / "balanced_split_priority"
+    (root / "images").mkdir(parents=True)
+    (root / "labels").mkdir(parents=True)
+    (root / "class.txt").write_text("rare\ncommon\n", encoding="utf-8")
+    for index in range(6):
+        image_name = f"image_{index}.jpg"
+        Image.new("RGB", (20, 20), color="white").save(root / "images" / image_name)
+        class_ids = "0 0.5 0.5 0.5 0.5" if index < 2 else "1 0.5 0.5 0.5 0.5"
+        (root / "labels" / f"image_{index}.txt").write_text(
+            f"{class_ids}\n",
+            encoding="utf-8",
+        )
+
+    dataset = load_yolo_dataset(root)
+    splits = split_dataset(dataset, train=0.5, val=0.25, test=0.25, seed=7)
+
+    assert class_counts_for_images(dataset, splits["train"])["rare"] > 0
+    assert class_counts_for_images(dataset, splits["test"])["rare"] > 0
+    assert class_counts_for_images(dataset, splits["val"])["rare"] == 0
+
+
 def test_split_dataset_forces_include_lists_and_excludes_them_from_random_pool(tmp_path):
     root = make_dataset(tmp_path / "yolo")
     dataset = load_yolo_dataset(root)

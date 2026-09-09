@@ -100,7 +100,7 @@ ydm dataset normalize --root yolo_data --layout auto --out yolo_normalized
 ### 3. 数据集管理
 
 - split train/val/test
-- split 默认启用 `ensure_class_presence`，尽量把有标注的类别分布到每个非空 split；`test=0` 时约束 train/val，可用 `--no-ensure-class-presence` 或 `ensure_class_presence=False` 关闭
+- split 默认启用 `ensure_class_presence`，尽量把有标注的类别分布到每个非空 split；样本不足时优先级为 train/test/val，`test=0` 时为 train/val，可用 `--no-ensure-class-presence` 或 `ensure_class_presence=False` 关闭
 - select/copy 子集
 - merge 数据集
 - class id remap

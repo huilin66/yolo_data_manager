@@ -10,6 +10,7 @@ from yolo_data_manager.core.models import YoloDataset, is_image_file
 
 
 SplitIncludeList = str | Path | Iterable[str] | None
+_SPLIT_PRIORITY = {"train": 2, "test": 1, "val": 0}
 
 
 def split_dataset(
@@ -97,10 +98,12 @@ def _allocate_split_sizes(
     raw_sizes = {name: count * ratio for name, ratio in ratios.items()}
     sizes = {name: int(value) for name, value in raw_sizes.items()}
     remainder = count - sum(sizes.values())
-    order = {name: index for index, name in enumerate(("train", "val", "test"))}
     fractional = sorted(
         (name for name, ratio in ratios.items() if ratio > 0),
-        key=lambda name: (-(raw_sizes[name] - sizes[name]), order[name]),
+        key=lambda name: (
+            -(raw_sizes[name] - sizes[name]),
+            -_SPLIT_PRIORITY[name],
+        ),
     )
     for name in fractional[:remainder]:
         sizes[name] += 1
@@ -119,7 +122,9 @@ def _assign_balanced_indices(
     This is an image-level stratification heuristic: one image can satisfy the
     presence requirement for every class annotated on it. Forced include-list
     images are kept in their requested split and are included in the current
-    class-presence state before the remaining images are assigned.
+    class-presence state before the remaining images are assigned. If a class
+    cannot be placed in every split, missing-class ties prefer train, then
+    test, then val.
     """
 
     image_classes = {
@@ -164,7 +169,7 @@ def _assign_balanced_indices(
         rng.shuffle(available)
         classes = image_classes.get(index, set())
 
-        def score(split_name: str) -> tuple[float, int, float]:
+        def score(split_name: str) -> tuple[float, int, int, float]:
             missing_weight = sum(
                 class_weights.get(class_id, 0.0)
                 for class_id in classes
@@ -176,7 +181,12 @@ def _assign_balanced_indices(
             fill_ratio = assigned_remaining[split_name] / max(
                 1, split_sizes[split_name]
             )
-            return missing_weight, missing_count, -fill_ratio
+            return (
+                missing_weight,
+                missing_count,
+                _SPLIT_PRIORITY[split_name],
+                -fill_ratio,
+            )
 
         split_name = max(available, key=score)
         split_indices[split_name].append(index)

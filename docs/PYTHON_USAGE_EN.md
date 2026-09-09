@@ -94,9 +94,10 @@ not overlap. Relative image paths are matched from the dataset root; bare file
 names and stems are also supported.
 `ensure_class_presence=True` (the default) uses a heuristic image-level
 assignment to spread every class with available examples across each non-empty
-split. When `test=0`, only train and val are constrained. This is best effort:
-too few images for a class, forced include lists, or insufficient split capacity
-can make full coverage impossible. Pass `False` to disable it.
+split. When class samples are insufficient, coverage priority is train > test >
+val; when `test=0`, it is train > val. This is best effort: too few images for
+a class, forced include lists, or insufficient split capacity can make full
+coverage impossible. Pass `False` to disable it.
 If `train.txt`, `val.txt`, or `test.txt` already exists in the output directory,
 split moves it before writing into `<dataset-root>/labels_backup/<timestamp>/`;
 pass `backup_dir` to override the backup directory.
