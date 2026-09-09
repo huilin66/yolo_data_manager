@@ -11,8 +11,6 @@ import os
 import sys
 from pathlib import Path
 
-# Support both ``python example/my_dataset.py`` and
-# ``python -m example.my_dataset`` from a repository checkout.
 if __package__ in (None, ""):
     project_root = Path(__file__).resolve().parents[1]
     if str(project_root) not in sys.path:
@@ -33,18 +31,26 @@ PRED_NAMES = [
     "predict2",
 ]
 
+ATT_CROP_PRED_DIR = os.path.join(
+    DATA_DIR, "ydm_evaluation", "error_analysis", "predict2", "crop_changes"
+)
+
+ATT_CROP_PRED_DICT = {
+    "add2no": ["added_billboard", "no"],
+    "add2yes": ["added_billboard", "yes"],
+    "frame_corroded2no": ["frame_corroded", "no"],
+    "frame_corroded2yes": ["frame_corroded", "yes"],
+    "peeling2no": ["surface_peeling", "no"],
+    "surface_corroded2no": ["surface_corroded", "no"],
+    "surface_corroded2yes": ["surface_corroded", "yes"],
+}
 # Select operations by uncommenting names in RUN_LIST.
 RUN_LIST = [
     # "sta",
     # "vis",
     # "metric",
-    "error_ana",
-    # "update",
-    # "draw",
-    # "resize",
-    # "update_class",
-    # "update_class_by_label",
-    # "split"
+    # "error_ana",
+    # "update_att",
     # "split_vis"
 ]
 
@@ -80,6 +86,18 @@ def main() -> None:
                 attribute_file=DATA_DIR / "attribute.yaml",
                 abs_path=True,
                 # only_val=True,
+            )
+    if "update_att" in RUN_LIST:
+        mgr = get_yolo_manager(
+            DATA_DIR,
+            attribute_file=DATA_DIR / "attribute.yaml",
+        )
+        for att_dir_name, (att_name, att_value) in ATT_CROP_PRED_DICT.items():
+            mgr.ann_correct_attr_from_error_crops(
+                os.path.join(ATT_CROP_PRED_DIR, att_dir_name),
+                name=att_name,
+                value=att_value,
+                # dry_run=True,
             )
 
 
