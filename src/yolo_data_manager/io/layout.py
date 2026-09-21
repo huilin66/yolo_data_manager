@@ -39,13 +39,19 @@ class LayoutInfo:
         }
 
 
-def detect_layout(root: str | Path, *, progress: bool = False, progress_leave: bool = False) -> LayoutInfo:
+def detect_layout(
+    root: str | Path,
+    *,
+    images_dir: str | Path = "images",
+    progress: bool = False,
+    progress_leave: bool = False,
+) -> LayoutInfo:
     root_path = Path(root)
     split_files = [root_path / name for name in ("train.txt", "val.txt", "test.txt") if (root_path / name).exists()]
     if split_files:
-        return _image_list_layout(root_path, split_files)
+        return _image_list_layout(root_path, split_files, images_dir=images_dir)
 
-    images_root = root_path / "images"
+    images_root = _resolve_under(root_path, images_dir)
     labels_root = root_path / "labels"
     if images_root.exists() and labels_root.exists():
         splits = [
@@ -98,7 +104,12 @@ def resolve_layout(
 ) -> LayoutInfo:
     root_path = Path(root)
     if layout == "auto":
-        return detect_layout(root_path, progress=progress, progress_leave=progress_leave)
+        return detect_layout(
+            root_path,
+            images_dir=images_dir,
+            progress=progress,
+            progress_leave=progress_leave,
+        )
     if layout == "flat":
         image_root = _resolve_under(root_path, images_dir)
         label_root = _resolve_under(root_path, labels_dir)
@@ -128,7 +139,7 @@ def resolve_layout(
         )
     if layout == "image_list":
         split_files = [root_path / name for name in ("train.txt", "val.txt", "test.txt") if (root_path / name).exists()]
-        return _image_list_layout(root_path, split_files)
+        return _image_list_layout(root_path, split_files, images_dir=images_dir)
     if layout == "mixed":
         return LayoutInfo(
             layout="mixed",
@@ -141,17 +152,20 @@ def resolve_layout(
     raise ValueError(f"unsupported YOLO layout: {layout}")
 
 
-def read_image_list(paths: list[Path], root: Path) -> list[Path]:
+def read_image_list(
+    paths: list[Path],
+    root: Path,
+    *,
+    images_dir: str | Path = "images",
+) -> list[Path]:
+    image_root = _resolve_under(root, images_dir)
     image_paths: list[Path] = []
     for list_path in paths:
         for line in list_path.read_text(encoding="utf-8").splitlines():
             text = line.strip()
             if not text:
                 continue
-            image_path = Path(text)
-            if not image_path.is_absolute():
-                image_path = root / image_path
-            image_paths.append(image_path)
+            image_paths.append(_resolve_image_list_entry(text, root, image_root))
     return image_paths
 
 
@@ -167,8 +181,13 @@ def infer_label_path_from_image(image_path: Path) -> Path:
     return image_path.with_suffix(".txt")
 
 
-def _image_list_layout(root: Path, split_files: list[Path]) -> LayoutInfo:
-    image_paths = read_image_list(split_files, root)
+def _image_list_layout(
+    root: Path,
+    split_files: list[Path],
+    *,
+    images_dir: str | Path = "images",
+) -> LayoutInfo:
+    image_paths = read_image_list(split_files, root, images_dir=images_dir)
     label_paths = [infer_label_path_from_image(path) for path in image_paths]
     return LayoutInfo(
         layout="image_list",
@@ -203,3 +222,61 @@ def _count_labels(root: Path, *, progress: bool = False, progress_leave: bool = 
 def _resolve_under(root: Path, child: str | Path) -> Path:
     child_path = Path(child)
     return child_path if child_path.is_absolute() else root / child_path
+
+
+def _resolve_image_list_entry(text: str, root: Path, image_root: Path) -> Path:
+    """Resolve a split-list image path, including paths copied from another host.
+
+    Split files are often generated on a Linux training server and consumed on a
+    Windows workstation (or the other way around).  A stale absolute path is
+    still syntactically valid on the new host, so simply checking
+    ``Path.is_absolute()`` would keep pointing at the old location.  If the
+    path contains an ``images``/``image`` directory, rebase the suffix under
+    the current dataset image directory when the original path is unavailable.
+    """
+
+    cleaned = text.strip().strip('"').strip("'")
+    raw_path = Path(cleaned).expanduser()
+    candidates: list[Path] = []
+
+    if raw_path.is_absolute():
+        candidates.append(raw_path)
+    else:
+        candidates.extend((root / raw_path, image_root / raw_path))
+
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+
+    parts = _foreign_path_parts(cleaned)
+    marker_names = {"images", "image"}
+    if image_root.name:
+        marker_names.add(image_root.name.casefold())
+    marker_index = next(
+        (
+            index
+            for index in range(len(parts) - 1, -1, -1)
+            if parts[index].casefold() in marker_names
+        ),
+        None,
+    )
+    if marker_index is not None and marker_index + 1 < len(parts):
+        return image_root.joinpath(*parts[marker_index + 1 :])
+
+    if not raw_path.is_absolute():
+        return image_root / raw_path
+
+    # Keep valid external-image semantics for absolute paths that do not carry
+    # a recognizable image-directory component.  The caller will report the
+    # missing path if neither the original nor a rebase candidate exists.
+    return raw_path
+
+
+def _foreign_path_parts(text: str) -> list[str]:
+    """Split POSIX and Windows path spellings independently of the host OS."""
+
+    return [
+        part
+        for part in text.replace("\\", "/").split("/")
+        if part and part not in {"."}
+    ]

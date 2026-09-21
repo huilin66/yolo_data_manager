@@ -976,6 +976,29 @@ def test_image_list_layout(tmp_path):
     assert dataset.annotation_count() == 1
 
 
+@pytest.mark.parametrize(
+    "stale_path",
+    [
+        "/localnvme/data/old_dataset/images/a.jpg",
+        r"E:\localnvme\data\old_dataset\images\a.jpg",
+    ],
+)
+def test_image_list_layout_rebases_stale_absolute_paths(tmp_path, stale_path):
+    root = tmp_path / "list_yolo_stale_path"
+    (root / "images").mkdir(parents=True)
+    (root / "labels").mkdir(parents=True)
+    Image.new("RGB", (100, 80), color="white").save(root / "images" / "a.jpg")
+    (root / "labels" / "a.txt").write_text("0 0.5 0.5 0.2 0.2\n", encoding="utf-8")
+    (root / "class.txt").write_text("obj\n", encoding="utf-8")
+    (root / "train.txt").write_text(f"{stale_path}\n", encoding="utf-8")
+
+    dataset = load_yolo_dataset(root, layout="auto", workers=1)
+
+    assert len(dataset.images) == 1
+    assert dataset.images[0].path == root / "images" / "a.jpg"
+    assert dataset.annotation_count() == 1
+
+
 def test_merge_classes_with_compact(tmp_path):
     root = make_dataset(tmp_path / "yolo")
     dataset = load_yolo_dataset(root)

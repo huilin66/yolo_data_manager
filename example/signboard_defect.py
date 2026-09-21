@@ -23,7 +23,7 @@ from example.functions import (
 )
 from example.functions._manager import get_yolo_manager
 
-DATA_DIR = Path(r"/localnvme/data/billboard/mayolo_v2")
+DATA_DIR = Path(r"E:\data\0417_signboard\mayolo_v3")
 
 # PRED_RUNS_DIR = Path(r"//localnvme/project/ultralytics/runs/mdetect")
 PRED_RUNS_DIR = Path(r"/localnvme/project/isds_project/runs/mdetect")
@@ -47,7 +47,7 @@ ATT_CROP_PRED_DICT = {
 # Select operations by uncommenting names in RUN_LIST.
 RUN_LIST = [
     # "sta",
-    # "vis",
+    "vis",
     # "metric",
     # "error_ana",
     # "update_att",
