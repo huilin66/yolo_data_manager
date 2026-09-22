@@ -138,6 +138,20 @@ mgr.stats(plots_dir="labels_sta", stats_list=["all"])
 mgr.stats(plots_dir="labels_sta", stats_list=["image_shape", "box_shape_pix", "box_pos_center"])
 ```
 
+```python
+mgr.generate_attribute_com(
+    split="train",
+    mode="conditional",
+    smoothing=1.0,
+    output="co_occurrence_matrix_train_conditional.csv",
+)
+```
+
+`generate_attribute_com()` preserves the standalone `generate_com.py`
+parser, matrix formulas, split-stem filtering, CSV format, summary JSON fields,
+and default output names. It computes attribute co-occurrence per annotation
+row; use `split="all"` for the historical all-data matrix.
+
 `stats_list` supports:
 
 ```text
@@ -196,6 +210,19 @@ mgr.dataset_extract_split(
     val_include_list="val.txt",
     test_include_list="test.txt",
 )  # out defaults to <dataset-root>/ydm_subsets; pass out="out" to override
+mgr.merge_manual_groups(
+    group_src="group_src",
+    group_dir="group",
+    images_dir="images",
+    out_dir="group_merged",
+)
+mgr.split_by_manual_group(
+    groups_dir="group_merged",
+    ratios="0.80,0.10,0.10",
+    manual_groups_split="train",
+    make_yolo=True,
+    out_dir="manual_group_split",
+)
 mgr.dataset_select(file="val.txt", out="val_subset")
 mgr.dataset_yaml(out="dataset.yaml", train="images/train", val="images/val")
 mgr.dataset_duplicates(out="duplicates.csv")

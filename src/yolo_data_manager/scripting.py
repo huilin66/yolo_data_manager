@@ -632,6 +632,48 @@ class YoloManager:
             **kwargs,
         )
 
+    def generate_attribute_com(
+        self,
+        *,
+        labels_dir: str | Path | None = None,
+        attribute_file: str | Path | None = None,
+        output: str | Path | None = None,
+        summary: str | Path | None = None,
+        split: str = "train",
+        mode: str = "cross",
+        smoothing: float = 0.0,
+        attribute_start: int = 2,
+        num_attributes: int | None = None,
+        filter_background: bool = False,
+        overwrite: bool = False,
+        dry_run: bool = False,
+    ) -> int:
+        """Generate the GCA attribute co-occurrence matrix.
+
+        This uses the same parser, matrix formulas, output names, and summary
+        fields as the standalone ``generate_com.py`` utility.
+        """
+        from types import SimpleNamespace
+
+        from yolo_data_manager.stats.attribute_com import generate
+
+        args = SimpleNamespace(
+            data_root=self.root,
+            labels_dir=labels_dir,
+            attribute_file=attribute_file,
+            output=output,
+            summary=summary,
+            split=split,
+            mode=mode,
+            smoothing=smoothing,
+            attribute_start=attribute_start,
+            num_attributes=num_attributes,
+            filter_background=filter_background,
+            overwrite=overwrite,
+            dry_run=dry_run,
+        )
+        return generate(args)
+
     def dataset_extract_split(
         self,
         *,
@@ -660,6 +702,101 @@ class YoloManager:
             backup_dir=backup_dir,
             **kwargs,
         )
+
+    def merge_manual_groups(
+        self,
+        *,
+        group_src: str | Path | None = None,
+        group_dir: str | Path | None = None,
+        images_dir: str | Path | None = None,
+        out_dir: str | Path | None = None,
+        link: bool = False,
+        overwrite: bool = False,
+        dry_run: bool = False,
+    ) -> Path:
+        """Merge manually reviewed groups using the standalone-script logic."""
+        from types import SimpleNamespace
+
+        from yolo_data_manager.dataset.manual_group import merge_groups
+
+        root = Path(self.root)
+        args = SimpleNamespace(
+            group_src=str(group_src if group_src is not None else root / "group_src"),
+            group_dir=str(group_dir if group_dir is not None else root / "group"),
+            images_dir=str(images_dir if images_dir is not None else root / self.images_dir),
+            out_dir=str(out_dir if out_dir is not None else root / "group_merged"),
+            link=link,
+            overwrite=overwrite,
+            dry_run=dry_run,
+        )
+        return merge_groups(args)
+
+    def split_by_manual_group(
+        self,
+        *,
+        images_dir: str | Path | None = None,
+        labels_dir: str | Path | None = None,
+        groups_dir: str | Path | None = None,
+        out_dir: str | Path | None = None,
+        ratios: str | Sequence[float] = "0.80,0.10,0.10",
+        seed: int = 42,
+        attempts: int = 32,
+        manual_groups_split: str = "train",
+        attribute_file: str | Path | None = None,
+        attribute_names: str | Sequence[str] | None = None,
+        num_attributes: int | None = None,
+        attribute_start: int = 2,
+        nal: int = 2,
+        class_file: str | Path | None = None,
+        make_yolo: bool = False,
+        link: bool = False,
+        overwrite: bool = False,
+    ) -> Path:
+        """Split whole manual groups into train/val/test.
+
+        The assignment objective, attribute coverage priority, reports, and
+        optional YOLO materialization are identical to
+        ``split_by_manual_group.py``.
+        """
+        from types import SimpleNamespace
+
+        from yolo_data_manager.dataset.manual_group import split_dataset
+
+        root = Path(self.root)
+        ratio_text = (
+            ratios
+            if isinstance(ratios, str)
+            else ",".join(str(value) for value in ratios)
+        )
+        attribute_name_text = (
+            attribute_names
+            if attribute_names is None or isinstance(attribute_names, str)
+            else ",".join(str(value) for value in attribute_names)
+        )
+        args = SimpleNamespace(
+            images_dir=str(images_dir if images_dir is not None else root / self.images_dir),
+            labels_dir=str(labels_dir if labels_dir is not None else root / self.labels_dir),
+            groups_dir=str(groups_dir if groups_dir is not None else root / "group_merged"),
+            out_dir=str(out_dir if out_dir is not None else root / "manual_group_split"),
+            ratios=ratio_text,
+            seed=seed,
+            attempts=attempts,
+            manual_groups_split=manual_groups_split,
+            attribute_file=(
+                str(attribute_file)
+                if attribute_file is not None
+                else self.attribute_file
+            ),
+            attribute_names=attribute_name_text,
+            num_attributes=num_attributes,
+            attribute_start=attribute_start,
+            nal=nal,
+            class_file=(str(class_file) if class_file is not None else self.class_file),
+            make_yolo=make_yolo,
+            link=link,
+            overwrite=overwrite,
+        )
+        return split_dataset(args)
 
     def dataset_yaml(
         self,

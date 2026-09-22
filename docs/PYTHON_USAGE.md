@@ -80,6 +80,19 @@ mgr.dataset_extract_split(
     val_include_list="val.txt",
     test_include_list="test.txt",
 )  # out 默认 <数据集根目录>/ydm_subsets；可传 out="out" 指定
+mgr.merge_manual_groups(
+    group_src="group_src",
+    group_dir="group",
+    images_dir="images",
+    out_dir="group_merged",
+)
+mgr.split_by_manual_group(
+    groups_dir="group_merged",
+    ratios="0.80,0.10,0.10",
+    manual_groups_split="train",
+    make_yolo=True,
+    out_dir="manual_group_split",
+)
 mgr.dataset_filter(out="filtered", min_area=0.001, class_=["car", "truck"], backup_dir="label_backups")
 mgr.dataset_filter(out="filtered_small", min_width=0.01, min_height=0.01,
                    min_size_logic="and")
@@ -188,6 +201,12 @@ mgr.convert_seg2det(out="yolo_det")
 mgr.convert_pseudo(out="pseudo_labels", conf=0.5, drop_confidence=True)
 mgr.resize_images(out="yolo_640", width=640, height=640, keep_ratio=True)
 mgr.resize_images(out="yolo_half", scale=0.5)
+mgr.generate_attribute_com(
+    split="train",
+    mode="conditional",
+    smoothing=1.0,
+    output="co_occurrence_matrix_train_conditional.csv",
+)
 
 # 评估 —— gt_root / pred_root 独立传入
 mgr.eval_compare(gt_root=r"E:\datasets\gt", pred_root=r"E:\datasets\pred",
@@ -401,6 +420,9 @@ mgr.output_dataset_yaml
 | `dataset_normalize(out=...)` | `ydm dataset normalize` |
 | `dataset_split(train=..., val=..., ...)` | `ydm dataset split` |
 | `dataset_extract_split(train_include_list=..., ...)` | `ydm dataset extract-split` |
+| `merge_manual_groups(group_src=..., group_dir=..., ...)` | manager-only |
+| `split_by_manual_group(groups_dir=..., ...)` | manager-only |
+| `generate_attribute_com(split=..., mode=..., ...)` | manager-only |
 | `dataset_yaml(out=..., ...)` | `ydm dataset yaml` |
 | `dataset_filter(out=..., ...)` | `ydm dataset filter` |
 | `dataset_merge(roots=..., out=...)` | `ydm dataset merge` |
