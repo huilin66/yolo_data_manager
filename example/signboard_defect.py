@@ -25,8 +25,12 @@ from example.functions._manager import get_yolo_manager
 
 DATA_DIR = Path(r"E:\data\0417_signboard\mayolo_v3")
 
-PRED_VIS_DIR = Path(
-    r"E:\data\0417_signboard\select\predictions_seed0_rerun\YOLOv10x_native\labels"
+# PRED_VIS_DIR = Path(
+#     r"E:\data\0417_signboard\select\predictions_seed0_rerun\YOLOv10x_native\labels"
+# )
+PRED_IMG_DIR = Path(r"E:\data\0417_signboard\select\predictions_seed0_robustness\IMAGE")
+PRED_TXT_DIR = Path(
+    r"E:\data\0417_signboard\select\predictions_seed0_robustness\YOLOv10x\labels"
 )
 # PRED_RUNS_DIR = Path(r"//localnvme/project/ultralytics/runs/mdetect")
 PRED_RUNS_DIR = Path(r"/localnvme/project/isds_project/runs/mdetect")
@@ -78,12 +82,13 @@ def main() -> None:
         mgr = get_yolo_manager(
             DATA_DIR,
             layout="flat",
-            labels_dir=PRED_VIS_DIR,
             init_layout=False,
             init_check=False,
         )
         mgr.vis_draw(
-            out=PRED_VIS_DIR.with_name("pred_vis"),
+            images_dir=PRED_IMG_DIR,
+            labels_dir=PRED_TXT_DIR,
+            out=PRED_TXT_DIR.with_name("pred_vis"),
             show_conf=True,
             conf=0.25,
             show_attrs=True,
