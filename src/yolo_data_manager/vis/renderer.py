@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import math
 from pathlib import Path
@@ -96,6 +97,7 @@ def render_dataset(
     show_attributes: bool = False,
     show_txt_id: bool = False,
     filter_no_attributes: bool = False,
+    filter_level: Sequence[int | str] | int | str | None = None,
     clean: bool = True,
     workers: int = 8,
     progress: bool = True,
@@ -107,6 +109,8 @@ def render_dataset(
     visual_style = normalize_visual_style(style)
     if visual_style == "cv2":
         _require_cv2()
+    normalized_filter_levels = _normalize_filter_levels(filter_level)
+    _validate_filter_level_indices(dataset, normalized_filter_levels)
     out_path = Path(out_dir)
     _prepare_vis_output_dir(dataset, out_path, clean=clean)
     images = dataset.images[:limit] if limit is not None else dataset.images
@@ -134,6 +138,7 @@ def render_dataset(
                 show_attributes=show_attributes,
                 show_txt_id=show_txt_id,
                 filter_no_attributes=filter_no_attributes,
+                filter_level=normalized_filter_levels,
             )
             rendered.save(save_path)
         else:
@@ -147,6 +152,7 @@ def render_dataset(
                 show_attributes=show_attributes,
                 show_txt_id=show_txt_id,
                 filter_no_attributes=filter_no_attributes,
+                filter_level=normalized_filter_levels,
             )
             _write_cv2_image(save_path, rendered)
         if attribute_separate_path is not None:
@@ -157,6 +163,7 @@ def render_dataset(
                 attribute_separate_path,
                 confidence_threshold=confidence_threshold,
                 filter_no_attributes=filter_no_attributes,
+                filter_level=normalized_filter_levels,
             )
 
     if worker_count == 1:
@@ -231,6 +238,7 @@ def crop_dataset(
     confidence_threshold: float | None = None,
     by_attribute: bool = False,
     filter_no_attributes: bool = True,
+    filter_level: Sequence[int | str] | int | str | None = None,
     clean: bool = True,
     workers: int = 8,
     progress: bool = True,
@@ -243,6 +251,8 @@ def crop_dataset(
     if visual_style == "cv2":
         _require_cv2()
     _validate_crop_padding(padding)
+    normalized_filter_levels = _normalize_filter_levels(filter_level)
+    _validate_filter_level_indices(dataset, normalized_filter_levels)
     out_path = Path(out_dir)
     _prepare_vis_output_dir(dataset, out_path, clean=clean)
     attribute_crop_path = None
@@ -263,6 +273,7 @@ def crop_dataset(
             confidence_threshold=confidence_threshold,
             by_attribute=by_attribute,
             filter_no_attributes=filter_no_attributes,
+            filter_level=normalized_filter_levels,
         )
         if visual_style == "pil":
             saved = _crop_image(dataset, image, out_path, **crop_kwargs)
@@ -276,6 +287,7 @@ def crop_dataset(
                 attribute_crop_path,
                 confidence_threshold=confidence_threshold,
                 filter_no_attributes=filter_no_attributes,
+                filter_level=normalized_filter_levels,
             )
         return saved
 
@@ -339,7 +351,9 @@ def render_image(
     show_attributes: bool = False,
     show_txt_id: bool = False,
     filter_no_attributes: bool = False,
+    filter_level: Sequence[int | str] | int | str | None = None,
 ) -> Image.Image:
+    normalized_filter_levels = _normalize_filter_levels(filter_level)
     with Image.open(image.path) as source:
         canvas = source.convert("RGB")
     draw = ImageDraw.Draw(canvas, "RGBA")
@@ -351,7 +365,16 @@ def render_image(
         label = _annotation_label(dataset, annotation, show_txt_id=show_txt_id, annotation_idx=annotation_idx)
         if show_confidence and annotation.confidence is not None:
             label = f"{label} {annotation.confidence:.2f}"
-        attr_lines = _attribute_lines(dataset, annotation, filter_no=filter_no_attributes) if show_attributes else []
+        attr_lines = (
+            _attribute_lines(
+                dataset,
+                annotation,
+                filter_no=filter_no_attributes,
+                filter_level=normalized_filter_levels,
+            )
+            if show_attributes
+            else []
+        )
         if annotation.polygon is not None:
             points = normalized_points_to_pixels(annotation.polygon.points, width, height)
             fill = (*color, mask_alpha) if fill_mask else None
@@ -378,6 +401,7 @@ def render_image_cv2(
     show_attributes: bool = False,
     show_txt_id: bool = False,
     filter_no_attributes: bool = False,
+    filter_level: Sequence[int | str] | int | str | None = None,
 ) -> np.ndarray:
     """Render one image with OpenCV drawing primitives.
 
@@ -386,6 +410,7 @@ def render_image_cv2(
     """
 
     _require_cv2()
+    normalized_filter_levels = _normalize_filter_levels(filter_level)
     canvas = _read_cv2_image(image.path)
     height, width = canvas.shape[:2]
     line_width = _cv2_line_width(canvas)
@@ -458,7 +483,12 @@ def render_image_cv2(
         if show_attributes:
             _draw_cv2_attributes(
                 canvas,
-                _attribute_values(dataset, annotation, filter_no=filter_no_attributes),
+                _attribute_values(
+                    dataset,
+                    annotation,
+                    filter_no=filter_no_attributes,
+                    filter_level=normalized_filter_levels,
+                ),
                 label_info,
             )
     return canvas
@@ -475,6 +505,7 @@ def _crop_image(
     confidence_threshold: float | None,
     by_attribute: bool,
     filter_no_attributes: bool,
+    filter_level: Sequence[int | str],
 ) -> int:
     saved = 0
     with Image.open(image.path) as source:
@@ -508,9 +539,12 @@ def _crop_image(
         class_name = dataset.class_name(annotation.class_id)
         save_dirs = [out_path / class_name]
         if by_attribute:
-            for attr_name, attr_value in dataset.annotation_attributes(annotation).items():
-                if filter_no_attributes and dataset.attributes is not None and dataset.attributes.is_no_value(attr_value):
-                    continue
+            for attr_name, attr_value in _attribute_values(
+                dataset,
+                annotation,
+                filter_no=filter_no_attributes,
+                filter_level=filter_level,
+            ):
                 save_dirs.append(out_path / class_name / f"{_safe_name(attr_name)}-{_safe_name(str(attr_value))}")
         for save_dir in save_dirs:
             save_dir.mkdir(parents=True, exist_ok=True)
@@ -530,6 +564,7 @@ def _crop_image_cv2(
     confidence_threshold: float | None,
     by_attribute: bool,
     filter_no_attributes: bool,
+    filter_level: Sequence[int | str],
 ) -> int:
     """Write object crops using OpenCV I/O; called independently per image."""
 
@@ -575,13 +610,12 @@ def _crop_image_cv2(
         class_name = dataset.class_name(annotation.class_id)
         save_dirs = [out_path / class_name]
         if by_attribute:
-            for attr_name, attr_value in dataset.annotation_attributes(annotation).items():
-                if (
-                    filter_no_attributes
-                    and dataset.attributes is not None
-                    and dataset.attributes.is_no_value(attr_value)
-                ):
-                    continue
+            for attr_name, attr_value in _attribute_values(
+                dataset,
+                annotation,
+                filter_no=filter_no_attributes,
+                filter_level=filter_level,
+            ):
                 save_dirs.append(
                     out_path
                     / class_name
@@ -602,6 +636,7 @@ def _copy_attribute_separated_images(
     *,
     confidence_threshold: float | None,
     filter_no_attributes: bool,
+    filter_level: Sequence[int | str],
 ) -> None:
     """Copy one rendered image into folders grouped by attribute and value."""
 
@@ -617,6 +652,7 @@ def _copy_attribute_separated_images(
             dataset,
             annotation,
             filter_no=filter_no_attributes,
+            filter_level=filter_level,
         ):
             target = (
                 out_path
@@ -639,6 +675,7 @@ def _copy_attribute_crops_for_image(
     *,
     confidence_threshold: float | None,
     filter_no_attributes: bool,
+    filter_level: Sequence[int | str],
 ) -> None:
     """Copy generated class crops into attribute/value folders.
 
@@ -664,6 +701,7 @@ def _copy_attribute_crops_for_image(
             dataset,
             annotation,
             filter_no=filter_no_attributes,
+            filter_level=filter_level,
         ):
             target = (
                 out_path
@@ -821,16 +859,155 @@ def _draw_cv2_attributes(
         )
 
 
+def _normalize_filter_levels(
+    filter_level: Sequence[int | str] | int | str | float | None,
+) -> tuple[int | str, ...]:
+    """Normalize level selectors used to exclude attribute values.
+
+    Integers are one-based level indices.  Numeric strings are accepted for
+    CLI calls, where all option values arrive as text; other strings are
+    matched against decoded level names case-insensitively.
+    """
+
+    if filter_level is None:
+        return ()
+    if isinstance(filter_level, bool):
+        raise TypeError("filter_level entries must be positive integers or strings")
+    if isinstance(filter_level, (str, int, float)):
+        items: list[object] = [filter_level]
+    else:
+        try:
+            items = list(filter_level)
+        except TypeError as exc:
+            raise TypeError(
+                "filter_level must be a list of positive integers or strings"
+            ) from exc
+
+    normalized: list[int | str] = []
+    for item in items:
+        if isinstance(item, bool):
+            raise TypeError("filter_level entries must be positive integers or strings")
+        if isinstance(item, int):
+            index = item
+            if index < 1:
+                raise ValueError("filter_level numeric indices must start at 1")
+            normalized.append(index)
+            continue
+        if isinstance(item, float):
+            if not math.isfinite(item) or not item.is_integer():
+                raise ValueError("filter_level numeric entries must be integers")
+            index = int(item)
+            if index < 1:
+                raise ValueError("filter_level numeric indices must start at 1")
+            normalized.append(index)
+            continue
+        if not isinstance(item, str):
+            raise TypeError("filter_level entries must be positive integers or strings")
+
+        text_items = item.split(",")
+        for text in text_items:
+            text = text.strip()
+            if not text:
+                raise ValueError("filter_level string entries must not be empty")
+            numeric_text = text.lstrip("+-")
+            if numeric_text.isdigit():
+                index = int(text)
+                if index < 1:
+                    raise ValueError("filter_level numeric indices must start at 1")
+                normalized.append(index)
+            else:
+                normalized.append(text.casefold())
+    return tuple(normalized)
+
+
+def _same_attribute_level(left: object, right: object) -> bool:
+    return str(left).strip().casefold() == str(right).strip().casefold()
+
+
+def _validate_filter_level_indices(
+    dataset: YoloDataset,
+    filter_levels: Sequence[int | str],
+) -> None:
+    if dataset.attributes is None:
+        return
+    numeric_levels = [level for level in filter_levels if isinstance(level, int)]
+    if not numeric_levels:
+        return
+
+    if dataset.attributes.class_scoped:
+        attribute_options = [
+            (name, options)
+            for scoped_attributes in dataset.attributes.attributes.values()
+            for name, options in scoped_attributes.items()
+        ]
+    else:
+        attribute_options = list(dataset.attributes.attributes.items())
+
+    for name, options in attribute_options:
+        if not isinstance(options, list):
+            raise ValueError(
+                f"numeric filter_level requires a level list for attribute {name!r}"
+            )
+        for level in numeric_levels:
+            if level > len(options):
+                raise ValueError(
+                    f"filter_level={level} is out of range for attribute "
+                    f"{name!r}; valid levels are 1-{len(options)}"
+                )
+
+
+def _is_filtered_attribute_level(
+    dataset: YoloDataset,
+    annotation,
+    name: str,
+    value: object,
+    filter_levels: Sequence[int | str],
+) -> bool:
+    if not filter_levels or dataset.attributes is None:
+        return False
+
+    class_name = dataset.class_name(annotation.class_id)
+    options = dataset.attributes.options_for(name, class_name=class_name)
+    for selector in filter_levels:
+        if isinstance(selector, int):
+            if not isinstance(options, list):
+                raise ValueError(
+                    f"numeric filter_level={selector} requires a level list "
+                    f"for attribute {name!r}"
+                )
+            if selector > len(options):
+                raise ValueError(
+                    f"filter_level={selector} is out of range for attribute "
+                    f"{name!r}; valid levels are 1-{len(options)}"
+                )
+            expected = options[selector - 1]
+        else:
+            expected = selector
+        if _same_attribute_level(value, expected):
+            return True
+    return False
+
+
 def _attribute_values(
     dataset: YoloDataset,
     annotation,
     *,
     filter_no: bool,
+    filter_level: Sequence[int | str] | int | str | float | None = None,
 ) -> list[tuple[str, object]]:
     if dataset.attributes is None:
         return []
+    normalized_filter_levels = _normalize_filter_levels(filter_level)
     values: list[tuple[str, object]] = []
     for name, value in dataset.annotation_attributes(annotation).items():
+        if _is_filtered_attribute_level(
+            dataset,
+            annotation,
+            name,
+            value,
+            normalized_filter_levels,
+        ):
+            continue
         if filter_no and dataset.attributes.is_no_value(value):
             continue
         values.append((name, value))
@@ -892,15 +1069,21 @@ def _annotation_label(dataset: YoloDataset, annotation, *, show_txt_id: bool, an
     return class_name
 
 
-def _attribute_lines(dataset: YoloDataset, annotation, filter_no: bool = False) -> list[str]:
-    lines: list[str] = []
-    if dataset.attributes is None:
-        return lines
-    for name, value in dataset.annotation_attributes(annotation).items():
-        if filter_no and dataset.attributes.is_no_value(value):
-            continue
-        lines.append(f"{name}: {value}")
-    return lines
+def _attribute_lines(
+    dataset: YoloDataset,
+    annotation,
+    filter_no: bool = False,
+    filter_level: Sequence[int | str] | int | str | float | None = None,
+) -> list[str]:
+    return [
+        f"{name}: {value}"
+        for name, value in _attribute_values(
+            dataset,
+            annotation,
+            filter_no=filter_no,
+            filter_level=filter_level,
+        )
+    ]
 
 
 def _safe_name(value: str) -> str:

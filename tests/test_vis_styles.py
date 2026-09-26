@@ -24,6 +24,53 @@ def test_filter_no_attributes_accepts_no_risk_values(value):
     assert AttributeSchema.is_no_value(value)
 
 
+def test_filter_level_excludes_numeric_and_named_levels(tmp_path):
+    root = tmp_path / "filter_levels"
+    (root / "images").mkdir(parents=True)
+    (root / "labels").mkdir(parents=True)
+    (root / "class.txt").write_text("object\n", encoding="utf-8")
+    (root / "attribute.yaml").write_text(
+        "attributes:\n  defect: [no risk, yes, critical]\n",
+        encoding="utf-8",
+    )
+    for stem, raw_value in (("no_risk", 0), ("yes", 1), ("critical", 2)):
+        Image.new("RGB", (100, 80), color="white").save(root / "images" / f"{stem}.jpg")
+        (root / "labels" / f"{stem}.txt").write_text(
+            f"0 1 {raw_value} 0.5 0.5 0.4 0.4\n",
+            encoding="utf-8",
+        )
+    dataset = load_yolo_dataset(root, progress=False)
+
+    render_dataset(
+        dataset,
+        tmp_path / "draw",
+        style="pil",
+        show_attributes=True,
+        filter_no_attributes=False,
+        filter_level=[1, "CRITICAL"],
+        att_seperate=True,
+        workers=1,
+        progress=False,
+    )
+
+    separated = tmp_path / "draw_att" / "defect"
+    assert (separated / "yes" / "yes.jpg").exists()
+    assert not (separated / "no_risk").exists()
+    assert not (separated / "critical").exists()
+
+
+def test_filter_level_validates_one_based_indices(tmp_path):
+    root = tmp_path / "filter_level_validation"
+    dataset = _make_dataset(root)
+    dataset.attributes = AttributeSchema({"defect": ["no risk", "yes"]})
+    dataset.images[0].annotations[0].attributes = [1.0]
+
+    with pytest.raises(ValueError, match="start at 1"):
+        render_dataset(dataset, tmp_path / "invalid_zero", filter_level=[0], progress=False)
+    with pytest.raises(ValueError, match="out of range"):
+        render_dataset(dataset, tmp_path / "invalid_range", filter_level=[3], progress=False)
+
+
 @pytest.mark.parametrize("style", ["pil", "cv2"])
 def test_visualization_styles_render_and_crop_in_parallel(tmp_path, style):
     root = tmp_path / "数据集"
@@ -201,6 +248,16 @@ def test_attribute_separate_argument_is_forwarded_to_cli():
     argv = build_task_argv("vis.draw", root="dataset", att_seperate=True)
 
     assert "--att-seperate" in argv
+
+
+def test_filter_level_argument_is_forwarded_to_cli():
+    argv = build_task_argv(
+        "vis.draw",
+        root="dataset",
+        filter_level=[1, "no risk"],
+    )
+
+    assert argv[argv.index("--filter-level") + 1] == "1,no risk"
 
 
 def test_attribute_crop_argument_is_forwarded_to_cli():

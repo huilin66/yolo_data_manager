@@ -90,6 +90,7 @@ def yolo_vis(
     style: str = "cv2",
     show_attrs: bool = False,
     filter_no_attrs: bool = False,
+    filter_level: list[int | str] | int | str | None = None,
     att_seperate: bool = False,
 ) -> dict[str, int]:
     """Render all configured modalities from the already-loaded manager."""
@@ -102,6 +103,7 @@ def yolo_vis(
             show_id=True,
             show_attrs=show_attrs,
             filter_no_attrs=filter_no_attrs,
+            filter_level=filter_level,
             att_seperate=separate_attributes,
         )
     else:
@@ -113,6 +115,7 @@ def yolo_vis(
             show_id=True,
             show_attrs=show_attrs,
             filter_no_attrs=filter_no_attrs,
+            filter_level=filter_level,
             att_seperate=separate_attributes,
         )
     if crop:
@@ -121,6 +124,7 @@ def yolo_vis(
                 style=style,
                 workers=8,
                 filter_no_attrs=filter_no_attrs,
+                filter_level=filter_level,
                 att_seperate=separate_attributes,
             )
         else:
@@ -129,6 +133,7 @@ def yolo_vis(
                 style=style,
                 workers=8,
                 filter_no_attrs=filter_no_attrs,
+                filter_level=filter_level,
                 att_seperate=separate_attributes,
             )
     return rendered

@@ -298,6 +298,8 @@ Set `replace_gt_from_pred=True` with `pred_dir` to replace GT row `y` completely
 mgr.vis_draw(out="images_vis", show_conf=True, show_attrs=True, style="cv2")  # default; use style="pil" for the PIL backend
 mgr.vis_draw(out="images_vis", show_attrs=True, filter_no_attrs=True, att_seperate=True)
 # filter_no_attrs=True filters no, no risk, No risk, and other no-value labels case-insensitively
+mgr.vis_draw(out="images_vis", show_attrs=True, filter_level=[1, "no risk"])
+# filter_level excludes levels; numbers are 1-based and strings match level names
 mgr.vis_draw(out="images_vis", conf=0.25, fill_mask=True, mask_alpha=64)
 mgr.vis_draw(out="images_vis", show_id=True)
 mgr.vis_draw(out="images_vis", workers=16)
