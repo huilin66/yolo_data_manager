@@ -1,6 +1,7 @@
 from PIL import Image
 import pytest
 
+from yolo_data_manager.core.models import AttributeSchema
 from yolo_data_manager.io.loader import load_yolo_dataset
 from yolo_data_manager.scripting import build_task_argv
 from yolo_data_manager.vis.renderer import crop_dataset, render_dataset
@@ -16,6 +17,11 @@ def _make_dataset(root, stem="sample"):
         encoding="utf-8",
     )
     return load_yolo_dataset(root, progress=False)
+
+
+@pytest.mark.parametrize("value", ["no", "No", "no risk", "No risk", "NO RISK", " no risk "])
+def test_filter_no_attributes_accepts_no_risk_values(value):
+    assert AttributeSchema.is_no_value(value)
 
 
 @pytest.mark.parametrize("style", ["pil", "cv2"])

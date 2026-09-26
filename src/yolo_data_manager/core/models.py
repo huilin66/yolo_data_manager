@@ -105,7 +105,7 @@ class AttributeSchema:
     @staticmethod
     def is_no_value(value: Any) -> bool:
         text = str(value).strip().lower()
-        return text in {"", "0", "0.0", "false", "none", "no", "normal"}
+        return text in {"", "0", "0.0", "false", "none", "no", "no risk", "normal"}
 
 
 @dataclass
