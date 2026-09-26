@@ -162,16 +162,15 @@ mgr.ann_correct_attr_from_error_crops(
 
 # 可视化
 mgr.vis_draw(out="images_vis", show_conf=True, show_attrs=True, style="cv2")  # 默认使用 cv2，也可使用 style="pil"
-mgr.vis_draw(out="images_vis", show_attrs=True, filter_no_attrs=True, att_seperate=True)
-# filter_no_attrs=True 会过滤 no、no risk、No risk 等无风险/无值属性（忽略大小写）
+mgr.vis_draw(out="images_vis", show_attrs=True, filter_level=[1], att_seperate=True)
 mgr.vis_draw(out="images_vis", show_attrs=True, filter_level=[1, "no risk"])
-# filter_level 表示排除 level；数字从 1 开始，字符按 level 名称匹配
+# filter_level 表示排除 level；数字从 1 开始，字符按 level 名称匹配；传 [] 表示不过滤
 mgr.vis_draw(out="images_vis", conf=0.25, fill_mask=True, mask_alpha=64)
 mgr.vis_draw(out="images_vis", show_id=True)  # 显示 txt 中从 1 开始的标注顺序号
 mgr.vis_draw(out="images_vis", workers=16)
 mgr.vis_draw(out="images_vis", progress=False)
 mgr.vis_crop(out="crops", by_attr=True, min_size=32)
-mgr.vis_crop(out="crops", filter_no_attrs=True, att_seperate=True)  # 从 crop 结果复制到 crop_att/attribute/value
+mgr.vis_crop(out="crops", filter_level=[1], att_seperate=True)  # 从 crop 结果复制到 crop_att/attribute/value
 mgr.vis_crop(out="crops", workers=16)
 mgr.vis_crop(out="crops", padding=20)    # 每边增加 20 像素
 mgr.vis_crop(out="crops", padding=0.2)   # 每边增加 box 宽/高的 20%

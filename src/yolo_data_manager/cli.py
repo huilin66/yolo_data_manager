@@ -520,7 +520,6 @@ def build_parser() -> argparse.ArgumentParser:
     draw.add_argument("--no-fill-mask", dest="fill_mask", action="store_false")
     draw.add_argument("--show-attrs", action="store_true")
     draw.add_argument("--show-id", action="store_true", help="show annotation order id from YOLO txt before class name")
-    draw.add_argument("--filter-no-attrs", action="store_true")
     draw.add_argument(
         "--filter-level",
         default=None,
@@ -558,13 +557,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     crop.add_argument("--conf", type=float, default=None, help="optional confidence threshold")
     crop.add_argument("--by-attr", action="store_true", help="also save crops into class/attribute-value folders")
-    crop.add_argument("--keep-no-attrs", dest="filter_no_attrs", action="store_false")
     crop.add_argument(
         "--filter-level",
-        default=None,
+        default="1",
         help="comma-separated levels to skip; numbers are 1-based level indices, other values are level names",
     )
-    crop.set_defaults(filter_no_attrs=True)
     crop.set_defaults(handler=handle_vis_crop)
     manual_box = vis_sub.add_parser(
         "manual-box",
@@ -1490,7 +1487,6 @@ def handle_vis_draw(args: argparse.Namespace) -> int:
         fill_mask=args.fill_mask,
         show_attributes=args.show_attrs,
         show_txt_id=args.show_id,
-        filter_no_attributes=args.filter_no_attrs,
         filter_level=args.filter_level,
         att_seperate=args.att_seperate,
         clean=args.clean,
@@ -1517,7 +1513,6 @@ def handle_vis_crop(args: argparse.Namespace) -> int:
         padding=args.padding,
         confidence_threshold=args.conf,
         by_attribute=args.by_attr,
-        filter_no_attributes=args.filter_no_attrs,
         filter_level=args.filter_level,
         att_seperate=args.att_seperate,
         clean=args.clean,

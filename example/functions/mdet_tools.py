@@ -89,7 +89,6 @@ def yolo_vis(
     output_name: str | None = None,
     style: str = "cv2",
     show_attrs: bool = False,
-    filter_no_attrs: bool = False,
     filter_level: list[int | str] | int | str | None = None,
     att_seperate: bool = False,
 ) -> dict[str, int]:
@@ -102,7 +101,6 @@ def yolo_vis(
             workers=8,
             show_id=True,
             show_attrs=show_attrs,
-            filter_no_attrs=filter_no_attrs,
             filter_level=filter_level,
             att_seperate=separate_attributes,
         )
@@ -114,7 +112,6 @@ def yolo_vis(
             workers=8,
             show_id=True,
             show_attrs=show_attrs,
-            filter_no_attrs=filter_no_attrs,
             filter_level=filter_level,
             att_seperate=separate_attributes,
         )
@@ -123,7 +120,6 @@ def yolo_vis(
             mgr.vis_crop(
                 style=style,
                 workers=8,
-                filter_no_attrs=filter_no_attrs,
                 filter_level=filter_level,
                 att_seperate=separate_attributes,
             )
@@ -132,7 +128,6 @@ def yolo_vis(
                 vis_dir / "crops",
                 style=style,
                 workers=8,
-                filter_no_attrs=filter_no_attrs,
                 filter_level=filter_level,
                 att_seperate=separate_attributes,
             )

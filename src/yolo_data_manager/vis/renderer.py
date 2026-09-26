@@ -96,7 +96,6 @@ def render_dataset(
     fill_mask: bool = True,
     show_attributes: bool = False,
     show_txt_id: bool = False,
-    filter_no_attributes: bool = False,
     filter_level: Sequence[int | str] | int | str | None = None,
     clean: bool = True,
     workers: int = 8,
@@ -137,7 +136,6 @@ def render_dataset(
                 fill_mask=fill_mask,
                 show_attributes=show_attributes,
                 show_txt_id=show_txt_id,
-                filter_no_attributes=filter_no_attributes,
                 filter_level=normalized_filter_levels,
             )
             rendered.save(save_path)
@@ -151,7 +149,6 @@ def render_dataset(
                 fill_mask=fill_mask,
                 show_attributes=show_attributes,
                 show_txt_id=show_txt_id,
-                filter_no_attributes=filter_no_attributes,
                 filter_level=normalized_filter_levels,
             )
             _write_cv2_image(save_path, rendered)
@@ -162,7 +159,6 @@ def render_dataset(
                 save_path,
                 attribute_separate_path,
                 confidence_threshold=confidence_threshold,
-                filter_no_attributes=filter_no_attributes,
                 filter_level=normalized_filter_levels,
             )
 
@@ -237,8 +233,7 @@ def crop_dataset(
     padding: int | float = 0,
     confidence_threshold: float | None = None,
     by_attribute: bool = False,
-    filter_no_attributes: bool = True,
-    filter_level: Sequence[int | str] | int | str | None = None,
+    filter_level: Sequence[int | str] | int | str | None = (1,),
     clean: bool = True,
     workers: int = 8,
     progress: bool = True,
@@ -272,7 +267,6 @@ def crop_dataset(
             padding=padding,
             confidence_threshold=confidence_threshold,
             by_attribute=by_attribute,
-            filter_no_attributes=filter_no_attributes,
             filter_level=normalized_filter_levels,
         )
         if visual_style == "pil":
@@ -286,7 +280,6 @@ def crop_dataset(
                 out_path,
                 attribute_crop_path,
                 confidence_threshold=confidence_threshold,
-                filter_no_attributes=filter_no_attributes,
                 filter_level=normalized_filter_levels,
             )
         return saved
@@ -350,7 +343,6 @@ def render_image(
     fill_mask: bool = True,
     show_attributes: bool = False,
     show_txt_id: bool = False,
-    filter_no_attributes: bool = False,
     filter_level: Sequence[int | str] | int | str | None = None,
 ) -> Image.Image:
     normalized_filter_levels = _normalize_filter_levels(filter_level)
@@ -369,7 +361,6 @@ def render_image(
             _attribute_lines(
                 dataset,
                 annotation,
-                filter_no=filter_no_attributes,
                 filter_level=normalized_filter_levels,
             )
             if show_attributes
@@ -400,7 +391,6 @@ def render_image_cv2(
     fill_mask: bool = True,
     show_attributes: bool = False,
     show_txt_id: bool = False,
-    filter_no_attributes: bool = False,
     filter_level: Sequence[int | str] | int | str | None = None,
 ) -> np.ndarray:
     """Render one image with OpenCV drawing primitives.
@@ -486,7 +476,6 @@ def render_image_cv2(
                 _attribute_values(
                     dataset,
                     annotation,
-                    filter_no=filter_no_attributes,
                     filter_level=normalized_filter_levels,
                 ),
                 label_info,
@@ -504,7 +493,6 @@ def _crop_image(
     padding: int | float,
     confidence_threshold: float | None,
     by_attribute: bool,
-    filter_no_attributes: bool,
     filter_level: Sequence[int | str],
 ) -> int:
     saved = 0
@@ -542,7 +530,6 @@ def _crop_image(
             for attr_name, attr_value in _attribute_values(
                 dataset,
                 annotation,
-                filter_no=filter_no_attributes,
                 filter_level=filter_level,
             ):
                 save_dirs.append(out_path / class_name / f"{_safe_name(attr_name)}-{_safe_name(str(attr_value))}")
@@ -563,7 +550,6 @@ def _crop_image_cv2(
     padding: int | float,
     confidence_threshold: float | None,
     by_attribute: bool,
-    filter_no_attributes: bool,
     filter_level: Sequence[int | str],
 ) -> int:
     """Write object crops using OpenCV I/O; called independently per image."""
@@ -613,7 +599,6 @@ def _crop_image_cv2(
             for attr_name, attr_value in _attribute_values(
                 dataset,
                 annotation,
-                filter_no=filter_no_attributes,
                 filter_level=filter_level,
             ):
                 save_dirs.append(
@@ -635,7 +620,6 @@ def _copy_attribute_separated_images(
     out_path: Path,
     *,
     confidence_threshold: float | None,
-    filter_no_attributes: bool,
     filter_level: Sequence[int | str],
 ) -> None:
     """Copy one rendered image into folders grouped by attribute and value."""
@@ -651,7 +635,6 @@ def _copy_attribute_separated_images(
         for attr_name, attr_value in _attribute_values(
             dataset,
             annotation,
-            filter_no=filter_no_attributes,
             filter_level=filter_level,
         ):
             target = (
@@ -674,7 +657,6 @@ def _copy_attribute_crops_for_image(
     out_path: Path,
     *,
     confidence_threshold: float | None,
-    filter_no_attributes: bool,
     filter_level: Sequence[int | str],
 ) -> None:
     """Copy generated class crops into attribute/value folders.
@@ -700,7 +682,6 @@ def _copy_attribute_crops_for_image(
         for attr_name, attr_value in _attribute_values(
             dataset,
             annotation,
-            filter_no=filter_no_attributes,
             filter_level=filter_level,
         ):
             target = (
@@ -873,6 +854,8 @@ def _normalize_filter_levels(
         return ()
     if isinstance(filter_level, bool):
         raise TypeError("filter_level entries must be positive integers or strings")
+    if isinstance(filter_level, str) and not filter_level.strip():
+        return ()
     if isinstance(filter_level, (str, int, float)):
         items: list[object] = [filter_level]
     else:
@@ -992,7 +975,6 @@ def _attribute_values(
     dataset: YoloDataset,
     annotation,
     *,
-    filter_no: bool,
     filter_level: Sequence[int | str] | int | str | float | None = None,
 ) -> list[tuple[str, object]]:
     if dataset.attributes is None:
@@ -1007,8 +989,6 @@ def _attribute_values(
             value,
             normalized_filter_levels,
         ):
-            continue
-        if filter_no and dataset.attributes.is_no_value(value):
             continue
         values.append((name, value))
     return values
@@ -1072,7 +1052,6 @@ def _annotation_label(dataset: YoloDataset, annotation, *, show_txt_id: bool, an
 def _attribute_lines(
     dataset: YoloDataset,
     annotation,
-    filter_no: bool = False,
     filter_level: Sequence[int | str] | int | str | float | None = None,
 ) -> list[str]:
     return [
@@ -1080,7 +1059,6 @@ def _attribute_lines(
         for name, value in _attribute_values(
             dataset,
             annotation,
-            filter_no=filter_no,
             filter_level=filter_level,
         )
     ]

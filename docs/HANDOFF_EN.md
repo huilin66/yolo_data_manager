@@ -162,7 +162,7 @@ Supported:
 - multi-threaded rendering
 - progress bars
 - `style=pil/cv2` rendering backends, with `cv2` as the default
-- `show_attrs=True, att_seperate=True` copies rendered images into `draw_att/attribute/level`; `vis_crop(..., att_seperate=True)` copies actual crop files into `crop_att/attribute/level` rather than draw files; `filter_no_attrs=True` skips `no`, `no risk`, `No risk`, and other no-value folders case-insensitively; `filter_level` excludes selected levels by 1-based index or level name
+- `show_attrs=True, att_seperate=True` copies rendered images into `draw_att/attribute/level`; `vis_crop(..., att_seperate=True)` copies actual crop files into `crop_att/attribute/level` rather than draw files; `filter_level` excludes selected levels by 1-based index or level name, defaults to `[1]`, and accepts an empty list to disable filtering
 - `vis draw` / `vis crop` clear the output directory before running by default (`clean=True`), so stale files from previous runs (e.g. outdated crops) do not accumulate; pass `clean=False` in Python or `--no-clean` in the CLI to keep existing outputs. The cleanup is guarded: it refuses to clear a directory that is the dataset root (or an ancestor) or that contains source images/labels (raises `ValueError`), so source data cannot be deleted accidentally.
 
 ### Evaluation and Error Analysis

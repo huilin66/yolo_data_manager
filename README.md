@@ -63,8 +63,8 @@ mgr_yaml = YoloManager(r"E:\repository\yolo8\ultralytics\cfg\datasets\data_fire.
 mgr.check(fill_missing_txt=True)
 mgr.stats(stats_list=["all"])
 mgr.vis_draw(show_id=True, show_conf=True, style="cv2")
-mgr.vis_draw(show_attrs=True, filter_no_attrs=True, att_seperate=True)
-mgr.vis_crop(out="crops", filter_no_attrs=True, att_seperate=True)  # crops are copied into crop_att/attribute/value
+mgr.vis_draw(show_attrs=True, filter_level=[1], att_seperate=True)
+mgr.vis_crop(out="crops", filter_level=[1], att_seperate=True)  # crops are copied into crop_att/attribute/value
 
 mgr.dataset_filter(
     min_width=0.01,
@@ -113,7 +113,7 @@ ydm check --root path/to/yolo --layout auto --fill-missing-txt --out validation.
 ydm stats --root path/to/yolo --stats-list all
 ydm vis draw --root path/to/yolo --show-id --show-conf
 ydm vis draw --root path/to/yolo --style cv2
-ydm vis draw --root path/to/yolo --show-attrs --filter-no-attrs --att-seperate
+ydm vis draw --root path/to/yolo --show-attrs --filter-level 1 --att-seperate
 ydm vis crop --root path/to/yolo --style cv2 --workers 16
 ydm vis manual-box --root path/to/yolo --image images/0001.jpg --class-id 5
 ydm dataset filter --root path/to/yolo --min-width 0.01 --min-height 0.01 --min-size-logic and

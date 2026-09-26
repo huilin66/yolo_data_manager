@@ -305,10 +305,11 @@ def test_yolo_manager_methods(tmp_path):
     code = mgr.query_class(class_=["car"], out=str(tmp_path / "cars.csv"))
     assert code == 0
 
-    # vis_crop uses filter_no_attrs → --keep-no-attrs logic
+    # an empty filter_level disables the default level filter
     argv = build_task_argv("vis.crop", root=str(root), out="crops",
-                           filter_no_attrs=False)
-    assert "--keep-no-attrs" in argv
+                           filter_level=[])
+    assert "--filter-level" in argv
+    assert argv[argv.index("--filter-level") + 1] == ""
 
     metrics_out = tmp_path / "manager_metrics.json"
     code = mgr.eval_metrics(
@@ -1452,7 +1453,7 @@ def test_class_scoped_attribute_full_flow(tmp_path):
     query = query_by_attribute(dataset, "defect", values=["yes"])
     edited, edit_report = set_attribute(dataset, "material", "asphalt", classes=["road"])
     stats = compute_stats(edited)
-    render_dataset(edited, tmp_path / "vis", show_attributes=True, filter_no_attributes=True)
+    render_dataset(edited, tmp_path / "vis", show_attributes=True, filter_level=[1])
     saved = crop_dataset(edited, tmp_path / "crops", by_attribute=True)
 
     assert len(query) == 1
@@ -1461,7 +1462,7 @@ def test_class_scoped_attribute_full_flow(tmp_path):
     assert stats["attribute_counts"]["defect"]["yes"] == 1
     assert stats["class_attribute_counts"]["road"]["material"]["asphalt"] == 1
     assert (tmp_path / "vis" / "a.jpg").exists()
-    assert saved == 4
+    assert saved == 3
     assert (tmp_path / "crops" / "sign" / "defect-yes" / "a_1.jpg").exists()
 
 

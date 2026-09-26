@@ -224,9 +224,8 @@ ydm vis draw --root path/to/yolo --style cv2
 ydm vis crop --root path/to/yolo --style pil --workers 16
 ydm vis crop --root path/to/yolo --padding 20
 ydm vis crop --root path/to/yolo --out crops --padding 0.2
-ydm vis draw --root path/to/yolo --out images_vis --show-conf --show-attrs --filter-no-attrs
-ydm vis draw --root path/to/yolo --out images_vis --show-attrs --filter-no-attrs --att-seperate
-ydm vis draw --root path/to/yolo --out images_vis --show-attrs --filter-level "1,no risk"
+ydm vis draw --root path/to/yolo --out images_vis --show-conf --show-attrs --filter-level 1
+ydm vis draw --root path/to/yolo --out images_vis --show-attrs --filter-level "1,no risk" --att-seperate
 ydm vis draw --root path/to/yolo --out images_vis --show-id
 ydm vis draw --root path/to/yolo --out images_vis --workers 16
 ydm vis draw --root path/to/yolo --out images_vis --no-progress

@@ -25,6 +25,9 @@ from example.functions._manager import get_yolo_manager
 
 DATA_DIR = Path(r"E:\data\0417_signboard\mayolo_v3")
 
+PRED_VIS_DIR = Path(
+    r"E:\data\0417_signboard\select\predictions_seed0_rerun\YOLOv10x_native\labels"
+)
 # PRED_RUNS_DIR = Path(r"//localnvme/project/ultralytics/runs/mdetect")
 PRED_RUNS_DIR = Path(r"/localnvme/project/isds_project/runs/mdetect")
 PRED_NAMES = [
@@ -47,7 +50,8 @@ ATT_CROP_PRED_DICT = {
 # Select operations by uncommenting names in RUN_LIST.
 RUN_LIST = [
     # "sta",
-    "vis",
+    # "vis",
+    "pred_vis",
     # "metric",
     # "error_ana",
     # "update_att",
@@ -67,6 +71,23 @@ def main() -> None:
             DATA_DIR,
             crop=True,
             show_attrs=True,
+            show_id=False,
+            filter_level=[1],
+        )
+    if "pred_vis" in RUN_LIST:
+        mgr = get_yolo_manager(
+            DATA_DIR,
+            layout="flat",
+            labels_dir=PRED_VIS_DIR,
+            init_layout=False,
+            init_check=False,
+        )
+        mgr.vis_draw(
+            out=PRED_VIS_DIR.with_name("pred_vis"),
+            show_conf=True,
+            conf=0.25,
+            show_attrs=True,
+            show_id=False,
         )
     if "split_vis" in RUN_LIST:
         ydm = get_yolo_manager(

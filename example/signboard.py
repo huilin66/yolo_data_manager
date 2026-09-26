@@ -123,7 +123,7 @@ def main() -> None:
             DATA_DIR,
             crop=True,
             show_attrs=True,
-            filter_no_attrs=True,
+            filter_level=[1],
             att_seperate=True,
         )
     if "update_class_by_label" in RUN_LIST:

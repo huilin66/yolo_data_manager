@@ -128,8 +128,6 @@ def _boolean_flag(task: str, name: str, value: bool, default_flag: str) -> str |
         if task in {"ann.merge_class", "ann.apply_map"}:
             return None if value else "--no-compact"
         return "--compact" if value else None
-    if name == "filter_no_attrs" and task == "vis.crop":
-        return None if value else "--keep-no-attrs"
     if name == "clean" and task in {"vis.draw", "vis.crop"}:
         return None if value else "--no-clean"
     if name in _FALSE_FLAGS:
@@ -1384,8 +1382,7 @@ class YoloManager:
         fill_mask: bool = True,
         show_attrs: bool = False,
         show_id: bool = False,
-        filter_no_attrs: bool = True,
-        filter_level: list[int | str] | int | str | None = None,
+        filter_level: Sequence[int | str] | int | str | None = (1,),
         att_seperate: bool = False,
         clean: bool = True,
         only_val: bool | None = None,
@@ -1406,7 +1403,6 @@ class YoloManager:
             fill_mask=fill_mask,
             show_attrs=show_attrs,
             show_id=show_id,
-            filter_no_attrs=filter_no_attrs,
             filter_level=filter_level,
             att_seperate=att_seperate,
             clean=clean,
@@ -1427,8 +1423,7 @@ class YoloManager:
         padding: float = 0,
         conf: float | None = None,
         by_attr: bool = False,
-        filter_no_attrs: bool = True,
-        filter_level: list[int | str] | int | str | None = None,
+        filter_level: Sequence[int | str] | int | str | None = (1,),
         att_seperate: bool = False,
         clean: bool = True,
         only_val: bool | None = None,
@@ -1447,7 +1442,6 @@ class YoloManager:
             padding=padding,
             conf=conf,
             by_attr=by_attr,
-            filter_no_attrs=filter_no_attrs,
             filter_level=filter_level,
             att_seperate=att_seperate,
             clean=clean,

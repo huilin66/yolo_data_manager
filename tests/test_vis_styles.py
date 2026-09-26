@@ -19,11 +19,6 @@ def _make_dataset(root, stem="sample"):
     return load_yolo_dataset(root, progress=False)
 
 
-@pytest.mark.parametrize("value", ["no", "No", "no risk", "No risk", "NO RISK", " no risk "])
-def test_filter_no_attributes_accepts_no_risk_values(value):
-    assert AttributeSchema.is_no_value(value)
-
-
 def test_filter_level_excludes_numeric_and_named_levels(tmp_path):
     root = tmp_path / "filter_levels"
     (root / "images").mkdir(parents=True)
@@ -46,7 +41,6 @@ def test_filter_level_excludes_numeric_and_named_levels(tmp_path):
         tmp_path / "draw",
         style="pil",
         show_attributes=True,
-        filter_no_attributes=False,
         filter_level=[1, "CRITICAL"],
         att_seperate=True,
         workers=1,
@@ -149,7 +143,7 @@ def test_cv_alias_is_supported(tmp_path):
 
 
 @pytest.mark.parametrize("style", ["pil", "cv2"])
-def test_attribute_separate_copies_drawn_images_and_filters_no(tmp_path, style):
+def test_attribute_separate_copies_drawn_images_and_filters_level(tmp_path, style):
     root = tmp_path / "attributes"
     (root / "images").mkdir(parents=True)
     (root / "labels").mkdir(parents=True)
@@ -176,7 +170,7 @@ def test_attribute_separate_copies_drawn_images_and_filters_no(tmp_path, style):
         draw_dir,
         style=style,
         show_attributes=True,
-        filter_no_attributes=True,
+        filter_level=[1],
         att_seperate=True,
         workers=2,
         progress=False,
@@ -217,7 +211,7 @@ def test_attribute_separate_copies_crops_into_crop_att(tmp_path, style):
         draw_dir,
         style=style,
         show_attributes=True,
-        filter_no_attributes=True,
+        filter_level=[1],
         att_seperate=True,
         workers=1,
         progress=False,
@@ -226,7 +220,7 @@ def test_attribute_separate_copies_crops_into_crop_att(tmp_path, style):
         dataset,
         crop_dir,
         style=style,
-        filter_no_attributes=True,
+        filter_level=[1],
         att_seperate=True,
         workers=1,
         progress=False,
