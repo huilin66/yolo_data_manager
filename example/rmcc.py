@@ -17,15 +17,13 @@ if __package__ in (None, ""):
 
 from example.functions import yolo_split, yolo_sta, yolo_vis
 
-DATA_DIR = Path(
-    r"/root/huilin/projects/ultralytics/ultralytics/cfg/datasets_traffic_sign/rmcc.yaml"
-)
+DATA_DIR = Path(r"D:\zhl\data\RMCC")
 
 
 # Select operations by uncommenting names in RUN_LIST.
 RUN_LIST = [
-    "sta",
-    # "vis",
+    # "sta",
+    "vis",
     # "metric",
     # "error_ana",
     # "update",
@@ -45,7 +43,7 @@ def main() -> None:
         yolo_vis(
             DATA_DIR,
             crop=True,
-            only_val=True,
+            # only_val=True,
         )
     if "split" in RUN_LIST:
         yolo_split(DATA_DIR)
