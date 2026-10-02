@@ -18,7 +18,6 @@ if __package__ in (None, ""):
     if str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
 from example.functions import (
-    yolo_draw,
     yolo_error_ana,
     yolo_metric,
     yolo_update_by_label,
@@ -106,6 +105,7 @@ RUN_LIST = [
     "sta",
     "vis_draw",
     "vis_crop",
+    "mannual_draw",
     # "metric",
     # "error_ana",
     # "update",
@@ -152,8 +152,9 @@ def main() -> None:
             only_val=True,
         )
 
-    if "draw" in RUN_LIST:
-        yolo_draw(DATA_DIR, "DJI_20260211161740_1654.png")
+    if "mannual_draw" in RUN_LIST:
+        ydm.vis_manual_box(DATA_DIR, "DJI_20260211161740_1654.png")
+
     if "update_class_by_label" in RUN_LIST:
         for crops_dir, target_class in CROP_MAP_LABEL.items():
             yolo_update_by_label(
