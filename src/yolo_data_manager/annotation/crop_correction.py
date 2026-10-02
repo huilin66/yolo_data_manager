@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 import re
+from typing import Any
 
 from yolo_data_manager.core.models import YoloAnnotation, YoloDataset, YoloImage, is_image_file
 from yolo_data_manager.annotation.edit import EditReport, EditRow
@@ -98,7 +99,7 @@ class AttributeCropCorrectionResult:
     """Summary of an attribute update driven by error-analysis crops."""
 
     attribute_name: str
-    target_value: str | int | float
+    target_value: str | int | float | None
     crop_files: int = 0
     unique_targets: int = 0
     changed: int = 0
@@ -114,6 +115,7 @@ class AttributeCropCorrectionResult:
     backup_dir: str | None = None
     backup_timestamp: str | None = None
     backup_files: int = 0
+    attribute_updates: list[dict[str, object]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -134,6 +136,7 @@ class AttributeCropCorrectionResult:
             "backup_dir": self.backup_dir,
             "backup_timestamp": self.backup_timestamp,
             "backup_files": self.backup_files,
+            "attribute_updates": self.attribute_updates,
             "skipped": (
                 len(self.invalid_crops)
                 + len(self.missing_images)
@@ -522,79 +525,197 @@ def _correct_gt_labels_from_error_crop_specs(
 
 def correct_gt_attributes_from_error_crops(
     dataset: YoloDataset,
-    crops_dir: str | Path,
-    attribute_name: str,
-    target_value: str | int | float,
+    crops_dir: str | Path | Mapping[str | Path, Any],
+    attribute_name: str | None = None,
+    target_value: str | int | float | None = None,
     *,
     backup_dir: str | Path | None = None,
     dry_run: bool = False,
 ) -> tuple[AttributeCropCorrectionResult, EditReport]:
-    """Update one GT attribute on boxes selected by error-analysis crops.
+    """Update GT attributes on boxes selected by error-analysis crops.
 
     A crop named ``image_stem_pred2_gt3_defect.jpg`` maps to the third GT
     annotation in ``image_stem.txt``.  The ``pred`` index and the trailing
     attribute suffix are retained as review context; only ``gt3`` is used to
-    select the annotation.  The selected annotation's *attribute_name* is
-    set to *target_value* while its class and geometry remain unchanged.
+    select the annotation.  The selected annotation's attribute is updated
+    while its class and geometry remain unchanged.
 
     The crop directory is searched recursively, so a complete
     ``attribute_<name>/gt_<value>_pred_<value>/crops`` directory or a folder
-    containing only manually selected crop files can be supplied.
+    containing only manually selected crop files can be supplied.  ``crops_dir``
+    may also be a mapping from crop directories to attribute rules, for
+    example ``{"crops_yes": {"name": "defect", "value": "yes"}}``.
     """
 
-    crop_root = Path(crops_dir)
-    if not crop_root.is_dir():
-        raise FileNotFoundError(f"attribute error crop directory not found: {crop_root}")
+    if isinstance(crops_dir, Mapping):
+        if attribute_name is not None and target_value is None:
+            raise ValueError("target_value is required when attribute_name is provided")
+        specs = _attribute_crop_specs_from_map(
+            crops_dir,
+            default_name=attribute_name,
+            default_value=target_value,
+        )
+    else:
+        if attribute_name is None or target_value is None:
+            raise ValueError("attribute_name and target_value are required")
+        specs = [(Path(crops_dir), str(attribute_name).strip(), target_value)]
+
+    return _correct_gt_attributes_from_error_crop_specs(
+        dataset,
+        specs,
+        backup_dir=backup_dir,
+        dry_run=dry_run,
+    )
+
+
+def _attribute_crop_specs_from_map(
+    crops_to_attributes: Mapping[str | Path, Any],
+    *,
+    default_name: str | None,
+    default_value: str | int | float | None,
+) -> list[tuple[Path, str, str | int | float]]:
+    if not crops_to_attributes:
+        raise ValueError("crops_dir mapping must contain at least one crop directory")
+
+    specs: list[tuple[Path, str, str | int | float]] = []
+    for raw_crop_dir, rule in crops_to_attributes.items():
+        name: Any = default_name
+        value: Any = default_value
+        if isinstance(rule, Mapping):
+            name = rule.get(
+                "name",
+                rule.get("attribute_name", rule.get("attribute", default_name)),
+            )
+            value = rule.get(
+                "value",
+                rule.get("to", rule.get("attribute_value", default_value)),
+            )
+            if len(rule) == 1 and not any(
+                key in rule
+                for key in {
+                    "name",
+                    "attribute_name",
+                    "attribute",
+                    "value",
+                    "to",
+                    "attribute_value",
+                }
+            ):
+                mapped_name, mapped_value = next(iter(rule.items()))
+                name = default_name or mapped_name
+                value = mapped_value
+        elif isinstance(rule, (list, tuple)) and len(rule) == 2:
+            name, value = rule
+        elif rule is not None:
+            value = rule
+
+        if name is None or value is None:
+            raise ValueError(
+                "attribute crop mapping values must provide name and value; "
+                "use {'name': ..., 'value': ...}"
+            )
+        specs.append((Path(raw_crop_dir), str(name).strip(), value))
+    return specs
+
+
+def _correct_gt_attributes_from_error_crop_specs(
+    dataset: YoloDataset,
+    specs: list[tuple[Path, str, str | int | float]],
+    *,
+    backup_dir: str | Path | None,
+    dry_run: bool,
+) -> tuple[AttributeCropCorrectionResult, EditReport]:
+    """Apply multiple attribute crop rules in one backup session."""
+
     if dataset.attributes is None:
         raise ValueError(
             "attribute schema is required; pass attribute_file when loading the dataset"
         )
 
-    attribute_name = str(attribute_name).strip()
-    if not attribute_name:
-        raise ValueError("attribute_name must not be empty")
     known_attributes = set(dataset.attributes.names)
     known_attributes.update(
         name
         for class_name in dataset.classes.names
         for name in dataset.attributes.names_for_class(class_name)
     )
-    if attribute_name not in known_attributes:
-        raise ValueError(f"attribute name not found: {attribute_name}")
 
-    targets: dict[tuple[str, int], list[Path]] = {}
-    crop_files = 0
-    invalid_crops: list[str] = []
-    for crop_path in sorted(crop_root.rglob("*")):
-        if not crop_path.is_file() or not is_image_file(crop_path):
-            continue
-        crop_files += 1
-        parsed = _parse_attribute_error_crop_name(crop_path)
-        if parsed is None:
-            invalid_crops.append(str(crop_path))
-            continue
-        stem, _pred_index, gt_index, crop_attribute = parsed
-        if gt_index is None or crop_attribute != _safe_file_name(attribute_name):
-            invalid_crops.append(str(crop_path))
-            continue
-        targets.setdefault((stem, gt_index), []).append(crop_path)
+    normalized_specs: list[tuple[Path, str, str | int | float]] = []
+    for crop_root, raw_name, target in specs:
+        name = str(raw_name).strip()
+        if not name:
+            raise ValueError("attribute_name must not be empty")
+        if name not in known_attributes:
+            raise ValueError(f"attribute name not found: {name}")
+        if not crop_root.is_dir():
+            raise FileNotFoundError(
+                f"attribute error crop directory not found: {crop_root}"
+            )
+        normalized_specs.append((crop_root, name, target))
 
+    unique_names = {name for _path, name, _target in normalized_specs}
     result = AttributeCropCorrectionResult(
-        attribute_name=attribute_name,
-        target_value=target_value,
-        crop_files=crop_files,
-        unique_targets=len(targets),
-        duplicate_targets=sum(max(0, len(paths) - 1) for paths in targets.values()),
-        invalid_crops=invalid_crops,
+        attribute_name=(next(iter(unique_names)) if len(unique_names) == 1 else "multiple"),
+        target_value=(
+            normalized_specs[0][2]
+            if len(normalized_specs) == 1
+            else None
+        ),
+        attribute_updates=[
+            {
+                "crop_dir": str(crop_root),
+                "attribute_name": name,
+                "target_value": target,
+            }
+            for crop_root, name, target in normalized_specs
+        ],
+    )
+    targets: dict[tuple[str, int, str, str | int | float], list[Path]] = {}
+    crop_files = 0
+    for crop_root, name, target in normalized_specs:
+        for crop_path in sorted(crop_root.rglob("*")):
+            if not crop_path.is_file() or not is_image_file(crop_path):
+                continue
+            crop_files += 1
+            parsed = _parse_attribute_error_crop_name(crop_path)
+            if parsed is None:
+                result.invalid_crops.append(str(crop_path))
+                continue
+            stem, _pred_index, gt_index, crop_attribute = parsed
+            if gt_index is None or crop_attribute != _safe_file_name(name):
+                result.invalid_crops.append(str(crop_path))
+                continue
+            targets.setdefault((stem, gt_index, name, target), []).append(crop_path)
+
+    result.crop_files = crop_files
+    result.unique_targets = len(targets)
+    result.duplicate_targets = sum(
+        max(0, len(paths) - 1) for paths in targets.values()
     )
     edit_report = EditReport()
     image_candidates: dict[str, list[YoloImage]] = {}
     for image in dataset.images:
         image_candidates.setdefault(_safe_file_name(image.stem), []).append(image)
 
-    pending: dict[Path, list[tuple[int, str | None]]] = {}
-    changed_annotations: list[tuple[YoloImage, YoloAnnotation, YoloAnnotation, str]] = []
-    for (stem, crop_index), _crop_paths in sorted(targets.items()):
+    pending: dict[Path, dict[int, str]] = {}
+    working: dict[tuple[int, int], YoloAnnotation] = {}
+    changed_annotations: dict[
+        tuple[int, int], tuple[YoloImage, YoloAnnotation, YoloAnnotation, str]
+    ] = {}
+    target_items = sorted(
+        targets.items(),
+        key=lambda item: (
+            item[0][0],
+            item[0][1],
+            item[0][2],
+            str(item[0][3]),
+        ),
+    )
+    for (
+        stem,
+        crop_index,
+        current_attribute_name,
+        target_value,
+    ), _crop_paths in target_items:
         candidates = image_candidates.get(stem, [])
         if not candidates:
             result.missing_images.append(stem)
@@ -615,41 +736,44 @@ def correct_gt_attributes_from_error_crops(
 
         class_name = dataset.class_name(annotation.class_id)
         attribute_names = dataset.attributes.names_for_class(class_name)
-        if attribute_name not in attribute_names:
+        if current_attribute_name not in attribute_names:
             result.invalid_attributes.append(
-                f"{stem}_gt{crop_index}:{attribute_name}:{class_name}"
+                f"{stem}_gt{crop_index}:{current_attribute_name}:{class_name}"
             )
             continue
-        attribute_index = attribute_names.index(attribute_name)
+        attribute_index = attribute_names.index(current_attribute_name)
         try:
             new_raw = dataset.attributes.value_to_raw(
-                attribute_name,
+                current_attribute_name,
                 target_value,
                 class_name=class_name,
             )
         except (TypeError, ValueError) as exc:
             result.invalid_values.append(
-                f"{stem}_gt{crop_index}:{attribute_name}={target_value!s} ({exc})"
+                f"{stem}_gt{crop_index}:{current_attribute_name}={target_value!s} ({exc})"
             )
             continue
 
+        line_no = annotation.line_no or crop_index
+        state_key = (id(image), line_no)
+        current_annotation = working.get(state_key, annotation)
         old_raw = (
-            annotation.attributes[attribute_index]
-            if attribute_index < len(annotation.attributes)
+            current_annotation.attributes[attribute_index]
+            if attribute_index < len(current_annotation.attributes)
             else 0.0
         )
         if old_raw == new_raw:
             result.unchanged += 1
             continue
 
-        updated = copy(annotation)
-        updated.attributes = list(annotation.attributes)
+        updated = copy(current_annotation)
+        updated.attributes = list(current_annotation.attributes)
         _ensure_attribute_values(updated.attributes, attribute_index + 1)
         updated.attributes[attribute_index] = new_raw
         line = updated.to_yolo_line(include_confidence=updated.confidence is not None)
-        line_no = annotation.line_no or crop_index
-        pending.setdefault(image.label_path, []).append((line_no, line))
-        changed_annotations.append((image, annotation, updated, line))
+        working[state_key] = updated
+        pending.setdefault(image.label_path, {})[line_no] = line
+        changed_annotations[state_key] = (image, annotation, updated, line)
         edit_report.add(
             EditRow(
                 operation="correct_attribute_from_error_crops",
@@ -659,7 +783,7 @@ def correct_gt_attributes_from_error_crops(
                 old_class_id=annotation.class_id,
                 old_class_name=class_name,
                 action="set_attribute",
-                attr_name=attribute_name,
+                attr_name=current_attribute_name,
                 old_attr_value=old_raw,
                 new_attr_value=new_raw,
             )
@@ -671,8 +795,8 @@ def correct_gt_attributes_from_error_crops(
         for label_path, changes in pending.items():
             if backup is not None:
                 backup.backup(label_path)
-            _rewrite_label_annotations(label_path, changes)
-        for image, annotation, updated, line in changed_annotations:
+            _rewrite_label_annotations(label_path, list(changes.items()))
+        for image, annotation, updated, line in changed_annotations.values():
             updated.source_line = line
             for index, current in enumerate(image.annotations):
                 if current is annotation:

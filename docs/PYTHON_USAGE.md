@@ -131,7 +131,13 @@ mgr.ann_update_from_map(
         "drop": ["background", "Hollow High Risk Line"],
     }
 )  # 原地更新；label 和 class 文件一起备份到 labels_backup
-mgr.ann_set_attr(name="defect", value="yes", class_=["sign"], out="yolo_attr")
+mgr.ann_att_update_from_map(
+    {
+        "update": {
+            "defect": {"no": "yes"},
+        }
+    }
+)  # 原地更新属性；默认备份到 labels_backup
 mgr.ann_delete_attr(name="quality", value=["bad"], out="yolo_clean")
 mgr.ann_correct_from_crops(
     crops_dir="ydm_vis/crop/car",
@@ -171,7 +177,7 @@ mgr.ann_correct_from_error_crops(
     backup_dir="label_backups",
 )  # 多个错误 crop 目录一次处理，只创建一个备份快照
 # 按选中的属性错误 crop 修改对应 GT 框的属性，不改类别和 geometry
-mgr.ann_correct_attr_from_error_crops(
+mgr.ann_att_correct_from_error_crops(
     crops_dir="result_ana/val-52/review/attribute_error/attribute_defect/gt_yes_pred_no/crops",
     name="defect",
     value="no",
@@ -179,6 +185,15 @@ mgr.ann_correct_attr_from_error_crops(
     backup_dir="label_backups",
     dry_run=True,
 )
+mgr.ann_att_correct_from_error_crops(
+    crops_dir={
+        "result_ana/val-52/review/attribute_error/attribute_defect/gt_yes_pred_no/crops": {
+            "name": "defect",
+            "value": "no",
+        },
+    },
+    backup_dir="label_backups",
+)  # 多个属性 crop 目录可共用一次备份
 # error-analysis crop 使用 `xxx_predx_gty`；提供 pred_dir 后，gtnone 会按 predx 从预测 txt 追加到 GT。
 # delete_pred_none=True 时，prednone_gty 会删除第 y 条 GT，即使 to 设置为更新类别。
 # replace_gt_from_pred=True 时，predx_gty 会用预测第 x 条完整替换 GT 第 y 条（类别和 geometry），并按 dedup_iou 对同图同类替换框去重；被抑制的重复 GT 会删除。
@@ -399,7 +414,7 @@ mgr.output_dataset_yaml
 
 当存在 `attribute.yaml`（或显式传入 `attribute_file`）时，`eval_error_analysis` 会在一对一匹配成功的同类框上逐属性比较，仅将属性值不一致或一侧缺失的结果写入 `attribute_error.csv`。`review=True` 时，属性错误会额外输出到 `review/attribute_error/attribute_<属性名>/gt_<GT值>_pred_<预测值>/images` 和 `crops`，并在每个 `attribute_<属性名>` 目录下生成 `confusion_matrix.png`（行是预测值，列是真值，包含正确匹配和错误匹配）；外部预测 label 目录没有属性 schema 时，应使用 GT 的 `attribute.yaml` 作为共享 schema。未匹配框仍只归入 class/geometry 错误，不会重复计为属性错误。
 
-属性错误 crop 文件名中的 `predX_gtY` 使用预测和 GT label 的 1-based 行号，例如 `sample_pred1_gt3_defect.jpg` 表示修改 `sample.txt` 的第 3 条 GT 标注。使用 `ann_correct_attr_from_error_crops` 时传入目标属性 `name` 和目标值 `value`，它会递归处理选中的 crop，按 `gtY` 找到 GT 框并只修改该框的属性；类别和 geometry 不变。建议先使用 `dry_run=True`/`backup_dir` 检查并备份。
+属性错误 crop 文件名中的 `predX_gtY` 使用预测和 GT label 的 1-based 行号，例如 `sample_pred1_gt3_defect.jpg` 表示修改 `sample.txt` 的第 3 条 GT 标注。使用 `ann_att_correct_from_error_crops`（旧名 `ann_correct_attr_from_error_crops` 仍兼容）时传入目标属性 `name` 和目标值 `value`，它会递归处理选中的 crop，按 `gtY` 找到 GT 框并只修改该框的属性；类别和 geometry 不变。`crops_dir` 也支持“目录: 属性规则”的字典，可在一次任务中修改多个属性并共用一次备份。建议先使用 `dry_run=True`/`backup_dir` 检查并备份。
 
 `eval_error_analysis` 的 `class_` 只保留指定类别，`exclude_class_` 独立排除类别；两者可以同时使用。`min_width`、`min_height`、`min_area` 和 `min_pixels` 会同时过滤 GT 与预测，宽高/面积使用归一化 YOLO 尺寸，`min_pixels` 按像素宽度或高度判断；`min_size_logic` 支持 `"or"` 或 `"and"`，语义与 `anno_update_by_size` 一致。
 `class_rules` 可以按类别覆盖全局尺寸规则，格式为 `{类别: {"width": ..., "height": ..., "logic": "or" 或 "and"}}`；命中类别使用自己的规则，未命中类别继续使用全局参数。
@@ -466,8 +481,10 @@ mgr.output_dataset_yaml
 | `ann_update_from_map({...})` | Python-only in-place class update; backs up labels and class source |
 | `ann_correct_from_crops(crops_dir=..., to=...)` 或 `crops_dir={目录: 类别}` | `ydm ann correct-from-crops` |
 | `ann_correct_from_error_crops(crops_dir=..., to=...)` | `ydm ann correct-from-error-crops` |
-| `ann_correct_attr_from_error_crops(crops_dir=..., name=..., value=...)` | `ydm ann correct-attr-from-error-crops` |
-| `ann_set_attr(name=..., value=..., ...)` | `ydm ann set-attr` |
+| `ann_att_correct_from_error_crops(crops_dir=..., name=..., value=...)` | `ydm ann correct-attr-from-error-crops` |
+| `ann_att_update_from_map({...})` | Python-only in-place attribute update |
+| `ann_correct_attr_from_error_crops(...)` | `ann_att_correct_from_error_crops` 的兼容别名 |
+| `ann_set_attr(name=..., value=..., ...)` | `ann_att_update_from_map` 的兼容接口 |
 | `ann_delete_attr(name=..., ...)` | `ydm ann delete-attr` |
 | `vis_draw(out=..., ...)` | `ydm vis draw` |
 | `vis_crop(out=..., ...)` | `ydm vis crop` |

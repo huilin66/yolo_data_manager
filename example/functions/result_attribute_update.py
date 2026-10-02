@@ -26,7 +26,7 @@ def yolo_update_attr_by_pred(
     mgr = get_yolo_manager(
         dataset_input, layout="auto", init_check=False, init_layout=False
     )
-    return mgr.ann_correct_attr_from_error_crops(
+    return mgr.ann_att_correct_from_error_crops(
         crops_dir=crops_dir,
         name=attribute_name,
         value=attribute_value,

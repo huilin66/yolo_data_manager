@@ -166,6 +166,7 @@ def main() -> None:
             ydm.eval_error_analysis(
                 pred_root=pred_dir,
                 out=output_dir,
+                # attribute_file=ydm.root / "attribute.yaml",
                 # only_val=True,
             )
 
@@ -197,14 +198,14 @@ def main() -> None:
                 pred_dir=pred_dir,
             )
     if "update_att_from_anno" in RUN_LIST:
-        ydm.ann_correct_from_crops(
+        ydm.ann_correct_from_error_crops(
             crops_dir=CROP_MAP_LABEL,
         )
 
     if "update_att_from_pred" in RUN_LIST:
         for pred_name in PRED_NAMES:
             pred_dir = PRED_RUNS_DIR / pred_name / "labels"
-            ydm.ann_correct_from_error_crops(
+            ydm.ann_att_correct_from_error_crops(
                 crops_dir=CROP_MAP_PRED,
                 pred_dir=pred_dir,
             )

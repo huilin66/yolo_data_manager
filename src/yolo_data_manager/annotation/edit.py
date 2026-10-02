@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import copy
 import csv
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable
 
 from yolo_data_manager.core.models import ClassSchema, YoloAnnotation, YoloDataset
 
@@ -241,6 +242,149 @@ def set_attribute(
                 )
             )
     return result, report
+
+
+def set_attributes_from_map(
+    dataset: YoloDataset,
+    attribute_map: Mapping[str, Any],
+) -> tuple[YoloDataset, EditReport]:
+    """Apply several attribute updates from a Python mapping.
+
+    The canonical form is::
+
+        {
+            "update": {
+                "defect": {"no": "yes", "unknown": "yes"},
+                "material": {"value": "metal", "class": ["sign"]},
+            }
+        }
+
+    A rule may also be written as ``{"name": ..., "value": ..., ...}``,
+    with optional ``where_value``/``from`` and ``class``/``class_`` fields.
+    The returned dataset is a copy and the report combines all operations.
+    """
+
+    operations = _attribute_update_operations(attribute_map)
+    current = dataset
+    combined = EditReport()
+    for name, value, classes, where_value in operations:
+        current, report = set_attribute(
+            current,
+            name,
+            value,
+            classes=classes,
+            where_value=where_value,
+        )
+        combined.rows.extend(report.rows)
+    return current, combined
+
+
+def _attribute_update_operations(
+    attribute_map: Mapping[str, Any],
+) -> list[tuple[str, Any, list[str] | None, Any]]:
+    if not isinstance(attribute_map, Mapping):
+        raise TypeError("attribute_map must be a mapping")
+
+    payload: Any = attribute_map
+    for key in ("update", "set"):
+        if key in attribute_map:
+            payload = attribute_map[key]
+            break
+
+    if isinstance(payload, Mapping):
+        if _looks_like_attribute_rule(payload):
+            return _attribute_rule_operations(payload)
+
+        operations: list[tuple[str, Any, list[str] | None, Any]] = []
+        for name, spec in payload.items():
+            operations.extend(_attribute_name_operations(str(name), spec))
+        return operations
+
+    if isinstance(payload, Sequence) and not isinstance(payload, (str, bytes, bytearray)):
+        operations = []
+        for rule in payload:
+            if not isinstance(rule, Mapping):
+                raise TypeError("attribute update list entries must be mappings")
+            operations.extend(_attribute_rule_operations(rule))
+        return operations
+
+    raise TypeError("attribute_map['update'] must be a mapping or list")
+
+
+def _looks_like_attribute_rule(value: Mapping[str, Any]) -> bool:
+    return any(
+        key in value
+        for key in {
+            "name",
+            "attribute",
+            "attribute_name",
+            "value",
+            "to",
+            "target",
+            "target_value",
+            "where_value",
+            "from",
+            "old",
+            "class",
+            "class_",
+            "classes",
+        }
+    )
+
+
+def _attribute_rule_operations(
+    rule: Mapping[str, Any],
+    *,
+    default_name: str | None = None,
+) -> list[tuple[str, Any, list[str] | None, Any]]:
+    name = rule.get("name", rule.get("attribute_name", rule.get("attribute", default_name)))
+    if name is None:
+        raise ValueError("attribute update rule requires name")
+
+    value_key = next(
+        (key for key in ("value", "to", "target_value", "target") if key in rule),
+        None,
+    )
+    if value_key is None:
+        raise ValueError(f"attribute update rule for {name!r} requires value/to")
+    value = rule[value_key]
+    where = rule.get("where_value", rule.get("from", rule.get("old")))
+    classes = rule.get("class_", rule.get("class", rule.get("classes")))
+    if isinstance(classes, str):
+        class_values = [classes]
+    elif classes is None:
+        class_values = None
+    else:
+        class_values = [str(item) for item in classes]
+
+    where_values = (
+        list(where)
+        if isinstance(where, Sequence) and not isinstance(where, (str, bytes, bytearray))
+        else [where]
+    )
+    return [(str(name), value, class_values, old_value) for old_value in where_values]
+
+
+def _attribute_name_operations(
+    name: str,
+    spec: Any,
+) -> list[tuple[str, Any, list[str] | None, Any]]:
+    if isinstance(spec, Mapping):
+        if _looks_like_attribute_rule(spec):
+            return _attribute_rule_operations(spec, default_name=name)
+        operations = []
+        for old_value, new_value in spec.items():
+            operations.append((name, new_value, None, old_value))
+        return operations
+
+    if isinstance(spec, Sequence) and not isinstance(spec, (str, bytes, bytearray)):
+        if len(spec) != 2:
+            raise ValueError(
+                f"attribute mapping for {name!r} must be [old_value, new_value]"
+            )
+        return [(name, spec[1], None, spec[0])]
+
+    return [(name, spec, None, None)]
 
 
 def delete_by_attribute(

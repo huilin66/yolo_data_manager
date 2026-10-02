@@ -479,15 +479,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--name",
         "--attribute",
         dest="attribute_name",
-        required=True,
-        help="target attribute name",
+        required=False,
+        help="target attribute name; omitted when --crops-dir is a JSON mapping",
     )
     correct_attr_error_crops.add_argument(
         "--value",
         "--to",
         dest="attribute_value",
-        required=True,
-        help="target attribute value",
+        required=False,
+        help="target attribute value; omitted when --crops-dir is a JSON mapping",
     )
     correct_attr_error_crops.add_argument(
         "--backup-dir",
@@ -1540,9 +1540,16 @@ def handle_correct_from_error_crops(args: argparse.Namespace) -> int:
 
 def handle_correct_attr_from_error_crops(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
+    crops_input = _parse_crop_attribute_map(args.crops_dir)
+    if not isinstance(crops_input, dict) and (
+        args.attribute_name is None or args.attribute_value is None
+    ):
+        raise ValueError(
+            "--name and --value are required unless --crops-dir is a JSON mapping"
+        )
     result, edit_report = correct_gt_attributes_from_error_crops(
         dataset,
-        args.crops_dir,
+        crops_input,
         args.attribute_name,
         args.attribute_value,
         backup_dir=args.backup_dir,
@@ -2311,6 +2318,24 @@ def _parse_crop_class_map(
             else raw_target
         )
     return result
+
+
+def _parse_crop_attribute_map(value: str) -> str | dict[str, object]:
+    """Parse the JSON crop-directory-to-attribute-rule form."""
+
+    text = value.strip()
+    if not text.startswith("{"):
+        return value
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ValueError("attribute crop mapping must be valid JSON") from exc
+    if not isinstance(parsed, dict) or not parsed:
+        raise ValueError("attribute crop mapping must be a non-empty object")
+    for raw_path in parsed:
+        if not isinstance(raw_path, str) or not raw_path.strip():
+            raise ValueError("attribute crop mapping keys must be non-empty paths")
+    return {str(key): item for key, item in parsed.items()}
 
 
 def _parse_crop_padding(value: str) -> int | float:

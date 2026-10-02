@@ -119,7 +119,7 @@ def main() -> None:
             attribute_file=DATA_DIR / "attribute.yaml",
         )
         for att_dir_name, (att_name, att_value) in ATT_CROP_PRED_DICT.items():
-            mgr.ann_correct_attr_from_error_crops(
+            mgr.ann_att_correct_from_error_crops(
                 os.path.join(ATT_CROP_PRED_DIR, att_dir_name),
                 name=att_name,
                 value=att_value,

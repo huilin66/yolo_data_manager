@@ -37,6 +37,7 @@ TASK_COMMANDS: Mapping[str, tuple[str, ...]] = {
     "ann.correct_from_crops": ("ann", "correct-from-crops"),
     "ann.correct_from_error_crops": ("ann", "correct-from-error-crops"),
     "ann.correct_attr_from_error_crops": ("ann", "correct-attr-from-error-crops"),
+    "ann.att_correct_from_error_crops": ("ann", "correct-attr-from-error-crops"),
     "ann.set_attr": ("ann", "set-attr"),
     "ann.delete_attr": ("ann", "delete-attr"),
     "vis.draw": ("vis", "draw"),
@@ -260,6 +261,7 @@ _ROOT_TASKS: frozenset[str] = frozenset(
         "ann.correct_from_crops",
         "ann.correct_from_error_crops",
         "ann.correct_attr_from_error_crops",
+        "ann.att_correct_from_error_crops",
         "ann.set_attr",
         "ann.delete_attr",
         "vis.draw",
@@ -1436,9 +1438,9 @@ class YoloManager:
             **kwargs,
         )
 
-    def ann_correct_attr_from_error_crops(
+    def ann_att_correct_from_error_crops(
         self,
-        crops_dir: str | Path,
+        crops_dir: str | Path | Mapping[str | Path, Any],
         name: str | None = None,
         value: str | float | None = None,
         *,
@@ -1452,7 +1454,17 @@ class YoloManager:
         only_val: bool | None = None,
         **kwargs: Any,
     ) -> int:
-        """Correct one GT attribute on boxes selected by error crops."""
+        """Correct attributes from one or more error-crop directories.
+
+        A mapping may be used to assign different attribute rules to crop
+        directories, for example::
+
+            {
+                "crops/defect": {"name": "defect", "value": "yes"},
+                "crops/material": {"material": "metal"},
+            }
+        """
+
         resolved_name = (
             attribute_name
             if attribute_name is not None
@@ -1467,10 +1479,12 @@ class YoloManager:
             if to is not None
             else value
         )
-        if resolved_name is None or resolved_value is None:
+        if not isinstance(crops_dir, Mapping) and (
+            resolved_name is None or resolved_value is None
+        ):
             raise ValueError("name and value are required")
         return self._run(
-            "ann.correct_attr_from_error_crops",
+            "ann.att_correct_from_error_crops",
             crops_dir=crops_dir,
             name=resolved_name,
             value=resolved_value,
@@ -1481,6 +1495,22 @@ class YoloManager:
             **kwargs,
         )
 
+    def ann_correct_attr_from_error_crops(
+        self,
+        crops_dir: str | Path | Mapping[str | Path, Any],
+        name: str | None = None,
+        value: str | float | None = None,
+        **kwargs: Any,
+    ) -> int:
+        """Backward-compatible alias for :meth:`ann_att_correct_from_error_crops`."""
+
+        return self.ann_att_correct_from_error_crops(
+            crops_dir,
+            name,
+            value,
+            **kwargs,
+        )
+
     def ann_correct_attribute_from_error_crops(
         self,
         crops_dir: str | Path,
@@ -1488,13 +1518,93 @@ class YoloManager:
         value: str | float | None = None,
         **kwargs: Any,
     ) -> int:
-        """Long-form alias for :meth:`ann_correct_attr_from_error_crops`."""
-        return self.ann_correct_attr_from_error_crops(
+        """Long-form alias for :meth:`ann_att_correct_from_error_crops`."""
+        return self.ann_att_correct_from_error_crops(
             crops_dir,
             name,
             value,
             **kwargs,
         )
+
+    def ann_att_update_from_map(
+        self,
+        attribute_map: Mapping[str, Any],
+        *,
+        backup_dir: str | Path | None = None,
+        dry_run: bool = False,
+        report: str | Path | None = None,
+        only_val: bool | None = None,
+        workers: int = 8,
+        progress: bool = True,
+        progress_leave: bool = False,
+    ) -> int:
+        """Update annotation attributes from a Python mapping in place."""
+
+        if not isinstance(attribute_map, Mapping):
+            raise TypeError("attribute_map must be a mapping")
+
+        from yolo_data_manager.annotation.edit import set_attributes_from_map
+        from yolo_data_manager.annotation.edit import EditReport
+        from yolo_data_manager.io.loader import load_yolo_dataset
+        from yolo_data_manager.io.writer import write_yolo_labels_in_place
+
+        requested_only_val = self.only_val if only_val is None else bool(only_val)
+        split_file = self.split_file if requested_only_val else self._explicit_split_file
+        dataset = load_yolo_dataset(
+            self.root,
+            images_dir=self.images_dir,
+            labels_dir=self.labels_dir,
+            class_file=self.class_file,
+            attribute_file=self.attribute_file,
+            task=self.task,
+            split_file=split_file,
+            only_val=requested_only_val,
+            layout=self.layout,
+            workers=workers,
+            progress=progress,
+            progress_leave=progress_leave,
+        )
+        current, edit_report = set_attributes_from_map(dataset, attribute_map)
+        if not isinstance(edit_report, EditReport):
+            raise TypeError("attribute update did not produce an edit report")
+
+        backup = None
+        if not dry_run:
+            resolved_backup_dir = (
+                self.output_labels_backup if backup_dir is None else backup_dir
+            )
+            backup = write_yolo_labels_in_place(
+                current,
+                workers=workers,
+                progress=progress,
+                progress_leave=progress_leave,
+                backup_dir=resolved_backup_dir,
+            )
+
+        report_path = (
+            Path(report)
+            if report is not None
+            else self.output_annotation / "att_update_from_map" / "edit_report.csv"
+        )
+        edit_report.write_csv(report_path)
+        print(
+            json.dumps(
+                {
+                    "changed": len(edit_report.rows),
+                    "dry_run": dry_run,
+                    "backup_dir": (
+                        str(backup.snapshot_dir)
+                        if backup is not None and backup.count
+                        else None
+                    ),
+                    "backup_files": backup.count if backup is not None else 0,
+                    "report": str(report_path),
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        return 0
 
     def ann_set_attr(
         self,
@@ -1511,20 +1621,53 @@ class YoloManager:
         report: str | None = None,
         **kwargs: Any,
     ) -> int:
-        """Set an attribute on annotations (``ydm ann set-attr``)."""
-        return self._run(
-            "ann.set_attr",
-            name=name,
-            value=value,
-            class_=class_,
-            where_value=where_value,
-            out=out,
-            copy_images=copy_images,
-            keep_empty_labels=keep_empty_labels,
+        """Backward-compatible attribute setter.
+
+        Without ``out`` it now updates source labels in place.  Supplying
+        ``out`` keeps the historical separate-dataset behavior.
+        """
+
+        if out is not None:
+            return self._run(
+                "ann.set_attr",
+                name=name,
+                value=value,
+                class_=class_,
+                where_value=where_value,
+                out=out,
+                copy_images=copy_images,
+                keep_empty_labels=keep_empty_labels,
+                backup_dir=backup_dir,
+                dry_run=dry_run,
+                report=report,
+                **kwargs,
+            )
+
+        workers = int(kwargs.pop("workers", 8))
+        progress = bool(kwargs.pop("progress", True))
+        progress_leave = bool(kwargs.pop("progress_leave", False))
+        only_val = kwargs.pop("only_val", None)
+        if kwargs:
+            unexpected = ", ".join(sorted(kwargs))
+            raise TypeError(f"unexpected ann_set_attr arguments: {unexpected}")
+        return self.ann_att_update_from_map(
+            {
+                "update": [
+                    {
+                        "name": name,
+                        "value": value,
+                        "class_": class_,
+                        "where_value": where_value,
+                    }
+                ]
+            },
             backup_dir=backup_dir,
             dry_run=dry_run,
             report=report,
-            **kwargs,
+            only_val=only_val,
+            workers=workers,
+            progress=progress,
+            progress_leave=progress_leave,
         )
 
     def ann_delete_attr(
