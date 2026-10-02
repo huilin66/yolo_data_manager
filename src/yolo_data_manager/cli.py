@@ -11,6 +11,7 @@ from yolo_data_manager.annotation.edit import delete_by_attribute, delete_class,
 from yolo_data_manager.annotation.crop_correction import (
     correct_gt_attributes_from_error_crops,
     correct_gt_labels_from_error_crops,
+    correct_labels_from_crop_map,
     correct_labels_from_crops,
 )
 from yolo_data_manager.annotation.query import copy_query_result, query_by_attribute, query_by_class
@@ -389,13 +390,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="update annotation classes from standard vis-crop filenames",
     )
     add_dataset_args(correct_crops)
-    correct_crops.add_argument("--crops-dir", required=True, help="directory containing vis-crop images")
+    correct_crops.add_argument(
+        "--crops-dir",
+        required=True,
+        help="vis-crop directory, or a JSON object mapping directories to target classes",
+    )
     correct_crops.add_argument(
         "--backup-dir",
         default=None,
         help="backup directory; default is <dataset-root>/labels_backup",
     )
-    correct_crops.add_argument("--to", dest="to_value", required=True, help="target class id/name; use none/null to delete the annotation")
+    correct_crops.add_argument(
+        "--to",
+        dest="to_value",
+        required=False,
+        help="target class id/name; use none/null to delete; omit when --crops-dir is a JSON mapping",
+    )
     correct_crops.add_argument("--report", default=None, help="edit report CSV; defaults to ydm_annotation/correct_from_crops/edit_report.csv")
     correct_crops.add_argument("--dry-run", action="store_true", help="report changes without modifying labels")
     correct_crops.set_defaults(handler=handle_correct_from_crops, _output_operation="correct_from_crops")
@@ -1425,13 +1435,26 @@ def handle_apply_map(args: argparse.Namespace) -> int:
 
 def handle_correct_from_crops(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
-    result, edit_report = correct_labels_from_crops(
-        dataset,
-        args.crops_dir,
-        _parse_optional_class_value(args.to_value),
-        backup_dir=getattr(args, "backup_dir", None),
-        dry_run=args.dry_run,
-    )
+    crop_map = _parse_crop_class_map(args.crops_dir)
+    if crop_map is not None:
+        if args.to_value is not None:
+            raise ValueError("--to cannot be used when --crops-dir is a JSON mapping")
+        result, edit_report = correct_labels_from_crop_map(
+            dataset,
+            crop_map,
+            backup_dir=getattr(args, "backup_dir", None),
+            dry_run=args.dry_run,
+        )
+    else:
+        if args.to_value is None:
+            raise ValueError("--to is required unless --crops-dir is a JSON mapping")
+        result, edit_report = correct_labels_from_crops(
+            dataset,
+            args.crops_dir,
+            _parse_optional_class_value(args.to_value),
+            backup_dir=getattr(args, "backup_dir", None),
+            dry_run=args.dry_run,
+        )
     report_path = args.report or _default_report_path(args, "correct_from_crops")
     edit_report.write_csv(report_path)
     payload = result.to_dict()
@@ -2207,6 +2230,35 @@ def _parse_optional_class_value(value: str | None) -> str | None:
     if value is None or value.strip().lower() in {"none", "null"}:
         return None
     return value
+
+
+def _parse_crop_class_map(
+    value: str,
+) -> dict[str, str | int | None] | None:
+    """Parse the JSON crop-directory-to-class form used by crop correction."""
+
+    text = value.strip()
+    if not text.startswith("{"):
+        return None
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ValueError("--crops-dir JSON mapping is invalid") from exc
+    if not isinstance(parsed, dict) or not parsed:
+        raise ValueError("--crops-dir JSON mapping must be a non-empty object")
+
+    result: dict[str, str | int | None] = {}
+    for raw_path, raw_target in parsed.items():
+        if not isinstance(raw_path, str) or not raw_path.strip():
+            raise ValueError("crop mapping keys must be non-empty paths")
+        if raw_target is not None and not isinstance(raw_target, (str, int)):
+            raise ValueError("crop mapping targets must be class names, ids, or null")
+        result[raw_path] = (
+            _parse_optional_class_value(raw_target)
+            if isinstance(raw_target, str) or raw_target is None
+            else raw_target
+        )
+    return result
 
 
 def _parse_crop_padding(value: str) -> int | float:

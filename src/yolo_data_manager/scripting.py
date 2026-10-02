@@ -140,7 +140,12 @@ def _stringify(value: Any) -> str:
     if isinstance(value, Path):
         return str(value)
     if isinstance(value, Mapping):
-        return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+        return json.dumps(
+            {str(key): item for key, item in value.items()},
+            ensure_ascii=False,
+            separators=(",", ":"),
+            default=str,
+        )
     if isinstance(value, set):
         return ",".join(str(item) for item in sorted(value, key=str))
     if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
@@ -1196,8 +1201,8 @@ class YoloManager:
 
     def ann_correct_from_crops(
         self,
-        crops_dir: str | Path,
-        to: str | int | None,
+        crops_dir: str | Path | Mapping[str | Path, str | int | None],
+        to: str | int | None = None,
         *,
         report: str | None = None,
         backup_dir: str | Path | None = None,
@@ -1205,8 +1210,18 @@ class YoloManager:
         only_val: bool | None = None,
         **kwargs: Any,
     ) -> int:
-        """Correct per-instance classes from ``vis crop`` filenames."""
-        cli_target = "none" if to is None else to
+        """Correct classes from crop filenames.
+
+        ``crops_dir`` may also be a mapping of ``crop_directory`` to target
+        class. In mapping mode, all directories are processed in one task and
+        one label-backup snapshot is used for the complete operation.
+        """
+        crop_map_input = isinstance(crops_dir, Mapping)
+        if crop_map_input:
+            if to is not None:
+                raise ValueError("to must be omitted when crops_dir is a mapping")
+            crops_dir = {str(path): target for path, target in crops_dir.items()}
+        cli_target = None if crop_map_input else ("none" if to is None else to)
         return self._run(
             "ann.correct_from_crops",
             crops_dir=crops_dir,

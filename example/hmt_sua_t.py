@@ -20,7 +20,6 @@ if __package__ in (None, ""):
 from example.functions import (
     yolo_error_ana,
     yolo_metric,
-    yolo_update_by_label,
     yolo_update_by_pred,
     yolo_update_class,
 )
@@ -156,12 +155,7 @@ def main() -> None:
         ydm.vis_manual_box(DATA_DIR, "DJI_20260211161740_1654.png")
 
     if "update_class_by_label" in RUN_LIST:
-        for crops_dir, target_class in CROP_MAP_LABEL.items():
-            yolo_update_by_label(
-                DATA_DIR,
-                crops_dir=crops_dir,
-                to=target_class,
-            )
+        ydm.ann_correct_from_crops(crops_dir=CROP_MAP_LABEL)
 
     if "metric" in RUN_LIST:
         for pred_name in PRED_NAMES[:]:

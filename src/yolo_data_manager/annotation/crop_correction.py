@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from copy import copy
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 import re
@@ -49,11 +50,13 @@ class CropCorrectionResult:
     backup_dir: str | None = None
     backup_timestamp: str | None = None
     backup_files: int = 0
+    target_classes: dict[str, dict[str, object]] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, object]:
         return {
             "target_class_id": self.target_class_id,
             "target_class_name": self.target_class_name,
+            "target_classes": self.target_classes,
             "crop_files": self.crop_files,
             "unique_targets": self.unique_targets,
             "changed": self.changed,
@@ -146,8 +149,8 @@ class AttributeCropCorrectionResult:
 
 def correct_labels_from_crops(
     dataset: YoloDataset,
-    crops_dir: str | Path,
-    target_class: int | str | None,
+    crops_dir: str | Path | Mapping[str | Path, int | str | None],
+    target_class: int | str | None = None,
     *,
     backup_dir: str | Path | None = None,
     dry_run: bool = False,
@@ -158,8 +161,107 @@ def correct_labels_from_crops(
     ``image_stem.txt``. The crop directory is searched recursively, so both
     class folders and ``by_attribute`` subfolders are supported. When
     ``target_class`` is ``None``, the mapped annotation line is deleted.
+    ``crops_dir`` may alternatively be a mapping of crop directories to
+    target classes; that form is processed in one backup session.
     """
 
+    if isinstance(crops_dir, Mapping):
+        if target_class is not None:
+            raise ValueError("target_class must be omitted when crops_dir is a mapping")
+        return correct_labels_from_crop_map(
+            dataset,
+            crops_dir,
+            backup_dir=backup_dir,
+            dry_run=dry_run,
+        )
+
+    backup = LabelBackup(dataset.root, backup_dir) if not dry_run else None
+    result, edit_report = _correct_labels_from_crop_dir(
+        dataset,
+        crops_dir,
+        target_class,
+        backup=backup,
+        dry_run=dry_run,
+    )
+    _set_crop_backup_info(result, backup)
+    return result, edit_report
+
+
+def correct_labels_from_crop_map(
+    dataset: YoloDataset,
+    crops_to_classes: Mapping[str | Path, int | str | None],
+    *,
+    backup_dir: str | Path | None = None,
+    dry_run: bool = False,
+) -> tuple[CropCorrectionResult, EditReport]:
+    """Apply several crop-directory class corrections in one backup session.
+
+    ``crops_to_classes`` maps each standard ``vis crop`` directory to the
+    target class for that directory. All directories are scanned before the
+    label files are rewritten, so a label file is backed up at most once for
+    the complete operation. If the same crop target occurs in more than one
+    directory, the last mapping entry wins.
+    """
+
+    if not crops_to_classes:
+        raise ValueError("crops_to_classes must contain at least one crop directory")
+
+    backup = LabelBackup(dataset.root, backup_dir) if not dry_run else None
+    targets: dict[tuple[str, int], list[Path]] = {}
+    target_class_by_target: dict[tuple[str, int], int | None] = {}
+    target_specs: dict[str, dict[str, object]] = {}
+    crop_files = 0
+    invalid_crops: list[str] = []
+
+    for raw_crop_dir, raw_target in crops_to_classes.items():
+        crop_root = Path(raw_crop_dir)
+        if not crop_root.is_dir():
+            raise FileNotFoundError(f"crop directory not found: {crop_root}")
+
+        target_value = _normalise_optional_target(raw_target)
+        target_id = dataset.class_id(target_value) if target_value is not None else None
+        target_specs[str(crop_root)] = {
+            "target_class_id": target_id,
+            "target_class_name": (
+                dataset.class_name(target_id) if target_id is not None else None
+            ),
+        }
+
+        for crop_path in sorted(crop_root.rglob("*")):
+            if not crop_path.is_file() or not is_image_file(crop_path):
+                continue
+            crop_files += 1
+            parsed = _parse_crop_name(crop_path)
+            if parsed is None:
+                invalid_crops.append(str(crop_path))
+                continue
+            targets.setdefault(parsed, []).append(crop_path)
+            target_class_by_target[parsed] = target_id
+
+    result, edit_report = _correct_target_map(
+        dataset,
+        targets,
+        None,
+        crop_files=crop_files,
+        invalid_crops=invalid_crops,
+        image_key=lambda image: image.stem,
+        target_class_by_target=target_class_by_target,
+        backup=backup,
+        dry_run=dry_run,
+    )
+    result.target_classes = target_specs
+    _set_crop_backup_info(result, backup)
+    return result, edit_report
+
+
+def _correct_labels_from_crop_dir(
+    dataset: YoloDataset,
+    crops_dir: str | Path,
+    target_class: int | str | None,
+    *,
+    backup: LabelBackup | None,
+    dry_run: bool,
+) -> tuple[CropCorrectionResult, EditReport]:
     crop_root = Path(crops_dir)
     if not crop_root.is_dir():
         raise FileNotFoundError(f"crop directory not found: {crop_root}")
@@ -177,7 +279,6 @@ def correct_labels_from_crops(
             continue
         targets.setdefault(parsed, []).append(crop_path)
 
-    backup = LabelBackup(dataset.root, backup_dir) if not dry_run else None
     result, edit_report = _correct_target_map(
         dataset,
         targets,
@@ -188,12 +289,23 @@ def correct_labels_from_crops(
         backup=backup,
         dry_run=dry_run,
     )
-    if backup is not None:
-        if backup.count:
-            result.backup_dir = str(backup.snapshot_dir)
-            result.backup_timestamp = backup.timestamp
-            result.backup_files = backup.count
     return result, edit_report
+
+
+def _set_crop_backup_info(
+    result: CropCorrectionResult,
+    backup: LabelBackup | None,
+) -> None:
+    if backup is not None and backup.count:
+        result.backup_dir = str(backup.snapshot_dir)
+        result.backup_timestamp = backup.timestamp
+        result.backup_files = backup.count
+
+
+def _normalise_optional_target(value: int | str | None) -> int | str | None:
+    if isinstance(value, str) and value.strip().lower() in {"none", "null"}:
+        return None
+    return value
 
 
 def correct_gt_labels_from_error_crops(
@@ -473,6 +585,7 @@ def _correct_target_map(
     invalid_crops: list[str],
     image_key,
     dry_run: bool,
+    target_class_by_target: Mapping[tuple[str, int], int | None] | None = None,
     replacement_targets: dict[tuple[str, int], list[tuple[int, Path]]] | None = None,
     pred_labels_dir: str | Path | None = None,
     dedup_iou: float | None = None,
@@ -480,6 +593,9 @@ def _correct_target_map(
     forced_delete_targets: set[tuple[str, int]] | None = None,
 ) -> tuple[CropCorrectionResult, EditReport]:
     target_id = dataset.class_id(target_class) if target_class is not None else None
+    if target_class_by_target is not None:
+        target_ids = set(target_class_by_target.values())
+        target_id = next(iter(target_ids)) if len(target_ids) == 1 else None
     target_name = dataset.class_name(target_id) if target_id is not None else None
     result = CropCorrectionResult(
         target_class_id=target_id,
@@ -532,9 +648,23 @@ def _correct_target_map(
         annotation = image.annotations[crop_index - 1]
         line_no = annotation.line_no or crop_index
         force_delete = (stem, crop_index) in forced_delete_targets
-        new_class_id = None if force_delete else target_id
-        new_class_name = None if force_delete else target_name
-        if not force_delete and target_id is not None and annotation.class_id == target_id:
+        mapped_target_id = (
+            target_class_by_target[(stem, crop_index)]
+            if target_class_by_target is not None
+            else target_id
+        )
+        new_class_id = None if force_delete else mapped_target_id
+        mapped_target_name = (
+            dataset.class_name(mapped_target_id)
+            if mapped_target_id is not None
+            else None
+        )
+        new_class_name = None if force_delete else mapped_target_name
+        if (
+            not force_delete
+            and mapped_target_id is not None
+            and annotation.class_id == mapped_target_id
+        ):
             result.unchanged += 1
             continue
 

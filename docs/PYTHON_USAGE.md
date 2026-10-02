@@ -134,6 +134,13 @@ mgr.ann_correct_from_crops(
 
 # `ann_correct_from_crops` 会按 `<image_stem>_<1-based annotation index>.<扩展名>` 解析 `vis_crop` 结果，递归处理属性子目录，并直接更新对应源 label；确认无误后去掉 `dry_run=True`。
 # 将 `to=None` 传入时，会删除对应的整条标注。
+mgr.ann_correct_from_crops(
+    crops_dir={
+        "ydm_vis/crop_change/2_l": "Leakage",
+        "ydm_vis/crop_change/2_none": None,
+    },
+    backup_dir="label_backups",
+)  # 多个目录一次处理，只创建一个备份快照
 mgr.ann_correct_from_error_crops(
     crops_dir="result_ana/val-52/review/pred_gt/pred_car_gt_background/crops",
     pred_dir="result_ana/val-52/review/pred_txt",
@@ -438,7 +445,7 @@ mgr.output_dataset_yaml
 | `ann_merge_class(from_=..., to=..., ...)` | `ydm ann merge-class` |
 | `ann_rename_class(from_=..., to=..., out=...)` | `ydm ann rename-class` |
 | `ann_apply_map(map_file=..., out=...)` | `ydm ann apply-map` |
-| `ann_correct_from_crops(crops_dir=..., to=...)` | `ydm ann correct-from-crops` |
+| `ann_correct_from_crops(crops_dir=..., to=...)` 或 `crops_dir={目录: 类别}` | `ydm ann correct-from-crops` |
 | `ann_correct_from_error_crops(crops_dir=..., to=...)` | `ydm ann correct-from-error-crops` |
 | `ann_correct_attr_from_error_crops(crops_dir=..., name=..., value=...)` | `ydm ann correct-attr-from-error-crops` |
 | `ann_set_attr(name=..., value=..., ...)` | `ydm ann set-attr` |

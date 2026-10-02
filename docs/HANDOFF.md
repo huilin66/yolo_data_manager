@@ -240,6 +240,7 @@ ydm vis crop --root yolo --out crops --by-attr
 - `eval metrics --show-original` 可在类别/合并/`min_pixels` 过滤结果前输出原始结果用于对比
 - 数据集加载默认处理全部数据；使用 `--only-val` 或 Python 的 `only_val=True` 才限制到验证集，YAML 的 `val` 不再隐式限制普通统计和可视化
 - 新增 `ann correct-from-crops` / `ann_correct_from_crops`：按 `vis_crop` 的 `<image_stem>_<1-based index>` 文件名定位原始标注行并直接校正类别；`to=None`（CLI 使用 `--to none`）时删除该标注
+- `ann_correct_from_crops` 还支持 `{crop_dir: target_class}` 映射，一次合并多个 crop 目录并只创建一个 label 备份快照；单目录 `(crops_dir, to)` 调用保持兼容
 - 新增 `ann correct-from-error-crops` / `ann_correct_from_error_crops`：按 `eval_error_analysis` 的 `xxx_predx_gty` 文件名中的 y 定位 GT 行并校正或删除，`predx` 只用于复核上下文
 - 所有写出 GT label txt 的入口支持 `--backup-dir` / `backup_dir`：写出前按时间戳快照备份当前输入 label；未指定时默认目录为数据集根目录下的 `labels_backup`；crop 校正只备份实际修改的 txt，`dry-run` 不创建备份
 - `vis crop` 支持 `padding`：整数按每边像素扩展，小数按 box 宽度/高度比例扩展，并自动限制在图像边界内

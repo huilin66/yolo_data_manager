@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 
 try:
@@ -12,15 +13,19 @@ except ImportError:  # Support direct execution of this module.
 
 def yolo_update_by_label(
     dataset_input: YoloManagerInput,
-    crops_dir: str | Path,
-    to: str | int | None,
+    crops_dir: str | Path | Mapping[str | Path, str | int | None],
+    to: str | int | None = None,
     *,
     report: str | Path | None = None,
     backup_dir: str | Path | None = None,
     dry_run: bool = False,
     only_val: bool = False,
 ) -> int:
-    """Update or delete the GT instance referenced by crop filename ``..._gty``."""
+    """Update crop-selected GT classes, optionally using one directory map.
+
+    A mapping such as ``{crops_dir: "Leakage", other_dir: None}`` is handled
+    in one manager task and therefore uses one label-backup snapshot.
+    """
 
     mgr = get_yolo_manager(
         dataset_input, layout="auto", init_check=False, init_layout=False

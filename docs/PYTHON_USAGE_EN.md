@@ -277,6 +277,14 @@ mgr.ann_correct_from_crops(
     backup_dir="label_backups",
     dry_run=True,
 )
+# Apply several crop directories in one task and create one backup snapshot.
+mgr.ann_correct_from_crops(
+    crops_dir={
+        "ydm_vis/crop_change/2_l": "Leakage",
+        "ydm_vis/crop_change/2_none": None,
+    },
+    backup_dir="label_backups",
+)
 # Set one attribute on GT boxes selected by attribute-error crops.
 mgr.ann_correct_attr_from_error_crops(
     crops_dir="ydm_evaluation/error_analysis/predict/review/attribute_error/attribute_defect/gt_yes_pred_no/crops",
