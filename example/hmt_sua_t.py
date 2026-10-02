@@ -17,19 +17,15 @@ if __package__ in (None, ""):
     project_root = Path(__file__).resolve().parents[1]
     if str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
-
 from example.functions import (
     yolo_draw,
     yolo_error_ana,
     yolo_metric,
-    yolo_resize,
-    yolo_split,
-    yolo_sta,
     yolo_update_by_label,
     yolo_update_by_pred,
     yolo_update_class,
-    yolo_vis,
 )
+from yolo_data_manager import YoloManager
 
 # HMT_V2_DIR = r"/localnvme/data/bdd_hmt/hmt_t_update_v2"
 HMT_V3_DIR = r"/localnvme/data/bdd_hmt/hmt_t_update_v3"
@@ -104,29 +100,52 @@ UPDATE_CLASS_MAP = {
 
 # Select operations by uncommenting names in RUN_LIST.
 RUN_LIST = [
-    # "sta",
-    # "vis",
+    "rename",
+    "split",
+    "resize",
+    "sta",
+    "vis_draw",
+    "vis_crop",
     # "metric",
     # "error_ana",
     # "update",
     # "draw",
-    # "resize",
-    "update_class_by_pred",
+    # "update_class_by_pred",
     # "update_class_by_label",
-    # "split"
 ]
 
 
 def main() -> None:
+    ydm = YoloManager(
+        DATA_DIR,
+        layout="auto",
+        init_check=False,
+        init_layout=False,
+    )
+    if "rename" in RUN_LIST:
+        ydm.remap_filenames(out=ydm.root + "_rename", dry_run=False, verbose=True)
+    if "resize" in RUN_LIST:
+        ydm.resize_images(
+            DATA_DIR,
+            width=640,
+        )
+
+    if "split" in RUN_LIST:
+        ydm.dataset_split(HMT_V3_DIR, train_include_list=LEAKAGE_ONLY_LIST)
+
     if "sta" in RUN_LIST:
-        yolo_sta(
+        ydm.stats(
             DATA_DIR,
             stats_list=["all"],
             only_val=True,
         )
+    if "vis_draw" in RUN_LIST:
+        ydm.vis_draw(DATA_DIR)
+    if "vis_crop" in RUN_LIST:
+        ydm.vis_crop(DATA_DIR)
 
-    if "vis" in RUN_LIST:
-        yolo_vis(DATA_DIR, crop=True)
+    if "draw" in RUN_LIST:
+        yolo_draw(DATA_DIR, "DJI_20260211161740_1654.png")
     if "update_class_by_label" in RUN_LIST:
         for crops_dir, target_class in CROP_MAP_LABEL.items():
             yolo_update_by_label(
@@ -164,19 +183,8 @@ def main() -> None:
                 pred_dir=PRED_DIR,
             )
 
-    if "draw" in RUN_LIST:
-        yolo_draw(DATA_DIR, "DJI_20260211161740_1654.png")
-
-    if "resize" in RUN_LIST:
-        yolo_resize(
-            DATA_DIR,
-            width=640,
-        )
     if "update_class" in RUN_LIST:
         yolo_update_class(DATA_DIR, class_map=UPDATE_CLASS_MAP)
-
-    if "split" in RUN_LIST:
-        yolo_split(HMT_V3_DIR, train_include_list=LEAKAGE_ONLY_LIST)
 
 
 if __name__ == "__main__":
