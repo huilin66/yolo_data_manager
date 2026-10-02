@@ -1190,6 +1190,40 @@ def test_filter_by_geometry(tmp_path):
     assert class_filtered.images[0].annotations[0].class_id == 1
 
 
+def test_dataset_filter_without_out_rewrites_source_and_backups_labels(tmp_path, capsys):
+    root = make_dataset(tmp_path / "filter_in_place")
+    original_a = (root / "labels" / "a.txt").read_text(encoding="utf-8")
+    original_b = (root / "labels" / "b.txt").read_text(encoding="utf-8")
+
+    code = cli_main(
+        [
+            "dataset",
+            "filter",
+            "--root",
+            str(root),
+            "--min-width",
+            "0.25",
+            "--no-progress",
+        ]
+    )
+    payload = json.loads(capsys.readouterr().out)
+
+    assert code == 0
+    assert payload["in_place"] is True
+    assert payload["out"] == str(root)
+    assert payload["backup_files"] == 2
+    assert (root / "labels" / "a.txt").read_text(encoding="utf-8") == ""
+    assert (root / "labels" / "b.txt").read_text(encoding="utf-8") == ""
+    assert (root / "images" / "a.jpg").is_file()
+    assert (root / "images" / "b.jpg").is_file()
+
+    snapshots = list((root / "labels_backup").iterdir())
+    assert len(snapshots) == 1
+    assert (snapshots[0] / "labels" / "a.txt").read_text(encoding="utf-8") == original_a
+    assert (snapshots[0] / "labels" / "b.txt").read_text(encoding="utf-8") == original_b
+    assert not (root / "ydm_dataset" / "filter").exists()
+
+
 def test_stats_list_outputs_legacy_plots_and_csv(tmp_path):
     root = make_dataset(tmp_path / "yolo")
     dataset = load_yolo_dataset(root)

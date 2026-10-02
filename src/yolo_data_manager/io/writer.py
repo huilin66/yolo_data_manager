@@ -74,6 +74,65 @@ def write_yolo_dataset(
     return backup_obj
 
 
+def write_yolo_labels_in_place(
+    dataset: YoloDataset,
+    *,
+    workers: int = 8,
+    progress: bool = False,
+    progress_leave: bool = False,
+    backup_dir: str | Path | None = None,
+) -> LabelBackup:
+    """Rewrite the loaded dataset's label files in place.
+
+    The source labels are backed up before any write.  Images, split files,
+    and dataset layout are left untouched; this is the in-place counterpart
+    of :func:`write_yolo_dataset` for annotation-only operations.
+    """
+
+    backup_obj = LabelBackup(dataset.root, backup_dir)
+    for image in dataset.images:
+        if image.label_path is not None:
+            backup_obj.backup(image.label_path)
+
+    def write_one(image: YoloImage) -> None:
+        if image.label_path is None:
+            return
+        label_path = Path(image.label_path)
+        label_path.parent.mkdir(parents=True, exist_ok=True)
+        lines = [
+            annotation.to_yolo_line(include_confidence=False)
+            for annotation in image.annotations
+        ]
+        label_path.write_text(
+            "\n".join(lines) + ("\n" if lines else ""),
+            encoding="utf-8",
+        )
+
+    worker_count = normalize_workers(workers)
+    if worker_count == 1:
+        for image in iter_progress(
+            dataset.images,
+            enabled=progress,
+            total=len(dataset.images),
+            desc="write labels",
+            leave=progress_leave,
+        ):
+            write_one(image)
+        return backup_obj
+
+    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+        futures = [executor.submit(write_one, image) for image in dataset.images]
+        for future in iter_progress(
+            as_completed(futures),
+            enabled=progress,
+            total=len(futures),
+            desc="write labels",
+            leave=progress_leave,
+        ):
+            future.result()
+    return backup_obj
+
+
 def _write_image_item(
     image: YoloImage,
     *,

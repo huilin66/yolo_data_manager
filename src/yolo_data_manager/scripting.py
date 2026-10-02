@@ -842,7 +842,7 @@ class YoloManager:
             **kwargs,
         )
 
-    def dataset_filter(
+    def anno_update_by_size(
         self,
         out: str | None = None,
         *,
@@ -859,7 +859,12 @@ class YoloManager:
         dry_run: bool = False,
         **kwargs: Any,
     ) -> int:
-        """Filter annotations by geometry/confidence (``ydm dataset filter``)."""
+        """Update annotations by geometry/confidence (``ydm dataset filter``).
+
+        When ``out`` is omitted, source label files are filtered in place and
+        backed up under ``<dataset-root>/labels_backup``.  Supplying ``out``
+        writes a separate filtered dataset instead.
+        """
         if isinstance(class_rules, Mapping):
             with tempfile.NamedTemporaryFile(
                 "w", suffix=".yaml", encoding="utf-8", delete=False
@@ -869,7 +874,7 @@ class YoloManager:
                 )
                 class_rules_path = f.name
             try:
-                return self.dataset_filter(
+                return self.anno_update_by_size(
                     out,
                     class_=class_,
                     min_width=min_width,
@@ -902,6 +907,11 @@ class YoloManager:
             dry_run=dry_run,
             **kwargs,
         )
+
+    def dataset_filter(self, *args: Any, **kwargs: Any) -> int:
+        """Backward-compatible alias for :meth:`anno_update_by_size`."""
+
+        return self.anno_update_by_size(*args, **kwargs)
 
     def dataset_merge(
         self,

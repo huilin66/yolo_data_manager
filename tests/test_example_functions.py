@@ -113,6 +113,28 @@ def test_ann_correct_from_crops_uses_default_label_backup_dir(tmp_path):
     assert captured["backup_dir"] == tmp_path / "labels_backup"
 
 
+def test_anno_update_by_size_is_primary_filter_api():
+    manager = object.__new__(YoloManager)
+    captured = {}
+
+    def fake_run(task, **kwargs):
+        captured["task"] = task
+        captured.update(kwargs)
+        return 0
+
+    manager._run = fake_run
+
+    assert manager.anno_update_by_size(min_width=0.01, min_height=0.02) == 0
+    assert captured["task"] == "dataset.filter"
+    assert captured["min_width"] == 0.01
+    assert captured["min_height"] == 0.02
+
+    captured.clear()
+    assert manager.dataset_filter(min_width=0.03) == 0
+    assert captured["task"] == "dataset.filter"
+    assert captured["min_width"] == 0.03
+
+
 def test_example_class_update_uses_dictionary_manager_api(monkeypatch):
     captured = {}
 

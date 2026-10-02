@@ -8,15 +8,8 @@ details in ``example/functions``.
 from __future__ import annotations
 
 import os
-import sys
 from pathlib import Path
 
-# Support both ``python example/my_dataset.py`` and
-# ``python -m example.my_dataset`` from a repository checkout.
-if __package__ in (None, ""):
-    project_root = Path(__file__).resolve().parents[1]
-    if str(project_root) not in sys.path:
-        sys.path.insert(0, str(project_root))
 from yolo_data_manager import YoloManager
 
 # HMT_V2_DIR = r"/localnvme/data/bdd_hmt/hmt_t_update_v2"
@@ -91,14 +84,15 @@ UPDATE_CLASS_MAP = {
 
 # Select operations by uncommenting names in RUN_LIST.
 RUN_LIST = [
-    "rename",
-    "split",
-    "resize",
-    "sta",
-    "vis_draw",
-    "vis_crop",
-    "metric",
-    "error_ana",
+    # "rename",
+    # "split",
+    # "resize",
+    # "sta",
+    # "vis_draw",
+    # "vis_crop",
+    # "metric",
+    # "error_ana",
+    # "update_class",
     # "mannual_draw",
     # "update_label_from_anno",
     # "update_label_from_pred",

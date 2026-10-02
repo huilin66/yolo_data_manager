@@ -93,10 +93,10 @@ mgr.split_by_manual_group(
     make_yolo=True,
     out_dir="manual_group_split",
 )
-mgr.dataset_filter(out="filtered", min_area=0.001, class_=["car", "truck"], backup_dir="label_backups")
-mgr.dataset_filter(out="filtered_small", min_width=0.01, min_height=0.01,
+mgr.anno_update_by_size(out="filtered", min_area=0.001, class_=["car", "truck"], backup_dir="label_backups")
+mgr.anno_update_by_size(out="filtered_small", min_width=0.01, min_height=0.01,
                    min_size_logic="and")
-mgr.dataset_filter(
+mgr.anno_update_by_size(
     out="filtered_by_class",
     class_rules={
         "person": {"min_width": 0.01, "min_height": 0.01, "min_size_logic": "and"},
@@ -393,7 +393,7 @@ mgr.output_dataset_yaml
 
 `dataset_extract_split` 用已有的 split txt 把各 set 物化出来：每个传入的 `train_include_list` / `val_include_list` / `test_include_list` 会把对应图片写到 `<out>/<set>`，作为独立扁平数据集（`images/` + `labels/` + `class.txt` + `dataset.yaml`）。这几个参数可以传图片名/路径列表，也可以传一个 txt 文件路径（每行一个图片名或路径）。未传入的 set 会跳过，空 set 会报告为 0 张且不落盘；`dry_run=True` 只报告数量和输出路径而不写文件，`copy_images=False` 不复制图片，`keep_empty_labels=False` 丢弃空标签文件。`out` 默认为 `<数据集根目录>/ydm_subsets`，可用 `out` 参数指定其他目录。
 
-`dataset_filter` 中 `min_width` 和 `min_height` 默认按 `or` 逻辑删除小框：`w < min_width` 或 `h < min_height` 即删除。设置 `min_size_logic="and"` 时，只有 `w < min_width` 且 `h < min_height` 才删除。`class_rules` 可以给不同类别设置不同过滤规则；类别没有命中规则时，继续使用全局过滤参数。
+`anno_update_by_size` 中 `min_width` 和 `min_height` 默认按 `or` 逻辑删除小框：`w < min_width` 或 `h < min_height` 即删除。设置 `min_size_logic="and"` 时，只有 `w < min_width` 且 `h < min_height` 才删除。`class_rules` 可以给不同类别设置不同过滤规则；类别没有命中规则时，继续使用全局过滤参数。不传 `out` 时原地更新 label，并默认备份到 `labels_backup`；传入 `out` 时写出新的数据集。旧方法名 `dataset_filter` 仍可兼容调用。
 类别规则也支持简写字段：`{"类别": {"width": 0.03, "height": 0.03, "logic": "or"}}`，其中 `width`/`height` 是归一化 YOLO 尺寸，`logic` 为 `or` 或 `and`。
 `eval_error_analysis(review=True)` 会在 `review/pred_gt` 下生成按 `pred_<预测类别>_gt_<真实类别>` 组织的复核图片和 crop，并写出 Ultralytics 风格 `confusion_matrix.png`。`copy_pred_txt=True` 会把参与分析的预测 txt 复制到 `review/pred_txt`。
 
@@ -401,7 +401,7 @@ mgr.output_dataset_yaml
 
 属性错误 crop 文件名中的 `predX_gtY` 使用预测和 GT label 的 1-based 行号，例如 `sample_pred1_gt3_defect.jpg` 表示修改 `sample.txt` 的第 3 条 GT 标注。使用 `ann_correct_attr_from_error_crops` 时传入目标属性 `name` 和目标值 `value`，它会递归处理选中的 crop，按 `gtY` 找到 GT 框并只修改该框的属性；类别和 geometry 不变。建议先使用 `dry_run=True`/`backup_dir` 检查并备份。
 
-`eval_error_analysis` 的 `class_` 只保留指定类别，`exclude_class_` 独立排除类别；两者可以同时使用。`min_width`、`min_height`、`min_area` 和 `min_pixels` 会同时过滤 GT 与预测，宽高/面积使用归一化 YOLO 尺寸，`min_pixels` 按像素宽度或高度判断；`min_size_logic` 支持 `"or"` 或 `"and"`，语义与 `dataset_filter` 一致。
+`eval_error_analysis` 的 `class_` 只保留指定类别，`exclude_class_` 独立排除类别；两者可以同时使用。`min_width`、`min_height`、`min_area` 和 `min_pixels` 会同时过滤 GT 与预测，宽高/面积使用归一化 YOLO 尺寸，`min_pixels` 按像素宽度或高度判断；`min_size_logic` 支持 `"or"` 或 `"and"`，语义与 `anno_update_by_size` 一致。
 `class_rules` 可以按类别覆盖全局尺寸规则，格式为 `{类别: {"width": ..., "height": ..., "logic": "or" 或 "and"}}`；命中类别使用自己的规则，未命中类别继续使用全局参数。
 `eval_error_analysis` 与 `eval_metrics` 默认先按类别执行置信度优先的 NMS（`nms_iou=0.5`），再使用相同的一对一 IoU 匹配规则；传入 `nms_iou=None` 可关闭 NMS。关闭 NMS 时，重复预测会在错误分析中标记为 `duplicate_prediction`，并在 metrics 中作为 FP 统计。
 
@@ -454,7 +454,7 @@ mgr.output_dataset_yaml
 | `split_by_manual_group(groups_dir=..., ...)` | manager-only |
 | `generate_attribute_com(split=..., mode=..., ...)` | manager-only |
 | `dataset_yaml(out=..., ...)` | `ydm dataset yaml` |
-| `dataset_filter(out=..., ...)` | `ydm dataset filter` |
+| `anno_update_by_size(out=..., ...)` | `ydm dataset filter` |
 | `dataset_merge(roots=..., out=...)` | `ydm dataset merge` |
 | `dataset_duplicates(out=...)` | `ydm dataset duplicates` |
 | `dataset_bad_images(out=...)` | `ydm dataset bad-images` |

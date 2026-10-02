@@ -236,9 +236,9 @@ mgr.dataset_bad_images(out="bad_images.csv")
 Filtering:
 
 ```python
-mgr.dataset_filter(out="filtered", min_area=0.001, class_=["car", "truck"], backup_dir="label_backups")
-mgr.dataset_filter(out="filtered_small", min_width=0.01, min_height=0.01, min_size_logic="and")
-mgr.dataset_filter(
+mgr.anno_update_by_size(out="filtered", min_area=0.001, class_=["car", "truck"], backup_dir="label_backups")
+mgr.anno_update_by_size(out="filtered_small", min_width=0.01, min_height=0.01, min_size_logic="and")
+mgr.anno_update_by_size(
     out="filtered_by_class",
     class_rules={
         "person": {"min_width": 0.01, "min_height": 0.01, "min_size_logic": "and"},

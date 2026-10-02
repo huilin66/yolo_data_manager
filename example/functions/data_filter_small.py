@@ -38,12 +38,12 @@ def yolo_filter_small(
         }
 
     Classes without a rule use the global ``filter_ratio`` and ``logic``.
-    The manager decides the canonical default output when ``out_dir`` is
-    omitted.
+    When ``out_dir`` is omitted, the manager updates source labels in place
+    and backs them up under ``labels_backup``.
     """
 
     mgr = get_yolo_manager(dataset_input, layout="flat", init_check=False, init_layout=False)
-    return mgr.dataset_filter(
+    return mgr.anno_update_by_size(
         out=out_dir,
         class_=class_,
         min_width=None if class_rules is not None else filter_ratio,

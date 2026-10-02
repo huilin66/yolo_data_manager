@@ -44,6 +44,7 @@ from yolo_data_manager.io.validator import fill_missing_label_files, validate_da
 from yolo_data_manager.io.writer import (
     move_existing_split_files_to_backup,
     write_split_file,
+    write_yolo_labels_in_place,
     write_yolo_dataset,
 )
 from yolo_data_manager.stats.compute import compute_stats
@@ -290,7 +291,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     dataset_filter = dataset_sub.add_parser("filter", help="filter annotations by class/geometry/confidence")
     add_dataset_args(dataset_filter)
-    dataset_filter.add_argument("--out", default=None, help="output dataset root; defaults to <root>/ydm_dataset/filter")
+    dataset_filter.add_argument(
+        "--out",
+        default=None,
+        help="output dataset root; omit to filter labels in place with a backup",
+    )
     dataset_filter.add_argument(
         "--backup-dir",
         default=None,
@@ -1265,10 +1270,9 @@ def handle_dataset_yaml(args: argparse.Namespace) -> int:
 
 def handle_dataset_filter(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
-    out = _value_or_default(
-        args.out,
-        default_dataset_output(_resolved_output_root(args.root), "filter"),
-    )
+    source_root = _resolved_output_root(args.root)
+    out = Path(args.out) if args.out is not None else source_root
+    in_place = out.resolve() == source_root.resolve()
     before = dataset.annotation_count()
     class_ids = {dataset.class_id(value) for value in _split_values(args.class_values)} if args.class_values else None
     filtered = filter_by_geometry(
@@ -1283,17 +1287,45 @@ def handle_dataset_filter(args: argparse.Namespace) -> int:
         class_rules=_read_class_rules(args.class_rules),
     )
     after = filtered.annotation_count()
+    backup = None
     if not args.dry_run:
-        write_yolo_dataset(
-            filtered,
-            out,
-            copy_images=args.copy_images,
-            workers=args.workers,
-            progress=args.progress,
-            progress_leave=args.progress_leave,
-            backup_dir=args.backup_dir,
+        if in_place:
+            backup = write_yolo_labels_in_place(
+                filtered,
+                workers=args.workers,
+                progress=args.progress,
+                progress_leave=args.progress_leave,
+                backup_dir=args.backup_dir,
+            )
+        else:
+            backup = write_yolo_dataset(
+                filtered,
+                out,
+                copy_images=args.copy_images,
+                workers=args.workers,
+                progress=args.progress,
+                progress_leave=args.progress_leave,
+                backup_dir=args.backup_dir,
+            )
+    print(
+        json.dumps(
+            {
+                "before": before,
+                "after": after,
+                "removed": before - after,
+                "out": None if args.dry_run else str(out),
+                "in_place": in_place,
+                "backup_dir": (
+                    str(backup.snapshot_dir)
+                    if backup is not None and backup.count
+                    else None
+                ),
+                "backup_files": backup.count if backup is not None else 0,
+            },
+            indent=2,
+            ensure_ascii=False,
         )
-    print(json.dumps({"before": before, "after": after, "removed": before - after, "out": None if args.dry_run else out}, indent=2, ensure_ascii=False))
+    )
     return 0
 
 

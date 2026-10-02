@@ -66,7 +66,7 @@ mgr.vis_draw(show_id=True, show_conf=True, style="cv2")
 mgr.vis_draw(show_attrs=True, filter_level=[1], att_seperate=True)
 mgr.vis_crop(out="crops", filter_level=[1], att_seperate=True)  # crops are copied into crop_att/attribute/value
 
-mgr.dataset_filter(
+mgr.anno_update_by_size(
     min_width=0.01,
     min_height=0.01,
     min_size_logic="and",
@@ -75,6 +75,7 @@ mgr.dataset_filter(
         "car": {"min_area": 0.0005},
     },
 )
+# Omitting out updates source labels in place and backs them up under labels_backup/.
 
 mgr.eval_error_analysis(
     pred_root="datasets/pred_labels",
