@@ -116,32 +116,27 @@ def main() -> None:
         )
     if "resize" in RUN_LIST:
         ydm.resize_images(
-            DATA_DIR,
             width=640,
         )
 
     # pre-analysis
     if "split" in RUN_LIST:
         ydm.dataset_split(
-            DATA_DIR,
             train=0.9,
             val=0.1,
             train_include_list=LEAKAGE_ONLY_LIST,
         )
     if "sta" in RUN_LIST:
         ydm.stats(
-            DATA_DIR,
             stats_list=["all"],
             # only_val=True,
         )
     if "vis_draw" in RUN_LIST:
         ydm.vis_draw(
-            DATA_DIR,
             only_val=True,
         )
     if "vis_crop" in RUN_LIST:
         ydm.vis_crop(
-            DATA_DIR,
             only_val=True,
         )
 
@@ -174,7 +169,6 @@ def main() -> None:
 
     if "mannual_draw" in RUN_LIST:
         ydm.vis_manual_box(
-            DATA_DIR,
             "DJI_20260211161740_1654.png",
         )
 
@@ -186,8 +180,9 @@ def main() -> None:
     if "update_label_from_pred" in RUN_LIST:
         for pred_name in PRED_NAMES:
             pred_dir = PRED_RUNS_DIR / pred_name / "labels"
-            ydm.ann_update_from_map(
+            ydm.ann_correct_from_error_crops(
                 crops_dir=CROP_MAP_PRED,
+                pred_dir=pred_dir,
             )
 
 
