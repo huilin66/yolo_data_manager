@@ -69,8 +69,8 @@ UPDATE_CLASS_MAP = {
     #     "Temperature High Risk",
     # ],
 }
-
-
+QUERY_CLASS = "Leakage"
+SELECTION_FILE = None
 # Select operations by uncommenting names in RUN_LIST.
 RUN_LIST = [
     "rename",
@@ -79,13 +79,17 @@ RUN_LIST = [
     "sta",
     "vis_draw",
     "vis_crop",
+    "query",
+    "copy_select",
     "metric",
     "error_ana",
     "update_class",
     "filter_small",
     "mannual_draw",
-    "update_label_from_anno",
-    "update_label_from_pred",
+    "update_class_from_anno",
+    "update_class_from_pred",
+    "update_att_from_anno",
+    "update_att_from_pred",
 ]
 
 
@@ -122,6 +126,24 @@ def main() -> None:
     if "vis_crop" in RUN_LIST:
         ydm.vis_crop(
             only_val=True,
+        )
+    if "query" in RUN_LIST:
+        ydm.query_class(
+            class_=QUERY_CLASS,
+            source="gt",
+            only_val=True,
+        )
+    if "copy_select" in RUN_LIST:
+        file_path = (
+            Path(SELECTION_FILE)
+            if SELECTION_FILE is not None
+            else Path(ydm.root) / "val.txt"
+        )
+        out_path = Path(ydm.root) / "select"
+        ydm.dataset_select(
+            file=str(file_path),
+            out=out_path,
+            copy_images=True,
         )
 
     # post-analysis
@@ -162,12 +184,24 @@ def main() -> None:
             "DJI_20260211161740_1654.png",
         )
 
-    if "update_label_from_anno" in RUN_LIST:
+    if "update_class_from_anno" in RUN_LIST:
         ydm.ann_correct_from_crops(
             crops_dir=CROP_MAP_LABEL,
         )
 
-    if "update_label_from_pred" in RUN_LIST:
+    if "update_class_from_pred" in RUN_LIST:
+        for pred_name in PRED_NAMES:
+            pred_dir = PRED_RUNS_DIR / pred_name / "labels"
+            ydm.ann_correct_from_error_crops(
+                crops_dir=CROP_MAP_PRED,
+                pred_dir=pred_dir,
+            )
+    if "update_att_from_anno" in RUN_LIST:
+        ydm.ann_correct_from_crops(
+            crops_dir=CROP_MAP_LABEL,
+        )
+
+    if "update_att_from_pred" in RUN_LIST:
         for pred_name in PRED_NAMES:
             pred_dir = PRED_RUNS_DIR / pred_name / "labels"
             ydm.ann_correct_from_error_crops(
