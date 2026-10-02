@@ -50,15 +50,14 @@ only one image source.
 
 ```text
 example/                 one caller script per dataset, with paths and parameters
-example/functions/       secondarily organized reusable functions
 tools/                   standalone helpers such as TT100K conversion
 ```
 
 `example/dataset_template.py` is the dataset-caller template. Copy it, rename
-it for a dataset, import the needed functions from `example.functions`, and
-set the dataset path and parameters directly in that file. There is no generic
-dataset runner and no need for `run_ydm.py`; separate example files keep
-different dataset configurations isolated.
+it for a dataset, create a `YoloManager`, and set the dataset path and
+parameters directly in that file. There is no generic dataset runner and no
+need for `run_ydm.py`; separate example files keep different dataset
+configurations isolated.
 
 ## Current Feature Groups
 

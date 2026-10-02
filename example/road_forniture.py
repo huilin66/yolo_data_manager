@@ -1,21 +1,13 @@
 """Copy this file to ``example/<dataset_name>.py`` and edit its parameters.
 
-The file is a dataset-level caller, not a reusable function module.  Keep the
-dataset path and the operations for one dataset here; keep implementation
-details in ``example/functions``.
+The file is a dataset-level caller. Keep the dataset path and operations for
+one dataset here and call the public manager API directly.
 """
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
-
-if __package__ in (None, ""):
-    project_root = Path(__file__).resolve().parents[1]
-    if str(project_root) not in sys.path:
-        sys.path.insert(0, str(project_root))
-
-from example.functions import yolo_split, yolo_sta, yolo_vis
+from yolo_data_manager import YoloManager
 
 DATA_DIR = Path(
     r"E:\repository\road_project\outputs\stage1_detection_per_dataset\road_forniture_v1"
@@ -38,17 +30,15 @@ RUN_LIST = [
 
 
 def main() -> None:
+    ydm = YoloManager(DATA_DIR, layout="auto", init_check=False, init_layout=False)
 
     if "sta" in RUN_LIST:
-        yolo_sta(DATA_DIR)
+        ydm.stats(stats_list=["all"])
     if "vis" in RUN_LIST:
-        yolo_vis(
-            DATA_DIR,
-            crop=True,
-            only_val=True,
-        )
+        ydm.vis_draw(only_val=True)
+        ydm.vis_crop(only_val=True)
     if "split" in RUN_LIST:
-        yolo_split(DATA_DIR, ensure_class_presence=True)
+        ydm.dataset_split(ensure_class_presence=True)
 
 
 if __name__ == "__main__":

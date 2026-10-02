@@ -1,25 +1,13 @@
 """Copy this file to ``example/<dataset_name>.py`` and edit its parameters.
 
-The file is a dataset-level caller, not a reusable function module.  Keep the
-dataset path and the operations for one dataset here; keep implementation
-details in ``example/functions``.
+The file is a dataset-level caller. Keep the dataset path and operations for
+one dataset here and call the public manager API directly.
 """
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
-
-# Support both ``python example/my_dataset.py`` and
-# ``python -m example.my_dataset`` from a repository checkout.
-if __package__ in (None, ""):
-    project_root = Path(__file__).resolve().parents[1]
-    if str(project_root) not in sys.path:
-        sys.path.insert(0, str(project_root))
-
-from example.functions import (
-    yolo_split,
-)
+from yolo_data_manager import YoloManager
 
 DATA_DIR = Path(r"/srv/nas/home/dataset/gpr_dataset_v1")
 
@@ -40,9 +28,10 @@ RUN_LIST = [
 
 
 def main() -> None:
+    ydm = YoloManager(DATA_DIR, layout="auto", init_check=False, init_layout=False)
 
     if "split" in RUN_LIST:
-        yolo_split(DATA_DIR)
+        ydm.dataset_split()
 
 
 if __name__ == "__main__":

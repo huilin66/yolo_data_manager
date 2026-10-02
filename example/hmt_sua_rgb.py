@@ -1,23 +1,13 @@
 """Copy this file to ``example/<dataset_name>.py`` and edit its parameters.
 
-The file is a dataset-level caller, not a reusable function module.  Keep the
-dataset path and the operations for one dataset here; keep implementation
-details in ``example/functions``.
+The file is a dataset-level caller. Keep the dataset path and operations for
+one dataset here and call the public manager API directly.
 """
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
-
-# Support both ``python example/my_dataset.py`` and
-# ``python -m example.my_dataset`` from a repository checkout.
-if __package__ in (None, ""):
-    project_root = Path(__file__).resolve().parents[1]
-    if str(project_root) not in sys.path:
-        sys.path.insert(0, str(project_root))
-
-from example.functions import yolo_metric
+from yolo_data_manager import YoloManager
 
 DATA_DIR = Path(
     r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_rgb.yaml"
@@ -41,69 +31,60 @@ PRED_NAMES = [
 #     "/localnvme/data/bdd_hmt/bp_cube/ydm_vis/crop_change/e_2_none": None,
 #     "/localnvme/data/bdd_hmt/bp_cube/ydm_vis/crop_change/p_2_none": None,
 # }
-MERGE_CLASS_MAP = (
-    {
-        "Broken high": [
-            "Broken High Risk",
-        ],
-        "Delamination": [
-            # "Broken High Risk",
-            "Delaminated Tile Low Risk",
-            "Delaminate Tile High Risk",
-            "Cracked Tile",
-        ],
-        "Efforescene": [
-            "Efforescene Low Gray",
-            # "Efflorescene Low Risk",
-            "Efflorescene High Risk",
-            # "Broken Low Risk",
-        ],
-        # "Broken": [
-        #     # "Broken Low Risk",
-        #     "Efflorescene Low Risk",
-        # ],
-    },
-)
+MERGE_CLASS_MAP = {
+    "Broken high": [
+        "Broken High Risk",
+    ],
+    "Delamination": [
+        # "Broken High Risk",
+        "Delaminated Tile Low Risk",
+        "Delaminate Tile High Risk",
+        "Cracked Tile",
+    ],
+    "Efforescene": [
+        "Efforescene Low Gray",
+        # "Efflorescene Low Risk",
+        "Efflorescene High Risk",
+        # "Broken Low Risk",
+    ],
+    # "Broken": [
+    #     # "Broken Low Risk",
+    #     "Efflorescene Low Risk",
+    # ],
+}
 DEL_CLASS = ["Broken Low Risk"]
 
 
 def main() -> None:
-    # yolo_sta(
-    #     DATA_DIR,
+    ydm = YoloManager(DATA_DIR, layout="auto", init_check=False, init_layout=False)
+
+    # ydm.stats(
     #     stats_list=["all"],
     #     only_val=False,
     # )
 
-    # yolo_vis(DATA_DIR, crop=True, only_val=False)
+    # ydm.vis_draw(only_val=False)
+    # ydm.vis_crop(only_val=False)
 
-    # yolo_metric(
-    #     DATA_DIR,
-    #     PRED_RUNS_DIR,
-    #     PRED_NAME,
+    # ydm.eval_metrics(
+    #     pred_root=PRED_RUNS_DIR / PRED_NAMES[0] / "labels",
     #     only_val=True,
     #     show_original=True,
     # )
     # for k, v in crops_map.items():
-    #     yolo_update_from_crops(
-    #         DATA_DIR,
-    #         crops_dir=k,
-    #         to=v,
-    #     )
-    # yolo_metric(
-    #     DATA_DIR,
-    #     PRED_RUNS_DIR,
-    #     PRED_NAME,
-    #     # merge_class_map=merge_class_map,
-    #     # # exclude_class_=exclude_class_,
+    #     ydm.ann_correct_from_crops(crops_dir=k, to=v)
+    # ydm.eval_metrics(
+    #     pred_root=PRED_RUNS_DIR / PRED_NAMES[0] / "labels",
+    #     merge_class_map=MERGE_CLASS_MAP,
+    #     exclude_class_=DEL_CLASS,
     #     min_pixels=20,
     #     # conf_thres=0.20,
     # )
 
-    for PRED_NAME in PRED_NAMES:
-        yolo_metric(
-            DATA_DIR,
-            PRED_RUNS_DIR,
-            PRED_NAME,
+    for pred_name in PRED_NAMES:
+        ydm.eval_metrics(
+            pred_root=PRED_RUNS_DIR / pred_name / "labels",
+            out=ydm.output_evaluation / pred_name / "metrics",
             merge_class_map=MERGE_CLASS_MAP,
             exclude_class_=DEL_CLASS,
             min_pixels=20,

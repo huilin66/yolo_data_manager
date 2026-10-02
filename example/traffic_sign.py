@@ -1,25 +1,12 @@
 """Copy this file to ``example/<dataset_name>.py`` and edit its parameters.
 
-The file is a dataset-level caller, not a reusable function module.  Keep the
-dataset path and the operations for one dataset here; keep implementation
-details in ``example/functions``.
+The file is a dataset-level caller. Keep the dataset path and operations for
+one dataset here and call the public manager API directly.
 """
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
-
-# Support both ``python example/my_dataset.py`` and
-# ``python -m example.my_dataset`` from a repository checkout.
-if __package__ in (None, ""):
-    project_root = Path(__file__).resolve().parents[1]
-    if str(project_root) not in sys.path:
-        sys.path.insert(0, str(project_root))
-from example.functions import (
-    yolo_sta,
-    yolo_vis,
-)
 from yolo_data_manager import YoloManager
 
 DATA_DIR = Path(r"D:\zhl\data\CCTSDB 2021\CCTSDB2021_yolo")
@@ -48,18 +35,17 @@ RUN_LIST = [
 
 
 def main() -> None:
+    ydm = YoloManager(DATA_DIR, layout="auto", init_check=False, init_layout=False)
+
     if "sta" in RUN_LIST:
-        yolo_sta(
-            DATA_DIR,
-            stats_list=["all"],
-        )
+        ydm.stats(stats_list=["all"])
 
     if "vis" in RUN_LIST:
-        yolo_vis(DATA_DIR, crop=True)
+        ydm.vis_draw()
+        ydm.vis_crop()
 
     if "query" in RUN_LIST:
-        mgr = YoloManager(DATA_DIR, init_check=False, init_layout=False)
-        mgr.query_class(
+        ydm.query_class(
             source="pred",
             class_="occluded",
             pred_root="/localnvme/project/aic_mdet/models/ultralytics/runs/detect/predict-11/labels",

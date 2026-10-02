@@ -546,15 +546,17 @@ if code != 0:
 
 ## 示例函数与数据集调用脚本
 
-`example/functions/` 是二次整理后的可复用函数；`example/` 根目录下的文件是具体数据集的调用脚本。复制 `example/dataset_template.py`，按数据集改名并修改路径和参数：
+`example/` 根目录下的文件是具体数据集的调用脚本，直接调用 `YoloManager`。复制 `example/dataset_template.py`，按数据集改名并修改路径和参数：
 
 ```python
-from example.functions import yolo_sta, yolo_vis
+from yolo_data_manager import YoloManager
 
 DATA_DIR = r"/path/to/my_dataset.yaml"
 
-yolo_sta(DATA_DIR, stats_list=["all"], only_val=False)
-yolo_vis(DATA_DIR, crop=True, only_val=False)
+manager = YoloManager(DATA_DIR, layout="auto", init_check=False)
+manager.stats(stats_list=["all"], only_val=False)
+manager.vis_draw(only_val=False)
+manager.vis_crop(only_val=False)
 ```
 
 不再使用通用 `example/datasets/` 调用器，也不再需要 `run_ydm.py`。TT100K 转换作为独立工具放在 `tools/convert_tt100k.py`。

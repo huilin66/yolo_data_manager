@@ -89,18 +89,19 @@ mgr.eval_error_analysis(
 
 ## Example Organization
 
-`example/functions/` contains the secondarily organized reusable functions.
 Files directly under `example/` are dataset-specific callers: copy
 `example/dataset_template.py`, rename it for the dataset, set its path, and
-select the functions and parameters to run:
+select the manager methods and parameters to run:
 
 ```python
-from example.functions import yolo_sta, yolo_vis
+from yolo_data_manager import YoloManager
 
 DATA_DIR = r"/path/to/my_dataset.yaml"
 
-yolo_sta(DATA_DIR, stats_list=["all"], only_val=False)
-yolo_vis(DATA_DIR, crop=True, only_val=False, style="cv2")
+manager = YoloManager(DATA_DIR, layout="auto", init_check=False)
+manager.stats(stats_list=["all"], only_val=False)
+manager.vis_draw(only_val=False, style="cv2")
+manager.vis_crop(only_val=False, style="cv2")
 ```
 
 There is no generic `example/datasets/` runner and no need for `run_ydm.py`.

@@ -1,8 +1,7 @@
 """Copy this file to ``example/<dataset_name>.py`` and edit its parameters.
 
-The file is a dataset-level caller, not a reusable function module.  Keep the
-dataset path and the operations for one dataset here; keep implementation
-details in ``example/functions``.
+The file is a dataset-level caller. Keep the dataset path and operations for
+one dataset here and call the public manager API directly.
 """
 
 from __future__ import annotations

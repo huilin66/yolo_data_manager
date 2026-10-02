@@ -44,11 +44,10 @@ train.txt/val.txt/test.txt、dataset.yaml  保留在根目录
 
 ```text
 example/                 每个数据集一个调用脚本，保存路径和参数
-example/functions/       二次整理后的可复用函数
 tools/                   独立辅助工具，例如 TT100K 转换
 ```
 
-`example/dataset_template.py` 是数据集调用脚本模板。复制后按数据集改名，在文件中直接导入 `example.functions` 的函数、填写数据路径并选择参数。这里不再保留通用数据集 runner，也不再需要 `run_ydm.py`；不同数据集之间通过不同的 example 文件隔离配置。
+`example/dataset_template.py` 是数据集调用脚本模板。复制后按数据集改名，在文件中直接创建 `YoloManager`、填写数据路径并选择参数。这里不再保留通用数据集 runner，也不再需要 `run_ydm.py`；不同数据集之间通过不同的 example 文件隔离配置。
 
 ## 当前功能分组
 
