@@ -150,7 +150,7 @@ def test_build_python_task_argv():
     assert "--backup-dir" in merge_argv
 
     attr_crop_argv = build_task_argv(
-        "ann.correct_attr_from_error_crops",
+        "ann.att_correct_from_error_crops",
         root=Path("dataset"),
         crops_dir=Path("attribute_crops"),
         name="defect",
@@ -1764,7 +1764,7 @@ def test_correct_gt_attributes_from_error_crops_updates_selected_gt_attribute(tm
 
     manager = YoloManager(root, layout="flat", task="detect", init_layout=False, init_check=False)
     manager_report = tmp_path / "manager_attribute_correction.csv"
-    assert manager.ann_correct_attr_from_error_crops(
+    assert manager.ann_att_correct_from_error_crops(
         crops,
         name="defect",
         value="no",

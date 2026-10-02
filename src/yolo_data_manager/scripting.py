@@ -36,7 +36,6 @@ TASK_COMMANDS: Mapping[str, tuple[str, ...]] = {
     "ann.apply_map": ("ann", "apply-map"),
     "ann.correct_from_crops": ("ann", "correct-from-crops"),
     "ann.correct_from_error_crops": ("ann", "correct-from-error-crops"),
-    "ann.correct_attr_from_error_crops": ("ann", "correct-attr-from-error-crops"),
     "ann.att_correct_from_error_crops": ("ann", "correct-attr-from-error-crops"),
     "ann.set_attr": ("ann", "set-attr"),
     "ann.delete_attr": ("ann", "delete-attr"),
@@ -260,7 +259,6 @@ _ROOT_TASKS: frozenset[str] = frozenset(
         "ann.apply_map",
         "ann.correct_from_crops",
         "ann.correct_from_error_crops",
-        "ann.correct_attr_from_error_crops",
         "ann.att_correct_from_error_crops",
         "ann.set_attr",
         "ann.delete_attr",
@@ -1492,37 +1490,6 @@ class YoloManager:
             backup_dir=backup_dir,
             dry_run=dry_run,
             only_val=only_val,
-            **kwargs,
-        )
-
-    def ann_correct_attr_from_error_crops(
-        self,
-        crops_dir: str | Path | Mapping[str | Path, Any],
-        name: str | None = None,
-        value: str | float | None = None,
-        **kwargs: Any,
-    ) -> int:
-        """Backward-compatible alias for :meth:`ann_att_correct_from_error_crops`."""
-
-        return self.ann_att_correct_from_error_crops(
-            crops_dir,
-            name,
-            value,
-            **kwargs,
-        )
-
-    def ann_correct_attribute_from_error_crops(
-        self,
-        crops_dir: str | Path,
-        name: str | None = None,
-        value: str | float | None = None,
-        **kwargs: Any,
-    ) -> int:
-        """Long-form alias for :meth:`ann_att_correct_from_error_crops`."""
-        return self.ann_att_correct_from_error_crops(
-            crops_dir,
-            name,
-            value,
             **kwargs,
         )
 

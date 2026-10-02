@@ -414,7 +414,7 @@ mgr.output_dataset_yaml
 
 当存在 `attribute.yaml`（或显式传入 `attribute_file`）时，`eval_error_analysis` 会在一对一匹配成功的同类框上逐属性比较，仅将属性值不一致或一侧缺失的结果写入 `attribute_error.csv`。`review=True` 时，属性错误会额外输出到 `review/attribute_error/attribute_<属性名>/gt_<GT值>_pred_<预测值>/images` 和 `crops`，并在每个 `attribute_<属性名>` 目录下生成 `confusion_matrix.png`（行是预测值，列是真值，包含正确匹配和错误匹配）；外部预测 label 目录没有属性 schema 时，应使用 GT 的 `attribute.yaml` 作为共享 schema。未匹配框仍只归入 class/geometry 错误，不会重复计为属性错误。
 
-属性错误 crop 文件名中的 `predX_gtY` 使用预测和 GT label 的 1-based 行号，例如 `sample_pred1_gt3_defect.jpg` 表示修改 `sample.txt` 的第 3 条 GT 标注。使用 `ann_att_correct_from_error_crops`（旧名 `ann_correct_attr_from_error_crops` 仍兼容）时传入目标属性 `name` 和目标值 `value`，它会递归处理选中的 crop，按 `gtY` 找到 GT 框并只修改该框的属性；类别和 geometry 不变。`crops_dir` 也支持“目录: 属性规则”的字典，可在一次任务中修改多个属性并共用一次备份。建议先使用 `dry_run=True`/`backup_dir` 检查并备份。
+属性错误 crop 文件名中的 `predX_gtY` 使用预测和 GT label 的 1-based 行号，例如 `sample_pred1_gt3_defect.jpg` 表示修改 `sample.txt` 的第 3 条 GT 标注。使用 `ann_att_correct_from_error_crops` 时传入目标属性 `name` 和目标值 `value`，它会递归处理选中的 crop，按 `gtY` 找到 GT 框并只修改该框的属性；类别和 geometry 不变。`crops_dir` 也支持“目录: 属性规则”的字典，可在一次任务中修改多个属性并共用一次备份。建议先使用 `dry_run=True`/`backup_dir` 检查并备份。
 
 `eval_error_analysis` 的 `class_` 只保留指定类别，`exclude_class_` 独立排除类别；两者可以同时使用。`min_width`、`min_height`、`min_area` 和 `min_pixels` 会同时过滤 GT 与预测，宽高/面积使用归一化 YOLO 尺寸，`min_pixels` 按像素宽度或高度判断；`min_size_logic` 支持 `"or"` 或 `"and"`，语义与 `anno_update_by_size` 一致。
 `class_rules` 可以按类别覆盖全局尺寸规则，格式为 `{类别: {"width": ..., "height": ..., "logic": "or" 或 "and"}}`；命中类别使用自己的规则，未命中类别继续使用全局参数。
@@ -483,7 +483,6 @@ mgr.output_dataset_yaml
 | `ann_correct_from_error_crops(crops_dir=..., to=...)` | `ydm ann correct-from-error-crops` |
 | `ann_att_correct_from_error_crops(crops_dir=..., name=..., value=...)` | `ydm ann correct-attr-from-error-crops` |
 | `ann_att_update_from_map({...})` | Python-only in-place attribute update |
-| `ann_correct_attr_from_error_crops(...)` | `ann_att_correct_from_error_crops` 的兼容别名 |
 | `ann_set_attr(name=..., value=..., ...)` | `ann_att_update_from_map` 的兼容接口 |
 | `ann_delete_attr(name=..., ...)` | `ydm ann delete-attr` |
 | `vis_draw(out=..., ...)` | `ydm vis draw` |

@@ -84,11 +84,11 @@ RUN_LIST = [
     "metric",
     "error_ana",
     "update_class",
+    "update_att",
     "filter_small",
     "mannual_draw",
     "update_class_from_anno",
     "update_class_from_pred",
-    "update_att_from_anno",
     "update_att_from_pred",
 ]
 
@@ -173,6 +173,8 @@ def main() -> None:
     # data update
     if "update_class" in RUN_LIST:
         ydm.ann_update_from_map(UPDATE_CLASS_MAP)
+    if "update_att" in RUN_LIST:
+        ydm.ann_att_update_from_map(UPDATE_CLASS_MAP)
     if "filter_small" in RUN_LIST:
         ydm.anno_update_by_size(
             min_pixels=50,
@@ -197,11 +199,6 @@ def main() -> None:
                 crops_dir=CROP_MAP_PRED,
                 pred_dir=pred_dir,
             )
-    if "update_att_from_anno" in RUN_LIST:
-        ydm.ann_correct_from_error_crops(
-            crops_dir=CROP_MAP_LABEL,
-        )
-
     if "update_att_from_pred" in RUN_LIST:
         for pred_name in PRED_NAMES:
             pred_dir = PRED_RUNS_DIR / pred_name / "labels"
