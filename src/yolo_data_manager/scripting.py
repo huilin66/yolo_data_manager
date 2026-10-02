@@ -1222,12 +1222,15 @@ class YoloManager:
                 raise ValueError("to must be omitted when crops_dir is a mapping")
             crops_dir = {str(path): target for path, target in crops_dir.items()}
         cli_target = None if crop_map_input else ("none" if to is None else to)
+        resolved_backup_dir = (
+            self.output_labels_backup if backup_dir is None else backup_dir
+        )
         return self._run(
             "ann.correct_from_crops",
             crops_dir=crops_dir,
             to=cli_target,
             report=report,
-            backup_dir=backup_dir,
+            backup_dir=resolved_backup_dir,
             dry_run=dry_run,
             only_val=only_val,
             **kwargs,

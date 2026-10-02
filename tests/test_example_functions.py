@@ -93,3 +93,20 @@ def test_yolo_manager_exposes_default_output_paths(tmp_path):
     assert manager.output_val == tmp_path / "val.txt"
     assert manager.output_test == tmp_path / "test.txt"
     assert manager.output_dataset_yaml == tmp_path / "dataset.yaml"
+
+
+def test_ann_correct_from_crops_uses_default_label_backup_dir(tmp_path):
+    manager = object.__new__(YoloManager)
+    manager.root = str(tmp_path)
+    captured = {}
+
+    def fake_run(task, **kwargs):
+        captured["task"] = task
+        captured.update(kwargs)
+        return 0
+
+    manager._run = fake_run
+
+    assert manager.ann_correct_from_crops(tmp_path / "crops", "person") == 0
+    assert captured["task"] == "ann.correct_from_crops"
+    assert captured["backup_dir"] == tmp_path / "labels_backup"
