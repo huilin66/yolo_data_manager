@@ -148,6 +148,7 @@ ydm dataset bad-images --root path/to/yolo --out bad_images.csv
 
 split 会打印总类别 box 数量和 val 类别 box 数量，方便检查验证集分布。
 `--train-include-list` 和 `--val-include-list` 可以传 txt 文件，也可以传逗号分隔的图片名/路径。指定的图片会先从随机池中排除，再强制加入对应 split；两个参数不能包含同一张图片。
+`--train`、`--val`、`--test` 必须是非负数，且总和接近 `1.0`；当 `--test 0` 时先按 train 比例分配 train，剩余图像全部进入 val。
 `split` 默认启用加权类别分布约束：先尽量让每个有标注的类别出现在每个非空 split 中，再让各类别的 box 数量接近 train/val/test 比例；当类别样本不足时，覆盖优先级为 train > test > val，`test=0` 时为 train > val。由于图像不能拆分、include list 固定分配或 split 容量不足，结果只能近似满足。`--seed` 控制随机顺序和并列决策；使用 `--no-ensure-class-presence` 可关闭。
 如果输出目录中已存在 `train.txt`、`val.txt` 或 `test.txt`，写入前会将其移动到 `<数据集根目录>/labels_backup/<时间戳>/`；可通过 `--backup-dir` 指定其他备份目录。
 

@@ -147,6 +147,9 @@ ydm dataset bad-images --root path/to/yolo --out bad_images.csv
 
 `dataset split` prints total box counts by class and validation box counts by class.
 `--train-include-list` and `--val-include-list` accept txt files or comma-separated image names/paths. Listed images are removed from the random pool before splitting and then forced into the corresponding split; the two parameters may not overlap.
+`--train`, `--val`, and `--test` must be non-negative and sum to approximately
+`1.0`. When `--test 0` is used, train is allocated first from the train ratio
+and all remaining images go to val.
 Weighted class balancing is enabled by default. It first tries to place every
 class with available examples in each non-empty split, then keeps each class's
 box count close to the requested train/val/test ratios. When class samples are

@@ -671,6 +671,40 @@ def test_split_dataset_can_write_absolute_paths(tmp_path):
     )
 
 
+def test_split_dataset_zero_test_ratio_never_assigns_test_images(tmp_path):
+    root = tmp_path / "zero_test_split"
+    (root / "images").mkdir(parents=True)
+    (root / "labels").mkdir(parents=True)
+    (root / "class.txt").write_text("object\n", encoding="utf-8")
+    for index in range(11):
+        image_name = f"image_{index:02d}.jpg"
+        Image.new("RGB", (20, 20), color="white").save(root / "images" / image_name)
+        (root / "labels" / f"image_{index:02d}.txt").write_text("", encoding="utf-8")
+
+    dataset = load_yolo_dataset(root)
+    for ensure_class_presence in (False, True):
+        splits = split_dataset(
+            dataset,
+            train=0.7,
+            val=0.3,
+            test=0.0,
+            seed=233,
+            ensure_class_presence=ensure_class_presence,
+        )
+        assert splits["test"] == []
+        assert len(splits["train"]) == 7
+        assert len(splits["val"]) == 4
+        assert len(splits["train"]) + len(splits["val"]) == 11
+
+
+def test_split_dataset_requires_ratios_to_sum_to_one(tmp_path):
+    root = make_dataset(tmp_path / "invalid_split_ratios")
+    dataset = load_yolo_dataset(root)
+
+    with pytest.raises(ValueError, match="sum to 1.0"):
+        split_dataset(dataset, train=0.8, val=0.3, test=0.0)
+
+
 def test_split_dataset_spreads_classes_across_nonempty_splits(tmp_path):
     root = tmp_path / "balanced_split"
     (root / "images").mkdir(parents=True)

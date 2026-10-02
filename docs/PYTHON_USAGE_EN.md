@@ -92,7 +92,9 @@ txt file with one image name/path per line. These images are removed from the
 random pool before splitting, then forced into train or val. The two lists may
 not overlap. Relative image paths are matched from the dataset root; bare file
 names and stems are also supported.
-`ensure_class_presence=True` (the default) uses weighted image-level
+`train`, `val`, and `test` must be non-negative and sum to approximately
+`1.0`. When `test=0`, train is allocated first using the train ratio and all
+remaining images go to val. `ensure_class_presence=True` (the default) uses weighted image-level
 multi-label assignment: it first spreads classes with available examples
 across each non-empty split, then keeps each class's box count close to the
 requested train/val/test ratios. When class samples are insufficient, coverage

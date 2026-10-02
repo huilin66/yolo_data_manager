@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import math
 import os
 import random
 from collections import Counter
@@ -25,12 +26,13 @@ def split_dataset(
     val_include_list: SplitIncludeList = None,
     ensure_class_presence: bool = True,
 ) -> dict[str, list[str]]:
-    total = train + val + test
-    if total <= 0:
-        raise ValueError("split ratios must sum to a positive value")
-    if min(train, val, test) < 0:
+    ratios = {"train": float(train), "val": float(val), "test": float(test)}
+    if not all(math.isfinite(value) for value in ratios.values()):
+        raise ValueError("split ratios must be finite numbers")
+    if min(ratios.values()) < 0:
         raise ValueError("split ratios must be non-negative")
-    ratios = {"train": train / total, "val": val / total, "test": test / total}
+    if not math.isclose(sum(ratios.values()), 1.0, rel_tol=0.0, abs_tol=1e-6):
+        raise ValueError("train + val + test split ratios must sum to 1.0")
     names = [
         str(image.path.resolve()) if absolute_paths else image.file_name
         for image in dataset.images
@@ -73,13 +75,15 @@ def split_dataset(
         )
     else:
         rng.shuffle(remaining_indices)
-        n = len(remaining_indices)
-        n_train = int(n * ratios["train"])
-        n_val = int(n * ratios["val"])
+        split_sizes = _allocate_split_sizes(len(remaining_indices), ratios)
+        n_train = split_sizes["train"]
+        n_val = split_sizes["val"]
         split_indices = {
             "train": train_indices + remaining_indices[:n_train],
             "val": val_indices + remaining_indices[n_train : n_train + n_val],
-            "test": remaining_indices[n_train + n_val :],
+            "test": remaining_indices[
+                n_train + n_val : n_train + n_val + split_sizes["test"]
+            ],
         }
 
     def output_names(indices: Iterable[int]) -> list[str]:
@@ -96,6 +100,17 @@ def _allocate_split_sizes(
     ratios: dict[str, float],
 ) -> dict[str, int]:
     """Allocate every image to a split without assigning data to zero ratios."""
+
+    if ratios.get("test", 0.0) == 0.0:
+        # With no test split, train is the only requested allocation and all
+        # rounding remainder belongs to val. This makes the zero-test rule
+        # explicit and prevents a third split from receiving leftovers.
+        train_size = int(count * ratios.get("train", 0.0))
+        return {
+            "train": train_size,
+            "val": count - train_size,
+            "test": 0,
+        }
 
     raw_sizes = {name: count * ratio for name, ratio in ratios.items()}
     sizes = {name: int(value) for name, value in raw_sizes.items()}
