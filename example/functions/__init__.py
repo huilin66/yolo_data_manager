@@ -15,7 +15,7 @@ from .data_split import yolo_split
 from .data_sta import yolo_sta
 from .data_resize import yolo_resize
 from .data_filename_remap import yolo_filename_remap
-from .data_update_class import DEFAULT_CLASS_MAP, yolo_update_class
+from .data_update_class import DEFAULT_CLASS_MAP, yolo_update_class, yolo_update_from_map
 from .data_vis import yolo_vis
 from .mdet_tools import (
     convert_depth_to_uint8,
@@ -56,6 +56,7 @@ __all__ = [
     "yolo_filename_remap",
     "yolo_update_by_label",
     "yolo_update_class",
+    "yolo_update_from_map",
     "yolo_update_attr_by_pred",
     "yolo_update_by_pred",
     "yolo_vis",

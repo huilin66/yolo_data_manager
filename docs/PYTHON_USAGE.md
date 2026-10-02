@@ -121,6 +121,16 @@ mgr.ann_delete_class(class_=["ignore"], out="yolo_clean", compact=True)
 mgr.ann_replace_class(from_=["old_name"], to="new_name", out="yolo_replaced")
 mgr.ann_rename_class(from_="cls_a", to="cls_b", out="yolo_renamed")
 mgr.ann_apply_map(map_file="class_map.yaml", out="yolo_mapped")
+mgr.ann_update_from_map(
+    {
+        "merge": {
+            "Hollow Confirmed": ["Hollow High Risk"],
+            "Hollow Suspected": ["Hollow Low Risk"],
+            "Leakage": ["Leakage High Risk"],
+        },
+        "drop": ["background", "Hollow High Risk Line"],
+    }
+)  # 原地更新；label 和 class 文件一起备份到 labels_backup
 mgr.ann_set_attr(name="defect", value="yes", class_=["sign"], out="yolo_attr")
 mgr.ann_delete_attr(name="quality", value=["bad"], out="yolo_clean")
 mgr.ann_correct_from_crops(
@@ -453,6 +463,7 @@ mgr.output_dataset_yaml
 | `ann_merge_class(from_=..., to=..., ...)` | `ydm ann merge-class` |
 | `ann_rename_class(from_=..., to=..., out=...)` | `ydm ann rename-class` |
 | `ann_apply_map(map_file=..., out=...)` | `ydm ann apply-map` |
+| `ann_update_from_map({...})` | Python-only in-place class update; backs up labels and class source |
 | `ann_correct_from_crops(crops_dir=..., to=...)` 或 `crops_dir={目录: 类别}` | `ydm ann correct-from-crops` |
 | `ann_correct_from_error_crops(crops_dir=..., to=...)` | `ydm ann correct-from-error-crops` |
 | `ann_correct_attr_from_error_crops(crops_dir=..., name=..., value=...)` | `ydm ann correct-attr-from-error-crops` |

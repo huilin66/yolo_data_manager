@@ -159,6 +159,26 @@ def _class_values(value: str | list[str]) -> list[str]:
     return list(value)
 
 
+def _write_updated_class_source(path: Path, class_names: Sequence[str]) -> None:
+    """Write updated names to a class text file or dataset YAML source."""
+
+    if path.suffix.lower() in {".yaml", ".yml"}:
+        data = read_dataset_yaml(path) if path.is_file() else {}
+        data["names"] = list(class_names)
+        data["nc"] = len(class_names)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            yaml.safe_dump(data, allow_unicode=True, sort_keys=False),
+            encoding="utf-8",
+        )
+        return
+
+    from yolo_data_manager.core.models import ClassSchema
+    from yolo_data_manager.core.schema import write_class_schema
+
+    write_class_schema(ClassSchema(list(class_names)), path)
+
+
 def _default_existing_path(root: str, name: str) -> str | None:
     path = Path(root) / name
     return str(path) if path.exists() else None
@@ -1198,6 +1218,131 @@ class YoloManager:
             report=report,
             **kwargs,
         )
+
+    def ann_update_from_map(
+        self,
+        class_map: Mapping[str, Any],
+        *,
+        compact: bool = True,
+        backup_dir: str | Path | None = None,
+        dry_run: bool = False,
+        report: str | Path | None = None,
+        workers: int = 8,
+        progress: bool = True,
+        progress_leave: bool = False,
+    ) -> int:
+        """Update the current dataset from a Python class-operation mapping.
+
+        Unlike :meth:`ann_apply_map`, this API does not read a YAML map and
+        updates the source labels and class schema in place. Before writing,
+        all source labels and the class schema are copied into one timestamped
+        backup under ``<dataset-root>/labels_backup`` by default.
+        """
+
+        if not isinstance(class_map, Mapping):
+            raise TypeError("class_map must be a mapping")
+
+        from yolo_data_manager.annotation.edit import EditReport
+        from yolo_data_manager.annotation.remap import apply_class_map_data
+        from yolo_data_manager.core.schema import find_class_source
+        from yolo_data_manager.io.backup import LabelBackup
+        from yolo_data_manager.io.loader import load_yolo_dataset, parse_label_file
+        from yolo_data_manager.core.models import YoloImage
+
+        dataset = load_yolo_dataset(
+            self.root,
+            images_dir=self.images_dir,
+            labels_dir=self.labels_dir,
+            class_file=self.class_file,
+            attribute_file=self.attribute_file,
+            task=self.task,
+            split_file=None,
+            only_val=False,
+            layout=self.layout,
+            workers=workers,
+            progress=progress,
+            progress_leave=progress_leave,
+        )
+        for orphan_label in dataset.orphan_labels:
+            dataset.images.append(
+                YoloImage(
+                    path=orphan_label,
+                    label_path=orphan_label,
+                    annotations=parse_label_file(
+                        orphan_label,
+                        task=dataset.task,
+                        attributes=dataset.attributes,
+                    ),
+                )
+            )
+
+        current, reports = apply_class_map_data(
+            dataset,
+            class_map,
+            compact=compact,
+        )
+        rows = []
+        for edit_report in reports:
+            rows.extend(edit_report.rows)
+        combined_report = EditReport(rows=rows)
+
+        if self.class_file is not None:
+            class_source = Path(self.class_file)
+            if not class_source.is_absolute() and not class_source.is_file():
+                class_source = Path(self.root) / class_source
+        else:
+            class_source = find_class_source(Path(self.root))
+        if class_source is None:
+            class_source = Path(self.root) / "class.txt"
+
+        backup = None
+        if not dry_run:
+            resolved_backup_dir = (
+                self.output_labels_backup if backup_dir is None else backup_dir
+            )
+            backup = LabelBackup(self.root, resolved_backup_dir)
+            for image in dataset.images:
+                if image.label_path is not None:
+                    backup.backup(image.label_path)
+            if class_source.is_file():
+                backup.backup(class_source)
+
+            for image in current.images:
+                if image.label_path is None:
+                    continue
+                lines = [
+                    annotation.to_yolo_line(include_confidence=False)
+                    for annotation in image.annotations
+                ]
+                image.label_path.parent.mkdir(parents=True, exist_ok=True)
+                image.label_path.write_text(
+                    "\n".join(lines) + ("\n" if lines else ""),
+                    encoding="utf-8",
+                )
+            _write_updated_class_source(class_source, current.classes.names)
+
+        report_path = Path(report) if report is not None else self.output_annotation / "update_from_map" / "edit_report.csv"
+        combined_report.write_csv(report_path)
+        print(
+            json.dumps(
+                {
+                    "changed": len(combined_report.rows),
+                    "deleted": sum(1 for row in combined_report.rows if row.action == "delete"),
+                    "classes": current.classes.names,
+                    "dry_run": dry_run,
+                    "backup_dir": (
+                        str(backup.snapshot_dir)
+                        if backup is not None and backup.count
+                        else None
+                    ),
+                    "backup_files": backup.count if backup is not None else 0,
+                    "report": str(report_path),
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        return 0
 
     def ann_correct_from_crops(
         self,

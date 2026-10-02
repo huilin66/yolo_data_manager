@@ -34,6 +34,7 @@ from yolo_data_manager.annotation.crop_correction import (
     correct_labels_from_crop_map,
     correct_labels_from_crops,
 )
+from yolo_data_manager.annotation.remap import apply_class_map_data
 from yolo_data_manager.multimodal_manager import MultiModalYoloManager
 from yolo_data_manager.scripting import YoloManager, build_task_argv, run_task
 from yolo_data_manager.stats.multimodal import compute_multimodal_stats, write_multimodal_stats_plots
@@ -75,6 +76,7 @@ __all__ = [
     "correct_labels_from_crop_map",
     "correct_gt_labels_from_error_crop_map",
     "correct_gt_labels_from_error_crops",
+    "apply_class_map_data",
     "draw_manual_box",
     "crop_multimodal_dataset",
     "format_metrics_table",

@@ -169,6 +169,9 @@ def main() -> None:
             )
 
     # data update
+    if "update_class" in RUN_LIST:
+        ydm.ann_update_from_map(UPDATE_CLASS_MAP)
+
     if "mannual_draw" in RUN_LIST:
         ydm.vis_manual_box(
             DATA_DIR,
@@ -183,13 +186,9 @@ def main() -> None:
     if "update_label_from_pred" in RUN_LIST:
         for pred_name in PRED_NAMES:
             pred_dir = PRED_RUNS_DIR / pred_name / "labels"
-            ydm.ann_correct_from_error_crops(
+            ydm.ann_update_from_map(
                 crops_dir=CROP_MAP_PRED,
-                pred_dir=pred_dir,
             )
-
-    # if "update_class" in RUN_LIST:
-    #     yolo_update_class(DATA_DIR, class_map=UPDATE_CLASS_MAP)
 
 
 if __name__ == "__main__":

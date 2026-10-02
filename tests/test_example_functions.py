@@ -2,6 +2,7 @@ from example.functions._manager import get_yolo_manager
 from example.functions.data_query import yolo_query_class
 from example.functions.data_resize import yolo_resize
 from example.functions.data_split import yolo_split
+from example.functions.data_update_class import yolo_update_class, yolo_update_from_map
 from yolo_data_manager import YoloManager
 
 
@@ -110,3 +111,23 @@ def test_ann_correct_from_crops_uses_default_label_backup_dir(tmp_path):
     assert manager.ann_correct_from_crops(tmp_path / "crops", "person") == 0
     assert captured["task"] == "ann.correct_from_crops"
     assert captured["backup_dir"] == tmp_path / "labels_backup"
+
+
+def test_example_class_update_uses_dictionary_manager_api(monkeypatch):
+    captured = {}
+
+    class FakeManager:
+        def ann_update_from_map(self, **kwargs):
+            captured.update(kwargs)
+            return 6
+
+    monkeypatch.setattr(
+        "example.functions.data_update_class.get_yolo_manager",
+        lambda *_args, **_kwargs: FakeManager(),
+    )
+
+    class_map = {"merge": {"defect": ["old"]}, "drop": ["ignore"]}
+    assert yolo_update_class("dataset", class_map=class_map) == 6
+    assert captured["class_map"] == class_map
+
+    assert yolo_update_from_map("dataset", class_map) == 6

@@ -267,6 +267,16 @@ mgr.ann_delete_class(class_=["ignore"], out="yolo_clean", compact=True)
 mgr.ann_replace_class(from_=["old_name"], to="new_name", out="yolo_replaced")
 mgr.ann_rename_class(from_="cls_a", to="cls_b", out="yolo_renamed")
 mgr.ann_apply_map(map_file="class_map.yaml", out="yolo_mapped")
+mgr.ann_update_from_map(
+    {
+        "merge": {
+            "Hollow Confirmed": ["Hollow High Risk"],
+            "Hollow Suspected": ["Hollow Low Risk"],
+            "Leakage": ["Leakage High Risk"],
+        },
+        "drop": ["background", "Hollow High Risk Line"],
+    }
+)  # In-place update; labels and the class source share one backup snapshot.
 mgr.ann_set_attr(name="defect", value="yes", class_=["sign"], out="yolo_attr")
 mgr.ann_delete_attr(name="quality", value=["bad"], out="yolo_clean")
 mgr.ann_correct_from_crops(
