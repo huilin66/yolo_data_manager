@@ -30,8 +30,10 @@ def yolo_split(
     Include values can be image names/paths, a comma-separated string, or a
     txt file containing one image name/path per line. Included images are
     removed from the random pool before the requested ratios are applied.
-    By default, the remaining images are assigned with a class-presence
-    balancing heuristic so classes are spread across every non-empty split.
+    By default, the remaining images are assigned with a weighted
+    class-presence and per-class box-count balancing heuristic. Classes are
+    spread across every non-empty split when possible, then box counts are
+    kept close to the requested ratios.
     """
 
     mgr = get_yolo_manager(dataset_input, layout="flat", init_check=False, init_layout=False)

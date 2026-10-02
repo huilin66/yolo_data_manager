@@ -716,6 +716,41 @@ def test_split_dataset_spreads_classes_between_train_and_val_when_test_is_zero(t
         assert all(count > 0 for count in counts.values())
 
 
+def test_split_dataset_balances_class_box_counts_after_presence_is_satisfied(tmp_path):
+    root = tmp_path / "box_balanced_split"
+    (root / "images").mkdir(parents=True)
+    (root / "labels").mkdir(parents=True)
+    (root / "class.txt").write_text("fence\nsign\n", encoding="utf-8")
+
+    # The first half contains fence and sign; the second half contains sign
+    # only. A presence-only algorithm can stop after placing one fence image
+    # in val. The upgraded strategy should keep the fence box count near the
+    # requested 80/20 ratio.
+    for index in range(100):
+        image_name = f"image_{index:03d}.jpg"
+        Image.new("RGB", (20, 20), color="white").save(root / "images" / image_name)
+        lines = ["1 0.5 0.5 0.4 0.4"]
+        if index < 50:
+            lines.insert(0, "0 0.5 0.5 0.2 0.2")
+        (root / "labels" / f"image_{index:03d}.txt").write_text(
+            "\n".join(lines) + "\n",
+            encoding="utf-8",
+        )
+
+    dataset = load_yolo_dataset(root)
+    splits = split_dataset(dataset, train=0.8, val=0.2, test=0.0, seed=233)
+    assert splits == split_dataset(dataset, train=0.8, val=0.2, test=0.0, seed=233)
+    train_counts = class_counts_for_images(dataset, splits["train"])
+    val_counts = class_counts_for_images(dataset, splits["val"])
+
+    assert len(splits["train"]) == 80
+    assert len(splits["val"]) == 20
+    assert abs(val_counts["fence"] - 10) <= 2
+    assert abs(val_counts["sign"] - 20) <= 2
+    assert abs(train_counts["fence"] - 40) <= 2
+    assert abs(train_counts["sign"] - 80) <= 2
+
+
 def test_split_dataset_prioritizes_train_then_test_for_rare_classes(tmp_path):
     root = tmp_path / "balanced_split_priority"
     (root / "images").mkdir(parents=True)

@@ -92,12 +92,14 @@ txt file with one image name/path per line. These images are removed from the
 random pool before splitting, then forced into train or val. The two lists may
 not overlap. Relative image paths are matched from the dataset root; bare file
 names and stems are also supported.
-`ensure_class_presence=True` (the default) uses a heuristic image-level
-assignment to spread every class with available examples across each non-empty
-split. When class samples are insufficient, coverage priority is train > test >
-val; when `test=0`, it is train > val. This is best effort: too few images for
-a class, forced include lists, or insufficient split capacity can make full
-coverage impossible. Pass `False` to disable it.
+`ensure_class_presence=True` (the default) uses weighted image-level
+multi-label assignment: it first spreads classes with available examples
+across each non-empty split, then keeps each class's box count close to the
+requested train/val/test ratios. When class samples are insufficient, coverage
+priority is train > test > val; when `test=0`, it is train > val. Because an
+image cannot be split, forced include lists and split capacity can make exact
+ratios or full coverage impossible. `seed` controls image ordering and ties,
+so the result is reproducible. Pass `False` to disable this strategy.
 If `train.txt`, `val.txt`, or `test.txt` already exists in the output directory,
 split moves it before writing into `<dataset-root>/labels_backup/<timestamp>/`;
 pass `backup_dir` to override the backup directory.

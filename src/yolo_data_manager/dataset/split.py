@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import os
 import random
+from collections import Counter
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -68,6 +69,7 @@ def split_dataset(
                 "test": [],
             },
             rng,
+            ratios,
         )
     else:
         rng.shuffle(remaining_indices)
@@ -116,85 +118,164 @@ def _assign_balanced_indices(
     split_sizes: dict[str, int],
     initial: dict[str, list[int]],
     rng: random.Random,
+    ratios: dict[str, float],
 ) -> dict[str, list[int]]:
-    """Assign images while greedily spreading rare classes across splits.
+    """Assign images with weighted, image-level multi-label stratification.
 
-    This is an image-level stratification heuristic: one image can satisfy the
-    presence requirement for every class annotated on it. Forced include-list
-    images are kept in their requested split and are included in the current
-    class-presence state before the remaining images are assigned. If a class
-    cannot be placed in every split, missing-class ties prefer train, then
-    test, then val.
+    An image cannot be split between datasets, so exact box-level ratios are
+    not always possible. The heuristic therefore uses two objectives:
+
+    * first, spread classes that are missing from a split; if there are not
+      enough images for every split, the deterministic priority is
+      ``train > test > val``;
+    * once a split already contains a class, assign the image to the split
+      that most reduces the squared deviation between its current box count
+      and the requested class-level target.
+
+    The image order and every tie are controlled by ``rng``. Include-list
+    images remain fixed and contribute to the initial presence and box-count
+    state, so the remaining images compensate for them where possible.
     """
 
-    image_classes = {
-        index: {annotation.class_id for annotation in dataset.images[index].annotations}
-        for index in set(remaining_indices).union(*initial.values())
+    split_names = ("train", "val", "test")
+    considered_indices = set(remaining_indices).union(*initial.values())
+    image_box_counts = {
+        index: Counter(
+            annotation.class_id
+            for annotation in dataset.images[index].annotations
+        )
+        for index in considered_indices
     }
-    class_image_counts: dict[int, int] = {}
-    for classes in image_classes.values():
-        for class_id in classes:
-            class_image_counts[class_id] = class_image_counts.get(class_id, 0) + 1
-    class_weights = {
+    class_box_totals: Counter[int] = Counter()
+    class_image_counts: Counter[int] = Counter()
+    for counts in image_box_counts.values():
+        class_box_totals.update(counts)
+        class_image_counts.update(counts.keys())
+
+    # Rare classes receive a stronger presence score. Box balancing itself is
+    # normalized by each class target below, so common and rare classes still
+    # get comparable ratio treatment after their first occurrence is placed.
+    class_presence_weights = {
         class_id: 1.0 / count
         for class_id, count in class_image_counts.items()
         if count > 0
     }
+    class_targets = {
+        split_name: {
+            class_id: total * ratio
+            for class_id, total in class_box_totals.items()
+        }
+        for split_name, ratio in ratios.items()
+    }
 
     split_indices = {
-        name: list(initial.get(name, []))
-        for name in ("train", "val", "test")
+        name: list(initial.get(name, [])) for name in split_names
     }
-    split_presence = {name: set() for name in split_indices}
+    split_presence = {name: set() for name in split_names}
+    split_box_counts: dict[str, Counter[int]] = {
+        name: Counter() for name in split_names
+    }
     for split_name, indices in split_indices.items():
         for index in indices:
-            split_presence[split_name].update(image_classes.get(index, set()))
+            counts = image_box_counts.get(index, Counter())
+            split_presence[split_name].update(counts.keys())
+            split_box_counts[split_name].update(counts)
 
     remaining_capacity = dict(split_sizes)
     rng.shuffle(remaining_indices)
     remaining_indices.sort(
-        key=lambda index: -sum(
-            class_weights.get(class_id, 0.0)
-            for class_id in image_classes.get(index, set())
+        key=lambda index: (
+            -sum(
+                class_presence_weights.get(class_id, 0.0)
+                for class_id in image_box_counts.get(index, {})
+            ),
+            -len(image_box_counts.get(index, {})),
         )
     )
-    assigned_remaining = {name: 0 for name in split_indices}
+    assigned_remaining = {name: 0 for name in split_names}
 
     for index in remaining_indices:
         available = [
-            name for name in ("train", "val", "test") if remaining_capacity[name] > 0
+            name for name in split_names if remaining_capacity.get(name, 0) > 0
         ]
         if not available:
             raise RuntimeError("split allocation did not leave a destination for every image")
         rng.shuffle(available)
-        classes = image_classes.get(index, set())
+        counts = image_box_counts.get(index, Counter())
 
-        def score(split_name: str) -> tuple[float, int, int, float]:
-            missing_weight = sum(
-                class_weights.get(class_id, 0.0)
-                for class_id in classes
+        def score(split_name: str) -> tuple[float, ...]:
+            missing_classes = [
+                class_id
+                for class_id in counts
                 if class_id not in split_presence[split_name]
+            ]
+            missing_weight = sum(
+                class_presence_weights.get(class_id, 0.0)
+                for class_id in missing_classes
             )
-            missing_count = sum(
-                1 for class_id in classes if class_id not in split_presence[split_name]
+            missing_count = len(missing_classes)
+            box_improvement = sum(
+                _squared_target_improvement(
+                    split_box_counts[split_name].get(class_id, 0),
+                    class_targets[split_name].get(class_id, 0.0),
+                    box_count,
+                )
+                for class_id, box_count in counts.items()
             )
-            fill_ratio = assigned_remaining[split_name] / max(
-                1, split_sizes[split_name]
+            target_images = max(1, split_sizes.get(split_name, 0))
+            current_images = assigned_remaining[split_name]
+            image_improvement = _squared_target_improvement(
+                current_images,
+                split_sizes.get(split_name, 0),
+                1,
             )
+            fill_ratio = current_images / target_images
+
+            if missing_count:
+                # Presence is a coverage constraint. The priority before the
+                # box score intentionally keeps the historical fallback for
+                # too-few examples: train, then test, then val.
+                return (
+                    1.0,
+                    missing_weight,
+                    float(missing_count),
+                    float(_SPLIT_PRIORITY[split_name]),
+                    box_improvement,
+                    image_improvement,
+                    -fill_ratio,
+                )
+            # Once coverage is satisfied, box-count deviation is the primary
+            # objective; this is what prevents one split from getting only a
+            # single instance of a class and then stopping.
             return (
-                missing_weight,
-                missing_count,
-                _SPLIT_PRIORITY[split_name],
+                0.0,
+                box_improvement,
+                image_improvement,
                 -fill_ratio,
+                float(_SPLIT_PRIORITY[split_name]),
             )
 
         split_name = max(available, key=score)
         split_indices[split_name].append(index)
-        split_presence[split_name].update(classes)
+        split_presence[split_name].update(counts.keys())
+        split_box_counts[split_name].update(counts)
         assigned_remaining[split_name] += 1
         remaining_capacity[split_name] -= 1
 
     return split_indices
+
+
+def _squared_target_improvement(
+    current: int,
+    target: float,
+    delta: int,
+) -> float:
+    """Return the reduction in normalized squared target error."""
+
+    scale = max(abs(target), 1.0)
+    before = ((current - target) / scale) ** 2
+    after = ((current + delta - target) / scale) ** 2
+    return before - after
 
 
 def _resolve_include_indices(

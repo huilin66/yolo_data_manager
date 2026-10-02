@@ -30,7 +30,7 @@ DATA_DIR = Path(r"E:\data\0417_signboard\mayolo_v3")
 # )
 PRED_IMG_DIR = Path(r"E:\data\0417_signboard\select\predictions_seed0_robustness\IMAGE")
 PRED_TXT_DIR = Path(
-    r"E:\data\0417_signboard\select\predictions_seed0_robustness\YOLOv10x\labels"
+    r"E:\data\0417_signboard\select\predictions_seed0_robustness\MAYOLOx\labels"
 )
 # PRED_RUNS_DIR = Path(r"//localnvme/project/ultralytics/runs/mdetect")
 PRED_RUNS_DIR = Path(r"/localnvme/project/isds_project/runs/mdetect")
@@ -90,7 +90,7 @@ def main() -> None:
             labels_dir=PRED_TXT_DIR,
             out=PRED_TXT_DIR.with_name("pred_vis"),
             show_conf=True,
-            conf=0.25,
+            conf=0.5,
             show_attrs=True,
             show_id=False,
         )

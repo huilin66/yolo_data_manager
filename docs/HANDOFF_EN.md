@@ -97,7 +97,7 @@ Semantic mask import conventions:
 
 - select/copy subset
 - split train/val/test
-- split enables `ensure_class_presence` by default and heuristically spreads annotated classes across each non-empty split; when samples are insufficient it prioritizes train/test/val, or train/val when `test=0`, and it can be disabled with `--no-ensure-class-presence` or `ensure_class_presence=False`
+- split enables `ensure_class_presence` by default: it first spreads annotated classes across each non-empty split, then approximately matches per-class box counts to the train/val/test ratios. When samples are insufficient it prioritizes train/test/val, or train/val when `test=0`. Because images are indivisible, include lists, image granularity, and capacity limits mean this is best effort; `seed` makes the result reproducible, and the strategy can be disabled with `--no-ensure-class-presence` or `ensure_class_presence=False`
 - merge datasets with class-name alignment
 - remap class ids
 - generate `dataset.yaml`

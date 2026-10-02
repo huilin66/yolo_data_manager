@@ -211,13 +211,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--ensure-class-presence",
         dest="ensure_class_presence",
         action="store_true",
-        help="spread classes across every non-empty requested split (default)",
+        help="balance per-class box counts across splits and spread classes when possible (default)",
     )
     dataset_split.add_argument(
         "--no-ensure-class-presence",
         dest="ensure_class_presence",
         action="store_false",
-        help="disable class-presence balancing",
+        help="disable class-presence and per-class box-count balancing",
     )
     dataset_split.set_defaults(ensure_class_presence=True)
     dataset_split.set_defaults(handler=handle_dataset_split)
