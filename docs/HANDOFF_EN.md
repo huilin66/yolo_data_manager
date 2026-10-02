@@ -193,6 +193,7 @@ Supported:
 - Dataset loading processes all data by default; use `--only-val` or Python `only_val=True` to limit processing to validation data. YAML `val` no longer implicitly limits ordinary statistics or visualization.
 - Added `ann correct-from-crops` / `ann_correct_from_crops`: locate source annotation rows from `vis_crop` filenames (`<image_stem>_<1-based index>`) and correct their classes in place; `to=None` (CLI `--to none`) deletes the annotation.
 - Added `ann correct-from-error-crops` / `ann_correct_from_error_crops`: use the y index in `xxx_predx_gty` filenames to locate and correct or delete GT rows; `predx` is review context only.
+- `ann_correct_from_error_crops` also accepts a `{crop_dir: target_class}` mapping, processes multiple error-crop directories in one task with one label-backup snapshot, and deletes the selected GT row for a `None` target; the single-directory `(crops_dir, to)` form remains compatible.
 - All GT-label writing entry points support `--backup-dir` / `backup_dir`: current input labels are copied into a timestamped snapshot before writing; the default directory is `labels_backup` under the dataset root; crop correction backs up only labels it changes, and `dry-run` creates no backup.
 - `vis crop` supports `padding`: integers expand each side by pixels, decimals expand each side by the box width/height ratio, and crops are clamped to image boundaries.
 - Added `--delete-pred-none` / `delete_pred_none=True`: force deletion of GT row y for `prednone_gty` crops, even when `--to` / `to` is an update class.

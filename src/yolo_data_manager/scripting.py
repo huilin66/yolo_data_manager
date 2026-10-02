@@ -1238,8 +1238,8 @@ class YoloManager:
 
     def ann_correct_from_error_crops(
         self,
-        crops_dir: str | Path,
-        to: str | int | None,
+        crops_dir: str | Path | Mapping[str | Path, str | int | None],
+        to: str | int | None = None,
         *,
         pred_dir: str | Path | None = None,
         dedup_iou: float | None = 0.5,
@@ -1251,8 +1251,21 @@ class YoloManager:
         only_val: bool | None = None,
         **kwargs: Any,
     ) -> int:
-        """Correct GT classes, replace GT rows, and optionally add predictions from error crops."""
-        cli_target = "none" if to is None else to
+        """Correct GT classes, replace GT rows, and optionally add predictions from error crops.
+
+        ``crops_dir`` may also be a mapping of ``error_crop_directory`` to
+        target class. Mapping mode processes all directories in one task and
+        uses one label-backup snapshot.
+        """
+        crop_map_input = isinstance(crops_dir, Mapping)
+        if crop_map_input:
+            if to is not None:
+                raise ValueError("to must be omitted when crops_dir is a mapping")
+            crops_dir = {str(path): target for path, target in crops_dir.items()}
+        cli_target = None if crop_map_input else ("none" if to is None else to)
+        resolved_backup_dir = (
+            self.output_labels_backup if backup_dir is None else backup_dir
+        )
         return self._run(
             "ann.correct_from_error_crops",
             crops_dir=crops_dir,
@@ -1262,7 +1275,7 @@ class YoloManager:
             replace_gt_from_pred=replace_gt_from_pred,
             to=cli_target,
             report=report,
-            backup_dir=backup_dir,
+            backup_dir=resolved_backup_dir,
             dry_run=dry_run,
             only_val=only_val,
             **kwargs,

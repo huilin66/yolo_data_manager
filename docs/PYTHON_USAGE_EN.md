@@ -285,6 +285,15 @@ mgr.ann_correct_from_crops(
     },
     backup_dir="label_backups",
 )
+# Correct GT classes selected by multiple error-analysis crop directories.
+mgr.ann_correct_from_error_crops(
+    crops_dir={
+        "ydm_evaluation/error_analysis/predict/review/pred_gt/pred_car_gt_background/crops": "defect",
+        "ydm_evaluation/error_analysis/predict/review/pred_gt/pred_person_gt_background/crops": "person",
+    },
+    pred_dir="ydm_evaluation/error_analysis/predict/review/pred_txt",
+    backup_dir="label_backups",
+)  # Process multiple error-crop directories in one backup session.
 # Set one attribute on GT boxes selected by attribute-error crops.
 mgr.ann_correct_attr_from_error_crops(
     crops_dir="ydm_evaluation/error_analysis/predict/review/attribute_error/attribute_defect/gt_yes_pred_no/crops",
@@ -300,6 +309,7 @@ Write operations output to a new directory. Commands that write GT label txt fil
 Pass `to=None` to delete the corresponding annotation instead of assigning a class.
 Pass `backup_dir="label_backups"` to override the default backup directory. If omitted, backups go to `<dataset-root>/labels_backup`. Each source txt is backed up at most once per run; `dry_run=True` creates no backup.
 Use `mgr.ann_correct_from_error_crops(...)` for `eval_error_analysis` crops; in `xxx_predx_gty`, the 1-based `y` locates the GT annotation. Provide `pred_dir` to append prediction txt record `x` for `gtnone` crops, without prediction confidence. Added predictions use same-class IoU deduplication (default `dedup_iou=0.5`) and keep the higher-confidence candidate.
+Its `crops_dir` can also be a `{directory: target_class}` mapping; omit `to` in mapping mode. All directories are processed in one task and use one label-backup snapshot. A `None` target deletes the selected GT row.
 The same `backup_dir` option applies to `ann_correct_from_error_crops`.
 Set `delete_pred_none=True` to delete the GT row `y` for `prednone_gty` crops even when `to` is an update class. For deletion-only crops, pass `to=None` and `delete_pred_none=True`.
 Set `replace_gt_from_pred=True` with `pred_dir` to replace GT row `y` completely with prediction row `x` for `predx_gty` crops; same-class overlapping replacements use `dedup_iou` and keep the higher-confidence prediction, while the suppressed duplicate GT row is deleted. `prednone_gty` is deleted and `predx_gtnone` is appended.

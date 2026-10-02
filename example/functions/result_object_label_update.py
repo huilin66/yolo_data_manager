@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 
 try:
@@ -12,8 +13,8 @@ except ImportError:  # Support direct execution of this module.
 
 def yolo_update_by_pred(
     dataset_input: YoloManagerInput,
-    crops_dir: str | Path,
-    to: str | int | None,
+    crops_dir: str | Path | Mapping[str | Path, str | int | None],
+    to: str | int | None = None,
     *,
     pred_dir: str | Path | None = None,
     dedup_iou: float | None = 0.5,
@@ -24,7 +25,11 @@ def yolo_update_by_pred(
     dry_run: bool = False,
     only_val: bool = False,
 ) -> int:
-    """Correct GT, delete GT, or add/replace predictions referenced by crops."""
+    """Correct GT, delete GT, or add/replace predictions referenced by crops.
+
+    ``crops_dir`` may be a mapping of error-crop directories to target classes
+    to process all corrections in one manager task.
+    """
 
     mgr = get_yolo_manager(
         dataset_input, layout="auto", init_check=False, init_layout=False

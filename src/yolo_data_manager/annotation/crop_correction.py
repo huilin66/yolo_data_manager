@@ -310,8 +310,8 @@ def _normalise_optional_target(value: int | str | None) -> int | str | None:
 
 def correct_gt_labels_from_error_crops(
     dataset: YoloDataset,
-    crops_dir: str | Path,
-    target_class: int | str | None,
+    crops_dir: str | Path | Mapping[str | Path, int | str | None],
+    target_class: int | str | None = None,
     *,
     pred_labels_dir: str | Path | None = None,
     dedup_iou: float | None = 0.5,
@@ -335,11 +335,111 @@ def correct_gt_labels_from_error_crops(
     When ``replace_gt_from_pred`` is true, ``predx_gty`` crops replace the
     complete GT line with prediction ``x`` (class and geometry), while
     ``prednone_gty`` crops are deleted and ``predx_gtnone`` crops are appended.
+    ``crops_dir`` may alternatively be a mapping of error-analysis crop
+    directories to target classes; all directories are processed in one
+    backup session.
     """
 
-    crop_root = Path(crops_dir)
-    if not crop_root.is_dir():
-        raise FileNotFoundError(f"error-analysis crop directory not found: {crop_root}")
+    if isinstance(crops_dir, Mapping):
+        if target_class is not None:
+            raise ValueError("target_class must be omitted when crops_dir is a mapping")
+        return correct_gt_labels_from_error_crop_map(
+            dataset,
+            crops_dir,
+            pred_labels_dir=pred_labels_dir,
+            dedup_iou=dedup_iou,
+            delete_pred_none=delete_pred_none,
+            replace_gt_from_pred=replace_gt_from_pred,
+            backup_dir=backup_dir,
+            dry_run=dry_run,
+        )
+
+    return _correct_gt_labels_from_error_crop_specs(
+        dataset,
+        [(Path(crops_dir), None)],
+        target_class=target_class,
+        pred_labels_dir=pred_labels_dir,
+        dedup_iou=dedup_iou,
+        delete_pred_none=delete_pred_none,
+        replace_gt_from_pred=replace_gt_from_pred,
+        backup_dir=backup_dir,
+        dry_run=dry_run,
+    )
+
+
+def correct_gt_labels_from_error_crop_map(
+    dataset: YoloDataset,
+    crops_to_classes: Mapping[str | Path, int | str | None],
+    *,
+    pred_labels_dir: str | Path | None = None,
+    dedup_iou: float | None = 0.5,
+    delete_pred_none: bool = False,
+    replace_gt_from_pred: bool = False,
+    backup_dir: str | Path | None = None,
+    dry_run: bool = False,
+) -> tuple[CropCorrectionResult, EditReport]:
+    """Apply several error-crop class corrections in one backup session.
+
+    ``crops_to_classes`` maps each ``eval_error_analysis`` crop directory to
+    the class assigned to its selected GT boxes. ``None`` deletes the selected
+    GT box. Prediction-backed append/replace behavior remains controlled by
+    ``pred_labels_dir`` and the other correction options.
+    """
+
+    if not crops_to_classes:
+        raise ValueError("crops_to_classes must contain at least one crop directory")
+
+    crop_specs: list[tuple[Path, int | None]] = []
+    target_class_by_target: dict[tuple[str, int], int | None] = {}
+    target_specs: dict[str, dict[str, object]] = {}
+    for raw_crop_dir, raw_target in crops_to_classes.items():
+        crop_root = Path(raw_crop_dir)
+        if not crop_root.is_dir():
+            raise FileNotFoundError(
+                f"error-analysis crop directory not found: {crop_root}"
+            )
+        target_value = _normalise_optional_target(raw_target)
+        target_id = (
+            dataset.class_id(target_value) if target_value is not None else None
+        )
+        crop_specs.append((crop_root, target_id))
+        target_specs[str(crop_root)] = {
+            "target_class_id": target_id,
+            "target_class_name": (
+                dataset.class_name(target_id) if target_id is not None else None
+            ),
+        }
+
+    return _correct_gt_labels_from_error_crop_specs(
+        dataset,
+        crop_specs,
+        target_class=None,
+        target_class_by_target=target_class_by_target,
+        target_specs=target_specs,
+        pred_labels_dir=pred_labels_dir,
+        dedup_iou=dedup_iou,
+        delete_pred_none=delete_pred_none,
+        replace_gt_from_pred=replace_gt_from_pred,
+        backup_dir=backup_dir,
+        dry_run=dry_run,
+    )
+
+
+def _correct_gt_labels_from_error_crop_specs(
+    dataset: YoloDataset,
+    crop_specs: list[tuple[Path, int | None]],
+    *,
+    target_class: int | str | None,
+    target_class_by_target: dict[tuple[str, int], int | None] | None = None,
+    target_specs: dict[str, dict[str, object]] | None = None,
+    pred_labels_dir: str | Path | None,
+    dedup_iou: float | None,
+    delete_pred_none: bool,
+    replace_gt_from_pred: bool,
+    backup_dir: str | Path | None,
+    dry_run: bool,
+) -> tuple[CropCorrectionResult, EditReport]:
+
     if dedup_iou is not None and not 0.0 < float(dedup_iou) <= 1.0:
         raise ValueError("dedup_iou must be between 0 and 1, or None to disable deduplication")
 
@@ -349,29 +449,36 @@ def correct_gt_labels_from_error_crops(
     forced_delete_targets: set[tuple[str, int]] = set()
     crop_files = 0
     invalid_crops: list[str] = []
-    for crop_path in sorted(crop_root.rglob("*")):
-        if not crop_path.is_file() or not is_image_file(crop_path):
-            continue
-        crop_files += 1
-        parsed = _parse_error_crop_name(crop_path)
-        if parsed is None:
-            invalid_crops.append(str(crop_path))
-            continue
-        stem, pred_index, gt_index = parsed
-        if gt_index is None:
-            if pred_index is None:
-                invalid_crops.append(str(crop_path))
-            else:
-                prediction_targets.setdefault((stem, pred_index), []).append(crop_path)
-            continue
-        if replace_gt_from_pred and pred_index is not None:
-            replacement_targets.setdefault((stem, gt_index), []).append(
-                (pred_index, crop_path)
+    for crop_root, mapped_target_id in crop_specs:
+        if not crop_root.is_dir():
+            raise FileNotFoundError(
+                f"error-analysis crop directory not found: {crop_root}"
             )
-            continue
-        if (delete_pred_none or replace_gt_from_pred) and pred_index is None:
-            forced_delete_targets.add((stem, gt_index))
-        targets.setdefault((stem, gt_index), []).append(crop_path)
+        for crop_path in sorted(crop_root.rglob("*")):
+            if not crop_path.is_file() or not is_image_file(crop_path):
+                continue
+            crop_files += 1
+            parsed = _parse_error_crop_name(crop_path)
+            if parsed is None:
+                invalid_crops.append(str(crop_path))
+                continue
+            stem, pred_index, gt_index = parsed
+            if gt_index is None:
+                if pred_index is None:
+                    invalid_crops.append(str(crop_path))
+                else:
+                    prediction_targets.setdefault((stem, pred_index), []).append(crop_path)
+                continue
+            if replace_gt_from_pred and pred_index is not None:
+                replacement_targets.setdefault((stem, gt_index), []).append(
+                    (pred_index, crop_path)
+                )
+                continue
+            if (delete_pred_none or replace_gt_from_pred) and pred_index is None:
+                forced_delete_targets.add((stem, gt_index))
+            targets.setdefault((stem, gt_index), []).append(crop_path)
+            if target_class_by_target is not None:
+                target_class_by_target[(stem, gt_index)] = mapped_target_id
 
     backup = LabelBackup(dataset.root, backup_dir) if not dry_run else None
     result, edit_report = _correct_target_map(
@@ -381,6 +488,7 @@ def correct_gt_labels_from_error_crops(
         crop_files=crop_files,
         invalid_crops=invalid_crops,
         image_key=lambda image: _safe_file_name(image.stem),
+        target_class_by_target=target_class_by_target,
         replacement_targets=replacement_targets,
         pred_labels_dir=pred_labels_dir,
         dedup_iou=dedup_iou,
@@ -388,6 +496,8 @@ def correct_gt_labels_from_error_crops(
         forced_delete_targets=forced_delete_targets,
         dry_run=dry_run,
     )
+    if target_specs is not None:
+        result.target_classes = target_specs
     result.unique_targets += len(prediction_targets)
     result.duplicate_targets += sum(
         max(0, len(paths) - 1) for paths in prediction_targets.values()

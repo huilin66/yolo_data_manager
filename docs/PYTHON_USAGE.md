@@ -152,6 +152,14 @@ mgr.ann_correct_from_error_crops(
     backup_dir="label_backups",
     dry_run=True,
 )
+mgr.ann_correct_from_error_crops(
+    crops_dir={
+        "result_ana/val-52/review/pred_gt/pred_car_gt_background/crops": "defect",
+        "result_ana/val-52/review/pred_gt/pred_person_gt_background/crops": "person",
+    },
+    pred_dir="result_ana/val-52/review/pred_txt",
+    backup_dir="label_backups",
+)  # 多个错误 crop 目录一次处理，只创建一个备份快照
 # 按选中的属性错误 crop 修改对应 GT 框的属性，不改类别和 geometry
 mgr.ann_correct_attr_from_error_crops(
     crops_dir="result_ana/val-52/review/attribute_error/attribute_defect/gt_yes_pred_no/crops",

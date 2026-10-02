@@ -416,7 +416,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="update GT classes from eval_error_analysis pred_gt filenames",
     )
     add_dataset_args(correct_error_crops)
-    correct_error_crops.add_argument("--crops-dir", required=True, help="directory containing pred_gt crop images")
+    correct_error_crops.add_argument(
+        "--crops-dir",
+        required=True,
+        help="pred_gt crop directory, or a JSON object mapping directories to target classes",
+    )
     correct_error_crops.add_argument(
         "--backup-dir",
         default=None,
@@ -445,7 +449,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="replace GT y with prediction x for predx_gty crops",
     )
-    correct_error_crops.add_argument("--to", dest="to_value", required=True, help="target class id/name; use none/null to delete the GT annotation")
+    correct_error_crops.add_argument(
+        "--to",
+        dest="to_value",
+        required=False,
+        help="target class id/name; use none/null to delete; omit when --crops-dir is a JSON mapping",
+    )
     correct_error_crops.add_argument("--report", default=None, help="edit report CSV; defaults to ydm_annotation/correct_from_error_crops/edit_report.csv")
     correct_error_crops.add_argument("--dry-run", action="store_true", help="report changes without modifying labels")
     correct_error_crops.set_defaults(handler=handle_correct_from_error_crops, _output_operation="correct_from_error_crops")
@@ -1466,10 +1475,21 @@ def handle_correct_from_crops(args: argparse.Namespace) -> int:
 
 def handle_correct_from_error_crops(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
+    crop_map = _parse_crop_class_map(args.crops_dir)
+    if crop_map is not None:
+        if args.to_value is not None:
+            raise ValueError("--to cannot be used when --crops-dir is a JSON mapping")
+        target_class = None
+        crops_input = crop_map
+    else:
+        if args.to_value is None:
+            raise ValueError("--to is required unless --crops-dir is a JSON mapping")
+        target_class = _parse_optional_class_value(args.to_value)
+        crops_input = args.crops_dir
     result, edit_report = correct_gt_labels_from_error_crops(
         dataset,
-        args.crops_dir,
-        _parse_optional_class_value(args.to_value),
+        crops_input,
+        target_class,
         pred_labels_dir=getattr(args, "pred_dir", None),
         dedup_iou=getattr(args, "dedup_iou", 0.5),
         delete_pred_none=getattr(args, "delete_pred_none", False),

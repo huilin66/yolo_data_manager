@@ -17,10 +17,6 @@ if __package__ in (None, ""):
     project_root = Path(__file__).resolve().parents[1]
     if str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
-from example.functions import (
-    yolo_update_by_pred,
-    yolo_update_class,
-)
 from yolo_data_manager import YoloManager
 
 # HMT_V2_DIR = r"/localnvme/data/bdd_hmt/hmt_t_update_v2"
@@ -101,13 +97,11 @@ RUN_LIST = [
     "sta",
     "vis_draw",
     "vis_crop",
-    "mannual_draw",
-    # "metric",
-    # "error_ana",
-    # "update",
-    # "draw",
-    # "update_class_by_pred",
-    # "update_class_by_label",
+    "metric",
+    "error_ana",
+    # "mannual_draw",
+    # "update_label_from_anno",
+    # "update_label_from_pred",
 ]
 
 
@@ -176,22 +170,26 @@ def main() -> None:
 
     # data update
     if "mannual_draw" in RUN_LIST:
-        ydm.vis_manual_box(DATA_DIR, "DJI_20260211161740_1654.png")
+        ydm.vis_manual_box(
+            DATA_DIR,
+            "DJI_20260211161740_1654.png",
+        )
 
-    if "update_class_by_label" in RUN_LIST:
-        ydm.ann_correct_from_crops(crops_dir=CROP_MAP_LABEL)
+    if "update_label_from_anno" in RUN_LIST:
+        ydm.ann_correct_from_crops(
+            crops_dir=CROP_MAP_LABEL,
+        )
 
-    if "update_class_by_pred" in RUN_LIST:
-        for crops_dir, target_class in CROP_MAP_PRED.items():
-            yolo_update_by_pred(
-                DATA_DIR,
-                crops_dir=crops_dir,
-                to=target_class,
-                pred_dir=PRED_DIR,
+    if "update_label_from_pred" in RUN_LIST:
+        for pred_name in PRED_NAMES:
+            pred_dir = PRED_RUNS_DIR / pred_name / "labels"
+            ydm.ann_correct_from_error_crops(
+                crops_dir=CROP_MAP_PRED,
+                pred_dir=pred_dir,
             )
 
-    if "update_class" in RUN_LIST:
-        yolo_update_class(DATA_DIR, class_map=UPDATE_CLASS_MAP)
+    # if "update_class" in RUN_LIST:
+    #     yolo_update_class(DATA_DIR, class_map=UPDATE_CLASS_MAP)
 
 
 if __name__ == "__main__":
