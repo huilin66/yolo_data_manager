@@ -20,6 +20,8 @@
 6. 并行任务收到 `Ctrl+C` 时必须取消尚未开始的工作，清理进度显示并立即向调用方传播中断；不得因线程池退出等待整个待处理队列。已生成的输出可保留，后续任务不再继续。
 7. 多模态图像可混有不同格式、模式和位深；`check()` 必须报告每个模态的源图像类型计数。需要显示型转换时，只能写入新的输出目录；`uint16` 等非 `uint8` 图像须显式拉伸或指定固定值域后再转换，不能直接当作 RGB 显示。
 
+8. 所有 CLI 和 YoloManager 操作都要记录开始、结束、耗时和异常；默认日志按本地日期写入数据集根目录的 ydm_log/YYYY-MM-DD.log，控制台操作提示带本地时间戳。
+
 ## 默认输出路径与模态边界
 
 数据集根目录下的默认输出分组为：
@@ -33,6 +35,7 @@ ydm_evaluation/      compare、review_pack、error_analysis、metrics
 ydm_dataset/         select、normalize、filter、merge
 ydm_annotation/      标注编辑输出和 report
 ydm_conversion/      格式导入导出、任务转换
+ydm_log/              按日期保存的操作日志（YYYY-MM-DD.log）
 train.txt/val.txt/test.txt、dataset.yaml  保留在根目录
 ```
 

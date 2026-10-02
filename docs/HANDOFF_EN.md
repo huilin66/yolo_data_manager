@@ -17,6 +17,8 @@ Core principles:
 3. Import/export modules own format boundaries and should not duplicate business logic.
 4. Write operations default to a new output directory and should not modify the source dataset in place; default analysis outputs use `ydm_`-prefixed functional groups.
 
+5. Every CLI and YoloManager operation records its start, completion, duration, and exception status. By default, local-date logs are written to ydm_log/YYYY-MM-DD.log under the dataset root, and console operation messages include a local timestamp.
+
 ## Default Output Paths and Modality Boundary
 
 The default output groups below a dataset root are:
@@ -30,6 +32,7 @@ ydm_evaluation/      compare, review_pack, error_analysis, metrics
 ydm_dataset/         select, normalize, filter, merge
 ydm_annotation/      annotation edits and reports
 ydm_conversion/      format import/export and task conversions
+ydm_log/              daily operation logs (YYYY-MM-DD.log)
 train.txt/val.txt/test.txt, dataset.yaml  remain at the dataset root
 ```
 

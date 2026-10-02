@@ -82,6 +82,7 @@ The Python API and CLI use the same defaults. Explicit `out`, `csv`, or `plots_d
 <root>/ydm_dataset/         select, normalize, filter, merge
 <root>/ydm_annotation/      annotation-edit outputs and edit_report.csv
 <root>/ydm_conversion/      format import/export and task conversions
+<root>/ydm_log/             daily operation logs YYYY-MM-DD.log
 <root>/train.txt, val.txt, test.txt, dataset.yaml
 ```
 
@@ -124,6 +125,7 @@ mgr.output_stats
 mgr.output_basic_info
 mgr.output_vis
 mgr.output_evaluation
+mgr.output_log
 mgr.output_labels_backup
 mgr.output_dataset_yaml
 ```

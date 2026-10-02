@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sys
 from collections.abc import Mapping, Sequence
+from functools import wraps
 from pathlib import Path
 
 from yolo_data_manager.core.models import TASK_AUTO
@@ -10,6 +11,7 @@ from yolo_data_manager.core.multimodal import AlignmentReport, MultimodalYoloDat
 from yolo_data_manager.io.image_conversion import convert_multimodal_images_to_uint8
 from yolo_data_manager.io.multimodal import load_multimodal_yolo_dataset
 from yolo_data_manager.io.output_paths import ydm_dir
+from yolo_data_manager.logging_utils import operation_scope
 from yolo_data_manager.stats.multimodal import (
     compute_multimodal_stats,
     write_multimodal_stats_plots,
@@ -19,6 +21,22 @@ from yolo_data_manager.vis.multimodal import (
     crop_multimodal_dataset,
     render_multimodal_dataset,
 )
+
+
+def _logged_operation(operation: str):
+    def decorator(function):
+        @wraps(function)
+        def wrapped(self, *args, **kwargs):
+            with operation_scope(
+                self.root,
+                operation,
+                {"positional": args, "parameters": kwargs},
+            ):
+                return function(self, *args, **kwargs)
+
+        return wrapped
+
+    return decorator
 
 
 class MultiModalYoloManager:
@@ -74,6 +92,12 @@ class MultiModalYoloManager:
     def alignment_report(self) -> AlignmentReport:
         return self.load().alignment_report
 
+    @property
+    def output_log(self) -> Path:
+        """Default daily operation-log directory."""
+
+        return self.root / "ydm_log"
+
     def load(
         self,
         *,
@@ -101,6 +125,7 @@ class MultiModalYoloManager:
             )
         return self._dataset
 
+    @_logged_operation("multimodal_check")
     def check(
         self,
         *,
@@ -127,6 +152,7 @@ class MultiModalYoloManager:
         _print_check_summary(payload, report_path)
         return payload
 
+    @_logged_operation("multimodal_stats")
     def stats(
         self,
         *,
@@ -151,6 +177,7 @@ class MultiModalYoloManager:
         print(json.dumps(payload, indent=2, ensure_ascii=False))
         return payload
 
+    @_logged_operation("multimodal_convert_to_uint8")
     def convert_to_uint8(
         self,
         out: str | Path | None = None,
@@ -190,6 +217,7 @@ class MultiModalYoloManager:
         print(json.dumps(payload, indent=2, ensure_ascii=False))
         return payload
 
+    @_logged_operation("multimodal_vis_draw")
     def vis_draw(
         self,
         out: str | Path | None = None,
@@ -238,6 +266,7 @@ class MultiModalYoloManager:
         )
         return counts
 
+    @_logged_operation("multimodal_vis_crop")
     def vis_crop(
         self,
         out: str | Path | None = None,

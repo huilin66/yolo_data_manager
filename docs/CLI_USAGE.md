@@ -66,6 +66,7 @@ python -m yolo_data_manager.cli check --root path/to/yolo
   ydm_dataset/                           # select、normalize、filter、merge
   ydm_annotation/                        # 各类标注编辑输出和 report
   ydm_conversion/                        # coco、xanylabeling、import、seg2det、pseudo
+  ydm_log/                               # 按日期保存的操作日志 YYYY-MM-DD.log
   train.txt / val.txt / test.txt         # split 仍写在数据集根目录
   dataset.yaml                            # 默认仍写在数据集根目录
 ```

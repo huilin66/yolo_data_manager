@@ -86,6 +86,7 @@ from yolo_data_manager.evaluation.metrics import (
     write_size_metrics_csv,
 )
 from yolo_data_manager.evaluation.review_pack import write_review_pack
+from yolo_data_manager.logging_utils import now_text, operation_scope, resolve_log_root
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -94,7 +95,64 @@ def main(argv: list[str] | None = None) -> int:
     if not hasattr(args, "handler"):
         parser.print_help()
         return 1
-    return args.handler(args)
+    operation = _operation_name(args)
+    with operation_scope(
+        _operation_log_root(args),
+        operation,
+        vars(args),
+    ):
+        return args.handler(args)
+
+
+def _operation_name(args: argparse.Namespace) -> str:
+    """Build a stable human-readable name from CLI subparser fields."""
+
+    command = getattr(args, "command", None)
+    if not command:
+        return getattr(args, "_output_operation", "operation")
+    leaf = getattr(args, "_output_operation", None)
+    if leaf is None:
+        for key, value in vars(args).items():
+            if key.endswith("_command") and value:
+                leaf = value
+                break
+    if leaf:
+        return f"{command}.{str(leaf).replace('-', '_')}"
+    return str(command)
+
+
+def _operation_log_root(args: argparse.Namespace) -> Path:
+    """Choose the dataset root that owns the daily operation log."""
+
+    for name in ("root", "gt_root", "data_root"):
+        value = getattr(args, name, None)
+        if value:
+            return resolve_log_root(value)
+
+    roots = getattr(args, "roots", None)
+    if roots:
+        first = str(roots).split(",", 1)[0].strip()
+        if first:
+            return resolve_log_root(first)
+
+    for name in (
+        "json_dir",
+        "json_path",
+        "annotations_dir",
+        "images_dir",
+        "masks_dir",
+    ):
+        value = getattr(args, name, None)
+        if not value:
+            continue
+        path = Path(value).expanduser()
+        return path.parent
+
+    value = getattr(args, "out", None)
+    if value:
+        path = Path(value).expanduser()
+        return path.parent if path.suffix else path
+    return Path.cwd()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -2466,7 +2524,7 @@ def _emit_json(payload: dict[str, object], out: str | None) -> None:
 
 
 def _print_status(tag: str, message: str) -> None:
-    print(f"\033[36m[{tag}] {message}\033[0m", file=sys.stderr)
+    print(f"\033[36m[{now_text()}] [{tag}] {message}\033[0m", file=sys.stderr)
 
 
 def _print_check_summary(payload: dict[str, object], out: str) -> None:
@@ -2482,15 +2540,15 @@ def _print_check_summary(payload: dict[str, object], out: str) -> None:
         color = "\033[31m"
         reset = "\033[0m"
         print(
-            f"{color}[CHECK WARNING] errors={error_count}, warnings={warning_count}, "
+            f"{color}[{now_text()}] [CHECK WARNING] errors={error_count}, warnings={warning_count}, "
             f"missing_txt_created={created_count}. Full report: {out}{reset}",
             file=sys.stderr,
         )
         for key, count in sorted(issue_counts.items(), key=lambda item: (not str(item[0]).startswith("error:"), str(item[0]))):
-            print(f"{color}  {key}: {count}{reset}", file=sys.stderr)
+            print(f"{color}[{now_text()}]  {key}: {count}{reset}", file=sys.stderr)
         return
 
-    print(f"\033[32m[CHECK OK] no issues. Full report: {out}\033[0m", file=sys.stderr)
+    print(f"\033[32m[{now_text()}] [CHECK OK] no issues. Full report: {out}\033[0m", file=sys.stderr)
 
 
 if __name__ == "__main__":

@@ -6,6 +6,7 @@ import json
 import os
 import tempfile
 from collections.abc import Mapping, Sequence
+from functools import wraps
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,7 @@ import yaml
 
 from yolo_data_manager.core.schema import read_dataset_yaml
 from yolo_data_manager.io.output_paths import ydm_dir
+from yolo_data_manager.logging_utils import operation_scope
 
 TASK_COMMANDS: Mapping[str, tuple[str, ...]] = {
     "check": ("check",),
@@ -277,6 +279,24 @@ _ROOT_TASKS: frozenset[str] = frozenset(
 )
 
 
+def _logged_direct_operation(operation: str):
+    """Add the same operation logging used by CLI-backed manager methods."""
+
+    def decorator(function):
+        @wraps(function)
+        def wrapped(self, *args, **kwargs):
+            with operation_scope(
+                self.root,
+                operation,
+                {"positional": args, "parameters": kwargs},
+            ):
+                return function(self, *args, **kwargs)
+
+        return wrapped
+
+    return decorator
+
+
 class YoloManager:
     """Stateful manager that remembers the dataset root and common settings.
 
@@ -392,6 +412,12 @@ class YoloManager:
         """Default timestamped label-backup directory."""
 
         return Path(self.root) / "labels_backup"
+
+    @property
+    def output_log(self) -> Path:
+        """Default daily operation-log directory."""
+
+        return Path(self.root) / "ydm_log"
 
     @property
     def output_train(self) -> Path:
@@ -659,6 +685,7 @@ class YoloManager:
             **kwargs,
         )
 
+    @_logged_direct_operation("generate_attribute_com")
     def generate_attribute_com(
         self,
         *,
@@ -730,6 +757,7 @@ class YoloManager:
             **kwargs,
         )
 
+    @_logged_direct_operation("merge_manual_groups")
     def merge_manual_groups(
         self,
         *,
@@ -758,6 +786,7 @@ class YoloManager:
         )
         return merge_groups(args)
 
+    @_logged_direct_operation("split_by_manual_group")
     def split_by_manual_group(
         self,
         *,
@@ -1057,20 +1086,30 @@ class YoloManager:
         """Merge source classes into one (``ydm ann merge-class``)."""
         if isinstance(from_, Mapping):
             requested_only_val = kwargs.pop("only_val", None)
-            return self._ann_merge_class_map(
-                from_,
-                out=out,
-                compact=compact,
-                copy_images=copy_images,
-                keep_empty_labels=keep_empty_labels,
-                backup_dir=backup_dir,
-                dry_run=dry_run,
-                report=report,
-                workers=workers,
-                progress=progress,
-                progress_leave=progress_leave,
-                only_val=requested_only_val,
-            )
+            with operation_scope(
+                self.root,
+                "ann_merge_class",
+                {
+                    "from": from_,
+                    "out": out,
+                    "dry_run": dry_run,
+                    "only_val": requested_only_val,
+                },
+            ):
+                return self._ann_merge_class_map(
+                    from_,
+                    out=out,
+                    compact=compact,
+                    copy_images=copy_images,
+                    keep_empty_labels=keep_empty_labels,
+                    backup_dir=backup_dir,
+                    dry_run=dry_run,
+                    report=report,
+                    workers=workers,
+                    progress=progress,
+                    progress_leave=progress_leave,
+                    only_val=requested_only_val,
+                )
         if to is None:
             raise ValueError("to is required when from_ is not a merge mapping")
         return self._run(
@@ -1231,6 +1270,7 @@ class YoloManager:
             **kwargs,
         )
 
+    @_logged_direct_operation("ann_update_from_map")
     def ann_update_from_map(
         self,
         class_map: Mapping[str, Any],
@@ -1555,6 +1595,7 @@ class YoloManager:
             **kwargs,
         )
 
+    @_logged_direct_operation("ann_att_update_from_map")
     def ann_att_update_from_map(
         self,
         attribute_map: Mapping[str, Any],
@@ -1679,25 +1720,36 @@ class YoloManager:
         if kwargs:
             unexpected = ", ".join(sorted(kwargs))
             raise TypeError(f"unexpected ann_set_attr arguments: {unexpected}")
-        return self.ann_att_update_from_map(
+        with operation_scope(
+            self.root,
+            "ann_set_attr",
             {
-                "update": [
-                    {
-                        "name": name,
-                        "value": value,
-                        "class_": class_,
-                        "where_value": where_value,
-                    }
-                ]
+                "name": name,
+                "value": value,
+                "class": class_,
+                "where_value": where_value,
+                "dry_run": dry_run,
             },
-            backup_dir=backup_dir,
-            dry_run=dry_run,
-            report=report,
-            only_val=only_val,
-            workers=workers,
-            progress=progress,
-            progress_leave=progress_leave,
-        )
+        ):
+            return self.ann_att_update_from_map(
+                {
+                    "update": [
+                        {
+                            "name": name,
+                            "value": value,
+                            "class_": class_,
+                            "where_value": where_value,
+                        }
+                    ]
+                },
+                backup_dir=backup_dir,
+                dry_run=dry_run,
+                report=report,
+                only_val=only_val,
+                workers=workers,
+                progress=progress,
+                progress_leave=progress_leave,
+            )
 
     def ann_delete_attr(
         self,

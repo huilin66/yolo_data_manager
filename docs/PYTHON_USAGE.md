@@ -368,6 +368,7 @@ Python API 与 CLI 使用相同的默认输出规则；显式传入 `out`、`csv
 <root>/ydm_dataset/         select、normalize、filter、merge
 <root>/ydm_annotation/      标注编辑输出和 edit_report.csv
 <root>/ydm_conversion/      格式导入导出和任务转换
+<root>/ydm_log/             按日期保存的操作日志 YYYY-MM-DD.log
 <root>/train.txt、val.txt、test.txt、dataset.yaml
 ```
 
@@ -383,6 +384,7 @@ mgr.output_stats
 mgr.output_basic_info
 mgr.output_vis
 mgr.output_evaluation
+mgr.output_log
 mgr.output_labels_backup
 mgr.output_dataset_yaml
 ```
@@ -395,6 +397,7 @@ mgr.output_dataset_yaml
 mgr.output_stats
 mgr.output_vis
 mgr.output_evaluation
+mgr.output_log
 mgr.output_labels_backup
 mgr.output_dataset_yaml
 ```

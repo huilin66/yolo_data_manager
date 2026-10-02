@@ -6,6 +6,8 @@ from pathlib import Path
 import sys
 from typing import TypeVar
 
+from yolo_data_manager.logging_utils import console_event
+
 DEFAULT_WORKERS = 8
 DEFAULT_PROGRESS = True
 DEFAULT_PROGRESS_LEAVE = False
@@ -26,7 +28,7 @@ def progress_stage(desc: str, *, enabled: bool) -> None:
     """
 
     if enabled:
-        print(f"{desc}...", file=sys.stderr, flush=True)
+        console_event("INFO", f"{desc}...")
 
 
 def iter_progress(
@@ -133,9 +135,9 @@ def _simple_progress(items: Iterable[T], *, total: int | None, desc: str) -> Ite
     for idx, item in enumerate(items, start=1):
         if total is None:
             if idx == 1 or idx % 100 == 0:
-                print(f"{desc}: {idx}")
+                console_event("INFO", f"{desc}: {idx}", stream=sys.stdout)
         elif idx == 1 or idx == total or idx % step == 0:
-            print(f"{desc}: {idx}/{total}")
+            console_event("INFO", f"{desc}: {idx}/{total}", stream=sys.stdout)
         yield item
 
 
@@ -148,7 +150,7 @@ class _SimpleDynamicProgress:
     def update(self, value: int) -> None:
         self.n += value
         if self.n == 1 or self.n == self.total or self.n % 100 == 0:
-            print(f"{self.desc}: {self.n}/{self.total}")
+            console_event("INFO", f"{self.desc}: {self.n}/{self.total}", stream=sys.stdout)
 
     def refresh(self) -> None:
         return None
@@ -175,7 +177,7 @@ class _SimpleProgress:
 
     def _print(self) -> None:
         total = "?" if self.total is None else str(self.total)
-        print(f"{self.desc}: {self.n}/{total}", file=sys.stderr, flush=True)
+        console_event("INFO", f"{self.desc}: {self.n}/{total}")
 
 
 class _NoopProgress:
