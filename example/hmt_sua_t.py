@@ -116,14 +116,11 @@ RUN_LIST = [
 
 
 def main() -> None:
-    ydm = YoloManager(
-        DATA_DIR,
-        layout="auto",
-        init_check=False,
-        init_layout=False,
-    )
+    ydm = YoloManager(DATA_DIR, layout="auto", init_check=False, init_layout=False)
     if "rename" in RUN_LIST:
-        ydm.remap_filenames(out=ydm.root + "_rename", dry_run=False, verbose=True)
+        ydm.remap_filenames(
+            out=ydm.root + "_rename",
+        )
     if "resize" in RUN_LIST:
         ydm.resize_images(
             DATA_DIR,
@@ -131,18 +128,29 @@ def main() -> None:
         )
 
     if "split" in RUN_LIST:
-        ydm.dataset_split(HMT_V3_DIR, train_include_list=LEAKAGE_ONLY_LIST)
+        ydm.dataset_split(
+            DATA_DIR,
+            train=0.9,
+            val=0.1,
+            train_include_list=LEAKAGE_ONLY_LIST,
+        )
 
     if "sta" in RUN_LIST:
         ydm.stats(
             DATA_DIR,
             stats_list=["all"],
-            only_val=True,
+            # only_val=True,
         )
     if "vis_draw" in RUN_LIST:
-        ydm.vis_draw(DATA_DIR)
+        ydm.vis_draw(
+            DATA_DIR,
+            only_val=True,
+        )
     if "vis_crop" in RUN_LIST:
-        ydm.vis_crop(DATA_DIR)
+        ydm.vis_crop(
+            DATA_DIR,
+            only_val=True,
+        )
 
     if "draw" in RUN_LIST:
         yolo_draw(DATA_DIR, "DJI_20260211161740_1654.png")
