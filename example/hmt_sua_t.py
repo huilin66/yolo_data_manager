@@ -18,8 +18,6 @@ if __package__ in (None, ""):
     if str(project_root) not in sys.path:
         sys.path.insert(0, str(project_root))
 from example.functions import (
-    yolo_error_ana,
-    yolo_metric,
     yolo_update_by_pred,
     yolo_update_class,
 )
@@ -37,7 +35,6 @@ DATA_DIR = Path(
 
 # PRED_RUNS_DIR = Path(r"/localnvme/project/aic_mdet/models/ultralytics/runs/detect")
 PRED_RUNS_DIR = Path(r"//localnvme/project/ultralytics/runs/detect")
-# PRED_NAME = "val-161"
 PRED_NAMES = [
     # "predict-2",
     # "predict-3",
@@ -115,7 +112,10 @@ RUN_LIST = [
 
 
 def main() -> None:
+    # init
     ydm = YoloManager(DATA_DIR, layout="auto", init_check=False, init_layout=False)
+
+    # preprocess
     if "rename" in RUN_LIST:
         ydm.remap_filenames(
             out=ydm.root + "_rename",
@@ -126,6 +126,7 @@ def main() -> None:
             width=640,
         )
 
+    # pre-analysis
     if "split" in RUN_LIST:
         ydm.dataset_split(
             DATA_DIR,
@@ -133,7 +134,6 @@ def main() -> None:
             val=0.1,
             train_include_list=LEAKAGE_ONLY_LIST,
         )
-
     if "sta" in RUN_LIST:
         ydm.stats(
             DATA_DIR,
@@ -151,31 +151,35 @@ def main() -> None:
             only_val=True,
         )
 
+    # post-analysis
+    if "metric" in RUN_LIST:
+        for pred_name in PRED_NAMES:
+            pred_dir = PRED_RUNS_DIR / pred_name / "labels"
+            output_dir = ydm.output_evaluation / pred_name / "metrics"
+            ydm.eval_metrics(
+                pred_root=pred_dir,
+                out=output_dir,
+                # class_rules=METRIC_CLASS_RULES,
+                # merge_class_map=MERGE_CLASS_MAP,
+                # min_pixels=50,
+                # only_val=True,
+            )
+    if "error_ana" in RUN_LIST:
+        for pred_name in PRED_NAMES:
+            pred_dir = PRED_RUNS_DIR / pred_name / "labels"
+            output_dir = ydm.output_evaluation / pred_name / "error_analysis"
+            ydm.eval_error_analysis(
+                pred_root=pred_dir,
+                out=output_dir,
+                # only_val=True,
+            )
+
+    # data update
     if "mannual_draw" in RUN_LIST:
         ydm.vis_manual_box(DATA_DIR, "DJI_20260211161740_1654.png")
 
     if "update_class_by_label" in RUN_LIST:
         ydm.ann_correct_from_crops(crops_dir=CROP_MAP_LABEL)
-
-    if "metric" in RUN_LIST:
-        for pred_name in PRED_NAMES[:]:
-            yolo_metric(
-                DATA_DIR,
-                PRED_RUNS_DIR,
-                pred_name,
-                # class_rules=METRIC_CLASS_RULES,
-                # merge_class_map=MERGE_CLASS_MAP,
-                # min_pixels=50,
-            )
-
-    if "error_ana" in RUN_LIST:
-        for pred_name in PRED_NAMES[:]:
-            yolo_error_ana(
-                DATA_DIR,
-                PRED_RUNS_DIR,
-                pred_name,
-                # only_val=True,
-            )
 
     if "update_class_by_pred" in RUN_LIST:
         for crops_dir, target_class in CROP_MAP_PRED.items():
