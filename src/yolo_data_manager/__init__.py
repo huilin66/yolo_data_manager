@@ -38,6 +38,12 @@ from yolo_data_manager.stats.multimodal import compute_multimodal_stats, write_m
 from yolo_data_manager.vis.multimodal import crop_multimodal_dataset, render_multimodal_dataset
 from yolo_data_manager.vis.manual_box import ManualBoxResult, draw_manual_box, format_yolo_line
 from yolo_data_manager.tools.image_resize import ResizeResult, resize_image, resize_yolo_dataset
+from yolo_data_manager.tools.filename_remap import (
+    FilenameRemapItem,
+    FilenameRemapResult,
+    filename_digits_for_count,
+    remap_yolo_dataset_filenames,
+)
 
 __all__ = [
     "AttributeSchema",
@@ -78,4 +84,8 @@ __all__ = [
     "ResizeResult",
     "resize_image",
     "resize_yolo_dataset",
+    "FilenameRemapItem",
+    "FilenameRemapResult",
+    "filename_digits_for_count",
+    "remap_yolo_dataset_filenames",
 ]

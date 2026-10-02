@@ -51,6 +51,7 @@ TASK_COMMANDS: Mapping[str, tuple[str, ...]] = {
     "convert.seg2det": ("convert", "seg2det"),
     "convert.pseudo": ("convert", "pseudo"),
     "convert.resize": ("convert", "resize"),
+    "convert.filename_remap": ("convert", "filename-remap"),
     "eval.compare": ("eval", "compare"),
     "eval.review_pack": ("eval", "review-pack"),
     "eval.error_analysis": ("eval", "error-analysis"),
@@ -244,6 +245,7 @@ _ROOT_TASKS: frozenset[str] = frozenset(
         "convert.seg2det",
         "convert.pseudo",
         "convert.resize",
+        "convert.filename_remap",
     }
 )
 
@@ -1680,6 +1682,33 @@ class YoloManager:
             interpolation=interpolation,
             fill_color=fill_color,
             keep_empty_labels=keep_empty_labels,
+            dry_run=dry_run,
+            workers=workers,
+            progress=progress,
+            progress_leave=progress_leave,
+            **kwargs,
+        )
+
+    def remap_filenames(
+        self,
+        out: str | Path | None = None,
+        *,
+        digits: int | None = None,
+        start: int = 0,
+        mapping_file: str | Path | None = None,
+        dry_run: bool = False,
+        workers: int = 8,
+        progress: bool = True,
+        progress_leave: bool = False,
+        **kwargs: Any,
+    ) -> int:
+        """Copy the dataset with numeric image/label filenames."""
+        return self._run(
+            "convert.filename_remap",
+            out=out,
+            digits=digits,
+            start=start,
+            mapping_file=mapping_file,
             dry_run=dry_run,
             workers=workers,
             progress=progress,

@@ -203,6 +203,7 @@ mgr.convert_seg2det(out="yolo_det")
 mgr.convert_pseudo(out="pseudo_labels", conf=0.5, drop_confidence=True)
 mgr.resize_images(out="yolo_640", width=640, height=640, keep_ratio=True)
 mgr.resize_images(out="yolo_half", scale=0.5)
+mgr.remap_filenames(out="yolo_numeric", start=0)
 mgr.generate_attribute_com(
     split="train",
     mode="conditional",
@@ -271,6 +272,8 @@ mgr.import_mask(
 ```
 
 `resize_images` 默认保持宽高比；使用 letterbox 时会自动同步变换检测框和分割多边形，`keep_ratio=False` 则直接拉伸图像，归一化 YOLO 坐标保持不变。默认输出目录为 Manager 根目录下的 `ydm_conversion/resize`。
+
+`remap_filenames` 会把图像和对应 label 复制到新数据集，并将文件名改为统一的数字编号；不传 `digits` 时，编号位数按“图像数量乘以 10 后向上取最近的十次幂”计算。例如 8,951 张图像使用六位编号（`000000.jpg`、`000001.jpg`……）。默认从 0 开始，也可以通过 `start` 修改。原始数据不会被覆盖，映射关系默认保存为 `<out>/filename_mapping.json`，输出目录默认为 Manager 根目录下的 `ydm_conversion/filename_remap`。
 
 `YoloManager(..., layout="auto")` 初始化时会先做 layout 扫描，再加载图片和 label，最后执行 check。
 
@@ -451,6 +454,7 @@ mgr.output_dataset_yaml
 | `convert_seg2det(out=...)` | `ydm convert seg2det` |
 | `convert_pseudo(out=..., ...)` | `ydm convert pseudo` |
 | `resize_images(out=..., width=..., height=...)` | `ydm convert resize` |
+| `remap_filenames(out=..., digits=..., start=...)` | `ydm convert filename-remap` |
 | `eval_compare(gt_root=..., pred_root=..., out=...)` | `ydm eval compare` |
 | `eval_review_pack(gt_root=..., pred_root=..., out=...)` | `ydm eval review-pack` |
 | `eval_error_analysis(gt_root=..., pred_root=..., out=...)` | `ydm eval error-analysis` |

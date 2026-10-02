@@ -55,6 +55,7 @@ from yolo_data_manager.stats.report import (
     write_json_report,
 )
 from yolo_data_manager.tools.image_resize import resize_yolo_dataset, validate_resize_options
+from yolo_data_manager.tools.filename_remap import remap_yolo_dataset_filenames
 from yolo_data_manager.vis.manual_box import draw_manual_box, find_dataset_image
 from yolo_data_manager.vis.renderer import crop_dataset, render_dataset
 from yolo_data_manager.evaluation.compare import compare_datasets, write_compare_csv
@@ -691,6 +692,39 @@ def build_parser() -> argparse.ArgumentParser:
         keep_ratio=True,
         keep_empty_labels=True,
     )
+    filename_remap = convert_sub.add_parser(
+        "filename-remap",
+        help="copy a dataset with numeric image and label filenames",
+    )
+    add_dataset_args(filename_remap)
+    filename_remap.add_argument(
+        "--out",
+        default=None,
+        help="output dataset root; defaults to <root>/ydm_conversion/filename_remap",
+    )
+    filename_remap.add_argument(
+        "--digits",
+        type=int,
+        default=None,
+        help="numeric filename width; defaults to the next power-of-ten width for image_count*10",
+    )
+    filename_remap.add_argument(
+        "--start",
+        type=int,
+        default=0,
+        help="first numeric filename value (default: 0)",
+    )
+    filename_remap.add_argument(
+        "--mapping-file",
+        default=None,
+        help="mapping JSON path; defaults to <out>/filename_mapping.json",
+    )
+    filename_remap.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="report the remapping without writing files",
+    )
+    filename_remap.set_defaults(handler=handle_filename_remap)
 
     eval_cmd = subparsers.add_parser("eval", help="evaluate or compare predictions")
     eval_sub = eval_cmd.add_subparsers(dest="eval_command", required=True)
@@ -1768,6 +1802,27 @@ def handle_resize(args: argparse.Namespace) -> int:
         )
         payload = result.to_dict()
     print(json.dumps(payload, indent=2, ensure_ascii=False))
+    return 0
+
+
+def handle_filename_remap(args: argparse.Namespace) -> int:
+    dataset = load_from_args(args)
+    out = _value_or_default(
+        args.out,
+        default_conversion_output(_resolved_output_root(args.root), "filename_remap"),
+    )
+    result = remap_yolo_dataset_filenames(
+        dataset,
+        out,
+        digits=args.digits,
+        start=args.start,
+        mapping_file=args.mapping_file,
+        workers=args.workers,
+        progress=args.progress,
+        progress_leave=args.progress_leave,
+        dry_run=args.dry_run,
+    )
+    print(json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
     return 0
 
 
