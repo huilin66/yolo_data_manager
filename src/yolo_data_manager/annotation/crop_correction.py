@@ -96,7 +96,7 @@ class CropCorrectionResult:
 
 @dataclass
 class AttributeCropCorrectionResult:
-    """Summary of an attribute update driven by error-analysis crops."""
+    """Summary of an attribute update driven by annotation crops."""
 
     attribute_name: str
     target_value: str | int | float | None
@@ -523,6 +523,46 @@ def _correct_gt_labels_from_error_crop_specs(
     return result, edit_report
 
 
+def correct_gt_attributes_from_crops(
+    dataset: YoloDataset,
+    crops_dir: str | Path | Mapping[str | Path, Any],
+    attribute_name: str | None = None,
+    target_value: str | int | float | None = None,
+    *,
+    backup_dir: str | Path | None = None,
+    dry_run: bool = False,
+) -> tuple[AttributeCropCorrectionResult, EditReport]:
+    """Update GT attributes selected by standard ``vis crop`` filenames.
+
+    A crop named ``image_stem_3.jpg`` maps to the third GT annotation in
+    ``image_stem.txt``.  The crop directory is searched recursively, so
+    attribute folders can be used to organize manually selected crops.
+    ``crops_dir`` may also be a mapping from crop directories to attribute
+    rules, for example ``{"crops_yes": {"name": "defect", "value": "yes"}}``.
+    """
+
+    if isinstance(crops_dir, Mapping):
+        specs = _attribute_crop_specs_from_map(
+            crops_dir,
+            default_name=attribute_name,
+            default_value=target_value,
+        )
+    else:
+        if attribute_name is None or target_value is None:
+            raise ValueError("attribute_name and target_value are required")
+        specs = [(Path(crops_dir), str(attribute_name).strip(), target_value)]
+
+    return _correct_gt_attributes_from_error_crop_specs(
+        dataset,
+        specs,
+        backup_dir=backup_dir,
+        dry_run=dry_run,
+        crop_parser=_parse_crop_name,
+        require_attribute_suffix=False,
+        operation="correct_attribute_from_crops",
+    )
+
+
 def correct_gt_attributes_from_error_crops(
     dataset: YoloDataset,
     crops_dir: str | Path | Mapping[str | Path, Any],
@@ -548,8 +588,6 @@ def correct_gt_attributes_from_error_crops(
     """
 
     if isinstance(crops_dir, Mapping):
-        if attribute_name is not None and target_value is None:
-            raise ValueError("target_value is required when attribute_name is provided")
         specs = _attribute_crop_specs_from_map(
             crops_dir,
             default_name=attribute_name,
@@ -565,6 +603,8 @@ def correct_gt_attributes_from_error_crops(
         specs,
         backup_dir=backup_dir,
         dry_run=dry_run,
+        crop_parser=_parse_attribute_error_crop_name,
+        require_attribute_suffix=True,
     )
 
 
@@ -624,8 +664,14 @@ def _correct_gt_attributes_from_error_crop_specs(
     *,
     backup_dir: str | Path | None,
     dry_run: bool,
+    crop_parser: Any = None,
+    require_attribute_suffix: bool = True,
+    operation: str = "correct_attribute_from_error_crops",
 ) -> tuple[AttributeCropCorrectionResult, EditReport]:
     """Apply multiple attribute crop rules in one backup session."""
+
+    if crop_parser is None:
+        crop_parser = _parse_attribute_error_crop_name
 
     if dataset.attributes is None:
         raise ValueError(
@@ -676,12 +722,19 @@ def _correct_gt_attributes_from_error_crop_specs(
             if not crop_path.is_file() or not is_image_file(crop_path):
                 continue
             crop_files += 1
-            parsed = _parse_attribute_error_crop_name(crop_path)
+            parsed = crop_parser(crop_path)
             if parsed is None:
                 result.invalid_crops.append(str(crop_path))
                 continue
-            stem, _pred_index, gt_index, crop_attribute = parsed
-            if gt_index is None or crop_attribute != _safe_file_name(name):
+            if len(parsed) == 2:
+                stem, gt_index = parsed
+                crop_attribute = None
+            else:
+                stem, _pred_index, gt_index, crop_attribute = parsed
+            if gt_index is None or (
+                require_attribute_suffix
+                and crop_attribute != _safe_file_name(name)
+            ):
                 result.invalid_crops.append(str(crop_path))
                 continue
             targets.setdefault((stem, gt_index, name, target), []).append(crop_path)
@@ -776,7 +829,7 @@ def _correct_gt_attributes_from_error_crop_specs(
         changed_annotations[state_key] = (image, annotation, updated, line)
         edit_report.add(
             EditRow(
-                operation="correct_attribute_from_error_crops",
+                operation=operation,
                 image=image.file_name,
                 label_path=str(image.label_path),
                 line_no=line_no,

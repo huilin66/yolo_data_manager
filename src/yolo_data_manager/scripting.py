@@ -36,6 +36,7 @@ TASK_COMMANDS: Mapping[str, tuple[str, ...]] = {
     "ann.apply_map": ("ann", "apply-map"),
     "ann.correct_from_crops": ("ann", "correct-from-crops"),
     "ann.correct_from_error_crops": ("ann", "correct-from-error-crops"),
+    "ann.att_correct_from_crops": ("ann", "correct-attr-from-crops"),
     "ann.att_correct_from_error_crops": ("ann", "correct-attr-from-error-crops"),
     "ann.set_attr": ("ann", "set-attr"),
     "ann.delete_attr": ("ann", "delete-attr"),
@@ -259,6 +260,7 @@ _ROOT_TASKS: frozenset[str] = frozenset(
         "ann.apply_map",
         "ann.correct_from_crops",
         "ann.correct_from_error_crops",
+        "ann.att_correct_from_crops",
         "ann.att_correct_from_error_crops",
         "ann.set_attr",
         "ann.delete_attr",
@@ -1429,6 +1431,66 @@ class YoloManager:
             delete_pred_none=delete_pred_none,
             replace_gt_from_pred=replace_gt_from_pred,
             to=cli_target,
+            report=report,
+            backup_dir=resolved_backup_dir,
+            dry_run=dry_run,
+            only_val=only_val,
+            **kwargs,
+        )
+
+    def ann_att_correct_from_crops(
+        self,
+        crops_dir: str | Path | Mapping[str | Path, Any],
+        name: str | None = None,
+        value: str | float | None = None,
+        *,
+        attribute_name: str | None = None,
+        attribute_value: str | float | None = None,
+        attribute: str | None = None,
+        to: str | float | None = None,
+        report: str | None = None,
+        backup_dir: str | Path | None = None,
+        dry_run: bool = False,
+        only_val: bool | None = None,
+        **kwargs: Any,
+    ) -> int:
+        """Correct attributes from standard ``vis_crop`` directories.
+
+        A mapping can assign a different attribute rule to each crop
+        directory, for example::
+
+            {
+                "crops/defect": {"name": "defect", "value": "yes"},
+                "crops/material": {"material": "metal"},
+            }
+        """
+
+        resolved_name = (
+            attribute_name
+            if attribute_name is not None
+            else attribute
+            if attribute is not None
+            else name
+        )
+        resolved_value = (
+            attribute_value
+            if attribute_value is not None
+            else to
+            if to is not None
+            else value
+        )
+        if not isinstance(crops_dir, Mapping) and (
+            resolved_name is None or resolved_value is None
+        ):
+            raise ValueError("name and value are required")
+        resolved_backup_dir = (
+            self.output_labels_backup if backup_dir is None else backup_dir
+        )
+        return self._run(
+            "ann.att_correct_from_crops",
+            crops_dir=crops_dir,
+            name=resolved_name,
+            value=resolved_value,
             report=report,
             backup_dir=resolved_backup_dir,
             dry_run=dry_run,

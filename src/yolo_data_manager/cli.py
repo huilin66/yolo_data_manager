@@ -9,6 +9,7 @@ import yaml
 
 from yolo_data_manager.annotation.edit import delete_by_attribute, delete_class, merge_classes, rename_class, replace_class, set_attribute
 from yolo_data_manager.annotation.crop_correction import (
+    correct_gt_attributes_from_crops,
     correct_gt_attributes_from_error_crops,
     correct_gt_labels_from_error_crops,
     correct_labels_from_crop_map,
@@ -463,6 +464,51 @@ def build_parser() -> argparse.ArgumentParser:
     correct_error_crops.add_argument("--report", default=None, help="edit report CSV; defaults to ydm_annotation/correct_from_error_crops/edit_report.csv")
     correct_error_crops.add_argument("--dry-run", action="store_true", help="report changes without modifying labels")
     correct_error_crops.set_defaults(handler=handle_correct_from_error_crops, _output_operation="correct_from_error_crops")
+
+    correct_attr_crops = ann_sub.add_parser(
+        "correct-attr-from-crops",
+        aliases=["correct-attribute-from-crops"],
+        help="update one GT attribute from standard vis-crop filenames",
+    )
+    add_dataset_args(correct_attr_crops)
+    correct_attr_crops.add_argument(
+        "--crops-dir",
+        required=True,
+        help="vis-crop directory, or a JSON object mapping directories to attribute rules",
+    )
+    correct_attr_crops.add_argument(
+        "--name",
+        "--attribute",
+        dest="attribute_name",
+        required=False,
+        help="target attribute name; omitted when --crops-dir is a JSON mapping",
+    )
+    correct_attr_crops.add_argument(
+        "--value",
+        "--to",
+        dest="attribute_value",
+        required=False,
+        help="target attribute value; omitted when --crops-dir is a JSON mapping",
+    )
+    correct_attr_crops.add_argument(
+        "--backup-dir",
+        default=None,
+        help="backup directory; default is <dataset-root>/labels_backup",
+    )
+    correct_attr_crops.add_argument(
+        "--report",
+        default=None,
+        help="edit report CSV; defaults to ydm_annotation/correct_attr_from_crops/edit_report.csv",
+    )
+    correct_attr_crops.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="report changes without modifying labels",
+    )
+    correct_attr_crops.set_defaults(
+        handler=handle_correct_attr_from_crops,
+        _output_operation="correct_attr_from_crops",
+    )
 
     correct_attr_error_crops = ann_sub.add_parser(
         "correct-attr-from-error-crops",
@@ -1530,6 +1576,32 @@ def handle_correct_from_error_crops(args: argparse.Namespace) -> int:
         dry_run=args.dry_run,
     )
     report_path = args.report or _default_report_path(args, "correct_from_error_crops")
+    edit_report.write_csv(report_path)
+    payload = result.to_dict()
+    payload["dry_run"] = args.dry_run
+    payload["report"] = report_path
+    print(json.dumps(payload, indent=2, ensure_ascii=False))
+    return 0
+
+
+def handle_correct_attr_from_crops(args: argparse.Namespace) -> int:
+    dataset = load_from_args(args)
+    crops_input = _parse_crop_attribute_map(args.crops_dir)
+    if not isinstance(crops_input, dict) and (
+        args.attribute_name is None or args.attribute_value is None
+    ):
+        raise ValueError(
+            "--name and --value are required unless --crops-dir is a JSON mapping"
+        )
+    result, edit_report = correct_gt_attributes_from_crops(
+        dataset,
+        crops_input,
+        args.attribute_name,
+        args.attribute_value,
+        backup_dir=args.backup_dir,
+        dry_run=args.dry_run,
+    )
+    report_path = args.report or _default_report_path(args, "correct_attr_from_crops")
     edit_report.write_csv(report_path)
     payload = result.to_dict()
     payload["dry_run"] = args.dry_run

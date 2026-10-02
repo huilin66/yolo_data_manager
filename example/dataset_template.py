@@ -34,6 +34,12 @@ CROP_MAP_LABEL = {
     # os.path.join(CROP_ROOT_LABEL, "2_l"): "Leakage",
     # os.path.join(CROP_ROOT_LABEL, "2_none"): "none",
 }
+CROP_MAP_ATTR = {
+    # os.path.join(CROP_ROOT_LABEL, "defect_no"): {
+    #     "name": "defect",
+    #     "value": "no",
+    # },
+}
 
 CROP_MAP_PRED = {
     # os.path.join(CROP_ROOT_PRED, "2_at"): "Abnormal Temperature",
@@ -89,6 +95,7 @@ RUN_LIST = [
     "mannual_draw",
     "update_class_from_anno",
     "update_class_from_pred",
+    "update_att_from_anno",
     "update_att_from_pred",
 ]
 
@@ -199,6 +206,10 @@ def main() -> None:
                 crops_dir=CROP_MAP_PRED,
                 pred_dir=pred_dir,
             )
+    if "update_att_from_anno" in RUN_LIST and CROP_MAP_ATTR:
+        ydm.ann_att_correct_from_crops(
+            crops_dir=CROP_MAP_ATTR,
+        )
     if "update_att_from_pred" in RUN_LIST:
         for pred_name in PRED_NAMES:
             pred_dir = PRED_RUNS_DIR / pred_name / "labels"

@@ -176,6 +176,20 @@ mgr.ann_correct_from_error_crops(
     pred_dir="result_ana/val-52/review/pred_txt",
     backup_dir="label_backups",
 )  # 多个错误 crop 目录一次处理，只创建一个备份快照
+# 按普通 `vis_crop` 的 `<image_stem>_<1-based annotation index>` 修改 GT 框属性
+mgr.ann_att_correct_from_crops(
+    crops_dir={
+        "ydm_vis/crop_attribute/defect_no": {
+            "name": "defect",
+            "value": "no",
+        },
+        "ydm_vis/crop_attribute/material_metal": {
+            "material": "metal",
+        },
+    },
+    backup_dir="label_backups",
+    dry_run=True,
+)
 # 按选中的属性错误 crop 修改对应 GT 框的属性，不改类别和 geometry
 mgr.ann_att_correct_from_error_crops(
     crops_dir="result_ana/val-52/review/attribute_error/attribute_defect/gt_yes_pred_no/crops",
@@ -481,6 +495,7 @@ mgr.output_dataset_yaml
 | `ann_update_from_map({...})` | Python-only in-place class update; backs up labels and class source |
 | `ann_correct_from_crops(crops_dir=..., to=...)` 或 `crops_dir={目录: 类别}` | `ydm ann correct-from-crops` |
 | `ann_correct_from_error_crops(crops_dir=..., to=...)` | `ydm ann correct-from-error-crops` |
+| `ann_att_correct_from_crops(crops_dir=..., name=..., value=...)` | `ydm ann correct-attr-from-crops` |
 | `ann_att_correct_from_error_crops(crops_dir=..., name=..., value=...)` | `ydm ann correct-attr-from-error-crops` |
 | `ann_att_update_from_map({...})` | Python-only in-place attribute update |
 | `ann_set_attr(name=..., value=..., ...)` | `ann_att_update_from_map` 的兼容接口 |

@@ -12,6 +12,7 @@ from yolo_data_manager.annotation.edit import (
     set_attributes_from_map,
 )
 from yolo_data_manager.annotation.crop_correction import (
+    correct_gt_attributes_from_crops,
     correct_gt_attributes_from_error_crops,
     correct_gt_labels_from_error_crops,
     correct_labels_from_crops,
@@ -1857,6 +1858,57 @@ def test_attribute_error_crops_accept_directory_to_attribute_map(tmp_path):
     )
     snapshots = list(backup_root.iterdir())
     assert len(snapshots) == 1
+
+
+def test_attribute_crops_accept_standard_crop_names_and_mapping(tmp_path):
+    root = tmp_path / "attribute_crop_map"
+    (root / "images").mkdir(parents=True)
+    (root / "labels").mkdir(parents=True)
+    Image.new("RGB", (40, 40), color="white").save(root / "images" / "a.jpg")
+    (root / "class.txt").write_text("object\n", encoding="utf-8")
+    (root / "attribute.yaml").write_text(
+        "attributes:\n  defect: [no, yes]\n",
+        encoding="utf-8",
+    )
+    original = (
+        "0 1 1 0.5 0.5 0.2 0.2\n"
+        "0 1 0 0.4 0.4 0.2 0.2\n"
+    )
+    (root / "labels" / "a.txt").write_text(original, encoding="utf-8")
+
+    no_crops = root / "review" / "no" / "nested"
+    yes_crops = root / "review" / "yes"
+    no_crops.mkdir(parents=True)
+    yes_crops.mkdir(parents=True)
+    Image.new("RGB", (10, 10), color="white").save(no_crops / "a_1.jpg")
+    Image.new("RGB", (10, 10), color="white").save(yes_crops / "a_2.jpg")
+
+    manager = YoloManager(root, layout="flat", task="detect", init_layout=False, init_check=False)
+    backup_root = tmp_path / "attribute_crop_backups"
+    assert manager.ann_att_correct_from_crops(
+        {
+            no_crops: {"name": "defect", "value": "no"},
+            yes_crops: {"defect": "yes"},
+        },
+        backup_dir=backup_root,
+        progress=False,
+    ) == 0
+
+    assert (root / "labels" / "a.txt").read_text(encoding="utf-8") == (
+        "0 1 0 0.5 0.5 0.2 0.2\n"
+        "0 1 1 0.4 0.4 0.2 0.2\n"
+    )
+    result, report = correct_gt_attributes_from_crops(
+        load_yolo_dataset(root, task="detect"),
+        {yes_crops: {"name": "defect", "value": "yes"}},
+        dry_run=True,
+    )
+    assert result.crop_files == 1
+    assert result.unchanged == 1
+    assert report.rows == []
+    snapshots = list(backup_root.iterdir())
+    assert len(snapshots) == 1
+    assert (snapshots[0] / "labels" / "a.txt").read_text(encoding="utf-8") == original
 
 
 def test_yolo_manager_attribute_update_map_updates_in_place(tmp_path):

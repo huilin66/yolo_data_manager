@@ -28,6 +28,7 @@ from yolo_data_manager.evaluation.metrics import (
 from yolo_data_manager.annotation.crop_correction import (
     AttributeCropCorrectionResult,
     CropCorrectionResult,
+    correct_gt_attributes_from_crops,
     correct_gt_attributes_from_error_crops,
     correct_gt_labels_from_error_crop_map,
     correct_gt_labels_from_error_crops,
@@ -72,6 +73,7 @@ __all__ = [
     "SizeMetric",
     "AttributeCropCorrectionResult",
     "CropCorrectionResult",
+    "correct_gt_attributes_from_crops",
     "correct_gt_attributes_from_error_crops",
     "correct_labels_from_crops",
     "correct_labels_from_crop_map",

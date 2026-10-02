@@ -310,6 +310,21 @@ mgr.ann_correct_from_error_crops(
     pred_dir="ydm_evaluation/error_analysis/predict/review/pred_txt",
     backup_dir="label_backups",
 )  # Process multiple error-crop directories in one backup session.
+# Set an attribute on GT boxes selected by standard `vis_crop` files
+# named `<image_stem>_<1-based annotation index>`.
+mgr.ann_att_correct_from_crops(
+    crops_dir={
+        "ydm_vis/crop_attribute/defect_no": {
+            "name": "defect",
+            "value": "no",
+        },
+        "ydm_vis/crop_attribute/material_metal": {
+            "material": "metal",
+        },
+    },
+    backup_dir="label_backups",
+    dry_run=True,
+)
 # Set one attribute on GT boxes selected by attribute-error crops.
 mgr.ann_att_correct_from_error_crops(
     crops_dir="ydm_evaluation/error_analysis/predict/review/attribute_error/attribute_defect/gt_yes_pred_no/crops",
