@@ -35,6 +35,7 @@ ydm_evaluation/      compare、review_pack、error_analysis、metrics
 ydm_dataset/         select、normalize、filter、merge
 ydm_annotation/      标注编辑输出和 report
 ydm_conversion/      格式导入导出、任务转换
+ydm_vlm/             自动标注、错误复核计划、YDM 助手
 ydm_log/              按日期保存的操作日志（YYYY-MM-DD.log）
 train.txt/val.txt/test.txt、dataset.yaml  保留在根目录
 ```
@@ -260,6 +261,16 @@ ydm eval review-pack --gt-root gt_yolo --pred-root pred_yolo --out review_pack -
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --out error_report --review --workers 8 --copy-pred-txt
 ydm convert pseudo --root pred_yolo --conf 0.5 --out pseudo_yolo
 ```
+
+## VLM 扩展
+
+- VLM 配置统一从 .env 读取，当前内置 qwen provider，支持 DashScope 与本地 OpenAI 兼容服务
+- vlm auto-label：对图像调用 VLM，解析结构化 JSON 并输出新的 YOLO 数据集
+- vlm verify-errors：读取 eval_error_analysis 的 class/attribute crops，输出 correction_plan.json 和可直接供 annotation correction API 使用的 crop 映射
+- ydm assistant：把自然语言转换为受限的 YoloManager 方法调用；默认只生成计划，写操作必须显式确认
+- provider 通过 VLMProvider 抽象和 register_vlm_provider 扩展，VLM 返回结果必须经过 schema 校验，不能直接执行模型生成的 shell 或 Python 代码
+
+典型配置和命令见 README、CLI_USAGE 和 PYTHON_USAGE；VLM 默认输出目录为数据集根目录下的 ydm_vlm。
 
 ## 包结构
 

@@ -290,6 +290,31 @@ ydm convert filename-remap --root yolo_data --out yolo_numeric
 
 `convert filename-remap` 会复制图像和对应 label，并将文件名改为统一的数字编号；省略 `--digits` 时按图像数量乘以 10 后向上取最近的十次幂确定位数。例如 8,951 张图像使用六位编号。默认从 0 开始，`--start` 可修改起始编号；未指定 `--mapping-file` 时映射关系默认写入 `<root>/ydm_conversion/filename_mapping.json`，显式指定时使用指定路径，默认输出为 `<root>/ydm_conversion/filename_remap`。
 
+## VLM
+
+VLM 参数从项目根目录或当前工作目录的 .env 加载。内置 qwen provider 支持 DashScope 和本地 OpenAI 兼容接口，常用配置为：
+
+    VLM_PROVIDER=qwen
+    VLM_BASE_URL=http://127.0.0.1:18001/v1
+    VLM_MODEL=qwen3-vl-30b
+    VLM_API_KEY=your-key
+    VLM_TIMEOUT=120
+    VLM_WORKERS=4
+
+自动生成 YOLO 标注，默认输出到 root/ydm_vlm/auto_label：
+
+    ydm vlm auto-label --root yolo_data --out yolo_vlm
+
+复核错误分析 crop，默认输出到 root/ydm_vlm/error_verify/correction_plan.json：
+
+    ydm vlm verify-errors --root gt_yolo --error-dir gt_yolo/ydm_evaluation/error_analysis
+
+错误复核默认只生成修正计划和按目标类别/属性值整理的 crop 映射。确认计划后才使用 --apply --yes 修改 GT；修改会沿用 labels_backup 备份。自然语言助手默认只输出计划，执行写操作必须显式传入 --execute --yes：
+
+    ydm vlm assistant --root yolo_data --intent "统计每个类别的数量"
+
+provider 使用统一的 VLMProvider 接口；除 qwen 外，可通过 register_vlm_provider 注册其他 OpenAI-compatible 或自定义后端。
+
 ## 评估与错误分析
 
 ```bash

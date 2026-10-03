@@ -82,6 +82,7 @@ The Python API and CLI use the same defaults. Explicit `out`, `csv`, or `plots_d
 <root>/ydm_dataset/         select, normalize, filter, merge
 <root>/ydm_annotation/      annotation-edit outputs and edit_report.csv
 <root>/ydm_conversion/      format import/export and task conversions
+<root>/ydm_vlm/             automatic labels, error-review plans, and assistant output
 <root>/ydm_log/             daily operation logs YYYY-MM-DD.log
 <root>/train.txt, val.txt, test.txt, dataset.yaml
 ```
@@ -426,6 +427,23 @@ mgr.remap_filenames(out="yolo_numeric", start=0)
 `resize_images` keeps the aspect ratio by default. For a letterboxed resize, labels are transformed automatically; `keep_ratio=False` performs a direct stretch, so normalized YOLO coordinates retain their values. The default output is `ydm_conversion/resize` under the manager root.
 
 `remap_filenames` copies images and matching labels into a new dataset with uniform numeric filenames. When `digits` is omitted, the width uses the next power of ten at or above ten times the image count; 8,951 images therefore use six-digit names such as `000000.jpg`, `000001.jpg`, and so on. Numbering starts at 0 by default and can be changed with `start`. The source dataset is not overwritten; without an explicit `mapping_file`, the mapping is saved to `<root>/ydm_conversion/filename_mapping.json`. An explicit `mapping_file` still takes precedence, and the default output dataset is `ydm_conversion/filename_remap` under the manager root.
+
+## VLM
+
+VLM settings are loaded from .env in the project root or current working directory. The built-in qwen provider supports DashScope and local OpenAI-compatible endpoints:
+
+    VLM_PROVIDER=qwen
+    VLM_BASE_URL=http://127.0.0.1:18001/v1
+    VLM_MODEL=qwen3-vl-30b
+    VLM_API_KEY=your-key
+    VLM_TIMEOUT=120
+    VLM_WORKERS=4
+
+    mgr.vlm_auto_label(out="auto_labeled", workers=4)
+    mgr.vlm_verify_errors(error_dir="ydm_evaluation/error_analysis")
+    mgr.ydm_assistant("show class statistics")  # plan only
+
+Automatic labeling defaults to ydm_vlm/auto_label. Error verification defaults to ydm_vlm/error_verify/correction_plan.json and creates crop maps that can be passed to the existing correction APIs. Set apply=True and yes=True explicitly to modify labels; the labels_backup policy remains active. The assistant does not execute writes unless execute=True and yes=True.
 
 ## Evaluation and Error Analysis
 

@@ -123,6 +123,31 @@ ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --review --wor
 - 有属性 schema 时，error analysis 还会写出 `attribute_error.csv`；`review=True` 会在 `review/attribute_error/attribute_<属性名>/gt_<GT值>_pred_<预测值>/` 下保存匹配图片和 crop。
 - review crop 文件名使用 `原图名_pred预测txt顺序id_gtGTtxt顺序id`，没有的一侧为 `none`。
 
+## VLM 功能
+
+VLM 配置从项目根目录或当前工作目录的 .env 读取。内置 qwen provider，支持 DashScope 和本地 OpenAI 兼容服务：
+
+    VLM_PROVIDER=qwen
+    VLM_BASE_URL=http://127.0.0.1:18001/v1
+    VLM_MODEL=qwen3-vl-30b
+    VLM_API_KEY=your-key
+    VLM_TIMEOUT=120
+    VLM_WORKERS=4
+
+自动生成 YOLO 标注：
+
+    ydm vlm auto-label --root yolo_data --out yolo_vlm
+
+复核 eval_error_analysis 结果并生成 correction_plan.json：
+
+    ydm vlm verify-errors --root gt_yolo --error-dir gt_yolo/ydm_evaluation/error_analysis
+
+自然语言助手默认只生成执行计划；增加 --execute --yes 才允许执行写操作：
+
+    ydm vlm assistant --root yolo_data --intent "统计每个类别的数量"
+
+默认 VLM 输出位于 ydm_vlm/。错误复核生成的 class_crop_map 和 attribute_crop_map 可以直接传给现有的 ann_correct_from_error_crops、ann_att_correct_from_error_crops；应用修正时仍使用 labels_backup 备份。
+
 ## Git Ignore 策略
 
 项目 `.gitignore` 默认忽略本地数据、生成的可视化/统计输出、训练 run、缓存，以及常见模型权重格式：`.pt`、`.pth`、`.onnx`、`.engine`、`.safetensors`、`.weights` 等。

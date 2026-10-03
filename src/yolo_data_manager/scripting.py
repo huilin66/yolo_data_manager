@@ -55,6 +55,9 @@ TASK_COMMANDS: Mapping[str, tuple[str, ...]] = {
     "convert.pseudo": ("convert", "pseudo"),
     "convert.resize": ("convert", "resize"),
     "convert.filename_remap": ("convert", "filename-remap"),
+    "vlm.auto_label": ("vlm", "auto-label"),
+    "vlm.verify_errors": ("vlm", "verify-errors"),
+    "vlm.assistant": ("vlm", "assistant"),
     "eval.compare": ("eval", "compare"),
     "eval.review_pack": ("eval", "review-pack"),
     "eval.error_analysis": ("eval", "error-analysis"),
@@ -275,6 +278,9 @@ _ROOT_TASKS: frozenset[str] = frozenset(
         "convert.pseudo",
         "convert.resize",
         "convert.filename_remap",
+        "vlm.auto_label",
+        "vlm.verify_errors",
+        "vlm.assistant",
     }
 )
 
@@ -406,6 +412,24 @@ class YoloManager:
         """Default conversion output directory."""
 
         return ydm_dir(self.root, "conversion")
+
+    @property
+    def output_vlm(self) -> Path:
+        """Default VLM output directory."""
+
+        return ydm_dir(self.root, "vlm")
+
+    @property
+    def output_vlm_auto_label(self) -> Path:
+        """Default VLM automatic-label output dataset."""
+
+        return self.output_vlm / "auto_label"
+
+    @property
+    def output_vlm_error_verify(self) -> Path:
+        """Default VLM error-verification correction package."""
+
+        return self.output_vlm / "error_verify"
 
     @property
     def output_labels_backup(self) -> Path:
@@ -2145,6 +2169,107 @@ class YoloManager:
             progress_leave=progress_leave,
             **kwargs,
         )
+
+    # -- VLM ---------------------------------------------------------------
+
+    def vlm_auto_label(
+        self,
+        out: str | Path | None = None,
+        *,
+        config: str | Path | None = None,
+        provider: str | None = None,
+        prompt: str | None = None,
+        limit: int | None = None,
+        allow_new_classes: bool = False,
+        copy_images: bool = True,
+        dry_run: bool = False,
+        workers: int | None = None,
+        progress: bool = True,
+        progress_leave: bool = False,
+        **kwargs: Any,
+    ) -> int:
+        """Generate YOLO labels with a configured VLM."""
+        return self._run(
+            "vlm.auto_label",
+            out=out,
+            config=config,
+            provider=provider,
+            prompt=prompt,
+            limit=limit,
+            allow_new_classes=allow_new_classes,
+            copy_images=copy_images,
+            dry_run=dry_run,
+            workers=workers,
+            progress=progress,
+            progress_leave=progress_leave,
+            **kwargs,
+        )
+
+    def vlm_verify_errors(
+        self,
+        out: str | Path | None = None,
+        *,
+        error_dir: str | Path | None = None,
+        pred_root: str | Path | None = None,
+        config: str | Path | None = None,
+        provider: str | None = None,
+        mode: str = "all",
+        confidence: float = 0.0,
+        limit: int | None = None,
+        apply: bool = False,
+        yes: bool = False,
+        backup_dir: str | Path | None = None,
+        dry_run: bool = False,
+        workers: int | None = None,
+        progress: bool = True,
+        progress_leave: bool = False,
+        **kwargs: Any,
+    ) -> int:
+        """Verify error-analysis crops and optionally apply the correction plan."""
+        return self._run(
+            "vlm.verify_errors",
+            out=out,
+            error_dir=error_dir,
+            pred_root=pred_root,
+            config=config,
+            provider=provider,
+            mode=mode,
+            confidence=confidence,
+            limit=limit,
+            apply=apply,
+            yes=yes,
+            backup_dir=backup_dir,
+            dry_run=dry_run,
+            workers=workers,
+            progress=progress,
+            progress_leave=progress_leave,
+            **kwargs,
+        )
+
+    def ydm_assistant(
+        self,
+        intent: str,
+        *,
+        config: str | Path | None = None,
+        provider: str | None = None,
+        execute: bool = False,
+        yes: bool = False,
+        **kwargs: Any,
+    ) -> int:
+        """Convert natural-language intent into a safe YoloManager operation."""
+        return self._run(
+            "vlm.assistant",
+            intent=intent,
+            config=config,
+            provider=provider,
+            execute=execute,
+            yes=yes,
+            **kwargs,
+        )
+
+    def vlm_assistant(self, intent: str, **kwargs: Any) -> int:
+        """Alias for ydm_assistant."""
+        return self.ydm_assistant(intent, **kwargs)
 
     # -- evaluation ---------------------------------------------------------
 

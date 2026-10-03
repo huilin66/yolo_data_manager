@@ -32,6 +32,7 @@ ydm_evaluation/      compare, review_pack, error_analysis, metrics
 ydm_dataset/         select, normalize, filter, merge
 ydm_annotation/      annotation edits and reports
 ydm_conversion/      format import/export and task conversions
+ydm_vlm/             automatic labels, error-review plans, and YDM assistant
 ydm_log/              daily operation logs (YYYY-MM-DD.log)
 train.txt/val.txt/test.txt, dataset.yaml  remain at the dataset root
 ```
@@ -202,6 +203,16 @@ Supported:
 - `vis crop` supports `padding`: integers expand each side by pixels, decimals expand each side by the box width/height ratio, and crops are clamped to image boundaries.
 - Added `--delete-pred-none` / `delete_pred_none=True`: force deletion of GT row y for `prednone_gty` crops, even when `--to` / `to` is an update class.
 - Added `--replace-gt-from-pred` / `replace_gt_from_pred=True`: with prediction txt, replace GT row y completely with prediction x for `predx_gty`; same-image same-class replacements use `dedup_iou` and delete suppressed duplicate GT rows; delete `prednone_gty` and append `predx_gtnone`.
+
+## VLM Extension
+
+- VLM settings are loaded from .env; qwen is built in for DashScope and local OpenAI-compatible services.
+- vlm auto-label calls the configured VLM and writes a new YOLO dataset from validated JSON detections.
+- vlm verify-errors reads eval_error_analysis class and attribute crops and writes correction_plan.json plus crop maps for the existing annotation correction APIs.
+- ydm assistant converts natural-language intent into an allowlisted YoloManager method; write operations require explicit confirmation.
+- Providers implement VLMProvider and can be extended with register_vlm_provider. Model output is schema-validated and is never executed as shell or Python code.
+
+See README, CLI_USAGE, and PYTHON_USAGE for configuration and examples. The default VLM output group is ydm_vlm under the dataset root.
 
 ## Package Structure
 

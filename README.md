@@ -139,6 +139,31 @@ ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --names class.
 - When an attribute schema is available, error analysis also writes `attribute_error.csv`; `review=True` adds `review/attribute_error/attribute_<name>/gt_<gt_value>_pred_<pred_value>/` with the matched image and crop.
 - Review crop names use `image_pred<pred_txt_order>_gt<gt_txt_order>`, with `none` for missing sides.
 
+## VLM
+
+VLM settings are loaded from .env in the project root or current working directory. The built-in qwen provider supports DashScope and local OpenAI-compatible endpoints:
+
+    VLM_PROVIDER=qwen
+    VLM_BASE_URL=http://127.0.0.1:18001/v1
+    VLM_MODEL=qwen3-vl-30b
+    VLM_API_KEY=your-key
+    VLM_TIMEOUT=120
+    VLM_WORKERS=4
+
+Generate YOLO annotations:
+
+    ydm vlm auto-label --root yolo_data --out yolo_vlm
+
+Verify eval_error_analysis crops and write correction_plan.json:
+
+    ydm vlm verify-errors --root gt_yolo --error-dir gt_yolo/ydm_evaluation/error_analysis
+
+The natural-language assistant only creates a plan by default. Add --execute --yes to permit a write operation:
+
+    ydm vlm assistant --root yolo_data --intent "show class statistics"
+
+VLM outputs default to ydm_vlm/. The generated class_crop_map and attribute_crop_map can be passed directly to the existing crop-correction APIs; applied edits still use the labels_backup policy.
+
 ## Git Ignore Policy
 
 The project `.gitignore` excludes local datasets, generated visualization/statistics outputs, training runs, caches, and common model-weight formats such as `.pt`, `.pth`, `.onnx`, `.engine`, `.safetensors`, and `.weights`.

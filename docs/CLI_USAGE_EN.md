@@ -302,6 +302,31 @@ ydm convert filename-remap --root yolo_data --out yolo_numeric
 
 `convert filename-remap` copies images and matching labels with uniform numeric filenames. When `--digits` is omitted, the width uses the next power of ten at or above ten times the image count; 8,951 images therefore use six-digit names. Numbering starts at 0 by default and can be changed with `--start`. Without `--mapping-file`, the mapping is written to `<root>/ydm_conversion/filename_mapping.json`; an explicit path takes precedence, and the default output is `<root>/ydm_conversion/filename_remap`.
 
+## VLM
+
+VLM settings are loaded from .env in the project root or current working directory. The built-in qwen provider supports DashScope and local OpenAI-compatible endpoints:
+
+    VLM_PROVIDER=qwen
+    VLM_BASE_URL=http://127.0.0.1:18001/v1
+    VLM_MODEL=qwen3-vl-30b
+    VLM_API_KEY=your-key
+    VLM_TIMEOUT=120
+    VLM_WORKERS=4
+
+Generate YOLO annotations. The default output is root/ydm_vlm/auto_label:
+
+    ydm vlm auto-label --root yolo_data --out yolo_vlm
+
+Verify eval_error_analysis crops and create root/ydm_vlm/error_verify/correction_plan.json:
+
+    ydm vlm verify-errors --root gt_yolo --error-dir gt_yolo/ydm_evaluation/error_analysis
+
+Verification only creates a correction plan and crop maps by default. Use --apply --yes to modify GT labels; the existing labels_backup policy is used. The natural-language assistant only creates a plan unless --execute --yes is supplied:
+
+    ydm vlm assistant --root yolo_data --intent "show class statistics"
+
+Providers implement the common VLMProvider interface. Additional OpenAI-compatible or custom backends can be registered with register_vlm_provider.
+
 ## Evaluation and Error Analysis
 
 ```bash

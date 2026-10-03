@@ -265,6 +265,23 @@ mgr.generate_attribute_com(
     output="co_occurrence_matrix_train_conditional.csv",
 )
 
+# VLM
+
+VLM 配置从项目根目录或当前工作目录的 .env 读取。当前内置 qwen provider，支持 DashScope 和本地 OpenAI 兼容服务：
+
+    VLM_PROVIDER=qwen
+    VLM_BASE_URL=http://127.0.0.1:18001/v1
+    VLM_MODEL=qwen3-vl-30b
+    VLM_API_KEY=your-key
+    VLM_TIMEOUT=120
+    VLM_WORKERS=4
+
+    mgr.vlm_auto_label(out="auto_labeled", workers=4)
+    mgr.vlm_verify_errors(error_dir="ydm_evaluation/error_analysis")
+    mgr.ydm_assistant("统计每个类别的数量")  # 只生成计划
+
+自动标注默认写入 ydm_vlm/auto_label。错误复核默认写入 ydm_vlm/error_verify/correction_plan.json，并生成可以直接传给 ann_correct_from_error_crops、ann_att_correct_from_error_crops 的 crop 映射。需要实际修改标签时，显式设置 apply=True、yes=True；已有的 labels_backup 规则仍然生效。助手默认不执行写操作，只有 execute=True 且 yes=True 才会执行。
+
 # 评估 —— gt_root / pred_root 独立传入
 mgr.eval_compare(gt_root=r"E:\datasets\gt", pred_root=r"E:\datasets\pred",
                  out="compare.csv", iou=0.5)
@@ -368,6 +385,7 @@ Python API 与 CLI 使用相同的默认输出规则；显式传入 `out`、`csv
 <root>/ydm_dataset/         select、normalize、filter、merge
 <root>/ydm_annotation/      标注编辑输出和 edit_report.csv
 <root>/ydm_conversion/      格式导入导出和任务转换
+<root>/ydm_vlm/             自动标注、错误复核计划、VLM 助手输出
 <root>/ydm_log/             按日期保存的操作日志 YYYY-MM-DD.log
 <root>/train.txt、val.txt、test.txt、dataset.yaml
 ```

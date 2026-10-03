@@ -854,6 +854,49 @@ def build_parser() -> argparse.ArgumentParser:
     )
     filename_remap.set_defaults(handler=handle_filename_remap)
 
+    vlm_cmd = subparsers.add_parser("vlm", help="VLM-assisted annotation, review, and YDM assistant")
+    vlm_sub = vlm_cmd.add_subparsers(dest="vlm_command", required=True)
+
+    vlm_auto = vlm_sub.add_parser("auto-label", help="generate YOLO labels from images with a VLM")
+    add_dataset_args(vlm_auto)
+    vlm_auto.add_argument("--out", default=None, help="output dataset root; defaults to <root>/ydm_vlm/auto_label")
+    vlm_auto.add_argument("--config", default=None, help="optional .env path; otherwise the nearest .env is loaded")
+    vlm_auto.add_argument("--provider", default=None, help="VLM provider name, for example qwen")
+    vlm_auto.add_argument("--prompt", default=None, help="additional or complete prompt instruction")
+    vlm_auto.add_argument("--limit", type=int, default=None)
+    vlm_auto.add_argument("--allow-new-classes", action="store_true")
+    vlm_auto.add_argument("--no-copy-images", dest="copy_images", action="store_false")
+    vlm_auto.add_argument("--dry-run", action="store_true")
+    vlm_auto.set_defaults(handler=handle_vlm_auto_label, copy_images=True, workers=None)
+
+    vlm_verify = vlm_sub.add_parser(
+        "verify-errors",
+        help="verify eval_error_analysis crops and write correction maps",
+    )
+    add_dataset_args(vlm_verify)
+    vlm_verify.add_argument("--error-dir", default=None, help="error-analysis root or its review directory")
+    vlm_verify.add_argument("--pred-root", default=None, help="prediction dataset root; used when applying prediction-backed fixes")
+    vlm_verify.add_argument("--out", default=None, help="correction package; defaults to <root>/ydm_vlm/error_verify")
+    vlm_verify.add_argument("--config", default=None)
+    vlm_verify.add_argument("--provider", default=None)
+    vlm_verify.add_argument("--mode", choices=["class", "attribute", "all"], default="all")
+    vlm_verify.add_argument("--confidence", type=float, default=0.0)
+    vlm_verify.add_argument("--limit", type=int, default=None)
+    vlm_verify.add_argument("--apply", action="store_true", help="apply accepted corrections after writing the plan")
+    vlm_verify.add_argument("--yes", action="store_true", help="confirm dataset modification when --apply is used")
+    vlm_verify.add_argument("--backup-dir", default=None, help="label backup directory; defaults to <root>/labels_backup")
+    vlm_verify.add_argument("--dry-run", action="store_true", help="build and validate corrections without writing labels")
+    vlm_verify.set_defaults(handler=handle_vlm_verify_errors, workers=None)
+
+    vlm_assistant = vlm_sub.add_parser("assistant", help="turn a user intent into a YoloManager call")
+    add_dataset_args(vlm_assistant)
+    vlm_assistant.add_argument("--intent", required=True, help="natural-language YDM operation")
+    vlm_assistant.add_argument("--config", default=None)
+    vlm_assistant.add_argument("--provider", default=None)
+    vlm_assistant.add_argument("--execute", action="store_true", help="execute the generated plan")
+    vlm_assistant.add_argument("--yes", action="store_true", help="confirm a write operation")
+    vlm_assistant.set_defaults(handler=handle_vlm_assistant)
+
     eval_cmd = subparsers.add_parser("eval", help="evaluate or compare predictions")
     eval_sub = eval_cmd.add_subparsers(dest="eval_command", required=True)
     compare = eval_sub.add_parser("compare", help="compare prediction labels against GT labels")
@@ -2035,6 +2078,119 @@ def handle_filename_remap(args: argparse.Namespace) -> int:
         dry_run=args.dry_run,
     )
     print(json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
+    return 0
+
+
+def _create_cli_vlm_provider(args: argparse.Namespace):
+    from yolo_data_manager.vlm.config import load_vlm_config
+    from yolo_data_manager.vlm.providers import create_vlm_provider
+
+    overrides = {"VLM_PROVIDER": args.provider} if getattr(args, "provider", None) else None
+    config = load_vlm_config(getattr(args, "config", None), overrides=overrides)
+    return config, create_vlm_provider(config)
+
+
+def handle_vlm_auto_label(args: argparse.Namespace) -> int:
+    from yolo_data_manager.vlm.auto_label import generate_yolo_labels
+
+    dataset = load_from_args(args)
+    out = _value_or_default(
+        args.out,
+        ydm_dir(_resolved_output_root(args.root), "vlm") / "auto_label",
+    )
+    config, provider = _create_cli_vlm_provider(args)
+    summary = generate_yolo_labels(
+        dataset,
+        out,
+        provider,
+        workers=config.workers if args.workers is None else args.workers,
+        limit=args.limit,
+        prompt=args.prompt,
+        allow_new_classes=args.allow_new_classes,
+        copy_images=args.copy_images,
+        dry_run=args.dry_run,
+        progress=args.progress,
+        progress_leave=args.progress_leave,
+    )
+    print(json.dumps(summary.to_dict(), indent=2, ensure_ascii=False, default=str))
+    return 0 if summary.failed == 0 else 2
+
+
+def _prediction_labels_dir(root: str | Path | None, labels_dir: str) -> str | None:
+    if root is None:
+        return None
+    path = Path(root)
+    candidate = path / labels_dir
+    return str(candidate if candidate.is_dir() else path)
+
+
+def handle_vlm_verify_errors(args: argparse.Namespace) -> int:
+    from yolo_data_manager.vlm.error_verify import apply_correction_plan, verify_error_crops
+
+    dataset = load_from_args(args)
+    error_dir = _value_or_default(
+        args.error_dir,
+        default_evaluation_output(_resolved_output_root(args.root), "error_analysis"),
+    )
+    out = _value_or_default(
+        args.out,
+        ydm_dir(_resolved_output_root(args.root), "vlm") / "error_verify",
+    )
+    config, provider = _create_cli_vlm_provider(args)
+    plan = verify_error_crops(
+        dataset,
+        error_dir,
+        out,
+        provider,
+        mode=args.mode,
+        workers=config.workers if args.workers is None else args.workers,
+        confidence=args.confidence,
+        limit=args.limit,
+        progress=args.progress,
+        progress_leave=args.progress_leave,
+    )
+    if args.apply:
+        if not args.yes:
+            print("VLM correction plan written, but --apply requires --yes.")
+            print(json.dumps(plan, indent=2, ensure_ascii=False, default=str))
+            return 2
+        plan["applied"] = apply_correction_plan(
+            dataset,
+            plan,
+            backup_dir=args.backup_dir or str(_resolved_output_root(args.root) / "labels_backup"),
+            pred_labels_dir=_prediction_labels_dir(args.pred_root, args.labels_dir),
+            dry_run=args.dry_run,
+        )
+    print(json.dumps(plan, indent=2, ensure_ascii=False, default=str))
+    return 0
+
+
+def handle_vlm_assistant(args: argparse.Namespace) -> int:
+    from yolo_data_manager.scripting import YoloManager
+    from yolo_data_manager.vlm.assistant import run_assistant
+
+    _config, provider = _create_cli_vlm_provider(args)
+    manager = YoloManager(
+        args.root,
+        layout=args.layout,
+        task=args.task,
+        images_dir=args.images_dir,
+        labels_dir=args.labels_dir,
+        class_file=args.class_file,
+        attribute_file=args.attribute_file,
+        split_file=args.split_file,
+        only_val=args.only_val,
+        init_layout=False,
+        init_check=False,
+    )
+    result = run_assistant(
+        manager,
+        args.intent,
+        provider,
+        execute=args.execute,
+        confirm=args.yes,
+    )
+    print(json.dumps(result, indent=2, ensure_ascii=False, default=str))
     return 0
 
 
