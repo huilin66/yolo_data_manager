@@ -75,6 +75,7 @@ UPDATE_CLASS_MAP = {
     #     "Temperature High Risk",
     # ],
 }
+UPDATE_ATT_MAP = None
 QUERY_CLASS = "Leakage"
 SELECTION_FILE = None
 # Select operations by uncommenting names in RUN_LIST.
@@ -181,7 +182,7 @@ def main() -> None:
     if "update_class" in RUN_LIST:
         ydm.ann_update_from_map(UPDATE_CLASS_MAP)
     if "update_att" in RUN_LIST:
-        ydm.ann_att_update_from_map(UPDATE_CLASS_MAP)
+        ydm.ann_att_update_from_map(UPDATE_ATT_MAP)
     if "filter_small" in RUN_LIST:
         ydm.anno_update_by_size(
             min_pixels=50,

@@ -663,7 +663,7 @@ class YoloManager:
         seed: int = 233,
         out: str | None = None,
         backup_dir: str | Path | None = None,
-        absolute_paths: bool = False,
+        absolute_paths: bool = True,
         train_include_list: str | Path | Sequence[str] | None = None,
         val_include_list: str | Path | Sequence[str] | None = None,
         ensure_class_presence: bool = True,
@@ -778,7 +778,9 @@ class YoloManager:
         args = SimpleNamespace(
             group_src=str(group_src if group_src is not None else root / "group_src"),
             group_dir=str(group_dir if group_dir is not None else root / "group"),
-            images_dir=str(images_dir if images_dir is not None else root / self.images_dir),
+            images_dir=str(
+                images_dir if images_dir is not None else root / self.images_dir
+            ),
             out_dir=str(out_dir if out_dir is not None else root / "group_merged"),
             link=link,
             overwrite=overwrite,
@@ -830,10 +832,18 @@ class YoloManager:
             else ",".join(str(value) for value in attribute_names)
         )
         args = SimpleNamespace(
-            images_dir=str(images_dir if images_dir is not None else root / self.images_dir),
-            labels_dir=str(labels_dir if labels_dir is not None else root / self.labels_dir),
-            groups_dir=str(groups_dir if groups_dir is not None else root / "group_merged"),
-            out_dir=str(out_dir if out_dir is not None else root / "manual_group_split"),
+            images_dir=str(
+                images_dir if images_dir is not None else root / self.images_dir
+            ),
+            labels_dir=str(
+                labels_dir if labels_dir is not None else root / self.labels_dir
+            ),
+            groups_dir=str(
+                groups_dir if groups_dir is not None else root / "group_merged"
+            ),
+            out_dir=str(
+                out_dir if out_dir is not None else root / "manual_group_split"
+            ),
             ratios=ratio_text,
             seed=seed,
             attempts=attempts,
@@ -1296,10 +1306,10 @@ class YoloManager:
 
         from yolo_data_manager.annotation.edit import EditReport
         from yolo_data_manager.annotation.remap import apply_class_map_data
+        from yolo_data_manager.core.models import YoloImage
         from yolo_data_manager.core.schema import find_class_source
         from yolo_data_manager.io.backup import LabelBackup
         from yolo_data_manager.io.loader import load_yolo_dataset, parse_label_file
-        from yolo_data_manager.core.models import YoloImage
 
         dataset = load_yolo_dataset(
             self.root,
@@ -1373,13 +1383,19 @@ class YoloManager:
                 )
             _write_updated_class_source(class_source, current.classes.names)
 
-        report_path = Path(report) if report is not None else self.output_annotation / "update_from_map" / "edit_report.csv"
+        report_path = (
+            Path(report)
+            if report is not None
+            else self.output_annotation / "update_from_map" / "edit_report.csv"
+        )
         combined_report.write_csv(report_path)
         print(
             json.dumps(
                 {
                     "changed": len(combined_report.rows),
-                    "deleted": sum(1 for row in combined_report.rows if row.action == "delete"),
+                    "deleted": sum(
+                        1 for row in combined_report.rows if row.action == "delete"
+                    ),
                     "classes": current.classes.names,
                     "dry_run": dry_run,
                     "backup_dir": (
@@ -1613,13 +1629,17 @@ class YoloManager:
         if not isinstance(attribute_map, Mapping):
             raise TypeError("attribute_map must be a mapping")
 
-        from yolo_data_manager.annotation.edit import set_attributes_from_map
-        from yolo_data_manager.annotation.edit import EditReport
+        from yolo_data_manager.annotation.edit import (
+            EditReport,
+            set_attributes_from_map,
+        )
         from yolo_data_manager.io.loader import load_yolo_dataset
         from yolo_data_manager.io.writer import write_yolo_labels_in_place
 
         requested_only_val = self.only_val if only_val is None else bool(only_val)
-        split_file = self.split_file if requested_only_val else self._explicit_split_file
+        split_file = (
+            self.split_file if requested_only_val else self._explicit_split_file
+        )
         dataset = load_yolo_dataset(
             self.root,
             images_dir=self.images_dir,
