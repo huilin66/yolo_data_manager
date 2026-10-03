@@ -47,9 +47,17 @@ def _ensure_frontend_dependencies(frontend_dir: Path) -> None:
         )
 
 
-def _start_process(command: list[str], cwd: Path, name: str) -> subprocess.Popen:
+def _start_process(
+    command: list[str],
+    cwd: Path,
+    name: str,
+    *,
+    env: dict[str, str] | None = None,
+) -> subprocess.Popen:
     print(f"-> Starting {name}...")
     kwargs: dict[str, object] = {"cwd": str(cwd)}
+    if env is not None:
+        kwargs["env"] = env
     if os.name == "nt":
         kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
     else:
@@ -148,6 +156,8 @@ def run_web(
             )
         _ensure_frontend_dependencies(frontend_dir)
         _ensure_port_free(frontend_host, frontend_port, "YDM frontend")
+        frontend_env = os.environ.copy()
+        frontend_env["VITE_API_BASE_URL"] = backend_url
         frontend_process = _start_process(
             [
                 npm,
@@ -162,6 +172,7 @@ def run_web(
             ],
             frontend_dir,
             "YDM frontend (Vite)",
+            env=frontend_env,
         )
         _wait_for_http(frontend_url, frontend_process, "YDM frontend")
         print(f"YDM is ready: {frontend_url}")

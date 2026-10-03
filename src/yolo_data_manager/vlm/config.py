@@ -30,6 +30,15 @@ def _load_dotenv(
         resolved = str(Path(dotenv_path).expanduser())
     else:
         resolved = find_dotenv(usecwd=True) or None
+        if resolved is None:
+            # ``ydm web`` may be launched outside the repository root. In an
+            # editable/source checkout, keep the project .env discoverable
+            # without requiring users to copy secrets into the dataset folder.
+            for parent in Path(__file__).resolve().parents:
+                candidate = parent / ".env"
+                if candidate.is_file():
+                    resolved = str(candidate)
+                    break
     if resolved is None:
         return None, {}
 

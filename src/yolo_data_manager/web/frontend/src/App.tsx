@@ -454,7 +454,7 @@ function App() {
               </button>
             ))}
           </nav>
-          <div className="sidebar-footer"><div className="status-dot" /> <span>{t('nav.workspace')}</span><span className="version-label">v1.0.4</span></div>
+          <div className="sidebar-footer"><div className="status-dot" /> <span>{t('nav.workspace')}</span><span className="version-label">v1.0.5</span></div>
         </aside>
 
         <main className="main-area">
@@ -551,10 +551,12 @@ function AssistantDrawer({
   const { t } = useTranslation();
   const statusLabel = statusLoading
     ? t('assistant.statusChecking')
+    : status?.error
+      ? t('assistant.statusUnavailable')
     : status?.configured
       ? t('assistant.statusReady')
       : t('assistant.statusNotConfigured');
-  const statusClass = statusLoading ? 'checking' : status?.configured ? 'ready' : 'not-ready';
+  const statusClass = statusLoading ? 'checking' : status?.error ? 'not-ready' : status?.configured ? 'ready' : 'not-ready';
 
   return (
     <section className="assistant-panel" aria-label={t('assistant.title')}>
@@ -579,7 +581,7 @@ function AssistantDrawer({
         <div><span>{t('assistant.contextImage')}</span><strong title={selectedImage?.relative_path || undefined}>{selectedImage?.name || t('assistant.noImage')}</strong></div>
       </div>
 
-      {!statusLoading && !status?.configured && <div className="assistant-hint">{t('assistant.notConfiguredHint')}</div>}
+      {!statusLoading && !status?.configured && <div className="assistant-hint">{t(status?.error ? 'assistant.apiUnavailableHint' : 'assistant.notConfiguredHint')}</div>}
 
       <div className="assistant-messages" aria-live="polite">
         {!messages.length && <div className="assistant-welcome"><div className="assistant-welcome-icon"><Bot size={20} /></div><p>{t('assistant.welcome')}</p></div>}

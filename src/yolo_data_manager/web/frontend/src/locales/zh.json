@@ -134,6 +134,7 @@
     "executed": "操作已执行",
     "you": "你",
     "notConfiguredHint": "请在 .env 中配置 VLM_API_KEY 或本地 VLM_BASE_URL 后使用助手。",
+    "apiUnavailableHint": "无法连接 YDM API。请启动完整的 `ydm web` 服务后重新打开页面。",
     "loadDatasetFirst": "请先加载数据集，再使用助手。",
     "error": "助手请求失败。"
   }

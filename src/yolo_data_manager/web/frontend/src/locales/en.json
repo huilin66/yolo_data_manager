@@ -134,6 +134,7 @@
     "executed": "Operation executed",
     "you": "You",
     "notConfiguredHint": "Configure VLM_API_KEY or a local VLM_BASE_URL in .env to enable requests.",
+    "apiUnavailableHint": "The YDM API cannot be reached. Start the full `ydm web` service and reopen this page.",
     "loadDatasetFirst": "Load a dataset before using the assistant.",
     "error": "Assistant request failed."
   }
