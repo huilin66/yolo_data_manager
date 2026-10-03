@@ -454,7 +454,7 @@ function App() {
               </button>
             ))}
           </nav>
-          <div className="sidebar-footer"><div className="status-dot" /> <span>{t('nav.workspace')}</span><span className="version-label">v1.0.3</span></div>
+          <div className="sidebar-footer"><div className="status-dot" /> <span>{t('nav.workspace')}</span><span className="version-label">v1.0.4</span></div>
         </aside>
 
         <main className="main-area">
@@ -485,10 +485,15 @@ function App() {
               <div className="workspace-content">{renderTabContent()}</div>
             </>
           )}
+
+          <section className="main-details">
+            <div className="dataset-details-bar"><Database size={15} /><strong>{t('inspector.details')}</strong></div>
+            <Inspector overview={overview} onCopy={copyRoot} onRefresh={handleRefresh} refreshing={refreshing} />
+          </section>
         </main>
 
-        <aside className={`right-rail ${assistantOpen ? 'assistant-open' : ''}`}>
-          {assistantOpen && (
+        {assistantOpen && (
+          <aside className="right-rail assistant-open">
             <AssistantDrawer
               overview={overview}
               selectedImage={selectedImage}
@@ -505,12 +510,8 @@ function App() {
               onCancel={handleAssistantCancel}
               onQuickPrompt={setAssistantInput}
             />
-          )}
-          <div className={`dataset-inspector ${assistantOpen ? 'assistant-inspector' : ''}`}>
-            {assistantOpen && <div className="dataset-details-bar"><Database size={15} /><strong>{t('inspector.details')}</strong></div>}
-            <Inspector overview={overview} onCopy={copyRoot} onRefresh={handleRefresh} refreshing={refreshing} />
-          </div>
-        </aside>
+          </aside>
+        )}
       </div>
     </div>
   );

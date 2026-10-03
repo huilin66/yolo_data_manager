@@ -44,7 +44,7 @@ If the frontend reports that `react-i18next` or `i18next` cannot be resolved,
 run `npm install` again in the frontend directory and restart `ydm web`.
 The top-right VLM assistant icon is always available in the workspace. Clicking
 it opens a collapsible right-side panel; dataset details remain at the bottom
-of that panel. After a dataset is loaded, it can turn natural-language
+of the central workspace. After a dataset is loaded, it can turn natural-language
 requests into statistics, validation, query, visualization, and annotation-
 operation plans. Operations that can modify dataset files are shown for manual
 confirmation before execution. VLM settings prefer the project `.env` file;
