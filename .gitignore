@@ -84,3 +84,8 @@ demo/
 
 *.csv
 *.json
+
+# YDM Web frontend manifests and locale resources
+!src/yolo_data_manager/web/frontend/*.json
+!src/yolo_data_manager/web/frontend/src/locales/*.json
+src/yolo_data_manager/web/frontend/node_modules/

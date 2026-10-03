@@ -38,6 +38,10 @@ Install the optional web dependencies and start it:
 The web frontend requires Node.js and npm; npm is normally installed with Node.js.
 Use Node.js 20.19+ (or 22.12+). `ydm web` starts both the frontend development
 server and the YDM API. If you only use `--api-only`, Node.js/npm is not required.
+The UI supports English and Chinese; use the language button in the top-right
+corner to switch, and the choice is remembered by the current browser.
+If the frontend reports that `react-i18next` or `i18next` cannot be resolved,
+run `npm install` again in the frontend directory and restart `ydm web`.
 
 ```bash
 python -m pip install -e ".[web]"

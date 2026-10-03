@@ -1,0 +1,107 @@
+{
+  "brand": {
+    "subtitle": "YOLO 数据管理器"
+  },
+  "nav": {
+    "workspace": "工作区",
+    "dataset": "数据集",
+    "analysis": "分析",
+    "annotation": "标注",
+    "evaluation": "评估",
+    "conversions": "转换",
+    "aiTools": "AI 工具",
+    "module": "模块"
+  },
+  "tabs": {
+    "overview": "概览",
+    "images": "图像",
+    "labels": "标签",
+    "classes": "类别",
+    "splits": "划分"
+  },
+  "language": {
+    "switchToChinese": "切换为中文",
+    "switchToEnglish": "Switch to English"
+  },
+  "common": {
+    "clear": "清除",
+    "loadDataset": "加载数据集",
+    "chooseDatasetPath": "选择数据集路径",
+    "returnToDataset": "返回数据集",
+    "refreshDataset": "刷新数据集",
+    "copyDatasetPath": "复制数据集路径",
+    "toggleTheme": "切换主题",
+    "settings": "设置",
+    "previousImage": "上一张图像",
+    "nextImage": "下一张图像",
+    "gridView": "网格视图",
+    "listView": "列表视图"
+  },
+  "search": {
+    "placeholder": "搜索图像、类别或文件...",
+    "clear": "清除搜索"
+  },
+  "dataset": {
+    "description": "加载 YOLO 数据集，查看图像、标签、类别和数据划分。",
+    "pathPlaceholder": "数据集根目录或 data.yaml 路径",
+    "filterSplit": "筛选划分",
+    "allImages": "全部图像",
+    "train": "训练集",
+    "val": "验证集",
+    "test": "测试集",
+    "sortImages": "图像排序",
+    "sortName": "排序：名称（A–Z）",
+    "sortBoxes": "排序：框数量",
+    "viewMode": "视图模式",
+    "loading": "加载中…",
+    "imageCount": "{{count}} 张图像",
+    "boxSingular": "个框",
+    "boxPlural": "个框",
+    "imagePage": "图像 {{current}} / {{total}}",
+    "imageDimensionsUnavailable": "无法获取图像尺寸",
+    "labelsIndexed": "已索引 {{count}} 个标签文件",
+    "labelsHint": "使用标注和分析模块检查或更新标签。",
+    "enterPath": "请先输入数据集根目录或 YAML 文件路径。",
+    "loadFailed": "数据集加载失败。",
+    "refreshFailed": "刷新失败。",
+    "copyPathFailed": "当前浏览器无法复制数据集路径。",
+    "layout": "{{value}} 布局",
+    "task": "{{value}} 任务"
+  },
+  "empty": {
+    "title": "加载数据集开始使用",
+    "description": "将 YDM 指向 YOLO 数据集根目录或 data.yaml。工作区会在本地索引图像、标签、类别、属性和划分文件。"
+  },
+  "module": {
+    "ready": "{{label}}已准备连接",
+    "description": "YDM 独立工作区已就绪。对应操作 API 开放后，该模块将复用当前工作区、日志和数据集会话。"
+  },
+  "inspector": {
+    "noDataset": "尚未加载数据集",
+    "description": "加载数据集后将在此显示数据集详情和最近操作。",
+    "dataset": "数据集",
+    "images": "图像",
+    "labels": "标签",
+    "boxes": "标注框",
+    "classes": "类别",
+    "recentOperations": "最近操作",
+    "moreClasses": "+ {{count}} 个更多类别"
+  },
+  "table": {
+    "id": "ID",
+    "class": "类别",
+    "boxes": "标注框",
+    "images": "图像",
+    "split": "划分",
+    "ratio": "比例"
+  },
+  "settings": {
+    "standaloneWorkspace": "独立工作区",
+    "api": "API · 127.0.0.1:8091",
+    "frontend": "前端 · 127.0.0.1:5174",
+    "runtimeHint": "运行参数在启动 YDM 时配置。"
+  },
+  "result": {
+    "noImages": "当前筛选条件下没有匹配的图像。"
+  }
+}

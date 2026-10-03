@@ -36,6 +36,10 @@ Web 界面的前端需要安装 Node.js 和 npm，npm 通常会随 Node.js 一�
 Node.js 20.19+（或 22.12+）。`ydm web` 会启动前端开发服务器和 YDM API；如果只使用
 `--api-only` 启动 API，则不需要 Node.js/npm。
 
+Web 界面支持中文和英文，右上角的语言按钮可以切换，选择会保存在当前浏览器中。
+如果出现 `react-i18next` 或 `i18next` 找不到的错误，请在前端目录重新执行
+`npm install`，然后重启 `ydm web`。
+
 ```bash
 python -m pip install -e ".[web]"
 cd src/yolo_data_manager/web/frontend

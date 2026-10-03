@@ -1,0 +1,107 @@
+{
+  "brand": {
+    "subtitle": "YOLO Data Manager"
+  },
+  "nav": {
+    "workspace": "Workspace",
+    "dataset": "Dataset",
+    "analysis": "Analysis",
+    "annotation": "Annotation",
+    "evaluation": "Evaluation",
+    "conversions": "Conversions",
+    "aiTools": "AI tools",
+    "module": "Module"
+  },
+  "tabs": {
+    "overview": "Overview",
+    "images": "Images",
+    "labels": "Labels",
+    "classes": "Classes",
+    "splits": "Splits"
+  },
+  "language": {
+    "switchToChinese": "切换为中文",
+    "switchToEnglish": "Switch to English"
+  },
+  "common": {
+    "clear": "Clear",
+    "loadDataset": "Load dataset",
+    "chooseDatasetPath": "Choose dataset path",
+    "returnToDataset": "Return to Dataset",
+    "refreshDataset": "Refresh dataset",
+    "copyDatasetPath": "Copy dataset path",
+    "toggleTheme": "Toggle theme",
+    "settings": "Settings",
+    "previousImage": "Previous image",
+    "nextImage": "Next image",
+    "gridView": "Grid view",
+    "listView": "List view"
+  },
+  "search": {
+    "placeholder": "Search images, classes, or files...",
+    "clear": "Clear search"
+  },
+  "dataset": {
+    "description": "Load a YOLO dataset to inspect its images, labels, classes, and splits.",
+    "pathPlaceholder": "Dataset root or data.yaml path",
+    "filterSplit": "Filter split",
+    "allImages": "All images",
+    "train": "Train",
+    "val": "Val",
+    "test": "Test",
+    "sortImages": "Sort images",
+    "sortName": "Sort: Name (A–Z)",
+    "sortBoxes": "Sort: Box count",
+    "viewMode": "View mode",
+    "loading": "Loading…",
+    "imageCount": "{{count}} images",
+    "boxSingular": "box",
+    "boxPlural": "boxes",
+    "imagePage": "Image {{current}} / {{total}}",
+    "imageDimensionsUnavailable": "image dimensions unavailable",
+    "labelsIndexed": "{{count}} label files indexed",
+    "labelsHint": "Use the Annotation and Analysis modules to inspect or update labels.",
+    "enterPath": "Enter a dataset root or a dataset YAML path first.",
+    "loadFailed": "Dataset load failed.",
+    "refreshFailed": "Refresh failed.",
+    "copyPathFailed": "The dataset path could not be copied by this browser.",
+    "layout": "{{value}} layout",
+    "task": "{{value}} task"
+  },
+  "empty": {
+    "title": "Load a dataset to begin",
+    "description": "Point YDM at a YOLO dataset root or its data YAML. The workspace will index images, labels, classes, attributes, and split files locally."
+  },
+  "module": {
+    "ready": "{{label}} is ready to connect",
+    "description": "The standalone YDM shell is in place. This module will reuse the same workspace, logs, and dataset session as its operation API is exposed."
+  },
+  "inspector": {
+    "noDataset": "No dataset loaded",
+    "description": "Dataset details and recent operations will appear here.",
+    "dataset": "Dataset",
+    "images": "Images",
+    "labels": "Labels",
+    "boxes": "Boxes",
+    "classes": "Classes",
+    "recentOperations": "Recent operations",
+    "moreClasses": "+ {{count}} more classes"
+  },
+  "table": {
+    "id": "ID",
+    "class": "Class",
+    "boxes": "Boxes",
+    "images": "Images",
+    "split": "Split",
+    "ratio": "Ratio"
+  },
+  "settings": {
+    "standaloneWorkspace": "Standalone workspace",
+    "api": "API · 127.0.0.1:8091",
+    "frontend": "Frontend · 127.0.0.1:5174",
+    "runtimeHint": "Runtime options are configured when YDM starts."
+  },
+  "result": {
+    "noImages": "No images match the current filter."
+  }
+}

@@ -33,6 +33,20 @@ def _ensure_port_free(host: str, port: int, service: str) -> None:
             raise WebStartupError(f"{service} port {host}:{port} is already in use") from exc
 
 
+def _ensure_frontend_dependencies(frontend_dir: Path) -> None:
+    """Fail early when the Vite workspace has not installed its packages."""
+
+    node_modules = frontend_dir / "node_modules"
+    required = ("i18next", "react-i18next", "react", "react-dom", "vite")
+    missing = [name for name in required if not (node_modules / name / "package.json").is_file()]
+    if missing:
+        missing_text = ", ".join(missing)
+        raise WebStartupError(
+            f"YDM frontend dependencies are incomplete ({missing_text}). "
+            f"Run 'npm install' in {frontend_dir}, then restart 'ydm web'."
+        )
+
+
 def _start_process(command: list[str], cwd: Path, name: str) -> subprocess.Popen:
     print(f"-> Starting {name}...")
     kwargs: dict[str, object] = {"cwd": str(cwd)}
@@ -132,6 +146,7 @@ def run_web(
             raise WebStartupError(
                 f"YDM frontend dependencies are not installed. Run 'npm install' in {frontend_dir}"
             )
+        _ensure_frontend_dependencies(frontend_dir)
         _ensure_port_free(frontend_host, frontend_port, "YDM frontend")
         frontend_process = _start_process(
             [
