@@ -61,6 +61,7 @@ TASK_COMMANDS: Mapping[str, tuple[str, ...]] = {
     "eval.compare": ("eval", "compare"),
     "eval.review_pack": ("eval", "review-pack"),
     "eval.error_analysis": ("eval", "error-analysis"),
+    "eval.error_analysis_common": ("eval", "error-analysis-common"),
     "eval.metrics": ("eval", "metrics"),
 }
 
@@ -84,6 +85,7 @@ _FALSE_FLAGS = {
     "keep_ratio": "--no-keep-ratio",
     "skip_difficult": "--keep-difficult",
     "ignore_empty_classes": "--include-empty-classes",
+    "copy_crops": "--no-copy-crops",
 }
 
 
@@ -102,6 +104,19 @@ def build_task_argv(command: str, **params: Any) -> list[str]:
     argv = list(TASK_COMMANDS[command])
     for python_name, value in params.items():
         if value is None:
+            continue
+        if command == "eval.error_analysis_common" and python_name == "error_dirs":
+            values = (
+                value
+                if isinstance(value, Sequence)
+                and not isinstance(value, (str, bytes, bytearray))
+                else [value]
+            )
+            argv.extend(
+                item
+                for path in values
+                for item in ("--error-dir", str(path))
+            )
             continue
         option_name = _PARAMETER_ALIASES.get(python_name, python_name).replace("_", "-")
         flag = f"--{option_name}"
@@ -2427,6 +2442,37 @@ class YoloManager:
         finally:
             if temporary_class_rules_path is not None:
                 Path(temporary_class_rules_path).unlink(missing_ok=True)
+
+    def eval_error_analysis_common(
+        self,
+        error_dirs: Sequence[str | Path] | Mapping[str, str | Path],
+        out: str | None = None,
+        *,
+        iou: float = 0.5,
+        copy_crops: bool = True,
+        progress: bool = True,
+        progress_leave: bool = False,
+        **kwargs: Any,
+    ) -> int:
+        """Extract errors shared by multiple ``eval_error_analysis`` runs."""
+
+        if isinstance(error_dirs, Mapping):
+            resolved_error_dirs = list(error_dirs.values())
+        elif isinstance(error_dirs, (str, Path)):
+            resolved_error_dirs = [error_dirs]
+        else:
+            resolved_error_dirs = list(error_dirs)
+
+        return run_task(
+            "eval.error_analysis_common",
+            error_dirs=resolved_error_dirs,
+            out=out,
+            iou=iou,
+            copy_crops=copy_crops,
+            progress=progress,
+            progress_leave=progress_leave,
+            **kwargs,
+        )
 
     def eval_metrics(
         self,

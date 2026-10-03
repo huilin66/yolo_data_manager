@@ -183,6 +183,7 @@ Supported:
   - FN class error
   - FN low IoU
   - FN no prediction
+- `eval_error_analysis_common` / `ydm eval error-analysis-common` reads multiple error-analysis outputs, extracts shared `fn_no_pred` GT and shared same-class background/class-error predictions by IoU, and writes common crops plus original/common/remaining count tables per input
 - attribute error analysis on one-to-one matched same-class boxes, with `attribute_error.csv`, an optional attribute-error review pack, and `review/attribute_error/attribute_<name>/confusion_matrix.png` for each attribute; matrix rows are predicted values, columns are true values, and correct/incorrect matches are included; external prediction labels can share the GT `attribute.yaml`
 - attribute-error crops use `predX_gtY` to locate prediction/GT label rows; use `ann_att_correct_from_error_crops` / `correct_gt_attributes_from_error_crops` for single directories or directory-to-attribute-rule mappings, preserving class and geometry with `dry_run`/`backup_dir` support
 - added `ann_att_correct_from_crops` / `correct_gt_attributes_from_crops` for standard `vis_crop` filenames (`<image_stem>_<1-based index>`), with directory-to-attribute-rule mappings and the default `labels_backup` snapshot

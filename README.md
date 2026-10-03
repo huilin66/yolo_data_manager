@@ -160,7 +160,10 @@ ydm eval metrics --gt-root gt_yolo --pred-root pred_labels --names class.txt --c
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --review --workers 8 --copy-pred-txt
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --names class.txt --class car,bus --exclude-class ignore --min-width 0.01 --min-height 0.01 --min-size-logic and --min-pixels 8 --out error_report
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --names class.txt --class-rules error_rules.yaml --out error_report
+ydm eval error-analysis-common --error-dir error_report_model_a --error-dir error_report_model_b --out common_error_report --iou 0.5
 ```
+
+`eval error-analysis-common` 直接读取多个 `eval_error_analysis` 输出目录，不重新运行模型。默认提取每次都出现的 `fn_no_pred` GT，以及每次都出现、类别相同且预测框 IoU 达到阈值的 `background_fp` / `class_error_pred` 预测。结果写入 `common_error_summary.csv`（各运行原始、公共、剩余数量）、公共明细 CSV 和 `common_error_summary.json`；如果输入分析结果包含 review crop，还会生成可直接交给 `ann_correct_from_error_crops` 的 `common_crops/`。
 
 ## Output Conventions
 

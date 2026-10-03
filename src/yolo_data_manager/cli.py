@@ -62,6 +62,7 @@ from yolo_data_manager.tools.filename_remap import remap_yolo_dataset_filenames
 from yolo_data_manager.vis.manual_box import draw_manual_box, find_dataset_image
 from yolo_data_manager.vis.renderer import crop_dataset, render_dataset
 from yolo_data_manager.evaluation.compare import compare_datasets, write_compare_csv
+from yolo_data_manager.evaluation.common_errors import extract_common_error_analysis
 from yolo_data_manager.evaluation.error_analysis import (
     analyze_errors,
     analyze_attribute_errors,
@@ -134,6 +135,11 @@ def _operation_log_root(args: argparse.Namespace) -> Path:
         first = str(roots).split(",", 1)[0].strip()
         if first:
             return resolve_log_root(first)
+
+    error_dirs = getattr(args, "error_dirs", None)
+    if error_dirs:
+        first = error_dirs[0] if isinstance(error_dirs, (list, tuple)) else error_dirs
+        return resolve_log_root(first)
 
     for name in (
         "json_dir",
@@ -972,6 +978,38 @@ def build_parser() -> argparse.ArgumentParser:
     error_analysis.add_argument("--labels-dir", default="labels")
     add_runtime_args(error_analysis)
     error_analysis.set_defaults(handler=handle_eval_error_analysis)
+
+    common_errors = eval_sub.add_parser(
+        "error-analysis-common",
+        aliases=["common-errors", "common-error-analysis"],
+        help="extract FP/FN errors shared by multiple eval_error_analysis runs",
+    )
+    common_errors.add_argument(
+        "--error-dir",
+        dest="error_dirs",
+        action="append",
+        required=True,
+        help="eval_error_analysis output directory; repeat once for each run",
+    )
+    common_errors.add_argument(
+        "--out",
+        default=None,
+        help="output directory; defaults beside the first error-analysis directory",
+    )
+    common_errors.add_argument(
+        "--iou",
+        type=float,
+        default=0.5,
+        help="IoU threshold used to identify the same GT or prediction",
+    )
+    common_errors.add_argument(
+        "--no-copy-crops",
+        dest="copy_crops",
+        action="store_false",
+        help="write common reports without copying review crops",
+    )
+    add_runtime_args(common_errors, workers=False)
+    common_errors.set_defaults(handler=handle_eval_error_analysis_common, copy_crops=True)
 
     metrics = eval_sub.add_parser("metrics", help="compute Ultralytics-style precision/recall/mAP from GT and prediction txt")
     metrics.add_argument("--gt-root", required=True)
@@ -2440,6 +2478,24 @@ def handle_eval_error_analysis(args: argparse.Namespace) -> int:
             ensure_ascii=False,
         )
     )
+    return 0
+
+
+def handle_eval_error_analysis_common(args: argparse.Namespace) -> int:
+    """Extract the intersection of multiple error-analysis result directories."""
+
+    first_dir = Path(args.error_dirs[0]).expanduser()
+    default_out = first_dir.parent / "common_error_analysis"
+    out = _value_or_default(args.out, default_out)
+    result = extract_common_error_analysis(
+        args.error_dirs,
+        out,
+        iou=args.iou,
+        copy_crops=args.copy_crops,
+        progress=args.progress,
+        progress_leave=args.progress_leave,
+    )
+    print(json.dumps(result, indent=2, ensure_ascii=False))
     return 0
 
 

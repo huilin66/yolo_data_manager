@@ -1,6 +1,6 @@
 """YOLO Data Manager public API."""
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 from yolo_data_manager.core.models import (
     AttributeSchema,
@@ -27,6 +27,7 @@ from yolo_data_manager.evaluation.metrics import (
     compute_detection_metrics,
     format_metrics_table,
 )
+from yolo_data_manager.evaluation.common_errors import extract_common_error_analysis
 from yolo_data_manager.annotation.crop_correction import (
     AttributeCropCorrectionResult,
     CropCorrectionResult,
@@ -93,6 +94,7 @@ __all__ = [
     "convert_multimodal_images_to_uint8",
     "compute_detection_metrics",
     "SizeMetric",
+    "extract_common_error_analysis",
     "AttributeCropCorrectionResult",
     "CropCorrectionResult",
     "correct_gt_attributes_from_crops",

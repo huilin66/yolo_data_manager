@@ -328,6 +328,13 @@ mgr.eval_error_analysis(pred_root=r"E:\datasets\pred", out="error_report",
 mgr.eval_error_analysis(pred_root=r"E:\datasets\pred", out="error_report",
                         review=True, workers=16, copy_pred_txt=True)
 
+# 提取多次 eval_error_analysis 都存在的公共错误
+mgr.eval_error_analysis_common(
+    [r"error_report_model_a", r"error_report_model_b"],
+    out="common_error_report",
+    iou=0.5,
+)
+
 # 导入 —— 独立参数，不使用 mgr 的 root
 mgr.import_labelme(json_dir="labelme_json", out="yolo_out", task="segment")
 mgr.import_coco(json_path="instances.json", images_dir="images", out="yolo_out")
