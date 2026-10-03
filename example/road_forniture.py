@@ -165,7 +165,7 @@ def main() -> None:
             ydm.output_evaluation
             / "common_error_report"
             / "error_analysis"
-            / "common_crops"
+            / "common_pred_txt"
         )
         ydm.ann_correct_from_error_crops(
             crops_dir=CROP_MAP_PRED,
