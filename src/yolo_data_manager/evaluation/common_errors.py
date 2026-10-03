@@ -563,8 +563,15 @@ def _copy_common_crops(
     progress: bool,
     progress_leave: bool,
 ) -> list[dict[str, Any]]:
+    crop_indexes = _build_common_crop_indexes(
+        matches,
+        workers=workers,
+        progress=progress,
+        progress_leave=progress_leave,
+    )
     sources = _find_common_crop_sources(
         matches,
+        crop_indexes,
         workers=workers,
         progress=progress,
         progress_leave=progress_leave,
@@ -605,8 +612,73 @@ def _copy_common_crops(
     return [report for report in reports if report is not None]
 
 
+def _build_common_crop_indexes(
+    matches: list[_CommonMatch],
+    *,
+    workers: int,
+    progress: bool,
+    progress_leave: bool,
+) -> dict[Path, dict[tuple[str, str], Path]]:
+    roots = sorted(
+        {run.root for match in matches for run, _row in match.refs},
+        key=lambda path: str(path),
+    )
+    indexes: dict[Path, dict[tuple[str, str], Path]] = {}
+    worker_count = normalize_workers(workers)
+
+    def build_one(root: Path) -> tuple[Path, dict[tuple[str, str], Path]]:
+        return root, _build_error_crop_index(root)
+
+    if worker_count == 1:
+        items = iter_progress(
+            roots,
+            enabled=progress,
+            total=len(roots),
+            desc="index common error crops",
+            leave=progress_leave,
+        )
+        for root in items:
+            resolved_root, index = build_one(root)
+            indexes[resolved_root] = index
+        return indexes
+
+    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+        futures = {executor.submit(build_one, root): root for root in roots}
+        completed = iter_progress(
+            as_completed(futures),
+            enabled=progress,
+            total=len(futures),
+            desc="index common error crops",
+            leave=progress_leave,
+        )
+        for future in completed:
+            root, index = future.result()
+            indexes[root] = index
+    return indexes
+
+
+def _build_error_crop_index(root: Path) -> dict[tuple[str, str], Path]:
+    review_root = root / "review" if (root / "review").is_dir() else root
+    if not review_root.is_dir():
+        return {}
+
+    index: dict[tuple[str, str], Path] = {}
+    for path in sorted(review_root.rglob("*")):
+        if not path.is_file() or not is_image_file(path):
+            continue
+        relative_parts = path.relative_to(review_root).parts
+        try:
+            crops_position = relative_parts.index("crops")
+        except ValueError:
+            continue
+        group = Path(*relative_parts[:crops_position]).as_posix()
+        index.setdefault((group, path.stem), path)
+    return index
+
+
 def _find_common_crop_sources(
     matches: list[_CommonMatch],
+    crop_indexes: Mapping[Path, Mapping[tuple[str, str], Path]],
     *,
     workers: int,
     progress: bool,
@@ -617,7 +689,7 @@ def _find_common_crop_sources(
 
     def find_one(position: int, match: _CommonMatch) -> tuple[int, tuple[_ErrorRun, Path] | None]:
         for run, row in match.refs:
-            source = _find_error_crop(run.root, row)
+            source = crop_indexes.get(run.root, {}).get(_crop_index_key(row))
             if source is not None:
                 return position, (run, source)
         return position, None
@@ -702,19 +774,11 @@ def _copy_prepared_crop(item: _PreparedCropCopy) -> dict[str, Any]:
     return item.report
 
 
-def _find_error_crop(root: Path, row: ErrorDetail) -> Path | None:
-    review_root = root / "review" if (root / "review").is_dir() else root
-    crop_dir = review_root / _review_group_name(row) / "crops"
-    if not crop_dir.is_dir():
-        return None
-
+def _crop_index_key(row: ErrorDetail) -> tuple[str, str]:
     pred_id = "none" if row.error_type == FN_NO_PRED else str(row.pred_idx) if row.pred_idx is not None else "none"
     gt_id = "none" if row.error_type == BACKGROUND_FP else str(row.gt_idx) if row.gt_idx is not None else "none"
     prefix = f"{_safe_file_name(row.image)}_pred{pred_id}_gt{gt_id}"
-    for path in sorted(crop_dir.rglob("*")):
-        if path.is_file() and is_image_file(path) and path.stem == prefix:
-            return path
-    return None
+    return _review_group_name(row).replace("\\", "/"), prefix
 
 
 def _write_csv(path: Path, columns: list[str], rows: Iterable[Mapping[str, Any]]) -> None:
