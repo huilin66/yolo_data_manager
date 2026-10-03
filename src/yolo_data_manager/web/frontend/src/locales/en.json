@@ -105,15 +105,33 @@
   "result": {
     "noImages": "No images match the current filter."
   },
+  "bottomPanel": {
+    "title": "Bottom information panel"
+  },
   "terminal": {
     "title": "Run terminal",
     "empty": "Runtime steps and results will appear here as you use the dataset workspace.",
     "clear": "Clear",
     "live": "Live",
     "lines": "{{count}} lines",
+    "progress": {
+      "label": "Current operation progress",
+      "elapsed": "elapsed {{value}}",
+      "eta": "ETA {{value}}",
+      "done": "complete"
+    },
+    "stages": {
+      "layout_scan_images": "Layout: scan images",
+      "layout_scan_labels": "Layout: scan labels",
+      "load_scan_images": "Load: scan images",
+      "load_scan_labels": "Load: scan labels",
+      "load_parse_labels": "Load: parse labels",
+      "load_scan_val_images": "Load: scan validation images"
+    },
     "levels": {
       "command": "CMD",
       "info": "INFO",
+      "progress": "PROGRESS",
       "success": "DONE",
       "warning": "WARN",
       "error": "ERROR"

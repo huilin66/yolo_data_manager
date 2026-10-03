@@ -8,7 +8,6 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
   ClipboardCheck,
   Clock3,
   Copy,
@@ -134,6 +133,19 @@ interface RuntimeLog {
   time: string;
   level: 'command' | 'info' | 'success' | 'warning' | 'error' | string;
   message: string;
+  progress?: RuntimeProgress;
+}
+
+interface RuntimeProgress {
+  stage: string;
+  current: number;
+  total: number | null;
+  percent: number | null;
+  elapsed_seconds: number;
+  rate: number | null;
+  eta_seconds: number | null;
+  unit: string;
+  done: boolean;
 }
 
 interface RuntimeLogPage {
@@ -190,6 +202,16 @@ function formatTime(value: string, language = 'en'): string {
     : date.toLocaleTimeString(language.startsWith('zh') ? 'zh-CN' : 'en-US', { hour: '2-digit', minute: '2-digit' });
 }
 
+function formatDuration(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return '—';
+  if (value < 60) return `${Math.max(0, Math.round(value))}s`;
+  const minutes = Math.floor(value / 60);
+  const seconds = Math.round(value % 60);
+  if (minutes < 60) return `${minutes}m ${seconds}s`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ${minutes % 60}m`;
+}
+
 function App() {
   const { t, i18n } = useTranslation();
   const [activeNav, setActiveNav] = useState<NavKey>('dataset');
@@ -215,7 +237,7 @@ function App() {
   const [assistantPending, setAssistantPending] = useState<AssistantResponse | null>(null);
   const [assistantBusy, setAssistantBusy] = useState(false);
   const [runLogs, setRunLogs] = useState<RuntimeLog[]>([]);
-  const [terminalOpen, setTerminalOpen] = useState(true);
+  const [bottomTab, setBottomTab] = useState<'details' | 'logs'>('logs');
   const logCursorRef = useRef(0);
   const latestLogIdRef = useRef(0);
   const language = i18n.language.startsWith('zh') ? 'zh' : 'en';
@@ -307,6 +329,7 @@ function App() {
       return;
     }
     setError('');
+    setBottomTab('logs');
     setLoading(true);
     try {
       const result = await request<Overview>('/api/dataset/load', {
@@ -509,7 +532,7 @@ function App() {
               </button>
             ))}
           </nav>
-          <div className="sidebar-footer"><div className="status-dot" /> <span>{t('nav.workspace')}</span><span className="version-label">v1.0.6</span></div>
+          <div className="sidebar-footer"><div className="status-dot" /> <span>{t('nav.workspace')}</span><span className="version-label">v1.0.8</span></div>
         </aside>
 
         <main className="main-area">
@@ -541,16 +564,15 @@ function App() {
             </>
           )}
 
-          <section className="main-details">
-            <div className="dataset-details-bar"><Database size={15} /><strong>{t('inspector.details')}</strong></div>
-            <Inspector overview={overview} onCopy={copyRoot} onRefresh={handleRefresh} refreshing={refreshing} />
-          </section>
-
-          <RunTerminal
+          <BottomPanel
+            activeTab={bottomTab}
+            onTabChange={setBottomTab}
+            overview={overview}
+            onCopy={copyRoot}
+            onRefresh={handleRefresh}
+            refreshing={refreshing}
             logs={runLogs}
-            open={terminalOpen}
-            onToggle={() => setTerminalOpen((value) => !value)}
-            onClear={clearRunLogs}
+            onClearLogs={clearRunLogs}
           />
         </main>
 
@@ -579,55 +601,121 @@ function App() {
   );
 }
 
-function RunTerminal({
+function BottomPanel({
+  activeTab,
+  onTabChange,
+  overview,
+  onCopy,
+  onRefresh,
+  refreshing,
   logs,
-  open,
-  onToggle,
-  onClear,
+  onClearLogs,
 }: {
+  activeTab: 'details' | 'logs';
+  onTabChange: (tab: 'details' | 'logs') => void;
+  overview: Overview | null;
+  onCopy: () => void;
+  onRefresh: () => void;
+  refreshing: boolean;
   logs: RuntimeLog[];
-  open: boolean;
-  onToggle: () => void;
-  onClear: () => void;
+  onClearLogs: () => void;
 }) {
+  const { t } = useTranslation();
+  return (
+    <section className="bottom-panel">
+      <div className="bottom-panel-tabs" role="tablist" aria-label={t('bottomPanel.title')}>
+        <button
+          className={activeTab === 'details' ? 'active' : ''}
+          role="tab"
+          aria-selected={activeTab === 'details'}
+          onClick={() => onTabChange('details')}
+        >
+          <Database size={14} />
+          {t('inspector.details')}
+        </button>
+        <button
+          className={activeTab === 'logs' ? 'active' : ''}
+          role="tab"
+          aria-selected={activeTab === 'logs'}
+          onClick={() => onTabChange('logs')}
+        >
+          <Terminal size={14} />
+          {t('terminal.title')}
+          <span className="bottom-panel-count">{logs.length}</span>
+        </button>
+      </div>
+      {activeTab === 'details' ? (
+        <div className="bottom-details" role="tabpanel">
+          <Inspector overview={overview} onCopy={onCopy} onRefresh={onRefresh} refreshing={refreshing} />
+        </div>
+      ) : (
+        <RunTerminal logs={logs} onClear={onClearLogs} />
+      )}
+    </section>
+  );
+}
+
+function RunTerminal({ logs, onClear }: { logs: RuntimeLog[]; onClear: () => void }) {
   const { t, i18n } = useTranslation();
   const bodyRef = useRef<HTMLDivElement>(null);
   const language = i18n.language.startsWith('zh') ? 'zh' : 'en';
+  const latestProgress = [...logs].reverse().find((log) => log.progress)?.progress;
+
+  function stageLabel(progress: RuntimeProgress): string {
+    const key = progress.stage.replace(/\s+/g, '_');
+    return t(`terminal.stages.${key}`, { defaultValue: progress.stage });
+  }
+
+  function progressSummary(progress: RuntimeProgress): string {
+    const percent = progress.percent === null ? '—' : `${Math.round(progress.percent)}%`;
+    const count = progress.total === null
+      ? formatNumber(progress.current, language)
+      : `${formatNumber(progress.current, language)}/${formatNumber(progress.total, language)}`;
+    const eta = progress.done
+      ? t('terminal.progress.done')
+      : t('terminal.progress.eta', { value: formatDuration(progress.eta_seconds) });
+    return `${percent} · ${count} · ${t('terminal.progress.elapsed', { value: formatDuration(progress.elapsed_seconds) })} · ${eta}`;
+  }
 
   useEffect(() => {
-    if (open && bodyRef.current) {
+    if (bodyRef.current) {
       bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
     }
-  }, [logs.length, open]);
+  }, [logs.length]);
 
   return (
-    <section className={`run-terminal ${open ? 'open' : 'collapsed'}`} aria-label={t('terminal.title')}>
+    <div className="run-terminal" aria-label={t('terminal.title')}>
       <div className="run-terminal-header">
-        <button className="run-terminal-toggle" onClick={onToggle} aria-expanded={open}>
-          <Terminal size={15} />
-          <strong>{t('terminal.title')}</strong>
-          <span>{t('terminal.lines', { count: logs.length })}</span>
-          {open ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
-        </button>
+        <div className="run-terminal-heading"><Terminal size={15} /><strong>{t('terminal.title')}</strong><span>{t('terminal.lines', { count: logs.length })}</span></div>
         <div className="run-terminal-actions">
           <span className="run-terminal-live"><span />{t('terminal.live')}</span>
           <button onClick={onClear} disabled={!logs.length}>{t('terminal.clear')}</button>
         </div>
       </div>
 
-      {open && (
-        <div className="run-terminal-body" ref={bodyRef} role="log" aria-live="polite">
-          {!logs.length && <div className="run-terminal-empty">{t('terminal.empty')}</div>}
-          {logs.map((log) => (
-            <div className={`run-terminal-line ${log.level}`} key={log.id}>
-              <time>{formatTime(log.time, language)}</time>
-              <span className="run-terminal-level">{t(`terminal.levels.${log.level}`, { defaultValue: log.level })}</span>
-              <span className="run-terminal-message">{log.message}</span>
-            </div>
-          ))}
+      {latestProgress && (
+        <div className={`run-terminal-progress ${latestProgress.done ? 'done' : ''}`} aria-label={t('terminal.progress.label')}>
+          <div className="run-terminal-progress-summary">
+            <strong>{stageLabel(latestProgress)}</strong>
+            <span>{progressSummary(latestProgress)}</span>
+          </div>
+          <div className="run-terminal-progress-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={latestProgress.percent ?? undefined}>
+            <span style={{ width: `${Math.max(0, Math.min(100, latestProgress.percent ?? 0))}%` }} />
+          </div>
         </div>
       )}
-    </section>
+
+      <div className="run-terminal-body" ref={bodyRef} role="log" aria-live="polite">
+        {!logs.length && <div className="run-terminal-empty">{t('terminal.empty')}</div>}
+        {logs.map((log) => (
+          <div className={`run-terminal-line ${log.level}`} key={log.id}>
+            <time>{formatTime(log.time, language)}</time>
+            <span className="run-terminal-level">{t(`terminal.levels.${log.level}`, { defaultValue: log.level })}</span>
+            <span className="run-terminal-message">{log.progress ? `${stageLabel(log.progress)} · ${progressSummary(log.progress)}` : log.message}</span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

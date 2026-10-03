@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 
 from yolo_data_manager.core.models import is_image_file
 from yolo_data_manager.core.schema import find_class_source, read_dataset_class_schema
-from yolo_data_manager.runtime import count_matching_files
+from yolo_data_manager.runtime import ProgressCallback, count_matching_files
 
 
 @dataclass
@@ -45,6 +45,7 @@ def detect_layout(
     images_dir: str | Path = "images",
     progress: bool = False,
     progress_leave: bool = False,
+    progress_callback: ProgressCallback | None = None,
 ) -> LayoutInfo:
     root_path = Path(root)
     split_files = [root_path / name for name in ("train.txt", "val.txt", "test.txt") if (root_path / name).exists()]
@@ -58,8 +59,20 @@ def detect_layout(
             split for split in ("train", "val", "test")
             if (images_root / split).exists() or (labels_root / split).exists()
         ]
-        image_count = _count_images(images_root, progress=progress, progress_leave=progress_leave, desc="layout scan images")
-        label_count = _count_labels(labels_root, progress=progress, progress_leave=progress_leave, desc="layout scan labels")
+        image_count = _count_images(
+            images_root,
+            progress=progress,
+            progress_leave=progress_leave,
+            desc="layout scan images",
+            progress_callback=progress_callback,
+        )
+        label_count = _count_labels(
+            labels_root,
+            progress=progress,
+            progress_leave=progress_leave,
+            desc="layout scan labels",
+            progress_callback=progress_callback,
+        )
         if splits:
             return LayoutInfo(
                 layout="split_dirs",
@@ -79,8 +92,20 @@ def detect_layout(
             label_count=label_count,
         )
 
-    image_count = _count_images(root_path, progress=progress, progress_leave=progress_leave, desc="layout scan images")
-    label_count = _count_labels(root_path, progress=progress, progress_leave=progress_leave, desc="layout scan labels")
+    image_count = _count_images(
+        root_path,
+        progress=progress,
+        progress_leave=progress_leave,
+        desc="layout scan images",
+        progress_callback=progress_callback,
+    )
+    label_count = _count_labels(
+        root_path,
+        progress=progress,
+        progress_leave=progress_leave,
+        desc="layout scan labels",
+        progress_callback=progress_callback,
+    )
     if image_count or label_count:
         return LayoutInfo(
             layout="mixed",
@@ -101,6 +126,7 @@ def resolve_layout(
     labels_dir: str | Path = "labels",
     progress: bool = False,
     progress_leave: bool = False,
+    progress_callback: ProgressCallback | None = None,
 ) -> LayoutInfo:
     root_path = Path(root)
     if layout == "auto":
@@ -109,6 +135,7 @@ def resolve_layout(
             images_dir=images_dir,
             progress=progress,
             progress_leave=progress_leave,
+            progress_callback=progress_callback,
         )
     if layout == "flat":
         image_root = _resolve_under(root_path, images_dir)
@@ -118,8 +145,20 @@ def resolve_layout(
             root=root_path,
             images_dir=image_root,
             labels_dir=label_root,
-            image_count=_count_images(image_root, progress=progress, progress_leave=progress_leave, desc="layout scan images"),
-            label_count=_count_labels(label_root, progress=progress, progress_leave=progress_leave, desc="layout scan labels"),
+            image_count=_count_images(
+                image_root,
+                progress=progress,
+                progress_leave=progress_leave,
+                desc="layout scan images",
+                progress_callback=progress_callback,
+            ),
+            label_count=_count_labels(
+                label_root,
+                progress=progress,
+                progress_leave=progress_leave,
+                desc="layout scan labels",
+                progress_callback=progress_callback,
+            ),
         )
     if layout == "split_dirs":
         image_root = _resolve_under(root_path, images_dir)
@@ -134,8 +173,20 @@ def resolve_layout(
             images_dir=image_root,
             labels_dir=label_root,
             splits=splits,
-            image_count=_count_images(image_root, progress=progress, progress_leave=progress_leave, desc="layout scan images"),
-            label_count=_count_labels(label_root, progress=progress, progress_leave=progress_leave, desc="layout scan labels"),
+            image_count=_count_images(
+                image_root,
+                progress=progress,
+                progress_leave=progress_leave,
+                desc="layout scan images",
+                progress_callback=progress_callback,
+            ),
+            label_count=_count_labels(
+                label_root,
+                progress=progress,
+                progress_leave=progress_leave,
+                desc="layout scan labels",
+                progress_callback=progress_callback,
+            ),
         )
     if layout == "image_list":
         split_files = [root_path / name for name in ("train.txt", "val.txt", "test.txt") if (root_path / name).exists()]
@@ -146,8 +197,20 @@ def resolve_layout(
             root=root_path,
             images_dir=root_path,
             labels_dir=root_path,
-            image_count=_count_images(root_path, progress=progress, progress_leave=progress_leave, desc="layout scan images"),
-            label_count=_count_labels(root_path, progress=progress, progress_leave=progress_leave, desc="layout scan labels"),
+            image_count=_count_images(
+                root_path,
+                progress=progress,
+                progress_leave=progress_leave,
+                desc="layout scan images",
+                progress_callback=progress_callback,
+            ),
+            label_count=_count_labels(
+                root_path,
+                progress=progress,
+                progress_leave=progress_leave,
+                desc="layout scan labels",
+                progress_callback=progress_callback,
+            ),
         )
     raise ValueError(f"unsupported YOLO layout: {layout}")
 
@@ -199,23 +262,39 @@ def _image_list_layout(
     )
 
 
-def _count_images(root: Path, *, progress: bool = False, progress_leave: bool = False, desc: str = "scan images") -> int:
+def _count_images(
+    root: Path,
+    *,
+    progress: bool = False,
+    progress_leave: bool = False,
+    desc: str = "scan images",
+    progress_callback: ProgressCallback | None = None,
+) -> int:
     return count_matching_files(
         root,
         lambda path: is_image_file(path),
         progress=progress,
         progress_leave=progress_leave,
         desc=desc,
+        progress_callback=progress_callback,
     )
 
 
-def _count_labels(root: Path, *, progress: bool = False, progress_leave: bool = False, desc: str = "scan labels") -> int:
+def _count_labels(
+    root: Path,
+    *,
+    progress: bool = False,
+    progress_leave: bool = False,
+    desc: str = "scan labels",
+    progress_callback: ProgressCallback | None = None,
+) -> int:
     return count_matching_files(
         root,
         lambda path: path.suffix.lower() == ".txt",
         progress=progress,
         progress_leave=progress_leave,
         desc=desc,
+        progress_callback=progress_callback,
     )
 
 

@@ -23,6 +23,7 @@ from yolo_data_manager.core.models import AttributeSchema, YoloDataset, YoloImag
 from yolo_data_manager.core.schema import read_dataset_yaml
 from yolo_data_manager.io.layout import LayoutInfo, read_image_list, resolve_layout
 from yolo_data_manager.io.loader import load_yolo_dataset
+from yolo_data_manager.runtime import ProgressUpdate
 from yolo_data_manager.scripting import YoloManager
 from yolo_data_manager.vis.renderer import render_image
 from yolo_data_manager.vlm import (
@@ -61,7 +62,7 @@ def _package_version() -> str:
     try:
         return version("yolo-data-manager")
     except PackageNotFoundError:
-        return "1.0.6"
+        return "1.0.8"
 
 
 class LoadDatasetRequest(BaseModel):
@@ -117,7 +118,12 @@ _RUNTIME_LOG_ID = 0
 _RUNTIME_LOG_LOCK = threading.RLock()
 
 
-def _append_runtime_log(level: str, message: str) -> dict[str, Any]:
+def _append_runtime_log(
+    level: str,
+    message: str,
+    *,
+    progress: dict[str, object] | None = None,
+) -> dict[str, Any]:
     """Append a safe, process-local log entry for the web terminal."""
 
     global _RUNTIME_LOG_ID
@@ -129,10 +135,22 @@ def _append_runtime_log(level: str, message: str) -> dict[str, Any]:
             "level": level,
             "message": message,
         }
+        if progress is not None:
+            entry["progress"] = progress
         _RUNTIME_LOGS.append(entry)
         if len(_RUNTIME_LOGS) > _MAX_RUNTIME_LOGS:
             del _RUNTIME_LOGS[:-_MAX_RUNTIME_LOGS]
         return entry
+
+
+def _append_web_progress(update: ProgressUpdate) -> None:
+    """Forward optional loader progress to the web terminal as JSON data."""
+
+    _append_runtime_log(
+        "progress",
+        update.stage,
+        progress=update.to_dict(),
+    )
 
 
 def _short_text(value: str, limit: int = 180) -> str:
@@ -581,6 +599,7 @@ def _build_app() -> FastAPI:
                 read_image_size=True,
                 workers=request.workers,
                 progress=False,
+                progress_callback=_append_web_progress,
             )
             _append_runtime_log(
                 "info",
@@ -594,6 +613,7 @@ def _build_app() -> FastAPI:
                 images_dir=request.images_dir,
                 labels_dir=request.labels_dir,
                 progress=False,
+                progress_callback=_append_web_progress,
             )
         except Exception as exc:  # noqa: BLE001 - convert parser errors to an API response
             _append_runtime_log("error", f"Dataset load failed: {_short_text(str(exc))}")

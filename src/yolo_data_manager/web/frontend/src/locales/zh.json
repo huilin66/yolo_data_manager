@@ -105,15 +105,33 @@
   "result": {
     "noImages": "当前筛选条件下没有匹配的图像。"
   },
+  "bottomPanel": {
+    "title": "底部信息面板"
+  },
   "terminal": {
     "title": "运行终端",
     "empty": "执行数据集操作后，运行过程和结果会实时显示在这里。",
     "clear": "清空",
     "live": "实时",
     "lines": "{{count}} 行",
+    "progress": {
+      "label": "当前操作进度",
+      "elapsed": "已用 {{value}}",
+      "eta": "预计剩余 {{value}}",
+      "done": "已完成"
+    },
+    "stages": {
+      "layout_scan_images": "布局：扫描图像",
+      "layout_scan_labels": "布局：扫描标签",
+      "load_scan_images": "加载：扫描图像",
+      "load_scan_labels": "加载：扫描标签",
+      "load_parse_labels": "加载：解析标签",
+      "load_scan_val_images": "加载：扫描验证图像"
+    },
     "levels": {
       "command": "命令",
       "info": "信息",
+      "progress": "进度",
       "success": "完成",
       "warning": "警告",
       "error": "错误"

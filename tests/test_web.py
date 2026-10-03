@@ -62,6 +62,11 @@ def test_web_dataset_load_overview_and_preview(tmp_path):
     assert logs.status_code == 200
     assert logs.json()["items"]
     assert any("load_yolo_dataset" in item["message"] for item in logs.json()["items"])
+    progress_items = [item for item in logs.json()["items"] if item["level"] == "progress"]
+    assert progress_items
+    assert all("progress" in item for item in progress_items)
+    assert any(item["progress"]["stage"] == "load parse labels" for item in progress_items)
+    assert any(item["progress"]["done"] for item in progress_items)
 
     preview = client.get("/api/dataset/images/0/preview")
     assert preview.status_code == 200

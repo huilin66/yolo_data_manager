@@ -25,6 +25,7 @@ from yolo_data_manager.core.schema import (
 )
 from yolo_data_manager.io.layout import infer_label_path_from_image, read_image_list, resolve_layout
 from yolo_data_manager.runtime import (
+    ProgressCallback,
     create_progress_bar,
     iter_progress,
     normalize_workers,
@@ -47,6 +48,7 @@ def load_yolo_dataset(
     progress: bool = False,
     progress_leave: bool = False,
     attributes: AttributeSchema | None = None,
+    progress_callback: ProgressCallback | None = None,
 ) -> YoloDataset:
     root_path = Path(root)
     layout_info = resolve_layout(
@@ -56,6 +58,7 @@ def load_yolo_dataset(
         labels_dir=labels_dir,
         progress=progress,
         progress_leave=progress_leave,
+        progress_callback=progress_callback,
     )
     image_root = layout_info.images_dir or _resolve_under(root_path, images_dir)
     label_root = layout_info.labels_dir or _resolve_under(root_path, labels_dir)
@@ -74,7 +77,12 @@ def load_yolo_dataset(
 
     if layout_info.layout == "image_list":
         if effective_split_file is not None and Path(effective_split_file).is_dir():
-            image_paths = _scan_images(Path(effective_split_file), progress=progress, progress_leave=progress_leave)
+            image_paths = _scan_images(
+                Path(effective_split_file),
+                progress=progress,
+                progress_leave=progress_leave,
+                progress_callback=progress_callback,
+            )
         else:
             source_lists = [Path(effective_split_file)] if effective_split_file is not None else layout_info.split_files
             image_paths = read_image_list(source_lists, root_path, images_dir=images_dir)
@@ -85,6 +93,7 @@ def load_yolo_dataset(
             progress=progress,
             progress_leave=progress_leave,
             desc="load scan images",
+            progress_callback=progress_callback,
         )
     if effective_split_file is not None:
         split_path = Path(effective_split_file)
@@ -105,6 +114,7 @@ def load_yolo_dataset(
             progress=progress,
             progress_leave=progress_leave,
             desc="load scan labels",
+            progress_callback=progress_callback,
         )
         if label_root.exists()
         else []
@@ -131,6 +141,7 @@ def load_yolo_dataset(
         workers=workers,
         progress=progress,
         progress_leave=progress_leave,
+        progress_callback=progress_callback,
     )
 
     image_stems = {path.stem for path in image_paths}
@@ -152,6 +163,7 @@ def _load_images(
     workers: int,
     progress: bool,
     progress_leave: bool,
+    progress_callback: ProgressCallback | None,
 ) -> list[YoloImage]:
     worker_count = normalize_workers(workers)
     if worker_count == 1:
@@ -163,6 +175,7 @@ def _load_images(
                 total=len(image_paths),
                 desc="load parse labels",
                 leave=progress_leave,
+                progress_callback=progress_callback,
             )
         ]
 
@@ -172,6 +185,7 @@ def _load_images(
         desc="load parse labels",
         enabled=progress,
         leave=progress_leave,
+        progress_callback=progress_callback,
     )
     try:
         with ThreadPoolExecutor(max_workers=worker_count) as executor:
@@ -316,13 +330,20 @@ def _resolve_under(root: Path, child: str | Path) -> Path:
     return child_path if child_path.is_absolute() else root / child_path
 
 
-def _scan_images(root: Path, *, progress: bool, progress_leave: bool) -> list[Path]:
+def _scan_images(
+    root: Path,
+    *,
+    progress: bool,
+    progress_leave: bool,
+    progress_callback: ProgressCallback | None = None,
+) -> list[Path]:
     return scan_matching_files(
         root,
         lambda path: is_image_file(path),
         progress=progress,
         progress_leave=progress_leave,
         desc="load scan val images",
+        progress_callback=progress_callback,
     )
 
 

@@ -548,6 +548,45 @@ def test_load_yolo_dataset_accepts_progress_options(tmp_path):
     assert dataset.annotation_count() == 3
 
 
+def test_load_yolo_dataset_reports_optional_structured_progress(tmp_path):
+    root = make_dataset(tmp_path / "progress_callback_yolo")
+    updates = []
+
+    dataset = load_yolo_dataset(
+        root,
+        workers=2,
+        progress=False,
+        progress_callback=updates.append,
+    )
+
+    assert len(dataset.images) == 2
+    assert dataset.annotation_count() == 3
+    assert updates
+    assert {update.stage for update in updates} >= {
+        "layout scan images",
+        "layout scan labels",
+        "load scan images",
+        "load scan labels",
+        "load parse labels",
+    }
+    completed = [update for update in updates if update.done]
+    assert completed
+    assert all(update.percent == 100.0 for update in completed)
+    assert all(update.total is not None for update in completed)
+
+
+def test_progress_callback_failure_does_not_break_dataset_loading(tmp_path):
+    root = make_dataset(tmp_path / "progress_callback_failure_yolo")
+
+    def fail(_update):
+        raise RuntimeError("progress sink unavailable")
+
+    dataset = load_yolo_dataset(root, workers=2, progress_callback=fail)
+
+    assert len(dataset.images) == 2
+    assert dataset.annotation_count() == 3
+
+
 def test_parallel_load_creates_and_updates_overall_progress(tmp_path, monkeypatch):
     from yolo_data_manager.io import loader
 
