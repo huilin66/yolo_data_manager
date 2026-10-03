@@ -184,3 +184,33 @@ def test_common_error_task_repeats_error_dir_argument():
     assert argv.count("--error-dir") == 2
     assert "--no-copy-crops" in argv
     assert "--no-progress" in argv
+
+
+def test_common_error_analysis_reports_progress_stages(tmp_path: Path, capsys):
+    row = _row(
+        "shared",
+        status="fn",
+        error_type=FN_NO_PRED,
+        gt_class_id=0,
+        gt_class_name="cat",
+        gt_box="[0.1, 0.1, 0.4, 0.4]",
+        gt_idx=1,
+    )
+    run_one = tmp_path / "run_one"
+    run_two = tmp_path / "run_two"
+    _write_run(run_one, [row])
+    _write_run(run_two, [row])
+
+    extract_common_error_analysis(
+        [run_one, run_two],
+        tmp_path / "common",
+        copy_crops=False,
+        progress=True,
+    )
+
+    output = capsys.readouterr().err
+    assert "common errors load reports" in output
+    assert "common errors match fn" in output
+    assert "common errors match fp" in output
+    assert "common errors skip crop copy" in output
+    assert "common errors write reports" in output

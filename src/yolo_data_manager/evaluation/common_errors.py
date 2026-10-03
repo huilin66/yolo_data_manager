@@ -23,7 +23,7 @@ from yolo_data_manager.evaluation.error_analysis import (
     _safe_file_name,
 )
 from yolo_data_manager.evaluation.matching import box_iou_matrix
-from yolo_data_manager.runtime import iter_progress
+from yolo_data_manager.runtime import iter_progress, progress_stage
 
 
 _ERROR_COLUMNS = [
@@ -109,7 +109,11 @@ def extract_common_error_analysis(
     """
 
     _validate_iou(iou)
-    runs = _load_runs(error_dirs)
+    runs = _load_runs(
+        error_dirs,
+        progress=progress,
+        progress_leave=progress_leave,
+    )
     output = Path(out)
     output.mkdir(parents=True, exist_ok=True)
 
@@ -122,8 +126,22 @@ def extract_common_error_analysis(
         for run in runs
     ]
 
-    common_fn = _find_common_matches(fn_rows, runs, kind="fn", iou=iou)
-    common_fp = _find_common_matches(fp_rows, runs, kind="fp", iou=iou)
+    common_fn = _find_common_matches(
+        fn_rows,
+        runs,
+        kind="fn",
+        iou=iou,
+        progress=progress,
+        progress_leave=progress_leave,
+    )
+    common_fp = _find_common_matches(
+        fp_rows,
+        runs,
+        kind="fp",
+        iou=iou,
+        progress=progress,
+        progress_leave=progress_leave,
+    )
     common_matches = [*common_fn, *common_fp]
 
     crop_report: list[dict[str, Any]] = []
@@ -141,6 +159,7 @@ def extract_common_error_analysis(
         ):
             crop_report.append(_copy_common_crop(match, common_crops))
     else:
+        progress_stage("common errors skip crop copy", enabled=progress)
         crop_report = [
             {
                 "common_kind": match.kind,
@@ -151,6 +170,7 @@ def extract_common_error_analysis(
             for match in common_matches
         ]
 
+    progress_stage("common errors write reports", enabled=progress)
     summary_rows = _build_summary_rows(runs, common_fn, common_fp)
     common_rows = _common_rows(common_matches, crop_report)
     _write_csv(output / "common_error_summary.csv", _SUMMARY_COLUMNS, summary_rows)
@@ -195,6 +215,9 @@ def extract_common_error_analysis(
 
 def _load_runs(
     error_dirs: Sequence[str | Path] | Mapping[str, str | Path],
+    *,
+    progress: bool = False,
+    progress_leave: bool = False,
 ) -> list[_ErrorRun]:
     if isinstance(error_dirs, Mapping):
         items = [(str(name), path) for name, path in error_dirs.items()]
@@ -208,7 +231,14 @@ def _load_runs(
 
     runs: list[_ErrorRun] = []
     names: set[str] = set()
-    for index, (raw_name, raw_path) in enumerate(items, start=1):
+    run_items = iter_progress(
+        items,
+        enabled=progress,
+        total=len(items),
+        desc="common errors load reports",
+        leave=progress_leave,
+    )
+    for index, (raw_name, raw_path) in enumerate(run_items, start=1):
         name = raw_name.strip() or f"run_{index}"
         if name in names:
             name = f"{name}_{index}"
@@ -273,11 +303,20 @@ def _find_common_matches(
     *,
     kind: str,
     iou: float,
+    progress: bool = False,
+    progress_leave: bool = False,
 ) -> list[_CommonMatch]:
     base_rows = rows_by_run[0]
     used: list[set[int]] = [set() for _ in rows_by_run]
     matches: list[_CommonMatch] = []
-    for base_index, base_row in enumerate(base_rows):
+    base_items = iter_progress(
+        base_rows,
+        enabled=progress,
+        total=len(base_rows),
+        desc=f"common errors match {kind}",
+        leave=progress_leave,
+    )
+    for base_index, base_row in enumerate(base_items):
         if _primary_box(base_row, kind) is None:
             continue
         selected: list[tuple[int, ErrorDetail]] = [(0, base_row)]
