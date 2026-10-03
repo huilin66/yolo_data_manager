@@ -337,6 +337,13 @@ mgr.eval_error_analysis_common(
     iou=0.5,
     workers=8,
 )
+# 人工删除 common_crops 中不确认的结果后，用融合后的公共预测框更新 GT
+mgr.ann_correct_from_error_crops(
+    crops_dir=r"common_error_report/common_crops",
+    pred_dir=r"common_error_report/common_pred_txt",
+    replace_gt_from_pred=True,
+    dry_run=True,
+)
 
 # 导入 —— 独立参数，不使用 mgr 的 root
 mgr.import_labelme(json_dir="labelme_json", out="yolo_out", task="segment")

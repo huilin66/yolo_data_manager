@@ -477,6 +477,13 @@ mgr.eval_error_analysis_common(
     iou=0.5,
     workers=8,
 )
+# Remove unconfirmed crops manually, then update GT with fused common boxes
+mgr.ann_correct_from_error_crops(
+    crops_dir="common_error_report/common_crops",
+    pred_dir="common_error_report/common_pred_txt",
+    replace_gt_from_pred=True,
+    dry_run=True,
+)
 mgr.eval_error_analysis(
     pred_root="datasets/pred_labels",
     out="error_report",

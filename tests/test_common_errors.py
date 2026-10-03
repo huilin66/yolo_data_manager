@@ -1,8 +1,10 @@
 import csv
 from pathlib import Path
 
+import pytest
 from PIL import Image
 
+from yolo_data_manager.annotation.crop_correction import correct_gt_labels_from_error_crops
 from yolo_data_manager.evaluation.common_errors import extract_common_error_analysis
 from yolo_data_manager.evaluation.error_analysis import (
     BACKGROUND_FP,
@@ -13,6 +15,7 @@ from yolo_data_manager.evaluation.error_analysis import (
     _review_group_name,
     write_error_csvs,
 )
+from yolo_data_manager.io.loader import load_yolo_dataset
 from yolo_data_manager.scripting import build_task_argv
 
 
@@ -168,6 +171,79 @@ def test_extract_common_error_analysis_writes_intersection_and_summary(tmp_path:
     assert [row["original_fp"] for row in summary] == ["3", "3"]
     assert [row["common_fp"] for row in summary] == ["2", "2"]
     assert [row["remaining_fp"] for row in summary] == ["1", "1"]
+
+
+def test_common_predictions_are_fused_and_crop_indices_are_remapped(tmp_path: Path):
+    run_one = tmp_path / "run_one"
+    run_two = tmp_path / "run_two"
+    _write_run(
+        run_one,
+        [
+            _row(
+                "shared",
+                status="fp",
+                error_type=BACKGROUND_FP,
+                pred_class_id=1,
+                pred_class_name="dog",
+                pred_box="[0.10, 0.10, 0.50, 0.50]",
+                pred_idx=4,
+            )
+        ],
+    )
+    _write_run(
+        run_two,
+        [
+            _row(
+                "shared",
+                status="fp",
+                error_type=BACKGROUND_FP,
+                pred_class_id=1,
+                pred_class_name="dog",
+                pred_box="[0.12, 0.12, 0.52, 0.52]",
+                pred_idx=2,
+            )
+        ],
+    )
+
+    output = tmp_path / "common"
+    result = extract_common_error_analysis([run_one, run_two], output, workers=2)
+
+    assert result["common_predictions"]["boxes"] == 1
+    prediction_lines = (output / "common_pred_txt" / "shared.txt").read_text(
+        encoding="utf-8"
+    ).splitlines()
+    assert len(prediction_lines) == 1
+    values = [float(value) for value in prediction_lines[0].split()]
+    assert values[0] == 1
+    assert values[1:5] == pytest.approx([0.31, 0.31, 0.4, 0.4])
+
+    crop_files = list((output / "common_crops").rglob("*.jpg"))
+    assert len(crop_files) == 1
+    assert crop_files[0].stem == "shared_pred1_gtnone"
+
+    with (output / "common_error_rows.csv").open(
+        newline="", encoding="utf-8-sig"
+    ) as handle:
+        rows = list(csv.DictReader(handle))
+    assert rows[0]["common_pred_idx"] == "1"
+
+    dataset_root = tmp_path / "dataset"
+    (dataset_root / "images").mkdir(parents=True)
+    (dataset_root / "labels").mkdir()
+    Image.new("RGB", (20, 20), "white").save(dataset_root / "images" / "shared.jpg")
+    (dataset_root / "class.txt").write_text("cat\ndog\n", encoding="utf-8")
+    (dataset_root / "labels" / "shared.txt").write_text("", encoding="utf-8")
+    dataset = load_yolo_dataset(dataset_root, progress=False)
+    correction, _ = correct_gt_labels_from_error_crops(
+        dataset,
+        output / "common_crops",
+        pred_labels_dir=output / "common_pred_txt",
+        replace_gt_from_pred=True,
+    )
+    assert correction.added == 1
+    assert (dataset_root / "labels" / "shared.txt").read_text(
+        encoding="utf-8"
+    ).startswith("1 0.31")
 
 
 def test_common_error_task_repeats_error_dir_argument():

@@ -340,7 +340,7 @@ ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --review --con
 ydm eval error-analysis-common --error-dir error_report_model_a --error-dir error_report_model_b --out common_error_report --iou 0.5 --workers 8
 ```
 
-`eval error-analysis-common` 直接读取多个 `eval_error_analysis` 输出目录，不会重新运行模型。它提取所有输入中都出现的 `fn_no_pred` GT，以及类别相同且预测框 IoU 达到阈值的 `background_fp` / `class_error_pred` 预测。报告读取、按图像匹配、crop 定位和复制支持 `--workers` 并行，输出顺序保持稳定；并写出 `common_error_summary.csv`（每个输入的原始、公共、剩余数量）、公共明细 CSV 和 `common_crops/`。`common_crops/` 的目录结构可直接作为 `ann_correct_from_error_crops` 的输入；输入结果没有 review crop 时只生成表格，不会凭空生成 crop。
+`eval error-analysis-common` 直接读取多个 `eval_error_analysis` 输出目录，不会重新运行模型。它提取所有输入中都出现的 `fn_no_pred` GT，以及类别相同且预测框 IoU 达到阈值的 `background_fp` / `class_error_pred` 预测。公共预测会使用各输入中的对应框做置信度加权融合，写入 `common_pred_txt/`；`common_crops/` 中的 `predX` 会同步重编号。报告读取、按图像匹配、框融合、crop 定位和复制支持 `--workers` 并行，输出顺序保持稳定；并写出 `common_error_summary.csv`（每个输入的原始、公共、剩余数量）、公共明细 CSV 和 `common_crops/`。人工筛选 crop 后，可将 `common_pred_txt/` 作为 `ann_correct_from_error_crops` 的 `pred_dir`；输入结果没有 review crop 时仍可生成预测表格，不会凭空生成 crop。
 
 `eval error-analysis --conf-curve` 会按 `0.1、0.2、0.3、0.4、0.5` 五个置信度阈值重新分析，并按 `review` 下的错误分组统计文件数量，生成 `conf_curve.csv`、`conf_curve_summary.csv` 和 `conf_curve.png`。
 

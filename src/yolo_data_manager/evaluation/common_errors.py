@@ -49,6 +49,7 @@ _ERROR_COLUMNS = [
 
 _COMMON_ERROR_COLUMNS = [
     "common_kind",
+    "common_pred_idx",
     "source_run",
     "source_error_dir",
     "matched_runs",
@@ -150,6 +151,18 @@ def extract_common_error_analysis(
     )
     common_matches = [*common_fn, *common_fp]
 
+    common_pred_txt = output / "common_pred_txt"
+    if common_pred_txt.exists():
+        shutil.rmtree(common_pred_txt)
+    common_pred_txt.mkdir(parents=True, exist_ok=True)
+    common_prediction_indices, common_prediction_info = _write_common_prediction_labels(
+        common_fp,
+        common_pred_txt,
+        workers=worker_count,
+        progress=progress,
+        progress_leave=progress_leave,
+    )
+
     crop_report: list[dict[str, Any]] = []
     if copy_crops:
         common_crops = output / "common_crops"
@@ -159,6 +172,7 @@ def extract_common_error_analysis(
         crop_report = _copy_common_crops(
             common_matches,
             common_crops,
+            prediction_indices=common_prediction_indices,
             workers=worker_count,
             progress=progress,
             progress_leave=progress_leave,
@@ -177,7 +191,11 @@ def extract_common_error_analysis(
 
     progress_stage("common errors write reports", enabled=progress)
     summary_rows = _build_summary_rows(runs, common_fn, common_fp)
-    common_rows = _common_rows(common_matches, crop_report)
+    common_rows = _common_rows(
+        common_matches,
+        crop_report,
+        prediction_indices=common_prediction_indices,
+    )
     _write_csv(output / "common_error_summary.csv", _SUMMARY_COLUMNS, summary_rows)
     _write_csv(output / "common_error_rows.csv", _COMMON_ERROR_COLUMNS, common_rows)
     _write_csv(
@@ -209,6 +227,10 @@ def extract_common_error_analysis(
             "total": len(common_matches),
         },
         "missing_crops": missing_crops,
+        "common_predictions": {
+            "out": str(common_pred_txt),
+            **common_prediction_info,
+        },
         "summary": summary_rows,
     }
     (output / "common_error_summary.json").write_text(
@@ -527,6 +549,8 @@ def _build_summary_rows(
 def _common_rows(
     matches: list[_CommonMatch],
     crop_report: list[dict[str, Any]],
+    *,
+    prediction_indices: Mapping[int, int] | None = None,
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for match, crop in zip(matches, crop_report, strict=True):
@@ -539,6 +563,11 @@ def _common_rows(
         data.update(
             {
                 "common_kind": match.kind,
+                "common_pred_idx": (
+                    prediction_indices.get(id(match))
+                    if prediction_indices is not None and match.kind == "fp"
+                    else None
+                ),
                 "source_run": source_run,
                 "source_error_dir": source_dir,
                 "matched_runs": ";".join(run.name for run, _row in match.refs),
@@ -555,10 +584,152 @@ class _PreparedCropCopy:
     destination: Path | None = None
 
 
+def _write_common_prediction_labels(
+    matches: list[_CommonMatch],
+    output_root: Path,
+    *,
+    workers: int,
+    progress: bool,
+    progress_leave: bool,
+) -> tuple[dict[int, int], dict[str, int]]:
+    """Fuse common FP predictions and write a correction-ready label directory.
+
+    Each common FP match represents one object seen by every input run.  The
+    prediction boxes in ``refs`` are fused with confidence-weighted WBF, then
+    assigned a new per-image prediction index.  Crop filenames are rewritten
+    later to use this new index, so the resulting directory can be passed to
+    ``ann_correct_from_error_crops`` without depending on any source run's
+    local prediction ordering.
+    """
+
+    worker_count = normalize_workers(workers)
+
+    def fuse_one(position: int, match: _CommonMatch) -> tuple[int, str | None]:
+        return position, _fuse_common_prediction_line(match)
+
+    fused_lines: list[str | None] = [None] * len(matches)
+    if worker_count == 1:
+        items = iter_progress(
+            list(enumerate(matches)),
+            enabled=progress,
+            total=len(matches),
+            desc="fuse common predictions",
+            leave=progress_leave,
+        )
+        for position, match in items:
+            _, line = fuse_one(position, match)
+            fused_lines[position] = line
+    else:
+        with ThreadPoolExecutor(max_workers=worker_count) as executor:
+            futures = {
+                executor.submit(fuse_one, position, match): position
+                for position, match in enumerate(matches)
+            }
+            completed = iter_progress(
+                as_completed(futures),
+                enabled=progress,
+                total=len(futures),
+                desc="fuse common predictions",
+                leave=progress_leave,
+            )
+            for future in completed:
+                position, line = future.result()
+                fused_lines[position] = line
+
+    lines_by_image: dict[str, list[str]] = {}
+    prediction_indices: dict[int, int] = {}
+    missing = 0
+    for match, line in zip(matches, fused_lines, strict=True):
+        if line is None:
+            missing += 1
+            continue
+        image_stem = _safe_file_name(match.row.image)
+        image_lines = lines_by_image.setdefault(image_stem, [])
+        prediction_indices[id(match)] = len(image_lines) + 1
+        image_lines.append(line)
+
+    write_items = sorted(lines_by_image.items(), key=lambda item: item[0])
+
+    def write_one(item: tuple[str, list[str]]) -> Path:
+        image_stem, lines = item
+        path = output_root / f"{image_stem}.txt"
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        return path
+
+    if worker_count == 1:
+        items = iter_progress(
+            write_items,
+            enabled=progress,
+            total=len(write_items),
+            desc="write common prediction labels",
+            leave=progress_leave,
+        )
+        for item in items:
+            write_one(item)
+    else:
+        with ThreadPoolExecutor(max_workers=worker_count) as executor:
+            futures = [executor.submit(write_one, item) for item in write_items]
+            for future in iter_progress(
+                as_completed(futures),
+                enabled=progress,
+                total=len(futures),
+                desc="write common prediction labels",
+                leave=progress_leave,
+            ):
+                future.result()
+
+    return prediction_indices, {
+        "files": len(write_items),
+        "boxes": sum(len(lines) for lines in lines_by_image.values()),
+        "missing": missing,
+    }
+
+
+def _fuse_common_prediction_line(match: _CommonMatch) -> str | None:
+    boxes: list[list[float]] = []
+    weights: list[float] = []
+    class_ids: list[int] = []
+    confidences: list[float] = []
+    for _run, row in match.refs:
+        box = _parse_box_json(row.pred_box_xyxy)
+        class_id = row.pred_class_id
+        if box is None or len(box) != 4 or class_id is None:
+            continue
+        boxes.append([float(value) for value in box])
+        class_ids.append(int(class_id))
+        confidence = row.pred_conf
+        if confidence is None or not np.isfinite(float(confidence)):
+            weights.append(1.0)
+        else:
+            confidence_value = max(0.0, float(confidence))
+            weights.append(confidence_value)
+            confidences.append(confidence_value)
+
+    if not boxes:
+        return None
+    if not any(weights):
+        weights = [1.0] * len(boxes)
+    fused = np.average(np.asarray(boxes, dtype=np.float64), axis=0, weights=weights)
+    fused = np.clip(fused, 0.0, 1.0)
+    x1, y1, x2, y2 = map(float, fused)
+    x1, x2 = sorted((x1, x2))
+    y1, y2 = sorted((y1, y2))
+    center_x = (x1 + x2) / 2.0
+    center_y = (y1 + y2) / 2.0
+    width = x2 - x1
+    height = y2 - y1
+    values = [center_x, center_y, width, height]
+    line = " ".join([str(class_ids[0]), *(f"{value:.8f}" for value in values)])
+    if confidences:
+        line += f" {sum(confidences) / len(confidences):.8f}"
+    return line
+
+
 def _copy_common_crops(
     matches: list[_CommonMatch],
     destination_root: Path,
     *,
+    prediction_indices: Mapping[int, int] | None = None,
     workers: int,
     progress: bool,
     progress_leave: bool,
@@ -578,7 +749,17 @@ def _copy_common_crops(
     )
     reserved: set[str] = set()
     prepared = [
-        _prepare_common_crop(match, source_info, destination_root, reserved)
+        _prepare_common_crop(
+            match,
+            source_info,
+            destination_root,
+            reserved,
+            common_pred_idx=(
+                prediction_indices.get(id(match))
+                if prediction_indices is not None and match.kind == "fp"
+                else None
+            ),
+        )
         for match, source_info in zip(matches, sources, strict=True)
     ]
     reports: list[dict[str, Any] | None] = [None] * len(prepared)
@@ -730,6 +911,8 @@ def _prepare_common_crop(
     source_info: tuple[_ErrorRun, Path] | None,
     destination_root: Path,
     reserved: set[str],
+    *,
+    common_pred_idx: int | None = None,
 ) -> _PreparedCropCopy:
     if source_info is None:
         return _PreparedCropCopy(
@@ -746,7 +929,11 @@ def _prepare_common_crop(
     group = _review_group_name(row)
     destination_dir = destination_root / group
     destination_dir.mkdir(parents=True, exist_ok=True)
-    destination = destination_dir / source.name
+    destination = destination_dir / _common_crop_name(
+        row,
+        source.suffix,
+        common_pred_idx=common_pred_idx,
+    )
     destination_key = str(destination)
     if destination.exists() or destination_key in reserved:
         prefix = _safe_file_name(run.name)
@@ -779,6 +966,23 @@ def _crop_index_key(row: ErrorDetail) -> tuple[str, str]:
     gt_id = "none" if row.error_type == BACKGROUND_FP else str(row.gt_idx) if row.gt_idx is not None else "none"
     prefix = f"{_safe_file_name(row.image)}_pred{pred_id}_gt{gt_id}"
     return _review_group_name(row).replace("\\", "/"), prefix
+
+
+def _common_crop_name(
+    row: ErrorDetail,
+    suffix: str,
+    *,
+    common_pred_idx: int | None,
+) -> str:
+    safe_image = _safe_file_name(row.image)
+    if row.error_type == FN_NO_PRED:
+        pred_id = "none"
+    elif common_pred_idx is not None:
+        pred_id = str(common_pred_idx)
+    else:
+        pred_id = str(row.pred_idx) if row.pred_idx is not None else "none"
+    gt_id = "none" if row.error_type == BACKGROUND_FP else str(row.gt_idx) if row.gt_idx is not None else "none"
+    return f"{safe_image}_pred{pred_id}_gt{gt_id}{suffix}"
 
 
 def _write_csv(path: Path, columns: list[str], rows: Iterable[Mapping[str, Any]]) -> None:

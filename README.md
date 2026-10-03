@@ -164,7 +164,7 @@ ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --review --con
 ydm eval error-analysis-common --error-dir error_report_model_a --error-dir error_report_model_b --out common_error_report --iou 0.5 --workers 8
 ```
 
-`eval error-analysis-common` 直接读取多个 `eval_error_analysis` 输出目录，不重新运行模型。默认提取每次都出现的 `fn_no_pred` GT，以及每次都出现、类别相同且预测框 IoU 达到阈值的 `background_fp` / `class_error_pred` 预测。报告读取、按图像匹配、crop 定位和复制支持 `--workers` 并行，最终报告保持稳定顺序。结果写入 `common_error_summary.csv`（各运行原始、公共、剩余数量）、公共明细 CSV 和 `common_error_summary.json`；如果输入分析结果包含 review crop，还会生成可直接交给 `ann_correct_from_error_crops` 的 `common_crops/`。
+`eval error-analysis-common` 直接读取多个 `eval_error_analysis` 输出目录，不重新运行模型。默认提取每次都出现的 `fn_no_pred` GT，以及每次都出现、类别相同且预测框 IoU 达到阈值的 `background_fp` / `class_error_pred` 预测。公共预测会使用各运行对应框做置信度加权融合，并写入可直接作为 `pred_dir` 使用的 `common_pred_txt/`；`common_crops/` 中的 `predX` 也会同步重编号。报告读取、按图像匹配、框融合、crop 定位和复制支持 `--workers` 并行，最终报告保持稳定顺序。结果写入 `common_error_summary.csv`（各运行原始、公共、剩余数量）、公共明细 CSV 和 `common_error_summary.json`。
 
 `eval error-analysis --conf-curve` 会按 `0.1、0.2、0.3、0.4、0.5` 重新统计 review 分组文件数量，生成 `conf_curve.csv`、`conf_curve_summary.csv` 和 `conf_curve.png`。每条曲线对应一个 `pred_<预测类别>_gt_<真实类别>` 或属性错误目录。
 

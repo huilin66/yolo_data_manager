@@ -184,6 +184,7 @@ Supported:
   - FN low IoU
   - FN no prediction
 - `eval_error_analysis_common` / `ydm eval error-analysis-common` reads multiple error-analysis outputs, extracts shared `fn_no_pred` GT and shared same-class background/class-error predictions by IoU, and writes common crops plus original/common/remaining count tables per input
+- `eval_error_analysis_common` also confidence-fuses each common prediction group into `common_pred_txt/` and remaps crop `predX` indices; after manual crop selection, pass it to `ann_correct_from_error_crops(..., pred_dir=common_pred_txt, replace_gt_from_pred=True)` for GT updates
 - `eval_error_analysis` optionally accepts `conf_curve=True` / `--conf-curve` to count review error-group files at confidence thresholds 0.1 through 0.5 and write `conf_curve.csv`, `conf_curve_summary.csv`, and `conf_curve.png`
 - attribute error analysis on one-to-one matched same-class boxes, with `attribute_error.csv`, an optional attribute-error review pack, and `review/attribute_error/attribute_<name>/confusion_matrix.png` for each attribute; matrix rows are predicted values, columns are true values, and correct/incorrect matches are included; external prediction labels can share the GT `attribute.yaml`
 - attribute-error crops use `predX_gtY` to locate prediction/GT label rows; use `ann_att_correct_from_error_crops` / `correct_gt_attributes_from_error_crops` for single directories or directory-to-attribute-rule mappings, preserving class and geometry with `dry_run`/`backup_dir` support
