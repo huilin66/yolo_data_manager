@@ -27,7 +27,6 @@ QUERY_CLASS = None
 SELECTION_FILE = None
 
 CROP_MAP_PRED_ROOT = r"D:\zhl\data\road_forniture_v1_rename\ydm_evaluation\common_error_report\error_analysis\common_crops\pred_gt"
-
 CROP_MAP_PRED = {
     os.path.join(CROP_MAP_PRED_ROOT, "pred_fence_gt_background"): "fence",
     os.path.join(CROP_MAP_PRED_ROOT, "pred_sign_gt_background"): "sign",
@@ -162,12 +161,6 @@ def main() -> None:
         )
 
     if "update_class_from_pred" in RUN_LIST:
-        crops_dir = (
-            ydm.output_evaluation
-            / "common_error_report"
-            / "error_analysis"
-            / "common_crops"
-        )
         common_pred_txt = (
             ydm.output_evaluation
             / "common_error_report"
@@ -175,7 +168,7 @@ def main() -> None:
             / "common_crops"
         )
         ydm.ann_correct_from_error_crops(
-            crops_dir=crops_dir,
+            crops_dir=CROP_MAP_PRED,
             pred_dir=common_pred_txt,
         )
 
