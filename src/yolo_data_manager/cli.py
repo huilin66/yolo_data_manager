@@ -897,6 +897,15 @@ def build_parser() -> argparse.ArgumentParser:
     vlm_assistant.add_argument("--yes", action="store_true", help="confirm a write operation")
     vlm_assistant.set_defaults(handler=handle_vlm_assistant)
 
+    web_cmd = subparsers.add_parser("web", help="start the standalone YDM web workspace")
+    web_cmd.add_argument("--host", default="127.0.0.1")
+    web_cmd.add_argument("--port", type=int, default=8091, help="local YDM API port")
+    web_cmd.add_argument("--frontend-host", default="127.0.0.1")
+    web_cmd.add_argument("--frontend-port", type=int, default=5174, help="local Vite frontend port")
+    web_cmd.add_argument("--open", action="store_true", dest="open_browser", help="open the YDM page in a browser")
+    web_cmd.add_argument("--api-only", action="store_true", help="start only the FastAPI backend")
+    web_cmd.set_defaults(handler=handle_web)
+
     eval_cmd = subparsers.add_parser("eval", help="evaluate or compare predictions")
     eval_sub = eval_cmd.add_subparsers(dest="eval_command", required=True)
     compare = eval_sub.add_parser("compare", help="compare prediction labels against GT labels")
@@ -2079,6 +2088,26 @@ def handle_filename_remap(args: argparse.Namespace) -> int:
     )
     print(json.dumps(result.to_dict(), indent=2, ensure_ascii=False))
     return 0
+
+
+def handle_web(args: argparse.Namespace) -> int:
+    """Start the optional standalone YDM web application."""
+
+    try:
+        from yolo_data_manager.web.launcher import run_web
+    except ImportError as exc:  # pragma: no cover - depends on optional web extras
+        raise RuntimeError(
+            "YDM web dependencies are not installed. Install the 'web' optional dependencies first."
+        ) from exc
+
+    return run_web(
+        host=args.host,
+        port=args.port,
+        frontend_host=args.frontend_host,
+        frontend_port=args.frontend_port,
+        open_browser=args.open_browser,
+        api_only=args.api_only,
+    )
 
 
 def _create_cli_vlm_provider(args: argparse.Namespace):

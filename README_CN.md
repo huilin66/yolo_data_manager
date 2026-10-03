@@ -26,6 +26,32 @@ python -m pip install -e ".[dev]"
 python -m pytest -q
 ```
 
+## 独立 Web 界面
+
+YDM 提供独立运行的本地 Web 工作台，界面风格参考 MultiAnno，但运行时不依赖 MultiAnno。它可以加载 YOLO 数据集根目录或 `data.yaml`，查看图片缩略图、标注预览、类别统计和 train/val/test 划分。
+
+安装 Web 依赖并启动：
+
+Web 界面的前端需要安装 Node.js 和 npm，npm 通常会随 Node.js 一起安装。建议使用
+Node.js 20.19+（或 22.12+）。`ydm web` 会启动前端开发服务器和 YDM API；如果只使用
+`--api-only` 启动 API，则不需要 Node.js/npm。
+
+```bash
+python -m pip install -e ".[web]"
+cd src/yolo_data_manager/web/frontend
+npm install
+cd ../../../..
+ydm web --open
+```
+
+默认地址为 `http://127.0.0.1:5174`，API 地址为 `http://127.0.0.1:8091`。也可以只启动 API：
+
+```bash
+ydm web --api-only
+```
+
+YDM Web 目前是独立应用；未来 MultiAnno 可以只增加一个启动入口，不需要与 YDM 建立数据结构或运行时强关联。
+
 ## 功能地图
 
 | 功能 | 说明 | 常用参数 |

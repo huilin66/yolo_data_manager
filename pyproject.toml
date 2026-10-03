@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "yolo-data-manager"
-version = "0.7.2"
+version = "0.7.3"
 description = "A small toolkit for loading, editing, querying, validating, converting, analyzing, and visualizing YOLO datasets."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -21,9 +21,13 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
+web = ["fastapi>=0.115", "uvicorn[standard]>=0.30"]
 
 [project.scripts]
 ydm = "yolo_data_manager.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+yolo_data_manager = ["web/frontend/dist/**/*"]

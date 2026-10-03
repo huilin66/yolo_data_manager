@@ -26,6 +26,32 @@ python -m pip install -e ".[dev]"
 python -m pytest -q
 ```
 
+## Standalone Web UI
+
+YDM includes an independent local web workspace whose visual language follows
+MultiAnno without coupling the two applications at runtime. It loads a YOLO
+dataset root or `data.yaml`, then shows image thumbnails, annotated previews,
+class counts, and train/val/test split summaries.
+
+Install the optional web dependencies and start it:
+
+The web frontend requires Node.js and npm; npm is normally installed with Node.js.
+Use Node.js 20.19+ (or 22.12+). `ydm web` starts both the frontend development
+server and the YDM API. If you only use `--api-only`, Node.js/npm is not required.
+
+```bash
+python -m pip install -e ".[web]"
+cd src/yolo_data_manager/web/frontend
+npm install
+cd ../../../..
+ydm web --open
+```
+
+The default frontend URL is `http://127.0.0.1:5174`; the API listens on
+`http://127.0.0.1:8091`. To start only the API, use `ydm web --api-only`.
+MultiAnno can later add a launcher entry without sharing YDM's data model or
+runtime process.
+
 ## Feature Map
 
 | Area | What It Does | Common Parameters |
