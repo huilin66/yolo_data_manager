@@ -42,12 +42,13 @@ The UI supports English and Chinese; use the language button in the top-right
 corner to switch, and the choice is remembered by the current browser.
 If the frontend reports that `react-i18next` or `i18next` cannot be resolved,
 run `npm install` again in the frontend directory and restart `ydm web`.
-The bottom-right VLM assistant is always available in the workspace. After a
-dataset is loaded, it can turn natural-language requests into statistics,
-validation, query, visualization, and annotation-operation plans. Operations
-that can modify dataset files are shown for manual confirmation before they
-are executed. The assistant uses the same `.env` settings as the CLI; its web
-endpoints are `GET /api/vlm/status` and `POST /api/vlm/assistant`.
+The top-right VLM assistant icon is always available in the workspace. Clicking
+it opens a collapsible right-side panel; dataset details remain at the bottom
+of that panel. After a dataset is loaded, it can turn natural-language
+requests into statistics, validation, query, visualization, and annotation-
+operation plans. Operations that can modify dataset files are shown for manual
+confirmation before execution. VLM settings prefer the project `.env` file;
+the web endpoints are `GET /api/vlm/status` and `POST /api/vlm/assistant`.
 
 ```bash
 python -m pip install -e ".[web]"

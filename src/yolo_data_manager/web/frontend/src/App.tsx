@@ -428,6 +428,14 @@ function App() {
             <Languages size={16} />
             <span>{language === 'zh' ? 'EN' : '中'}</span>
           </button>
+          <button
+            className={`icon-button assistant-toggle ${assistantOpen ? 'active' : ''}`}
+            onClick={() => setAssistantOpen((value) => !value)}
+            title={t(assistantOpen ? 'assistant.close' : 'assistant.open')}
+            aria-label={t(assistantOpen ? 'assistant.close' : 'assistant.open')}
+          >
+            <Bot size={18} />
+          </button>
           <button className="icon-button" onClick={() => setDarkMode((value) => !value)} title={t('common.toggleTheme')} aria-label={t('common.toggleTheme')}>{darkMode ? <Sun size={18} /> : <Moon size={18} />}</button>
           <div className="settings-wrap">
             <button className={`icon-button ${settingsOpen ? 'active' : ''}`} onClick={() => setSettingsOpen((value) => !value)} title={t('common.settings')} aria-label={t('common.settings')}><Settings size={18} /></button>
@@ -436,7 +444,7 @@ function App() {
         </div>
       </header>
 
-      <div className="workspace-frame">
+      <div className={`workspace-frame ${assistantOpen ? 'assistant-workspace' : ''}`}>
         <aside className="sidebar">
           <div className="sidebar-label">{t('nav.workspace')}</div>
           <nav>
@@ -446,7 +454,7 @@ function App() {
               </button>
             ))}
           </nav>
-          <div className="sidebar-footer"><div className="status-dot" /> <span>{t('nav.workspace')}</span><span className="version-label">v1.0.2</span></div>
+          <div className="sidebar-footer"><div className="status-dot" /> <span>{t('nav.workspace')}</span><span className="version-label">v1.0.3</span></div>
         </aside>
 
         <main className="main-area">
@@ -479,36 +487,31 @@ function App() {
           )}
         </main>
 
-        <aside className="inspector">
-          <Inspector overview={overview} onCopy={copyRoot} onRefresh={handleRefresh} refreshing={refreshing} />
+        <aside className={`right-rail ${assistantOpen ? 'assistant-open' : ''}`}>
+          {assistantOpen && (
+            <AssistantDrawer
+              overview={overview}
+              selectedImage={selectedImage}
+              status={assistantStatus}
+              statusLoading={assistantStatusLoading}
+              input={assistantInput}
+              messages={assistantMessages}
+              pendingPlan={assistantPending}
+              busy={assistantBusy}
+              onClose={() => setAssistantOpen(false)}
+              onInputChange={setAssistantInput}
+              onSubmit={handleAssistantSend}
+              onConfirm={handleAssistantConfirm}
+              onCancel={handleAssistantCancel}
+              onQuickPrompt={setAssistantInput}
+            />
+          )}
+          <div className={`dataset-inspector ${assistantOpen ? 'assistant-inspector' : ''}`}>
+            {assistantOpen && <div className="dataset-details-bar"><Database size={15} /><strong>{t('inspector.details')}</strong></div>}
+            <Inspector overview={overview} onCopy={copyRoot} onRefresh={handleRefresh} refreshing={refreshing} />
+          </div>
         </aside>
       </div>
-      <button
-        className={`assistant-fab ${assistantOpen ? 'is-open' : ''}`}
-        onClick={() => setAssistantOpen((value) => !value)}
-        title={t(assistantOpen ? 'assistant.close' : 'assistant.open')}
-        aria-label={t(assistantOpen ? 'assistant.close' : 'assistant.open')}
-      >
-        {assistantOpen ? <ChevronRight size={19} /> : <Bot size={20} />}
-      </button>
-      {assistantOpen && (
-        <AssistantDrawer
-          overview={overview}
-          selectedImage={selectedImage}
-          status={assistantStatus}
-          statusLoading={assistantStatusLoading}
-          input={assistantInput}
-          messages={assistantMessages}
-          pendingPlan={assistantPending}
-          busy={assistantBusy}
-          onClose={() => setAssistantOpen(false)}
-          onInputChange={setAssistantInput}
-          onSubmit={handleAssistantSend}
-          onConfirm={handleAssistantConfirm}
-          onCancel={handleAssistantCancel}
-          onQuickPrompt={setAssistantInput}
-        />
-      )}
     </div>
   );
 }
@@ -553,7 +556,7 @@ function AssistantDrawer({
   const statusClass = statusLoading ? 'checking' : status?.configured ? 'ready' : 'not-ready';
 
   return (
-    <aside className="assistant-drawer" aria-label={t('assistant.title')}>
+    <section className="assistant-panel" aria-label={t('assistant.title')}>
       <div className="assistant-header">
         <div className="assistant-heading">
           <div className="assistant-avatar"><Bot size={18} /></div>
@@ -621,7 +624,7 @@ function AssistantDrawer({
         </button>
       </form>
       {!overview && <div className="assistant-composer-note">{t('assistant.loadDatasetFirst')}</div>}
-    </aside>
+    </section>
   );
 }
 

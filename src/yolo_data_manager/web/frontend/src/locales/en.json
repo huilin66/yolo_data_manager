@@ -79,6 +79,7 @@
   "inspector": {
     "noDataset": "No dataset loaded",
     "description": "Dataset details and recent operations will appear here.",
+    "details": "Dataset details",
     "dataset": "Dataset",
     "images": "Images",
     "labels": "Labels",

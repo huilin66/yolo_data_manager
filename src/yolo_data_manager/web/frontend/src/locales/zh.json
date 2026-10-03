@@ -79,6 +79,7 @@
   "inspector": {
     "noDataset": "尚未加载数据集",
     "description": "加载数据集后将在此显示数据集详情和最近操作。",
+    "details": "数据集详情",
     "dataset": "数据集",
     "images": "图像",
     "labels": "标签",

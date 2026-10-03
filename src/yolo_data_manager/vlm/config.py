@@ -8,11 +8,18 @@ from pathlib import Path
 from typing import Mapping
 
 
-def _load_dotenv(dotenv_path: str | Path | None = None) -> Path | None:
-    """Load the nearest .env file without exposing its contents."""
+def _load_dotenv(
+    dotenv_path: str | Path | None = None,
+) -> tuple[Path | None, dict[str, str]]:
+    """Read the nearest .env file without exposing its contents.
+
+    Values are returned separately instead of being injected into
+    ``os.environ``. This lets YDM give the project ``.env`` file a stable
+    priority without mutating the host process configuration.
+    """
 
     try:
-        from dotenv import find_dotenv, load_dotenv
+        from dotenv import dotenv_values, find_dotenv
     except ImportError as exc:  # pragma: no cover - dependency is declared
         raise RuntimeError(
             "VLM support requires python-dotenv; install the project VLM dependencies"
@@ -24,9 +31,14 @@ def _load_dotenv(dotenv_path: str | Path | None = None) -> Path | None:
     else:
         resolved = find_dotenv(usecwd=True) or None
     if resolved is None:
-        return None
-    load_dotenv(resolved, override=False)
-    return Path(resolved)
+        return None, {}
+
+    values = {
+        str(key): str(value)
+        for key, value in dotenv_values(resolved).items()
+        if key and value is not None and str(value).strip()
+    }
+    return Path(resolved), values
 
 
 def _get(
@@ -34,12 +46,19 @@ def _get(
     *,
     aliases: tuple[str, ...] = (),
     overrides: Mapping[str, object] | None = None,
+    dotenv_values: Mapping[str, object] | None = None,
     default: str | None = None,
 ) -> str | None:
     if overrides:
         for key in (name, *aliases):
             if key in overrides and overrides[key] is not None:
                 return str(overrides[key])
+    if dotenv_values:
+        for key in (name, *aliases):
+            if key in dotenv_values and dotenv_values[key] is not None:
+                value = str(dotenv_values[key]).strip()
+                if value:
+                    return value
     for key in (name, *aliases):
         value = os.getenv(key)
         if value is not None and value.strip():
@@ -51,9 +70,10 @@ def _float(
     name: str,
     *,
     overrides: Mapping[str, object] | None,
+    dotenv_values: Mapping[str, object] | None,
     default: float,
 ) -> float:
-    value = _get(name, overrides=overrides)
+    value = _get(name, overrides=overrides, dotenv_values=dotenv_values)
     if value is None:
         return default
     try:
@@ -66,9 +86,10 @@ def _int(
     name: str,
     *,
     overrides: Mapping[str, object] | None,
+    dotenv_values: Mapping[str, object] | None,
     default: int,
 ) -> int:
-    value = _get(name, overrides=overrides)
+    value = _get(name, overrides=overrides, dotenv_values=dotenv_values)
     if value is None:
         return default
     try:
@@ -81,9 +102,10 @@ def _bool(
     name: str,
     *,
     overrides: Mapping[str, object] | None,
+    dotenv_values: Mapping[str, object] | None,
     default: bool,
 ) -> bool:
-    value = _get(name, overrides=overrides)
+    value = _get(name, overrides=overrides, dotenv_values=dotenv_values)
     if value is None:
         return default
     text = value.strip().lower()
@@ -138,27 +160,45 @@ def load_vlm_config(
 ) -> VLMConfig:
     """Load VLM settings from .env and optional in-memory overrides."""
 
-    loaded_path = _load_dotenv(dotenv_path)
+    loaded_path, dotenv_values = _load_dotenv(dotenv_path)
     provider = (
-        _get("VLM_PROVIDER", overrides=overrides, default="qwen") or "qwen"
+        _get(
+            "VLM_PROVIDER",
+            overrides=overrides,
+            dotenv_values=dotenv_values,
+            default="qwen",
+        )
+        or "qwen"
     ).lower()
     base_url = _get(
         "VLM_BASE_URL",
         overrides=overrides,
+        dotenv_values=dotenv_values,
         default="https://dashscope.aliyuncs.com/compatible-mode/v1",
     )
     model = _get(
         "VLM_MODEL",
         overrides=overrides,
+        dotenv_values=dotenv_values,
         default="qwen-vl-max",
     ) or "qwen-vl-max"
     api_key = _get(
         "VLM_API_KEY",
         aliases=("DASHSCOPE_API_KEY", "OPENAI_API_KEY"),
         overrides=overrides,
+        dotenv_values=dotenv_values,
     )
-    model_path = _get("VLM_MODEL_PATH", overrides=overrides)
-    workers = _int("VLM_WORKERS", overrides=overrides, default=4)
+    model_path = _get(
+        "VLM_MODEL_PATH",
+        overrides=overrides,
+        dotenv_values=dotenv_values,
+    )
+    workers = _int(
+        "VLM_WORKERS",
+        overrides=overrides,
+        dotenv_values=dotenv_values,
+        default=4,
+    )
     if workers < 1:
         raise ValueError("VLM_WORKERS must be at least 1")
 
@@ -168,11 +208,31 @@ def load_vlm_config(
         model=model,
         api_key=api_key,
         model_path=model_path,
-        timeout=_float("VLM_TIMEOUT", overrides=overrides, default=120.0),
+        timeout=_float(
+            "VLM_TIMEOUT",
+            overrides=overrides,
+            dotenv_values=dotenv_values,
+            default=120.0,
+        ),
         workers=workers,
-        temperature=_float("VLM_TEMPERATURE", overrides=overrides, default=0.0),
-        max_tokens=_int("VLM_MAX_TOKENS", overrides=overrides, default=4096),
-        json_mode=_bool("VLM_JSON_MODE", overrides=overrides, default=True),
+        temperature=_float(
+            "VLM_TEMPERATURE",
+            overrides=overrides,
+            dotenv_values=dotenv_values,
+            default=0.0,
+        ),
+        max_tokens=_int(
+            "VLM_MAX_TOKENS",
+            overrides=overrides,
+            dotenv_values=dotenv_values,
+            default=4096,
+        ),
+        json_mode=_bool(
+            "VLM_JSON_MODE",
+            overrides=overrides,
+            dotenv_values=dotenv_values,
+            default=True,
+        ),
         dotenv_path=loaded_path,
     )
 

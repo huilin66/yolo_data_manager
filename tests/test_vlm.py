@@ -13,6 +13,7 @@ from yolo_data_manager.core.models import (
 )
 from yolo_data_manager.vlm.assistant import AssistantError, run_assistant
 from yolo_data_manager.vlm.auto_label import generate_yolo_labels
+from yolo_data_manager.vlm.config import load_vlm_config
 from yolo_data_manager.vlm.error_verify import apply_correction_plan, verify_error_crops
 from yolo_data_manager.vlm.providers import VLMProvider, VLMResponse
 from yolo_data_manager.vlm.schemas import parse_detection_response, parse_error_decision
@@ -148,3 +149,18 @@ def test_assistant_requires_confirmation_for_write_methods():
         confirm=True,
     )
     assert result["executed"] is True
+
+
+def test_vlm_dotenv_values_take_priority_over_process_environment(tmp_path, monkeypatch):
+    dotenv = tmp_path / ".env"
+    dotenv.write_text(
+        "VLM_PROVIDER=qwen\nVLM_MODEL=model-from-dotenv\nVLM_TIMEOUT=45\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("VLM_MODEL", "model-from-process")
+    monkeypatch.setenv("VLM_TIMEOUT", "90")
+
+    config = load_vlm_config(dotenv, overrides={"VLM_TIMEOUT": "12"})
+
+    assert config.model == "model-from-dotenv"
+    assert config.timeout == 12.0
