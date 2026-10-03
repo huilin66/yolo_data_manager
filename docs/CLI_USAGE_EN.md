@@ -300,7 +300,7 @@ ydm convert filename-remap --root yolo_data --out yolo_numeric
 
 `convert resize` preserves the aspect ratio by default. When both `--width` and `--height` are specified, it uses gray letterboxing and transforms detection boxes and segmentation polygons accordingly. Use `--no-keep-ratio` to stretch directly to the target dimensions. The default output is `<root>/ydm_conversion/resize`; the source dataset is not overwritten.
 
-`convert filename-remap` copies images and matching labels with uniform numeric filenames. When `--digits` is omitted, the width uses the next power of ten at or above ten times the image count; 8,951 images therefore use six-digit names. Numbering starts at 0 by default and can be changed with `--start`. The mapping is written to `<out>/filename_mapping.json` by default, and the default output is `<root>/ydm_conversion/filename_remap`.
+`convert filename-remap` copies images and matching labels with uniform numeric filenames. When `--digits` is omitted, the width uses the next power of ten at or above ten times the image count; 8,951 images therefore use six-digit names. Numbering starts at 0 by default and can be changed with `--start`. Without `--mapping-file`, the mapping is written to `<root>/ydm_conversion/filename_mapping.json`; an explicit path takes precedence, and the default output is `<root>/ydm_conversion/filename_remap`.
 
 ## Evaluation and Error Analysis
 

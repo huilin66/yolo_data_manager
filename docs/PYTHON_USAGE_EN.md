@@ -425,7 +425,7 @@ mgr.remap_filenames(out="yolo_numeric", start=0)
 
 `resize_images` keeps the aspect ratio by default. For a letterboxed resize, labels are transformed automatically; `keep_ratio=False` performs a direct stretch, so normalized YOLO coordinates retain their values. The default output is `ydm_conversion/resize` under the manager root.
 
-`remap_filenames` copies images and matching labels into a new dataset with uniform numeric filenames. When `digits` is omitted, the width uses the next power of ten at or above ten times the image count; 8,951 images therefore use six-digit names such as `000000.jpg`, `000001.jpg`, and so on. Numbering starts at 0 by default and can be changed with `start`. The source dataset is not overwritten; the mapping is saved to `<out>/filename_mapping.json`, and the default output is `ydm_conversion/filename_remap` under the manager root.
+`remap_filenames` copies images and matching labels into a new dataset with uniform numeric filenames. When `digits` is omitted, the width uses the next power of ten at or above ten times the image count; 8,951 images therefore use six-digit names such as `000000.jpg`, `000001.jpg`, and so on. Numbering starts at 0 by default and can be changed with `start`. The source dataset is not overwritten; without an explicit `mapping_file`, the mapping is saved to `<root>/ydm_conversion/filename_mapping.json`. An explicit `mapping_file` still takes precedence, and the default output dataset is `ydm_conversion/filename_remap` under the manager root.
 
 ## Evaluation and Error Analysis
 

@@ -14,6 +14,7 @@ from yolo_data_manager.core.schema import (
     write_class_schema,
     write_dataset_yaml,
 )
+from yolo_data_manager.io.output_paths import ydm_dir
 from yolo_data_manager.runtime import iter_progress, normalize_workers
 
 
@@ -183,7 +184,7 @@ def remap_yolo_dataset_filenames(
         if (source_root / f"{split_name}.txt").is_file()
     }
     split_lines = _remapped_split_lines(source_root, source_split_files, jobs)
-    mapping_path = _resolve_mapping_path(out_path, mapping_file)
+    mapping_path = _resolve_mapping_path(source_root, out_path, mapping_file)
 
     if not dry_run:
         out_path.mkdir(parents=True, exist_ok=True)
@@ -280,9 +281,13 @@ def _new_label_relative_path(source_relative: Path, new_stem: str) -> Path:
     return source_relative.parent / f"{new_stem}.txt"
 
 
-def _resolve_mapping_path(out_path: Path, mapping_file: str | Path | None) -> Path:
+def _resolve_mapping_path(
+    source_root: Path,
+    out_path: Path,
+    mapping_file: str | Path | None,
+) -> Path:
     if mapping_file is None:
-        return out_path / "filename_mapping.json"
+        return ydm_dir(source_root, "conversion") / "filename_mapping.json"
     path = Path(mapping_file)
     return path if path.is_absolute() else out_path / path
 

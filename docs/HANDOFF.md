@@ -114,7 +114,7 @@ ydm dataset normalize --root yolo_data --layout auto --out yolo_normalized
 - 支持每个类别单独设置过滤规则
 - 多数据集合并，按类别名对齐并自动 remap class id
 - 生成 `dataset.yaml`
-- `convert filename-remap`：复制数据集并统一重命名图像/label 数字文件名，默认输出到 `ydm_conversion/filename_remap`，同时生成 `filename_mapping.json` 保存新旧路径映射；源数据不原地修改
+- `convert filename-remap`：复制数据集并统一重命名图像/label 数字文件名，默认输出到 `ydm_conversion/filename_remap`，并在 `ydm_conversion/filename_mapping.json` 保存新旧路径映射；显式传入映射路径时以显式路径为准，源数据不原地修改
 
 典型命令：
 

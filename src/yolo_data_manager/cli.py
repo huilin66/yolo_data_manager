@@ -845,7 +845,7 @@ def build_parser() -> argparse.ArgumentParser:
     filename_remap.add_argument(
         "--mapping-file",
         default=None,
-        help="mapping JSON path; defaults to <out>/filename_mapping.json",
+        help="mapping JSON path; defaults to <root>/ydm_conversion/filename_mapping.json",
     )
     filename_remap.add_argument(
         "--dry-run",
