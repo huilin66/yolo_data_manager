@@ -335,6 +335,7 @@ mgr.eval_error_analysis_common(
     [r"error_report_model_a", r"error_report_model_b"],
     out="common_error_report",
     iou=0.5,
+    workers=8,
 )
 
 # 导入 —— 独立参数，不使用 mgr 的 root

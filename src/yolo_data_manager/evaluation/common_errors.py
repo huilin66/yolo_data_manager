@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import json
 import shutil
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -23,7 +24,7 @@ from yolo_data_manager.evaluation.error_analysis import (
     _safe_file_name,
 )
 from yolo_data_manager.evaluation.matching import box_iou_matrix
-from yolo_data_manager.runtime import iter_progress, progress_stage
+from yolo_data_manager.runtime import iter_progress, normalize_workers, progress_stage
 
 
 _ERROR_COLUMNS = [
@@ -89,6 +90,7 @@ def extract_common_error_analysis(
     *,
     iou: float = 0.5,
     copy_crops: bool = True,
+    workers: int = 8,
     progress: bool = False,
     progress_leave: bool = False,
 ) -> dict[str, Any]:
@@ -109,10 +111,12 @@ def extract_common_error_analysis(
     """
 
     _validate_iou(iou)
+    worker_count = normalize_workers(workers)
     runs = _load_runs(
         error_dirs,
         progress=progress,
         progress_leave=progress_leave,
+        workers=worker_count,
     )
     output = Path(out)
     output.mkdir(parents=True, exist_ok=True)
@@ -131,6 +135,7 @@ def extract_common_error_analysis(
         runs,
         kind="fn",
         iou=iou,
+        workers=worker_count,
         progress=progress,
         progress_leave=progress_leave,
     )
@@ -139,6 +144,7 @@ def extract_common_error_analysis(
         runs,
         kind="fp",
         iou=iou,
+        workers=worker_count,
         progress=progress,
         progress_leave=progress_leave,
     )
@@ -150,14 +156,13 @@ def extract_common_error_analysis(
         if common_crops.exists():
             shutil.rmtree(common_crops)
         common_crops.mkdir(parents=True, exist_ok=True)
-        for match in iter_progress(
+        crop_report = _copy_common_crops(
             common_matches,
-            enabled=progress,
-            total=len(common_matches),
-            desc="extract common error crops",
-            leave=progress_leave,
-        ):
-            crop_report.append(_copy_common_crop(match, common_crops))
+            common_crops,
+            workers=worker_count,
+            progress=progress,
+            progress_leave=progress_leave,
+        )
     else:
         progress_stage("common errors skip crop copy", enabled=progress)
         crop_report = [
@@ -218,6 +223,7 @@ def _load_runs(
     *,
     progress: bool = False,
     progress_leave: bool = False,
+    workers: int = 1,
 ) -> list[_ErrorRun]:
     if isinstance(error_dirs, Mapping):
         items = [(str(name), path) for name, path in error_dirs.items()]
@@ -229,24 +235,47 @@ def _load_runs(
     if len(items) < 2:
         raise ValueError("at least two eval_error_analysis result directories are required")
 
-    runs: list[_ErrorRun] = []
+    worker_count = normalize_workers(workers)
     names: set[str] = set()
-    run_items = iter_progress(
-        items,
-        enabled=progress,
-        total=len(items),
-        desc="common errors load reports",
-        leave=progress_leave,
-    )
-    for index, (raw_name, raw_path) in enumerate(run_items, start=1):
+    prepared: list[tuple[int, str, Path]] = []
+    for index, (raw_name, raw_path) in enumerate(items, start=1):
         name = raw_name.strip() or f"run_{index}"
         if name in names:
             name = f"{name}_{index}"
         names.add(name)
         root = _resolve_error_dir(raw_path)
-        rows = _read_error_rows(root)
-        runs.append(_ErrorRun(name=name, root=root, rows=rows))
-    return runs
+        prepared.append((index - 1, name, root))
+
+    def load_one(item: tuple[int, str, Path]) -> tuple[int, _ErrorRun]:
+        position, name, root = item
+        return position, _ErrorRun(name=name, root=root, rows=_read_error_rows(root))
+
+    loaded: list[_ErrorRun | None] = [None] * len(prepared)
+    if worker_count == 1:
+        items_with_progress = iter_progress(
+            prepared,
+            enabled=progress,
+            total=len(prepared),
+            desc="common errors load reports",
+            leave=progress_leave,
+        )
+        for item in items_with_progress:
+            position, run = load_one(item)
+            loaded[position] = run
+    else:
+        with ThreadPoolExecutor(max_workers=worker_count) as executor:
+            futures = [executor.submit(load_one, item) for item in prepared]
+            completed = iter_progress(
+                as_completed(futures),
+                enabled=progress,
+                total=len(futures),
+                desc="common errors load reports",
+                leave=progress_leave,
+            )
+            for future in completed:
+                position, run = future.result()
+                loaded[position] = run
+    return [run for run in loaded if run is not None]
 
 
 def _resolve_error_dir(path: str | Path) -> Path:
@@ -303,20 +332,84 @@ def _find_common_matches(
     *,
     kind: str,
     iou: float,
+    workers: int = 1,
     progress: bool = False,
     progress_leave: bool = False,
 ) -> list[_CommonMatch]:
-    base_rows = rows_by_run[0]
+    grouped_rows: list[dict[str, list[ErrorDetail]]] = []
+    for rows in rows_by_run:
+        by_image: dict[str, list[ErrorDetail]] = {}
+        for row in rows:
+            by_image.setdefault(row.image, []).append(row)
+        grouped_rows.append(by_image)
+
+    image_jobs = list(grouped_rows[0].items())
+    worker_count = normalize_workers(workers)
+
+    def match_one(
+        position: int,
+        image: str,
+        base_rows: list[ErrorDetail],
+    ) -> tuple[int, list[_CommonMatch]]:
+        candidates_by_run = [
+            grouped.get(image, []) for grouped in grouped_rows
+        ]
+        return position, _find_common_matches_for_image(
+            base_rows,
+            candidates_by_run,
+            runs,
+            kind=kind,
+            iou=iou,
+        )
+
+    matched_by_image: list[list[_CommonMatch] | None] = [None] * len(image_jobs)
+    if worker_count == 1:
+        jobs = iter_progress(
+            image_jobs,
+            enabled=progress,
+            total=len(image_jobs),
+            desc=f"common errors match {kind}",
+            leave=progress_leave,
+        )
+        for position, (image, base_rows) in enumerate(jobs):
+            _, matches = match_one(position, image, base_rows)
+            matched_by_image[position] = matches
+    else:
+        with ThreadPoolExecutor(max_workers=worker_count) as executor:
+            futures = [
+                executor.submit(match_one, position, image, base_rows)
+                for position, (image, base_rows) in enumerate(image_jobs)
+            ]
+            completed = iter_progress(
+                as_completed(futures),
+                enabled=progress,
+                total=len(futures),
+                desc=f"common errors match {kind}",
+                leave=progress_leave,
+            )
+            for future in completed:
+                position, matches = future.result()
+                matched_by_image[position] = matches
+
+    return [
+        match
+        for matches in matched_by_image
+        if matches is not None
+        for match in matches
+    ]
+
+
+def _find_common_matches_for_image(
+    base_rows: list[ErrorDetail],
+    rows_by_run: list[list[ErrorDetail]],
+    runs: list[_ErrorRun],
+    *,
+    kind: str,
+    iou: float,
+) -> list[_CommonMatch]:
     used: list[set[int]] = [set() for _ in rows_by_run]
     matches: list[_CommonMatch] = []
-    base_items = iter_progress(
-        base_rows,
-        enabled=progress,
-        total=len(base_rows),
-        desc=f"common errors match {kind}",
-        leave=progress_leave,
-    )
-    for base_index, base_row in enumerate(base_items):
+    for base_index, base_row in enumerate(base_rows):
         if _primary_box(base_row, kind) is None:
             continue
         selected: list[tuple[int, ErrorDetail]] = [(0, base_row)]
@@ -455,30 +548,158 @@ def _common_rows(
     return rows
 
 
-def _copy_common_crop(match: _CommonMatch, destination_root: Path) -> dict[str, Any]:
-    for run, row in match.refs:
-        source = _find_error_crop(run.root, row)
-        if source is None:
-            continue
-        group = _review_group_name(row)
-        destination_dir = destination_root / group
-        destination_dir.mkdir(parents=True, exist_ok=True)
-        destination = destination_dir / source.name
-        if destination.exists():
-            destination = destination_dir / f"{_safe_file_name(run.name)}_{source.name}"
-        shutil.copy2(source, destination)
-        return {
+@dataclass
+class _PreparedCropCopy:
+    report: dict[str, Any]
+    source: Path | None = None
+    destination: Path | None = None
+
+
+def _copy_common_crops(
+    matches: list[_CommonMatch],
+    destination_root: Path,
+    *,
+    workers: int,
+    progress: bool,
+    progress_leave: bool,
+) -> list[dict[str, Any]]:
+    sources = _find_common_crop_sources(
+        matches,
+        workers=workers,
+        progress=progress,
+        progress_leave=progress_leave,
+    )
+    reserved: set[str] = set()
+    prepared = [
+        _prepare_common_crop(match, source_info, destination_root, reserved)
+        for match, source_info in zip(matches, sources, strict=True)
+    ]
+    reports: list[dict[str, Any] | None] = [None] * len(prepared)
+    worker_count = normalize_workers(workers)
+    if worker_count == 1:
+        items = iter_progress(
+            list(enumerate(prepared)),
+            enabled=progress,
+            total=len(prepared),
+            desc="extract common error crops",
+            leave=progress_leave,
+        )
+        for position, item in items:
+            reports[position] = _copy_prepared_crop(item)
+    else:
+        with ThreadPoolExecutor(max_workers=worker_count) as executor:
+            future_to_position = {
+                executor.submit(_copy_prepared_crop, item): position
+                for position, item in enumerate(prepared)
+            }
+            completed = iter_progress(
+                as_completed(future_to_position),
+                enabled=progress,
+                total=len(future_to_position),
+                desc="extract common error crops",
+                leave=progress_leave,
+            )
+            for future in completed:
+                position = future_to_position[future]
+                reports[position] = future.result()
+    return [report for report in reports if report is not None]
+
+
+def _find_common_crop_sources(
+    matches: list[_CommonMatch],
+    *,
+    workers: int,
+    progress: bool,
+    progress_leave: bool,
+) -> list[tuple[_ErrorRun, Path] | None]:
+    worker_count = normalize_workers(workers)
+    sources: list[tuple[_ErrorRun, Path] | None] = [None] * len(matches)
+
+    def find_one(position: int, match: _CommonMatch) -> tuple[int, tuple[_ErrorRun, Path] | None]:
+        for run, row in match.refs:
+            source = _find_error_crop(run.root, row)
+            if source is not None:
+                return position, (run, source)
+        return position, None
+
+    if worker_count == 1:
+        items = iter_progress(
+            list(enumerate(matches)),
+            enabled=progress,
+            total=len(matches),
+            desc="locate common error crops",
+            leave=progress_leave,
+        )
+        for position, match in items:
+            _, source_info = find_one(position, match)
+            sources[position] = source_info
+        return sources
+
+    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+        future_to_position = {
+            executor.submit(find_one, position, match): position
+            for position, match in enumerate(matches)
+        }
+        completed = iter_progress(
+            as_completed(future_to_position),
+            enabled=progress,
+            total=len(future_to_position),
+            desc="locate common error crops",
+            leave=progress_leave,
+        )
+        for future in completed:
+            position, source_info = future.result()
+            sources[position] = source_info
+    return sources
+
+
+def _prepare_common_crop(
+    match: _CommonMatch,
+    source_info: tuple[_ErrorRun, Path] | None,
+    destination_root: Path,
+    reserved: set[str],
+) -> _PreparedCropCopy:
+    if source_info is None:
+        return _PreparedCropCopy(
+            report={
+                "common_kind": match.kind,
+                "source_run": None,
+                "source_crop": None,
+                "destination_crop": None,
+            }
+        )
+
+    run, source = source_info
+    row = match.row
+    group = _review_group_name(row)
+    destination_dir = destination_root / group
+    destination_dir.mkdir(parents=True, exist_ok=True)
+    destination = destination_dir / source.name
+    destination_key = str(destination)
+    if destination.exists() or destination_key in reserved:
+        prefix = _safe_file_name(run.name)
+        destination = destination_dir / f"{prefix}_{source.name}"
+        counter = 2
+        while destination.exists() or str(destination) in reserved:
+            destination = destination_dir / f"{prefix}_{counter}_{source.name}"
+            counter += 1
+    reserved.add(str(destination))
+    return _PreparedCropCopy(
+        report={
             "common_kind": match.kind,
             "source_run": run.name,
             "source_crop": str(source),
             "destination_crop": str(destination),
-        }
-    return {
-        "common_kind": match.kind,
-        "source_run": None,
-        "source_crop": None,
-        "destination_crop": None,
-    }
+        },
+        source=source,
+        destination=destination,
+    )
+
+
+def _copy_prepared_crop(item: _PreparedCropCopy) -> dict[str, Any]:
+    if item.source is not None and item.destination is not None:
+        shutil.copy2(item.source, item.destination)
+    return item.report
 
 
 def _find_error_crop(root: Path, row: ErrorDetail) -> Path | None:

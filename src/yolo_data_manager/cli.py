@@ -1014,7 +1014,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_false",
         help="write common reports without copying review crops",
     )
-    add_runtime_args(common_errors, workers=False)
+    add_runtime_args(common_errors)
     common_errors.set_defaults(handler=handle_eval_error_analysis_common, copy_crops=True)
 
     metrics = eval_sub.add_parser("metrics", help="compute Ultralytics-style precision/recall/mAP from GT and prediction txt")
@@ -2513,6 +2513,7 @@ def handle_eval_error_analysis_common(args: argparse.Namespace) -> int:
         out,
         iou=args.iou,
         copy_crops=args.copy_crops,
+        workers=args.workers,
         progress=args.progress,
         progress_leave=args.progress_leave,
     )

@@ -349,10 +349,10 @@ ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --names class.tx
 ydm eval error-analysis --gt-root gt_labels --pred-root pred_labels --names class.txt --out error_report
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --attribute-file gt_yolo/attribute.yaml --out error_report --review
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --review --conf-curve
-ydm eval error-analysis-common --error-dir error_report_model_a --error-dir error_report_model_b --out common_error_report --iou 0.5
+ydm eval error-analysis-common --error-dir error_report_model_a --error-dir error_report_model_b --out common_error_report --iou 0.5 --workers 8
 ```
 
-`eval error-analysis-common` reads multiple `eval_error_analysis` output directories without rerunning the model. It extracts shared `fn_no_pred` GT records and shared same-class `background_fp` / `class_error_pred` predictions whose box IoU reaches the threshold, then writes `common_error_summary.csv` (original/common/remaining counts per input), detail CSV files, and `common_crops/` when review crops are available. The crop tree can be passed directly to `ann_correct_from_error_crops`.
+`eval error-analysis-common` reads multiple `eval_error_analysis` output directories without rerunning the model. It extracts shared `fn_no_pred` GT records and shared same-class `background_fp` / `class_error_pred` predictions whose box IoU reaches the threshold. Report loading, per-image matching, crop lookup, and crop copying support `--workers` in parallel while final report order remains deterministic. It then writes `common_error_summary.csv` (original/common/remaining counts per input), detail CSV files, and `common_crops/` when review crops are available. The crop tree can be passed directly to `ann_correct_from_error_crops`.
 
 `eval error-analysis --conf-curve` reruns the analysis at confidence thresholds `0.1`, `0.2`, `0.3`, `0.4`, and `0.5`, then writes `conf_curve.csv`, `conf_curve_summary.csv`, and `conf_curve.png` with one series per review error group.
 

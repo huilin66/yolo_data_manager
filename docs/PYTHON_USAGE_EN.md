@@ -475,6 +475,7 @@ mgr.eval_error_analysis_common(
     ["error_report_model_a", "error_report_model_b"],
     out="common_error_report",
     iou=0.5,
+    workers=8,
 )
 mgr.eval_error_analysis(
     pred_root="datasets/pred_labels",
