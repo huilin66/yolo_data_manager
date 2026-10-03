@@ -88,6 +88,31 @@ from yolo_data_manager.evaluation.metrics import (
     write_size_metrics_csv,
 )
 from yolo_data_manager.evaluation.review_pack import write_review_pack
+
+
+_CONSOLE_LIST_PREVIEW_LIMIT = 20
+
+
+def _compact_console_payload(value: object) -> object:
+    """Keep console JSON readable while retaining full edit reports on disk."""
+
+    if isinstance(value, dict):
+        return {
+            key: _compact_console_payload(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        preview = [
+            _compact_console_payload(item)
+            for item in value[:_CONSOLE_LIST_PREVIEW_LIMIT]
+        ]
+        omitted = len(value) - len(preview)
+        if omitted > 0:
+            preview.append(
+                f"... ({omitted} more items omitted; see the edit report)"
+            )
+        return preview
+    return value
 from yolo_data_manager.logging_utils import now_text, operation_scope, resolve_log_root
 
 
@@ -1701,7 +1726,7 @@ def handle_correct_from_crops(args: argparse.Namespace) -> int:
     payload = result.to_dict()
     payload["dry_run"] = args.dry_run
     payload["report"] = report_path
-    print(json.dumps(payload, indent=2, ensure_ascii=False))
+    print(json.dumps(_compact_console_payload(payload), indent=2, ensure_ascii=False))
     return 0
 
 
@@ -1734,7 +1759,7 @@ def handle_correct_from_error_crops(args: argparse.Namespace) -> int:
     payload = result.to_dict()
     payload["dry_run"] = args.dry_run
     payload["report"] = report_path
-    print(json.dumps(payload, indent=2, ensure_ascii=False))
+    print(json.dumps(_compact_console_payload(payload), indent=2, ensure_ascii=False))
     return 0
 
 
@@ -1760,7 +1785,7 @@ def handle_correct_attr_from_crops(args: argparse.Namespace) -> int:
     payload = result.to_dict()
     payload["dry_run"] = args.dry_run
     payload["report"] = report_path
-    print(json.dumps(payload, indent=2, ensure_ascii=False))
+    print(json.dumps(_compact_console_payload(payload), indent=2, ensure_ascii=False))
     return 0
 
 
@@ -1786,7 +1811,7 @@ def handle_correct_attr_from_error_crops(args: argparse.Namespace) -> int:
     payload = result.to_dict()
     payload["dry_run"] = args.dry_run
     payload["report"] = report_path
-    print(json.dumps(payload, indent=2, ensure_ascii=False))
+    print(json.dumps(_compact_console_payload(payload), indent=2, ensure_ascii=False))
     return 0
 
 
