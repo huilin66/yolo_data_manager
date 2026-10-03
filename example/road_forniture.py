@@ -162,12 +162,22 @@ def main() -> None:
         )
 
     if "update_class_from_pred" in RUN_LIST:
-        for pred_name in PRED_NAMES:
-            pred_dir = PRED_RUNS_DIR / pred_name / "labels"
-            ydm.ann_correct_from_error_crops(
-                crops_dir=CROP_MAP_PRED,
-                pred_dir=pred_dir,
-            )
+        crops_dir = (
+            ydm.output_evaluation
+            / "common_error_report"
+            / "error_analysis"
+            / "common_crops"
+        )
+        common_pred_txt = (
+            ydm.output_evaluation
+            / "common_error_report"
+            / "error_analysis"
+            / "common_crops"
+        )
+        ydm.ann_correct_from_error_crops(
+            crops_dir=crops_dir,
+            pred_dir=common_pred_txt,
+        )
 
 
 if __name__ == "__main__":
