@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
@@ -22,7 +23,16 @@ from yolo_data_manager.core.models import AttributeSchema, YoloDataset, YoloImag
 from yolo_data_manager.core.schema import read_dataset_yaml
 from yolo_data_manager.io.layout import LayoutInfo, read_image_list, resolve_layout
 from yolo_data_manager.io.loader import load_yolo_dataset
+from yolo_data_manager.scripting import YoloManager
 from yolo_data_manager.vis.renderer import render_image
+from yolo_data_manager.vlm import (
+    AssistantError,
+    create_vlm_provider,
+    execute_assistant_plan,
+    load_vlm_config,
+    run_assistant,
+)
+from yolo_data_manager.vlm.providers import VLMProviderError
 
 
 SUPPORTED_LAYOUTS = ("auto", "flat", "split_dirs", "image_list", "mixed")
@@ -50,7 +60,7 @@ def _package_version() -> str:
     try:
         return version("yolo-data-manager")
     except PackageNotFoundError:
-        return "1.0.1"
+        return "1.0.2"
 
 
 class LoadDatasetRequest(BaseModel):
@@ -73,11 +83,27 @@ class DatasetSessionStatus(BaseModel):
     annotation_count: int = 0
 
 
+class VLMAssistantRequest(BaseModel):
+    """A natural-language request or a previously reviewed assistant plan."""
+
+    intent: str | None = Field(default=None, min_length=1)
+    plan: dict[str, Any] | None = None
+    execute: bool = False
+    confirm: bool = False
+
+
 @dataclass
 class DatasetSession:
     root: Path
     dataset: YoloDataset
     layout_info: LayoutInfo
+    layout: str = "auto"
+    task: str = "auto"
+    images_dir: str = "images"
+    labels_dir: str = "labels"
+    class_file: str | None = None
+    attribute_file: str | None = None
+    split_file: str | None = None
     splits_by_image: dict[Path, str] = field(default_factory=dict)
     loaded_at: str = ""
     operations: list[dict[str, Any]] = field(default_factory=list)
@@ -292,6 +318,59 @@ def _image_matches(
     return True
 
 
+_DEFAULT_VLM_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+
+
+def _vlm_status_payload() -> dict[str, Any]:
+    """Return a frontend-safe VLM configuration summary."""
+
+    try:
+        config = load_vlm_config()
+    except Exception as exc:  # noqa: BLE001 - status must not break the web app
+        return {
+            "configured": False,
+            "provider": "qwen",
+            "model": "",
+            "base_url": None,
+            "dotenv_path": None,
+            "error": str(exc),
+        }
+
+    configured = bool(
+        config.api_key
+        or config.model_path
+        or (
+            config.base_url
+            and config.base_url.rstrip("/") != _DEFAULT_VLM_BASE_URL.rstrip("/")
+        )
+    )
+    return {
+        "configured": configured,
+        "provider": config.provider,
+        "model": config.model,
+        "base_url": config.base_url,
+        "dotenv_path": str(config.dotenv_path) if config.dotenv_path else None,
+        "error": None,
+    }
+
+
+def _assistant_manager(session: DatasetSession) -> YoloManager:
+    """Create a manager for one assistant call without repeating warm-up checks."""
+
+    return YoloManager(
+        session.root,
+        layout=session.layout,
+        task=session.task,
+        images_dir=session.images_dir,
+        labels_dir=session.labels_dir,
+        class_file=session.class_file,
+        attribute_file=session.attribute_file,
+        split_file=session.split_file,
+        init_layout=False,
+        init_check=False,
+    )
+
+
 def _build_app() -> FastAPI:
     app = FastAPI(title="YDM Web", version=_package_version())
     app.add_middleware(
@@ -326,6 +405,69 @@ def _build_app() -> FastAPI:
             image_count=len(session.dataset.images),
             annotation_count=session.dataset.annotation_count(),
         )
+
+    @app.get("/api/vlm/status")
+    def vlm_status() -> dict[str, Any]:
+        return _vlm_status_payload()
+
+    @app.post("/api/vlm/assistant")
+    def vlm_assistant(request: VLMAssistantRequest) -> dict[str, Any]:
+        session = _require_session()
+        if not request.intent and request.plan is None:
+            raise HTTPException(
+                status_code=422,
+                detail="Provide an intent or a reviewed assistant plan.",
+            )
+
+        status = _vlm_status_payload()
+        if request.plan is None and not status["configured"]:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "VLM is not configured. Add VLM_API_KEY (or a local "
+                    "VLM_BASE_URL) to .env first."
+                ),
+            )
+
+        try:
+            manager = _assistant_manager(session)
+            if request.plan is not None:
+                result = execute_assistant_plan(
+                    manager,
+                    request.plan,
+                    execute=request.execute,
+                    confirm=request.confirm,
+                )
+            else:
+                config = load_vlm_config()
+                provider = create_vlm_provider(config)
+                result = run_assistant(
+                    manager,
+                    request.intent or "",
+                    provider,
+                    execute=request.execute,
+                    confirm=request.confirm,
+                )
+        except AssistantError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except (VLMProviderError, RuntimeError, ValueError) as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+        if result.get("executed"):
+            operation = {
+                "name": f"Assistant: {result['plan']['method']}",
+                "time": datetime.now().astimezone().isoformat(timespec="seconds"),
+                "detail": "Executed from the VLM assistant",
+            }
+            with _SESSION_LOCK:
+                if _SESSION is session:
+                    session.operations.insert(0, operation)
+
+        return jsonable_encoder({
+            "provider": status["provider"],
+            "model": status["model"],
+            **result,
+        })
 
     @app.post("/api/dataset/load")
     def load_dataset(request: LoadDatasetRequest) -> dict[str, Any]:
@@ -379,6 +521,13 @@ def _build_app() -> FastAPI:
             root=root,
             dataset=dataset,
             layout_info=layout_info,
+            layout=request.layout,
+            task=request.task,
+            images_dir=request.images_dir,
+            labels_dir=request.labels_dir,
+            class_file=request.class_file or yaml_path,
+            attribute_file=request.attribute_file,
+            split_file=request.split_file,
             splits_by_image=split_map,
             loaded_at=loaded_at,
             operations=[operation],

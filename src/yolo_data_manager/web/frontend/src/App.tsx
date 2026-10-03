@@ -3,7 +3,9 @@ import { useTranslation } from 'react-i18next';
 import {
   AlertCircle,
   ArrowLeftRight,
+  Bot,
   BarChart3,
+  Check,
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
@@ -20,6 +22,7 @@ import {
   PencilLine,
   RefreshCw,
   Search,
+  Send,
   Settings,
   SlidersHorizontal,
   Sparkles,
@@ -93,6 +96,37 @@ interface ImagePage {
   items: DatasetImage[];
 }
 
+interface VLMStatus {
+  configured: boolean;
+  provider: string;
+  model: string;
+  base_url: string | null;
+  dotenv_path: string | null;
+  error?: string | null;
+}
+
+interface AssistantPlan {
+  method: string;
+  arguments: Record<string, unknown>;
+  explanation: string;
+  requires_confirmation: boolean;
+}
+
+interface AssistantResponse {
+  provider: string;
+  model: string;
+  plan: AssistantPlan;
+  executed: boolean;
+  result: unknown;
+}
+
+interface AssistantMessage {
+  id: number;
+  role: 'user' | 'assistant';
+  content: string;
+  response?: AssistantResponse;
+}
+
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 
 const navItems: { key: NavKey; labelKey: string; icon: typeof Database }[] = [
@@ -158,6 +192,13 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const [assistantStatus, setAssistantStatus] = useState<VLMStatus | null>(null);
+  const [assistantStatusLoading, setAssistantStatusLoading] = useState(false);
+  const [assistantInput, setAssistantInput] = useState('');
+  const [assistantMessages, setAssistantMessages] = useState<AssistantMessage[]>([]);
+  const [assistantPending, setAssistantPending] = useState<AssistantResponse | null>(null);
+  const [assistantBusy, setAssistantBusy] = useState(false);
   const language = i18n.language.startsWith('zh') ? 'zh' : 'en';
 
   const selectedImage = useMemo(
@@ -181,6 +222,22 @@ function App() {
   useEffect(() => {
     document.documentElement.lang = language === 'zh' ? 'zh-CN' : 'en-US';
   }, [language]);
+
+  useEffect(() => {
+    if (!assistantOpen || assistantStatus || assistantStatusLoading) return;
+    setAssistantStatusLoading(true);
+    void request<VLMStatus>('/api/vlm/status')
+      .then(setAssistantStatus)
+      .catch((statusError) => setAssistantStatus({
+        configured: false,
+        provider: 'qwen',
+        model: '',
+        base_url: null,
+        dotenv_path: null,
+        error: statusError instanceof Error ? statusError.message : String(statusError),
+      }))
+      .finally(() => setAssistantStatusLoading(false));
+  }, [assistantOpen, assistantStatus, assistantStatusLoading]);
 
   async function loadImages() {
     const page = await request<ImagePage>('/api/dataset/images?limit=100');
@@ -235,6 +292,69 @@ function App() {
     } catch {
       setError(t('dataset.copyPathFailed'));
     }
+  }
+
+  function appendAssistantMessage(message: Omit<AssistantMessage, 'id'>) {
+    setAssistantMessages((current) => [...current, { ...message, id: Date.now() + current.length }]);
+  }
+
+  async function handleAssistantSend(event?: FormEvent) {
+    event?.preventDefault();
+    const intent = assistantInput.trim();
+    if (!intent || assistantBusy || !overview) return;
+    appendAssistantMessage({ role: 'user', content: intent });
+    setAssistantInput('');
+    setAssistantPending(null);
+    setAssistantBusy(true);
+    try {
+      const response = await request<AssistantResponse>('/api/vlm/assistant', {
+        method: 'POST',
+        body: JSON.stringify({ intent, execute: false, confirm: false }),
+      });
+      appendAssistantMessage({
+        role: 'assistant',
+        content: response.plan.explanation || t('assistant.planReady'),
+        response,
+      });
+      setAssistantPending(response);
+    } catch (assistantError) {
+      appendAssistantMessage({
+        role: 'assistant',
+        content: assistantError instanceof Error ? assistantError.message : t('assistant.error'),
+      });
+    } finally {
+      setAssistantBusy(false);
+    }
+  }
+
+  async function handleAssistantConfirm() {
+    if (!assistantPending || assistantBusy || !overview) return;
+    setAssistantBusy(true);
+    try {
+      const response = await request<AssistantResponse>('/api/vlm/assistant', {
+        method: 'POST',
+        body: JSON.stringify({ plan: assistantPending.plan, execute: true, confirm: true }),
+      });
+      appendAssistantMessage({
+        role: 'assistant',
+        content: response.executed ? t('assistant.executed') : t('assistant.planReady'),
+        response,
+      });
+      setAssistantPending(null);
+      if (response.executed) await handleRefresh();
+    } catch (assistantError) {
+      appendAssistantMessage({
+        role: 'assistant',
+        content: assistantError instanceof Error ? assistantError.message : t('assistant.error'),
+      });
+    } finally {
+      setAssistantBusy(false);
+    }
+  }
+
+  function handleAssistantCancel() {
+    setAssistantPending(null);
+    appendAssistantMessage({ role: 'assistant', content: t('assistant.cancelled') });
   }
 
   function renderTabContent() {
@@ -326,7 +446,7 @@ function App() {
               </button>
             ))}
           </nav>
-          <div className="sidebar-footer"><div className="status-dot" /> <span>{t('nav.workspace')}</span><span className="version-label">v1.0.1</span></div>
+          <div className="sidebar-footer"><div className="status-dot" /> <span>{t('nav.workspace')}</span><span className="version-label">v1.0.2</span></div>
         </aside>
 
         <main className="main-area">
@@ -363,8 +483,160 @@ function App() {
           <Inspector overview={overview} onCopy={copyRoot} onRefresh={handleRefresh} refreshing={refreshing} />
         </aside>
       </div>
+      <button
+        className={`assistant-fab ${assistantOpen ? 'is-open' : ''}`}
+        onClick={() => setAssistantOpen((value) => !value)}
+        title={t(assistantOpen ? 'assistant.close' : 'assistant.open')}
+        aria-label={t(assistantOpen ? 'assistant.close' : 'assistant.open')}
+      >
+        {assistantOpen ? <ChevronRight size={19} /> : <Bot size={20} />}
+      </button>
+      {assistantOpen && (
+        <AssistantDrawer
+          overview={overview}
+          selectedImage={selectedImage}
+          status={assistantStatus}
+          statusLoading={assistantStatusLoading}
+          input={assistantInput}
+          messages={assistantMessages}
+          pendingPlan={assistantPending}
+          busy={assistantBusy}
+          onClose={() => setAssistantOpen(false)}
+          onInputChange={setAssistantInput}
+          onSubmit={handleAssistantSend}
+          onConfirm={handleAssistantConfirm}
+          onCancel={handleAssistantCancel}
+          onQuickPrompt={setAssistantInput}
+        />
+      )}
     </div>
   );
+}
+
+function AssistantDrawer({
+  overview,
+  selectedImage,
+  status,
+  statusLoading,
+  input,
+  messages,
+  pendingPlan,
+  busy,
+  onClose,
+  onInputChange,
+  onSubmit,
+  onConfirm,
+  onCancel,
+  onQuickPrompt,
+}: {
+  overview: Overview | null;
+  selectedImage: DatasetImage | null;
+  status: VLMStatus | null;
+  statusLoading: boolean;
+  input: string;
+  messages: AssistantMessage[];
+  pendingPlan: AssistantResponse | null;
+  busy: boolean;
+  onClose: () => void;
+  onInputChange: (value: string) => void;
+  onSubmit: (event?: FormEvent) => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+  onQuickPrompt: (value: string) => void;
+}) {
+  const { t } = useTranslation();
+  const statusLabel = statusLoading
+    ? t('assistant.statusChecking')
+    : status?.configured
+      ? t('assistant.statusReady')
+      : t('assistant.statusNotConfigured');
+  const statusClass = statusLoading ? 'checking' : status?.configured ? 'ready' : 'not-ready';
+
+  return (
+    <aside className="assistant-drawer" aria-label={t('assistant.title')}>
+      <div className="assistant-header">
+        <div className="assistant-heading">
+          <div className="assistant-avatar"><Bot size={18} /></div>
+          <div>
+            <strong>{t('assistant.title')}</strong>
+            <span>{t('assistant.subtitle')}</span>
+          </div>
+        </div>
+        <button className="icon-button small" onClick={onClose} title={t('assistant.close')} aria-label={t('assistant.close')}><X size={16} /></button>
+      </div>
+
+      <div className="assistant-status-row">
+        <span className={`assistant-status ${statusClass}`}><span className="assistant-status-dot" />{statusLabel}</span>
+        {status?.model && <span className="assistant-model">{status.provider} · {status.model}</span>}
+      </div>
+
+      <div className="assistant-context">
+        <div><span>{t('assistant.contextDataset')}</span><strong title={overview?.root || undefined}>{overview?.root || t('assistant.noDataset')}</strong></div>
+        <div><span>{t('assistant.contextImage')}</span><strong title={selectedImage?.relative_path || undefined}>{selectedImage?.name || t('assistant.noImage')}</strong></div>
+      </div>
+
+      {!statusLoading && !status?.configured && <div className="assistant-hint">{t('assistant.notConfiguredHint')}</div>}
+
+      <div className="assistant-messages" aria-live="polite">
+        {!messages.length && <div className="assistant-welcome"><div className="assistant-welcome-icon"><Bot size={20} /></div><p>{t('assistant.welcome')}</p></div>}
+        {messages.map((message) => (
+          <div className={`assistant-message ${message.role}`} key={message.id}>
+            <div className="assistant-message-label">{message.role === 'user' ? t('assistant.you') : t('assistant.title')}</div>
+            <div className="assistant-bubble">{message.content}</div>
+            {message.response?.plan && <AssistantPlanSummary response={message.response} />}
+          </div>
+        ))}
+        {busy && <div className="assistant-message assistant"><div className="assistant-message-label">{t('assistant.title')}</div><div className="assistant-bubble assistant-thinking"><span /><span /><span /></div></div>}
+      </div>
+
+      {pendingPlan && (
+        <div className="assistant-plan-card">
+          <div className="assistant-plan-title"><Check size={15} />{t('assistant.planTitle')}</div>
+          <strong>{pendingPlan.plan.method}</strong>
+          <span>{pendingPlan.plan.explanation || t('assistant.planReady')}</span>
+          {pendingPlan.plan.requires_confirmation && <small>{t('assistant.requiresConfirmation')}</small>}
+          <div className="assistant-plan-actions">
+            <button className="primary-button" onClick={onConfirm} disabled={busy}><Check size={15} />{t('assistant.confirm')}</button>
+            <button className="secondary-button" onClick={onCancel} disabled={busy}>{t('assistant.cancel')}</button>
+          </div>
+        </div>
+      )}
+
+      <div className="assistant-quick-prompts">
+        <button onClick={() => onQuickPrompt(t('assistant.quickStats'))}>{t('assistant.quickStats')}</button>
+        <button onClick={() => onQuickPrompt(t('assistant.quickCheck'))}>{t('assistant.quickCheck')}</button>
+        <button onClick={() => onQuickPrompt(t('assistant.quickClasses'))}>{t('assistant.quickClasses')}</button>
+      </div>
+
+      <form className="assistant-composer" onSubmit={onSubmit}>
+        <textarea
+          value={input}
+          onChange={(event) => onInputChange(event.target.value)}
+          placeholder={t('assistant.inputPlaceholder')}
+          disabled={busy || !overview}
+          rows={2}
+        />
+        <button className="assistant-send" type="submit" disabled={busy || !input.trim() || !overview} title={t('assistant.send')} aria-label={t('assistant.send')}>
+          {busy ? <RefreshCw className="spin" size={16} /> : <Send size={16} />}
+        </button>
+      </form>
+      {!overview && <div className="assistant-composer-note">{t('assistant.loadDatasetFirst')}</div>}
+    </aside>
+  );
+}
+
+function AssistantPlanSummary({ response }: { response: AssistantResponse }) {
+  const { t } = useTranslation();
+  return <div className="assistant-plan-summary"><span>{t('assistant.method')}: <code>{response.plan.method}</code></span>{response.executed && <span className="assistant-executed">{t('assistant.executed')}</span>}{response.result !== null && response.result !== undefined && <pre>{formatAssistantResult(response.result)}</pre>}</div>;
+}
+
+function formatAssistantResult(value: unknown): string {
+  if (typeof value === 'string') return value;
+  try {
+    return JSON.stringify(value, null, 2).slice(0, 2400);
+  } catch {
+    return String(value);
+  }
 }
 
 function EmptyState({ onLoad }: { onLoad: () => void }) {

@@ -103,5 +103,37 @@
   },
   "result": {
     "noImages": "No images match the current filter."
+  },
+  "assistant": {
+    "open": "Open VLM assistant",
+    "close": "Close VLM assistant",
+    "title": "YDM Assistant",
+    "subtitle": "VLM-powered workspace helper",
+    "statusChecking": "Checking model",
+    "statusReady": "Ready",
+    "statusNotConfigured": "Not configured",
+    "statusUnavailable": "Unavailable",
+    "contextDataset": "Dataset",
+    "contextImage": "Image",
+    "noDataset": "No dataset loaded",
+    "noImage": "No image selected",
+    "welcome": "I can help inspect this dataset, plan YDM operations, and prepare corrections. Write what you want to do.",
+    "inputPlaceholder": "Ask the YDM assistant...",
+    "send": "Send",
+    "planReady": "I prepared an operation plan for your review.",
+    "quickStats": "Compute dataset statistics",
+    "quickCheck": "Check data quality",
+    "quickClasses": "Show class distribution",
+    "planTitle": "Suggested operation",
+    "method": "Method",
+    "requiresConfirmation": "This operation can change dataset files. Review it before execution.",
+    "confirm": "Confirm and execute",
+    "cancel": "Cancel",
+    "cancelled": "The operation was cancelled.",
+    "executed": "Operation executed",
+    "you": "You",
+    "notConfiguredHint": "Configure VLM_API_KEY or a local VLM_BASE_URL in .env to enable requests.",
+    "loadDatasetFirst": "Load a dataset before using the assistant.",
+    "error": "Assistant request failed."
   }
 }

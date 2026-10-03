@@ -40,6 +40,8 @@ Web 界面支持中文和英文，右上角的语言按钮可以切换，选择�
 如果出现 `react-i18next` 或 `i18next` 找不到的错误，请在前端目录重新执行
 `npm install`，然后重启 `ydm web`。
 
+主界面右下角常驻 VLM 助手入口。加载数据集后，可以用自然语言请求统计、校验、查询、可视化和标注修正计划；涉及写入数据集的操作会先显示计划，必须手动确认后才执行。助手配置仍从 `.env` 读取，配置接口为 `GET /api/vlm/status`，请求接口为 `POST /api/vlm/assistant`。
+
 ```bash
 python -m pip install -e ".[web]"
 cd src/yolo_data_manager/web/frontend

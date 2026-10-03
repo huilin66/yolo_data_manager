@@ -103,5 +103,37 @@
   },
   "result": {
     "noImages": "当前筛选条件下没有匹配的图像。"
+  },
+  "assistant": {
+    "open": "打开 VLM 助手",
+    "close": "关闭 VLM 助手",
+    "title": "YDM 助手",
+    "subtitle": "由 VLM 驱动的工作区助手",
+    "statusChecking": "正在检查模型",
+    "statusReady": "已就绪",
+    "statusNotConfigured": "未配置",
+    "statusUnavailable": "不可用",
+    "contextDataset": "数据集",
+    "contextImage": "图像",
+    "noDataset": "尚未加载数据集",
+    "noImage": "尚未选择图像",
+    "welcome": "我可以帮助你检查数据集、规划 YDM 操作并准备标注修正。告诉我你想做什么。",
+    "inputPlaceholder": "询问 YDM 助手……",
+    "send": "发送",
+    "planReady": "我已生成一个操作计划，请先确认。",
+    "quickStats": "统计数据集",
+    "quickCheck": "检查数据质量",
+    "quickClasses": "查看类别分布",
+    "planTitle": "建议操作",
+    "method": "方法",
+    "requiresConfirmation": "该操作可能修改数据集文件，请确认后执行。",
+    "confirm": "确认并执行",
+    "cancel": "取消",
+    "cancelled": "已取消该操作。",
+    "executed": "操作已执行",
+    "you": "你",
+    "notConfiguredHint": "请在 .env 中配置 VLM_API_KEY 或本地 VLM_BASE_URL 后使用助手。",
+    "loadDatasetFirst": "请先加载数据集，再使用助手。",
+    "error": "助手请求失败。"
   }
 }

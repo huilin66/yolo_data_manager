@@ -27,12 +27,32 @@ def test_web_dataset_load_overview_and_preview(tmp_path):
     _make_dataset(tmp_path)
     client = TestClient(create_app())
 
+    vlm_status = client.get("/api/vlm/status")
+    assert vlm_status.status_code == 200
+    assert {"configured", "provider", "model", "base_url"}.issubset(vlm_status.json())
+    assert "api_key" not in vlm_status.json()
+
     response = client.post("/api/dataset/load", json={"root": str(tmp_path), "task": "detect"})
     assert response.status_code == 200, response.text
     payload = response.json()
     assert payload["counts"]["images"] == 2
     assert payload["counts"]["boxes"] == 2
     assert [item["name"] for item in payload["classes"]] == ["car", "bus"]
+
+    plan = client.post(
+        "/api/vlm/assistant",
+        json={
+            "plan": {
+                "method": "stats",
+                "arguments": {},
+                "explanation": "Inspect dataset statistics",
+            },
+            "execute": False,
+        },
+    )
+    assert plan.status_code == 200, plan.text
+    assert plan.json()["executed"] is False
+    assert plan.json()["plan"]["method"] == "stats"
 
     images = client.get("/api/dataset/images?limit=10")
     assert images.status_code == 200
