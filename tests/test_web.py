@@ -58,6 +58,11 @@ def test_web_dataset_load_overview_and_preview(tmp_path):
     assert images.status_code == 200
     assert images.json()["total"] == 2
 
+    logs = client.get("/api/logs?after=0&limit=100")
+    assert logs.status_code == 200
+    assert logs.json()["items"]
+    assert any("load_yolo_dataset" in item["message"] for item in logs.json()["items"])
+
     preview = client.get("/api/dataset/images/0/preview")
     assert preview.status_code == 200
     assert preview.headers["content-type"].startswith("image/jpeg")

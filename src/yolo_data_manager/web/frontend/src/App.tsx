@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   AlertCircle,
@@ -8,6 +8,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   ClipboardCheck,
   Clock3,
   Copy,
@@ -28,6 +29,7 @@ import {
   Sparkles,
   Sun,
   Tag,
+  Terminal,
   X,
 } from 'lucide-react';
 
@@ -127,6 +129,19 @@ interface AssistantMessage {
   response?: AssistantResponse;
 }
 
+interface RuntimeLog {
+  id: number;
+  time: string;
+  level: 'command' | 'info' | 'success' | 'warning' | 'error' | string;
+  message: string;
+}
+
+interface RuntimeLogPage {
+  items: RuntimeLog[];
+  next_id: number;
+  latest_id: number;
+}
+
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 
 const navItems: { key: NavKey; labelKey: string; icon: typeof Database }[] = [
@@ -199,6 +214,10 @@ function App() {
   const [assistantMessages, setAssistantMessages] = useState<AssistantMessage[]>([]);
   const [assistantPending, setAssistantPending] = useState<AssistantResponse | null>(null);
   const [assistantBusy, setAssistantBusy] = useState(false);
+  const [runLogs, setRunLogs] = useState<RuntimeLog[]>([]);
+  const [terminalOpen, setTerminalOpen] = useState(true);
+  const logCursorRef = useRef(0);
+  const latestLogIdRef = useRef(0);
   const language = i18n.language.startsWith('zh') ? 'zh' : 'en';
 
   const selectedImage = useMemo(
@@ -222,6 +241,42 @@ function App() {
   useEffect(() => {
     document.documentElement.lang = language === 'zh' ? 'zh-CN' : 'en-US';
   }, [language]);
+
+  useEffect(() => {
+    let stopped = false;
+    let inFlight = false;
+
+    const pollRuntimeLogs = async () => {
+      if (stopped || inFlight) return;
+      inFlight = true;
+      try {
+        const page = await request<RuntimeLogPage>(`/api/logs?after=${logCursorRef.current}&limit=200`);
+        if (stopped) return;
+        if (page.items.length) {
+          setRunLogs((current) => [...current, ...page.items].slice(-400));
+        }
+        logCursorRef.current = page.next_id;
+        latestLogIdRef.current = page.latest_id;
+      } catch {
+        // The terminal is diagnostic UI; a temporary API restart should not
+        // replace the main workspace error state.
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    void pollRuntimeLogs();
+    const timer = window.setInterval(() => void pollRuntimeLogs(), 1200);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  function clearRunLogs() {
+    setRunLogs([]);
+    logCursorRef.current = latestLogIdRef.current;
+  }
 
   useEffect(() => {
     if (!assistantOpen || assistantStatus || assistantStatusLoading) return;
@@ -454,7 +509,7 @@ function App() {
               </button>
             ))}
           </nav>
-          <div className="sidebar-footer"><div className="status-dot" /> <span>{t('nav.workspace')}</span><span className="version-label">v1.0.5</span></div>
+          <div className="sidebar-footer"><div className="status-dot" /> <span>{t('nav.workspace')}</span><span className="version-label">v1.0.6</span></div>
         </aside>
 
         <main className="main-area">
@@ -490,6 +545,13 @@ function App() {
             <div className="dataset-details-bar"><Database size={15} /><strong>{t('inspector.details')}</strong></div>
             <Inspector overview={overview} onCopy={copyRoot} onRefresh={handleRefresh} refreshing={refreshing} />
           </section>
+
+          <RunTerminal
+            logs={runLogs}
+            open={terminalOpen}
+            onToggle={() => setTerminalOpen((value) => !value)}
+            onClear={clearRunLogs}
+          />
         </main>
 
         {assistantOpen && (
@@ -514,6 +576,58 @@ function App() {
         )}
       </div>
     </div>
+  );
+}
+
+function RunTerminal({
+  logs,
+  open,
+  onToggle,
+  onClear,
+}: {
+  logs: RuntimeLog[];
+  open: boolean;
+  onToggle: () => void;
+  onClear: () => void;
+}) {
+  const { t, i18n } = useTranslation();
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const language = i18n.language.startsWith('zh') ? 'zh' : 'en';
+
+  useEffect(() => {
+    if (open && bodyRef.current) {
+      bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
+    }
+  }, [logs.length, open]);
+
+  return (
+    <section className={`run-terminal ${open ? 'open' : 'collapsed'}`} aria-label={t('terminal.title')}>
+      <div className="run-terminal-header">
+        <button className="run-terminal-toggle" onClick={onToggle} aria-expanded={open}>
+          <Terminal size={15} />
+          <strong>{t('terminal.title')}</strong>
+          <span>{t('terminal.lines', { count: logs.length })}</span>
+          {open ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+        </button>
+        <div className="run-terminal-actions">
+          <span className="run-terminal-live"><span />{t('terminal.live')}</span>
+          <button onClick={onClear} disabled={!logs.length}>{t('terminal.clear')}</button>
+        </div>
+      </div>
+
+      {open && (
+        <div className="run-terminal-body" ref={bodyRef} role="log" aria-live="polite">
+          {!logs.length && <div className="run-terminal-empty">{t('terminal.empty')}</div>}
+          {logs.map((log) => (
+            <div className={`run-terminal-line ${log.level}`} key={log.id}>
+              <time>{formatTime(log.time, language)}</time>
+              <span className="run-terminal-level">{t(`terminal.levels.${log.level}`, { defaultValue: log.level })}</span>
+              <span className="run-terminal-message">{log.message}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 

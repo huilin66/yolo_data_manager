@@ -105,6 +105,20 @@
   "result": {
     "noImages": "No images match the current filter."
   },
+  "terminal": {
+    "title": "Run terminal",
+    "empty": "Runtime steps and results will appear here as you use the dataset workspace.",
+    "clear": "Clear",
+    "live": "Live",
+    "lines": "{{count}} lines",
+    "levels": {
+      "command": "CMD",
+      "info": "INFO",
+      "success": "DONE",
+      "warning": "WARN",
+      "error": "ERROR"
+    }
+  },
   "assistant": {
     "open": "Open VLM assistant",
     "close": "Close VLM assistant",

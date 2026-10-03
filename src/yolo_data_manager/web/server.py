@@ -48,6 +48,7 @@ _COLOR_PALETTE = (
     "#0ea5e9",
     "#ec4899",
 )
+_MAX_RUNTIME_LOGS = 1000
 
 
 def _package_version() -> str:
@@ -60,7 +61,7 @@ def _package_version() -> str:
     try:
         return version("yolo-data-manager")
     except PackageNotFoundError:
-        return "1.0.5"
+        return "1.0.6"
 
 
 class LoadDatasetRequest(BaseModel):
@@ -111,6 +112,32 @@ class DatasetSession:
 
 _SESSION: DatasetSession | None = None
 _SESSION_LOCK = threading.RLock()
+_RUNTIME_LOGS: list[dict[str, Any]] = []
+_RUNTIME_LOG_ID = 0
+_RUNTIME_LOG_LOCK = threading.RLock()
+
+
+def _append_runtime_log(level: str, message: str) -> dict[str, Any]:
+    """Append a safe, process-local log entry for the web terminal."""
+
+    global _RUNTIME_LOG_ID
+    with _RUNTIME_LOG_LOCK:
+        _RUNTIME_LOG_ID += 1
+        entry = {
+            "id": _RUNTIME_LOG_ID,
+            "time": datetime.now().astimezone().isoformat(timespec="seconds"),
+            "level": level,
+            "message": message,
+        }
+        _RUNTIME_LOGS.append(entry)
+        if len(_RUNTIME_LOGS) > _MAX_RUNTIME_LOGS:
+            del _RUNTIME_LOGS[:-_MAX_RUNTIME_LOGS]
+        return entry
+
+
+def _short_text(value: str, limit: int = 180) -> str:
+    text = " ".join(value.split())
+    return text if len(text) <= limit else f"{text[:limit - 1]}…"
 
 
 def _resolve_root_and_yaml(root: str) -> tuple[Path, str | None]:
@@ -392,6 +419,20 @@ def _build_app() -> FastAPI:
             "dataset_loaded": session is not None,
         }
 
+    @app.get("/api/logs")
+    def runtime_logs(
+        after: int = Query(default=0, ge=0),
+        limit: int = Query(default=200, ge=1, le=500),
+    ) -> dict[str, Any]:
+        """Return incremental runtime output for the bottom web terminal."""
+
+        with _RUNTIME_LOG_LOCK:
+            pending = [entry for entry in _RUNTIME_LOGS if entry["id"] > after]
+            items = pending[:limit]
+            next_id = items[-1]["id"] if items else after
+            latest_id = _RUNTIME_LOG_ID
+        return {"items": items, "next_id": next_id, "latest_id": latest_id}
+
     @app.get("/api/dataset/status", response_model=DatasetSessionStatus)
     def dataset_status() -> DatasetSessionStatus:
         with _SESSION_LOCK:
@@ -413,7 +454,18 @@ def _build_app() -> FastAPI:
     @app.post("/api/vlm/assistant")
     def vlm_assistant(request: VLMAssistantRequest) -> dict[str, Any]:
         session = _require_session()
+        if request.intent:
+            _append_runtime_log(
+                "command",
+                f"vlm_assistant(intent={_short_text(request.intent)!r})",
+            )
+        elif request.plan:
+            _append_runtime_log(
+                "command",
+                f"vlm_assistant(plan={request.plan.get('method', 'unknown')!r}, confirm={request.confirm})",
+            )
         if not request.intent and request.plan is None:
+            _append_runtime_log("error", "Assistant request rejected: no intent or plan was provided")
             raise HTTPException(
                 status_code=422,
                 detail="Provide an intent or a reviewed assistant plan.",
@@ -421,6 +473,7 @@ def _build_app() -> FastAPI:
 
         status = _vlm_status_payload()
         if request.plan is None and not status["configured"]:
+            _append_runtime_log("warning", "VLM request stopped: provider is not configured")
             raise HTTPException(
                 status_code=409,
                 detail=(
@@ -432,6 +485,10 @@ def _build_app() -> FastAPI:
         try:
             manager = _assistant_manager(session)
             if request.plan is not None:
+                _append_runtime_log(
+                    "info",
+                    f"Executing reviewed YDM operation: {request.plan.get('method', 'unknown')}",
+                )
                 result = execute_assistant_plan(
                     manager,
                     request.plan,
@@ -439,6 +496,7 @@ def _build_app() -> FastAPI:
                     confirm=request.confirm,
                 )
             else:
+                _append_runtime_log("info", "Sending the request to the configured VLM provider")
                 config = load_vlm_config()
                 provider = create_vlm_provider(config)
                 result = run_assistant(
@@ -449,9 +507,22 @@ def _build_app() -> FastAPI:
                     confirm=request.confirm,
                 )
         except AssistantError as exc:
+            _append_runtime_log("error", f"Assistant operation failed: {_short_text(str(exc))}")
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         except (VLMProviderError, RuntimeError, ValueError) as exc:
+            _append_runtime_log("error", f"VLM operation failed: {_short_text(str(exc))}")
             raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+        if result.get("executed"):
+            _append_runtime_log(
+                "success",
+                f"YDM operation completed: {result['plan'].get('method', 'unknown')}",
+            )
+        else:
+            _append_runtime_log(
+                "success",
+                f"Operation plan ready: {result['plan'].get('method', 'unknown')}",
+            )
 
         if result.get("executed"):
             operation = {
@@ -473,13 +544,30 @@ def _build_app() -> FastAPI:
     def load_dataset(request: LoadDatasetRequest) -> dict[str, Any]:
         global _SESSION
         started = time.perf_counter()
-        root, yaml_path = _resolve_root_and_yaml(request.root)
+        _append_runtime_log(
+            "command",
+            "load_yolo_dataset("
+            f"root={request.root!r}, layout={request.layout!r}, task={request.task!r}, "
+            f"workers={request.workers})",
+        )
+        try:
+            root, yaml_path = _resolve_root_and_yaml(request.root)
+        except Exception as exc:  # noqa: BLE001 - convert path parsing errors to a log and API response
+            _append_runtime_log("error", f"Dataset path could not be resolved: {_short_text(str(exc))}")
+            raise HTTPException(status_code=400, detail=f"Dataset path could not be resolved: {exc}") from exc
         if not root.exists():
+            _append_runtime_log("error", f"Dataset path does not exist: {root}")
             raise HTTPException(status_code=400, detail=f"Dataset path does not exist: {root}")
         if not root.is_dir():
+            _append_runtime_log("error", f"Dataset path is not a directory: {root}")
             raise HTTPException(status_code=400, detail=f"Dataset path is not a directory: {root}")
 
         class_file = request.class_file or yaml_path
+        _append_runtime_log("info", f"Scanning images and labels under {root}")
+        if class_file:
+            _append_runtime_log("info", f"Using class definitions from {class_file}")
+        if request.attribute_file:
+            _append_runtime_log("info", f"Using attribute definitions from {request.attribute_file}")
         try:
             dataset = load_yolo_dataset(
                 root,
@@ -494,6 +582,12 @@ def _build_app() -> FastAPI:
                 workers=request.workers,
                 progress=False,
             )
+            _append_runtime_log(
+                "info",
+                f"Parsed {len(dataset.images):,} images, {len(dataset.labels()):,} labels, "
+                f"and {dataset.annotation_count():,} boxes",
+            )
+            _append_runtime_log("info", "Resolving dataset layout and train/val/test assignments")
             layout_info = resolve_layout(
                 root,
                 layout=request.layout,
@@ -502,6 +596,7 @@ def _build_app() -> FastAPI:
                 progress=False,
             )
         except Exception as exc:  # noqa: BLE001 - convert parser errors to an API response
+            _append_runtime_log("error", f"Dataset load failed: {_short_text(str(exc))}")
             raise HTTPException(status_code=400, detail=f"Dataset load failed: {exc}") from exc
 
         split_map = _build_split_map(
@@ -536,6 +631,11 @@ def _build_app() -> FastAPI:
             _SESSION = session
         payload = _summary(session)
         payload["load_time_ms"] = round((time.perf_counter() - started) * 1000, 1)
+        _append_runtime_log(
+            "success",
+            f"Dataset ready: {len(dataset.images):,} images, {dataset.annotation_count():,} boxes "
+            f"({payload['load_time_ms']} ms)",
+        )
         return payload
 
     @app.post("/api/dataset/unload")
@@ -543,11 +643,17 @@ def _build_app() -> FastAPI:
         global _SESSION
         with _SESSION_LOCK:
             _SESSION = None
+        _append_runtime_log("command", "unload_dataset()")
+        _append_runtime_log("success", "Dataset session cleared")
         return {"status": "unloaded"}
 
     @app.get("/api/dataset/overview")
     def dataset_overview() -> dict[str, Any]:
-        return _summary(_require_session())
+        _append_runtime_log("command", "dataset_overview()")
+        session = _require_session()
+        payload = _summary(session)
+        _append_runtime_log("success", "Dataset overview refreshed")
+        return payload
 
     @app.get("/api/dataset/images")
     def dataset_images(

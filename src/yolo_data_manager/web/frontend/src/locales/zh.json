@@ -105,6 +105,20 @@
   "result": {
     "noImages": "当前筛选条件下没有匹配的图像。"
   },
+  "terminal": {
+    "title": "运行终端",
+    "empty": "执行数据集操作后，运行过程和结果会实时显示在这里。",
+    "clear": "清空",
+    "live": "实时",
+    "lines": "{{count}} 行",
+    "levels": {
+      "command": "命令",
+      "info": "信息",
+      "success": "完成",
+      "warning": "警告",
+      "error": "错误"
+    }
+  },
   "assistant": {
     "open": "打开 VLM 助手",
     "close": "关闭 VLM 助手",
