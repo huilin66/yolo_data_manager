@@ -532,7 +532,7 @@ function App() {
               </button>
             ))}
           </nav>
-          <div className="sidebar-footer"><div className="status-dot" /> <span>{t('nav.workspace')}</span><span className="version-label">v1.2.0</span></div>
+          <div className="sidebar-footer"><div className="status-dot" /> <span>{t('nav.workspace')}</span><span className="version-label">v1.2.1</span></div>
         </aside>
 
         <main className="main-area">

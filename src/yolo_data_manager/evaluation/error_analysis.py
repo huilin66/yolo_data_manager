@@ -16,7 +16,7 @@ import json
 import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import Counter
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from copy import copy as shallow_copy
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -77,6 +77,9 @@ ATTRIBUTE_ERROR = "attribute_error"
 ATTRIBUTE_VALUE_MISMATCH = "attribute_value_mismatch"
 ATTRIBUTE_MISSING_IN_PRED = "attribute_missing_in_prediction"
 ATTRIBUTE_MISSING_IN_GT = "attribute_missing_in_gt"
+
+# Confidence thresholds used by the optional error-analysis curve.
+DEFAULT_CONF_CURVE_THRESHOLDS = (0.1, 0.2, 0.3, 0.4, 0.5)
 
 # ---------------------------------------------------------------------------
 # Data structures
@@ -1094,6 +1097,214 @@ def analyze_attribute_errors(
                 counter[f"{ATTRIBUTE_ERROR}:{attribute_name}"] += 1
 
     return rows, dict(counter)
+
+
+def write_confidence_curve(
+    gt: YoloDataset,
+    pred: YoloDataset,
+    out_dir: str | Path,
+    *,
+    match_iou: float = 0.5,
+    low_iou: float = 0.1,
+    nms_iou: float | None = 0.5,
+    thresholds: Sequence[float] = DEFAULT_CONF_CURVE_THRESHOLDS,
+    progress: bool = False,
+    progress_leave: bool = False,
+) -> dict[str, Any]:
+    """Write review-file counts across several prediction-confidence thresholds.
+
+    The curve follows the same grouping as ``eval_error_analysis`` review
+    output.  Each group is counted by successfully renderable review files,
+    not by unique source images: one error row produces one review image.  The
+    CSV is long-form so groups can be filtered or plotted independently.
+    """
+
+    confidence_values = _normalise_conf_curve_thresholds(thresholds)
+    validate_nms_iou(nms_iou)
+    gt_images = _images_by_stem(gt)
+    pred_images = _images_by_stem(pred)
+    per_threshold: list[tuple[float, dict[str, int]]] = []
+    summary_rows: list[dict[str, Any]] = []
+    all_groups: set[str] = set()
+
+    for confidence in iter_progress(
+        confidence_values,
+        enabled=progress,
+        total=len(confidence_values),
+        desc="confidence curve",
+        leave=progress_leave,
+    ):
+        error_rows, _ = analyze_errors(
+            gt,
+            pred,
+            match_iou=match_iou,
+            low_iou=low_iou,
+            conf_thres=confidence,
+            nms_iou=nms_iou,
+        )
+        attribute_rows, _ = analyze_attribute_errors(
+            gt,
+            pred,
+            match_iou=match_iou,
+            conf_thres=confidence,
+            nms_iou=nms_iou,
+        )
+        error_counts = _count_error_review_files(error_rows, gt_images, pred_images)
+        attribute_counts = _count_attribute_review_files(
+            attribute_rows,
+            gt_images,
+            pred_images,
+        )
+        group_counts = {**error_counts, **attribute_counts}
+        per_threshold.append((confidence, group_counts))
+        all_groups.update(group_counts)
+
+        fp_rows = [row for row in error_rows if row.status == "fp"]
+        fn_rows = [row for row in error_rows if row.status == "fn"]
+        pred_gt_files = sum(error_counts.values())
+        attribute_files = sum(attribute_counts.values())
+        summary_rows.append(
+            {
+                "conf_thres": confidence,
+                "fp_rows": len(fp_rows),
+                "fn_rows": len(fn_rows),
+                "error_rows": len(fp_rows) + len(fn_rows),
+                "pred_gt_files": pred_gt_files,
+                "attribute_error_rows": len(attribute_rows),
+                "attribute_error_files": attribute_files,
+                "review_files": pred_gt_files + attribute_files,
+            }
+        )
+
+    output = Path(out_dir)
+    output.mkdir(parents=True, exist_ok=True)
+    curve_rows = [
+        {
+            "conf_thres": confidence,
+            "group": group,
+            "file_count": group_counts.get(group, 0),
+        }
+        for confidence, group_counts in per_threshold
+        for group in sorted(all_groups)
+    ]
+    curve_csv = output / "conf_curve.csv"
+    summary_csv = output / "conf_curve_summary.csv"
+    curve_plot = output / "conf_curve.png"
+    _write_rows(
+        curve_csv,
+        ["conf_thres", "group", "file_count"],
+        curve_rows,
+    )
+    _write_rows(
+        summary_csv,
+        [
+            "conf_thres",
+            "fp_rows",
+            "fn_rows",
+            "error_rows",
+            "pred_gt_files",
+            "attribute_error_rows",
+            "attribute_error_files",
+            "review_files",
+        ],
+        summary_rows,
+    )
+    _write_confidence_curve_plot(
+        curve_plot,
+        confidence_values,
+        per_threshold,
+    )
+    return {
+        "thresholds": list(confidence_values),
+        "csv": str(curve_csv),
+        "summary_csv": str(summary_csv),
+        "plot": str(curve_plot),
+        "groups": sorted(all_groups),
+        "summary": summary_rows,
+    }
+
+
+def _normalise_conf_curve_thresholds(
+    thresholds: Sequence[float],
+) -> tuple[float, ...]:
+    if isinstance(thresholds, (str, bytes, bytearray)):
+        raise TypeError("confidence curve thresholds must be a sequence of numbers")
+    values = tuple(sorted({round(float(value), 6) for value in thresholds}))
+    if not values:
+        raise ValueError("confidence curve thresholds cannot be empty")
+    if any(value < 0.0 or value > 1.0 for value in values):
+        raise ValueError("confidence curve thresholds must be between 0 and 1")
+    return values
+
+
+def _count_error_review_files(
+    rows: Iterable[ErrorDetail],
+    gt_images: Mapping[str, YoloImage],
+    pred_images: Mapping[str, YoloImage],
+) -> Counter[str]:
+    counts: Counter[str] = Counter()
+    for row in rows:
+        if row.status == "tp":
+            continue
+        source_image = gt_images.get(row.image) or pred_images.get(row.image)
+        if source_image is None or not source_image.path.exists():
+            continue
+        if _row_primary_box(row) is None:
+            continue
+        counts[_review_group_name(row)] += 1
+    return counts
+
+
+def _count_attribute_review_files(
+    rows: Iterable[AttributeErrorDetail],
+    gt_images: Mapping[str, YoloImage],
+    pred_images: Mapping[str, YoloImage],
+) -> Counter[str]:
+    counts: Counter[str] = Counter()
+    for row in rows:
+        source_image = gt_images.get(row.image) or pred_images.get(row.image)
+        if source_image is None or not source_image.path.exists():
+            continue
+        if _parse_box_json(row.gt_box_xyxy) is None and _parse_box_json(row.pred_box_xyxy) is None:
+            continue
+        counts[_attribute_review_group_name(row)] += 1
+    return counts
+
+
+def _write_confidence_curve_plot(
+    path: Path,
+    thresholds: Sequence[float],
+    per_threshold: Sequence[tuple[float, Mapping[str, int]]],
+) -> None:
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    groups = sorted({group for _confidence, counts in per_threshold for group in counts})
+    fig, ax = plt.subplots(figsize=(11, 6))
+    for group in groups:
+        values = [counts.get(group, 0) for _confidence, counts in per_threshold]
+        ax.plot(thresholds, values, marker="o", linewidth=1.8, label=group)
+    ax.set_xlabel("Confidence threshold")
+    ax.set_ylabel("Review file count")
+    ax.set_title("Error-analysis review files by confidence threshold")
+    ax.set_xticks(list(thresholds))
+    ax.grid(True, alpha=0.3)
+    if groups:
+        ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1.0), fontsize=8)
+        fig.subplots_adjust(right=0.68)
+    else:
+        ax.text(
+            0.5,
+            0.5,
+            "No review files",
+            ha="center",
+            va="center",
+            transform=ax.transAxes,
+        )
+    fig.savefig(path, dpi=160, bbox_inches="tight")
+    plt.close(fig)
 
 
 def _attribute_values_for_error_analysis(

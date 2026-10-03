@@ -78,6 +78,7 @@ from yolo_data_manager.evaluation.error_analysis import (
     write_error_csvs,
     write_error_review_pack,
     write_attribute_error_review_pack,
+    write_confidence_curve,
 )
 from yolo_data_manager.evaluation.metrics import (
     compute_detection_metrics,
@@ -972,6 +973,11 @@ def build_parser() -> argparse.ArgumentParser:
     error_analysis.add_argument("--review-progress", action="store_true", help="show progress while writing review visualization")
     error_analysis.add_argument("--review-progress-leave", action="store_true", help="keep review progress bar after completion")
     error_analysis.add_argument("--copy-pred-txt", action="store_true", help="copy prediction txt files into review/pred_txt")
+    error_analysis.add_argument(
+        "--conf-curve",
+        action="store_true",
+        help="write conf_curve.csv, conf_curve_summary.csv, and conf_curve.png for thresholds 0.1-0.5",
+    )
     error_analysis.add_argument("--task", choices=["auto", "detect", "segment"], default="auto")
     error_analysis.add_argument("--layout", choices=["auto", "flat", "split_dirs", "image_list", "mixed"], default="auto")
     error_analysis.add_argument("--images-dir", default="images")
@@ -2459,6 +2465,20 @@ def handle_eval_error_analysis(args: argparse.Namespace) -> int:
         else {}
     )
     copied_pred_txt = copy_prediction_txt_to_review(pred, out, stems=stems) if args.copy_pred_txt else []
+    confidence_curve = (
+        write_confidence_curve(
+            gt,
+            pred,
+            out,
+            match_iou=args.match_iou,
+            low_iou=args.low_iou,
+            nms_iou=args.nms_iou,
+            progress=args.progress,
+            progress_leave=args.progress_leave,
+        )
+        if args.conf_curve
+        else {}
+    )
     print_error_summary(error_rows, dup_rows)
     print_attribute_error_summary(attribute_error_rows, attribute_summary)
     print(
@@ -2472,6 +2492,7 @@ def handle_eval_error_analysis(args: argparse.Namespace) -> int:
                 "review": review_counts,
                 "attribute_review": attribute_review_counts,
                 "pred_txt_copied": len(copied_pred_txt),
+                "conf_curve": confidence_curve,
                 "out": out,
             },
             indent=2,

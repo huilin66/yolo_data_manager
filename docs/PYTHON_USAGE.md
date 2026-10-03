@@ -327,6 +327,8 @@ mgr.eval_error_analysis(pred_root=r"E:\datasets\pred", out="error_report",
                         review=True, crop_padding=12)
 mgr.eval_error_analysis(pred_root=r"E:\datasets\pred", out="error_report",
                         review=True, workers=16, copy_pred_txt=True)
+mgr.eval_error_analysis(pred_root=r"E:\datasets\pred", out="error_report",
+                        review=True, conf_curve=True)
 
 # 提取多次 eval_error_analysis 都存在的公共错误
 mgr.eval_error_analysis_common(
@@ -461,6 +463,8 @@ mgr.output_dataset_yaml
 `eval_error_analysis` 的 `class_` 只保留指定类别，`exclude_class_` 独立排除类别；两者可以同时使用。`min_width`、`min_height`、`min_area` 和 `min_pixels` 会同时过滤 GT 与预测，宽高/面积使用归一化 YOLO 尺寸，`min_pixels` 按像素宽度或高度判断；`min_size_logic` 支持 `"or"` 或 `"and"`，语义与 `anno_update_by_size` 一致。
 `class_rules` 可以按类别覆盖全局尺寸规则，格式为 `{类别: {"width": ..., "height": ..., "logic": "or" 或 "and"}}`；命中类别使用自己的规则，未命中类别继续使用全局参数。
 `eval_error_analysis` 与 `eval_metrics` 默认先按类别执行置信度优先的 NMS（`nms_iou=0.5`），再使用相同的一对一 IoU 匹配规则；传入 `nms_iou=None` 可关闭 NMS。关闭 NMS 时，重复预测会在错误分析中标记为 `duplicate_prediction`，并在 metrics 中作为 FP 统计。
+
+`eval_error_analysis(conf_curve=True)` 会使用 `0.1、0.2、0.3、0.4、0.5` 五个置信度阈值重新分析，并按 review 输出分组统计文件数量。结果为 `conf_curve.csv`（各分组明细）、`conf_curve_summary.csv`（FP/FN/error 和属性错误汇总）以及 `conf_curve.png`；每条曲线对应一个 review 分组。
 
 `eval_metrics` 使用 `class_` 指定只评估的类别，使用独立的 `exclude_class_` 排除类别；两者可以同时传入。`merge_class_map` 接受“目标类别: 原始类别列表”的字典，例如 `{"vehicle": ["car", "truck"]}`，并在 GT 和预测的类别选择、匹配、统计前同时应用。类别选择和排除使用合并后的目标类别名。设置 `show_original=True` 后，如果使用了类别、合并、`class_rules` 或 `min_pixels` 参数，会在最终结果前输出原始结果；JSON 输出包含 `original` 和 `final`，而 `out` 文件仍保存最终结果。
 `eval_metrics` 的 `class_rules` 可以按类别覆盖全局尺寸过滤规则；支持类别名或类别 id，字段为 `width`/`min_width`、`height`/`min_height`、`min_area`、`min_pixels` 和 `logic`/`min_size_logic`。配置了规则的类别使用自己的完整规则，未配置的类别继续使用全局参数；如果使用 `merge_class_map`，规则按合并后的目标类别名匹配。

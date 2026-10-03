@@ -336,10 +336,13 @@ ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --names class.tx
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --names class.txt --class-rules error_rules.yaml --out error_report
 ydm eval error-analysis --gt-root gt_labels --pred-root pred_labels --names class.txt --out error_report
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --attribute-file gt_yolo/attribute.yaml --out error_report --review
+ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --review --conf-curve
 ydm eval error-analysis-common --error-dir error_report_model_a --error-dir error_report_model_b --out common_error_report --iou 0.5
 ```
 
 `eval error-analysis-common` 直接读取多个 `eval_error_analysis` 输出目录，不会重新运行模型。它提取所有输入中都出现的 `fn_no_pred` GT，以及类别相同且预测框 IoU 达到阈值的 `background_fp` / `class_error_pred` 预测，并写出 `common_error_summary.csv`（每个输入的原始、公共、剩余数量）、公共明细 CSV 和 `common_crops/`。`common_crops/` 的目录结构可直接作为 `ann_correct_from_error_crops` 的输入；输入结果没有 review crop 时只生成表格，不会凭空生成 crop。
+
+`eval error-analysis --conf-curve` 会按 `0.1、0.2、0.3、0.4、0.5` 五个置信度阈值重新分析，并按 `review` 下的错误分组统计文件数量，生成 `conf_curve.csv`、`conf_curve_summary.csv` 和 `conf_curve.png`。
 
 `eval metrics` 计算 Precision、Recall、mAP@0.5、mAP@0.5:0.95。`--class` 只评估指定类别，`--exclude-class` 单独排除指定类别；两者可同时使用，未选/被排除类别的 GT 和预测都会被忽略。`--merge-class-map` 接受目标类别到原始类别列表的 JSON/YAML 映射，也可以传入映射文件，例如 `{"vehicle":["car","truck"]}`；映射会同时作用于 GT 和预测，并在类别选择、匹配和统计前生效。设置 `--show-original` 时，如果使用了类别、合并、`--class-rules` 或 `--min-pixels` 参数，会在最终结果前输出原始结果；原始结果不应用这些筛选/合并参数，但保留其他过滤参数。JSON 输出为 `detection_metrics_comparison`，包含 `original` 和 `final`；`--out` 文件仍写入最终结果。默认不输出、不计入 `Instances=0` 的类别；如需保留这些空 GT 类用于排查误检，可加 `--include-empty-classes`。小目标过滤可使用 `--min-width`、`--min-height`、`--min-area`、`--min-size-logic`，或按像素使用 `--min-pixels`。加 `--print-table` 可输出接近 Ultralytics 的对齐表格，方便人工对比。
 `eval metrics` 的 `--class-rules` 接收 YAML/JSON 文件，按类别覆盖全局尺寸规则。支持 `width`/`min_width`、`height`/`min_height`、`min_area`、`min_pixels` 和 `logic`/`min_size_logic`；未配置的类别使用全局参数。若同时使用 `--merge-class-map`，规则按合并后的目标类别名匹配。

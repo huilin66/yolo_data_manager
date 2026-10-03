@@ -233,6 +233,7 @@ ydm vis crop --root yolo --out crops --by-attr
 - 支持 confidence threshold
 - 细粒度错误分析：background FP、localisation FP、duplicate prediction、class error、FN 子类型
 - 新增 `eval_error_analysis_common` / `ydm eval error-analysis-common`：读取多个错误分析输出，提取所有输入中都出现的 `fn_no_pred` GT 和 IoU/类别一致的 `background_fp`、`class_error_pred`，输出公共 crop、明细和每个输入的原始/公共/剩余数量表
+- `eval_error_analysis` 支持可选 `conf_curve=True` / `--conf-curve`：按 0.1 到 0.5 的置信度阈值统计 review 错误分组文件数量，输出 `conf_curve.csv`、`conf_curve_summary.csv` 和 `conf_curve.png`
 - 属性错误分析：对一对一匹配成功的同类框逐属性比较，输出 `attribute_error.csv`、可选的属性错误 review pack，以及每个 `review/attribute_error/attribute_<属性名>/confusion_matrix.png`；矩阵行是预测值、列是真值，并包含正确/错误匹配；外部预测 label 可共享 GT 的 `attribute.yaml`
 - 属性错误 crop 使用 `predX_gtY` 定位预测/GT label 行；使用 `ann_att_correct_from_error_crops`/`correct_gt_attributes_from_error_crops`，支持单目录或目录到属性规则字典，只修改选中 GT 框的属性，保留类别和 geometry，并支持 `dry_run`/`backup_dir`
 - 新增 `ann_att_correct_from_crops`/`correct_gt_attributes_from_crops`：按普通 `vis_crop` 的 `<image_stem>_<1-based index>` 文件名修改 GT 框属性，支持目录到属性规则字典，并默认备份到 `labels_backup`

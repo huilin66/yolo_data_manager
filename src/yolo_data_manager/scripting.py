@@ -2374,9 +2374,10 @@ class YoloManager:
         review_progress: bool = True,
         review_progress_leave: bool = False,
         copy_pred_txt: bool = True,
+        conf_curve: bool = False,
         **kwargs: Any,
     ) -> int:
-        """Analyze class and attribute errors of predictions vs GT (``ydm eval error-analysis``)."""
+        """Analyze prediction errors; optionally write a 0.1-0.5 confidence curve."""
         resolved_gt_root = gt_root or self.root
         requested_only_val = self.only_val if only_val is None else only_val
         resolved_val_source = val_source
@@ -2433,6 +2434,7 @@ class YoloManager:
                 progress=progress,
                 progress_leave=progress_leave,
                 copy_pred_txt=copy_pred_txt,
+                conf_curve=conf_curve,
                 task=self.task,
                 layout=self.layout,
                 images_dir=self.images_dir,
