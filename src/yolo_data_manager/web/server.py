@@ -50,7 +50,7 @@ def _package_version() -> str:
     try:
         return version("yolo-data-manager")
     except PackageNotFoundError:
-        return "0.7.3"
+        return "1.0.0"
 
 
 class LoadDatasetRequest(BaseModel):

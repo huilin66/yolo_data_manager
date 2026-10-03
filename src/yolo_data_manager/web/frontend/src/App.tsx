@@ -307,7 +307,7 @@ function App() {
               </button>
             ))}
           </nav>
-          <div className="sidebar-footer"><div className="status-dot" /> <span>Local workspace</span><span className="version-label">v0.7.3</span></div>
+          <div className="sidebar-footer"><div className="status-dot" /> <span>Local workspace</span><span className="version-label">v1.0.0</span></div>
         </aside>
 
         <main className="main-area">
