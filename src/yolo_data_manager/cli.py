@@ -493,7 +493,7 @@ def build_parser() -> argparse.ArgumentParser:
     restore_backup.add_argument(
         "--timestamp",
         required=True,
-        help="backup timestamp directory name, or a direct backup snapshot path",
+        help="backup timestamp, source_labels alias, or a direct backup snapshot path",
     )
     restore_backup.add_argument(
         "--backup-dir",

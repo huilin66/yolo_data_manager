@@ -74,7 +74,7 @@ Lower-level functions such as `load_yolo_dataset()` and `validate_dataset()` def
 The Python API and CLI use the same defaults. Explicit `out`, `csv`, or `plots_dir` values always take precedence:
 
 ```text
-<root>/labels_backup/       timestamped backups; first run also has source_labels/
+<root>/labels_backup/       timestamped backups; first run also has root labels/ and backup_metadata.json
 <root>/ydm_quality/         check, query, duplicates, bad-images
 <root>/ydm_stats/           stats.json, CSV files, plots/
 <root>/ydm_vis/             draw/, crop/, manual_box/
@@ -350,7 +350,7 @@ mgr.ann_att_correct_from_error_crops(
 
 Most write operations output to a new directory. `ann_att_update_from_map` and crop-correction methods update source labels in place by default and back them up under `labels_backup`; an explicit `out` remains available on compatibility APIs such as `ann_set_attr`. Use `dry_run=True` when you want to inspect the effect first.
 Pass `to=None` to delete the corresponding annotation instead of assigning a class.
-Pass `backup_dir="label_backups"` to override the default backup directory. If omitted, backups go to `<dataset-root>/labels_backup`. The first real backup also creates an immutable `source_labels/` baseline containing all source labels and available schema files before the first write. Each source txt is backed up at most once per run; `dry_run=True` creates no backup. Use `mgr.ann_restore_backup("source_labels")` for the baseline or pass an operation timestamp to roll back to that backup point.
+Pass `backup_dir="label_backups"` to override the default backup directory. If omitted, backups go to `<dataset-root>/labels_backup`. The first real backup also stores an immutable baseline directly in that root as `labels/` and `backup_metadata.json`, containing all source labels and available schema files before the first write. Each source txt is backed up at most once per run; `dry_run=True` creates no backup. Use `mgr.ann_restore_backup("source_labels")` as the compatibility alias for the baseline or pass an operation timestamp to roll back to that backup point.
 Use `mgr.ann_correct_from_error_crops(...)` for `eval_error_analysis` crops; in `xxx_predx_gty`, the 1-based `y` locates the GT annotation. Provide `pred_dir` to append prediction txt record `x` for `gtnone` crops, without prediction confidence. Added predictions use same-class IoU deduplication (default `dedup_iou=0.5`) and keep the higher-confidence candidate.
 Its `crops_dir` can also be a `{directory: target_class}` mapping; omit `to` in mapping mode. All directories are processed in one task and use one label-backup snapshot. A `None` target deletes the selected GT row.
 The same `backup_dir` option applies to `ann_correct_from_error_crops`.

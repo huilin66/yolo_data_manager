@@ -101,10 +101,10 @@ def ensure_source_labels_backup(
 ) -> Path | None:
     """Create the one-time full source-label baseline for a backup root.
 
-    The baseline is stored as ``<backup-dir>/source_labels`` and is created
-    only once.  Later operation snapshots can remain incremental while the
-    baseline preserves the original label state needed for point-in-time
-    restoration.
+    The baseline is stored directly in ``<backup-dir>`` as ``labels/`` plus
+    ``backup_metadata.json`` and is created only once.  Later operation
+    snapshots can remain incremental while the baseline preserves the
+    original label state needed for point-in-time restoration.
     """
 
     root = Path(dataset_root).expanduser().resolve()
@@ -113,16 +113,30 @@ def ensure_source_labels_backup(
         if backup_dir is not None
         else root / "labels_backup"
     )
-    source_dir = base_dir / SOURCE_LABELS_BACKUP_NAME
-
+    if base_dir.resolve() == root:
+        raise ValueError("backup_dir must be different from the dataset root")
     # Several workers may reach the first backup at the same time. Only one
     # thread in this process may create the immutable baseline.
     with _SOURCE_BACKUP_LOCK:
-        if source_dir.is_dir():
-            return source_dir
-        if source_dir.exists():
+        base_dir.mkdir(parents=True, exist_ok=True)
+        root_metadata = _read_backup_metadata(base_dir)
+        if root_metadata.get("method") == "source_labels":
+            return base_dir
+
+        # Backward compatibility for backups created before the flat layout.
+        legacy_source_dir = base_dir / SOURCE_LABELS_BACKUP_NAME
+        if legacy_source_dir.is_dir():
+            return legacy_source_dir
+
+        metadata_path = base_dir / BACKUP_METADATA_NAME
+        if metadata_path.exists():
             raise FileExistsError(
-                f"source backup path is not a directory: {source_dir}"
+                f"backup root already contains non-source metadata: {metadata_path}"
+            )
+        baseline_labels_dir = base_dir / "labels"
+        if baseline_labels_dir.exists():
+            raise FileExistsError(
+                f"source backup labels path already exists: {baseline_labels_dir}"
             )
 
         labels_root = root / Path(labels_dir)
@@ -151,21 +165,20 @@ def ensure_source_labels_backup(
             return None
 
         destinations: list[str] = []
-        source_dir.parent.mkdir(parents=True, exist_ok=True)
-        source_dir.mkdir(exist_ok=False)
+        baseline_labels_dir.mkdir(parents=True, exist_ok=False)
         try:
             for source in sources:
                 relative = _relative_backup_path(source, root)
-                destination = _unique_backup_destination(source_dir / relative)
+                destination = _unique_backup_destination(base_dir / relative)
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(source, destination)
-                destinations.append(destination.relative_to(source_dir).as_posix())
+                destinations.append(destination.relative_to(base_dir).as_posix())
         except BaseException:
-            shutil.rmtree(source_dir, ignore_errors=True)
+            shutil.rmtree(baseline_labels_dir, ignore_errors=True)
             raise
 
         write_snapshot_metadata(
-            source_dir,
+            base_dir,
             dataset_root=root,
             method="source_labels",
             created_at=datetime.now().astimezone().isoformat(timespec="microseconds"),
@@ -175,7 +188,7 @@ def ensure_source_labels_backup(
                 "source_files": len(destinations),
             },
         )
-        return source_dir
+        return base_dir
 
 
 def restore_label_backup(
@@ -210,18 +223,30 @@ def restore_label_backup(
         else root / "labels_backup"
     )
     requested = Path(timestamp).expanduser()
-    snapshot = (
-        requested
-        if requested.is_dir()
-        else backup_root / requested
+    source_baseline = _find_source_baseline(backup_root)
+    is_source_alias = (
+        requested.name == SOURCE_LABELS_BACKUP_NAME
+        and not requested.is_absolute()
+        and len(requested.parts) == 1
     )
+    if is_source_alias and source_baseline is not None:
+        snapshot = source_baseline
+    else:
+        snapshot = requested if requested.is_dir() else backup_root / requested
     snapshot = snapshot.resolve()
     if not snapshot.is_dir():
         available = (
-            sorted(path.name for path in backup_root.iterdir() if path.is_dir())
+            sorted(
+                path.name
+                for path in backup_root.iterdir()
+                if path.is_dir()
+                and path.name not in {"labels", SOURCE_LABELS_BACKUP_NAME}
+            )
             if backup_root.is_dir()
             else []
         )
+        if source_baseline is not None and SOURCE_LABELS_BACKUP_NAME not in available:
+            available.insert(0, SOURCE_LABELS_BACKUP_NAME)
         suffix = f" Available snapshots: {', '.join(available)}" if available else ""
         raise FileNotFoundError(
             f"backup snapshot not found: {snapshot}.{suffix}"
@@ -242,6 +267,11 @@ def restore_label_backup(
         snapshot,
         root,
         backup_root=backup_root,
+    )
+    restore_timestamp = (
+        SOURCE_LABELS_BACKUP_NAME
+        if _is_source_snapshot(snapshot, backup_root)
+        else snapshot.name
     )
     if not dry_run:
         ensure_source_labels_backup(
@@ -271,7 +301,7 @@ def restore_label_backup(
         "action": "restore_backup",
         "dataset_root": str(root),
         "snapshot": str(snapshot),
-        "timestamp": snapshot.name,
+        "timestamp": restore_timestamp,
         "dry_run": dry_run,
         "backup_current": backup_current,
         "files": len(entries),
@@ -295,7 +325,7 @@ def restore_label_backup(
             result={
                 "action": "restore_backup",
                 "restored_from": str(snapshot),
-                "restored_timestamp": snapshot.name,
+                "restored_timestamp": restore_timestamp,
                 "restored_files": len(entries),
                 "missing_files": len(missing),
             },
@@ -309,9 +339,24 @@ def restore_label_backup(
 def _backup_restore_entries(
     snapshot: Path,
     dataset_root: Path,
+    *,
+    baseline_root: bool = False,
 ) -> tuple[list[tuple[Path, Path, Path]], list[str]]:
     entries: list[tuple[Path, Path, Path]] = []
     missing: list[str] = []
+    if baseline_root:
+        metadata = _read_backup_metadata(snapshot)
+        listed_files = metadata.get("files", [])
+        if isinstance(listed_files, list):
+            for raw_relative in listed_files:
+                relative = Path(str(raw_relative))
+                source = snapshot / relative
+                destination = _safe_restore_destination(dataset_root, relative)
+                if source.is_file():
+                    entries.append((relative, destination, source))
+                else:
+                    missing.append(relative.as_posix())
+        return entries, missing
     for source in sorted(snapshot.rglob("*")):
         if not source.is_file():
             continue
@@ -339,16 +384,21 @@ def _build_restore_plan(
     earlier selections.
     """
 
-    direct_entries, direct_missing = _backup_restore_entries(snapshot, dataset_root)
-    if snapshot.name == SOURCE_LABELS_BACKUP_NAME:
-        return direct_entries, direct_missing, [snapshot.name]
+    source_snapshot = _is_source_snapshot(snapshot, backup_root)
+    direct_entries, direct_missing = _backup_restore_entries(
+        snapshot,
+        dataset_root,
+        baseline_root=source_snapshot and snapshot.resolve() == backup_root.resolve(),
+    )
+    if source_snapshot:
+        return direct_entries, direct_missing, [SOURCE_LABELS_BACKUP_NAME]
     if snapshot.parent.resolve() != backup_root.resolve():
         return direct_entries, direct_missing, [snapshot.name]
 
     candidates = [
         path
         for path in backup_root.iterdir()
-        if path.is_dir() and path.name != SOURCE_LABELS_BACKUP_NAME
+        if path.is_dir() and path.name not in {"labels", SOURCE_LABELS_BACKUP_NAME}
     ]
     target_key = _snapshot_sort_key(snapshot)
     applicable = [path for path in candidates if _snapshot_sort_key(path) >= target_key]
@@ -392,6 +442,25 @@ def _read_backup_metadata(snapshot: Path) -> dict[str, Any]:
     except (OSError, ValueError, json.JSONDecodeError):
         return {}
     return data if isinstance(data, dict) else {}
+
+
+def _find_source_baseline(backup_root: Path) -> Path | None:
+    root_metadata = _read_backup_metadata(backup_root)
+    if root_metadata.get("method") == "source_labels":
+        return backup_root
+    legacy_source_dir = backup_root / SOURCE_LABELS_BACKUP_NAME
+    if legacy_source_dir.is_dir():
+        return legacy_source_dir
+    return None
+
+
+def _is_source_snapshot(snapshot: Path, backup_root: Path) -> bool:
+    if snapshot.name == SOURCE_LABELS_BACKUP_NAME:
+        return True
+    return (
+        snapshot.resolve() == backup_root.resolve()
+        and _read_backup_metadata(snapshot).get("method") == "source_labels"
+    )
 
 
 def _safe_restore_destination(dataset_root: Path, relative: Path) -> Path:

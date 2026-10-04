@@ -19,9 +19,10 @@ def test_first_backup_creates_immutable_source_labels_baseline(tmp_path):
 
     backup = LabelBackup(root, method="test.source")
     backup.backup(first)
-    source_dir = root / "labels_backup" / "source_labels"
+    source_dir = root / "labels_backup"
 
     assert source_dir.is_dir()
+    assert not (source_dir / "source_labels").exists()
     assert (source_dir / "labels" / "first.txt").read_text(encoding="utf-8") == (
         "0 0.1 0.1 0.1 0.1\n"
     )

@@ -128,7 +128,7 @@ ydm ann correct-attr-from-error-crops --root path/to/yolo --crops-dir result_ana
 `correct-from-error-crops` 使用 `xxx_predx_gty` 文件名中的 `y` 定位 GT 标注序号。提供 `--pred-dir` 后，`gt none` 的 crop 会使用预测 txt 中第 `x` 条记录追加到对应 GT label；追加时会去掉 prediction confidence。未提供 `--pred-dir` 时，`gt none` crop 会跳过。
 追加预测以及 `--replace-gt-from-pred` 产生的替换框，默认按同一类别、同一图片的 IoU `0.5` 去重，重叠候选保留置信度更高的预测；替换框被去重时，对应的重复 GT 也会删除。可用 `--dedup-iou` 调整阈值。
 指定 `--delete-pred-none` 后，`prednone_gty` 会删除对应的第 `y` 条 GT 标注，即使 `--to` 设置了目标类别。只处理删除时可使用 `--to none --delete-pred-none`；`predx_gty` 仍按 `--to` 执行类别更新或删除。指定 `--replace-gt-from-pred` 后，需要同时提供 `--pred-dir`，`predx_gty` 会用预测第 `x` 条记录完整替换 GT 第 `y` 条（类别和 geometry），`prednone_gty` 删除，`predx_gtnone` 追加。
-会写出 GT label txt 的命令（包括 `dataset filter`、`dataset merge` 和 `ann` 编辑命令）都支持 `--backup-dir`：写出前先备份当前输入 label。未指定时默认使用 `<数据集根目录>/labels_backup`，指定后可覆盖默认路径。第一次实际备份还会创建不可覆盖的 `source_labels/` 基线，保存首次写入前的全部源 label 及可用 schema。crop 校正只备份实际修改的 txt。每次运行会在备份目录下创建 `YYYYMMDD_HHMMSS_microseconds` 时间戳子目录，并保留相对于数据集根目录的路径；同一 txt 在一次运行中只备份一次。`--dry-run` 不会创建备份。
+会写出 GT label txt 的命令（包括 `dataset filter`、`dataset merge` 和 `ann` 编辑命令）都支持 `--backup-dir`：写出前先备份当前输入 label。未指定时默认使用 `<数据集根目录>/labels_backup`，指定后可覆盖默认路径。第一次实际备份会直接在备份根目录保存不可覆盖的 `labels/` 和 `backup_metadata.json` 基线，记录首次写入前的全部源 label 及可用 schema。crop 校正只备份实际修改的 txt。每次运行会在备份目录下创建 `YYYYMMDD_HHMMSS_microseconds` 时间戳子目录，并保留相对于数据集根目录的路径；同一 txt 在一次运行中只备份一次。`--dry-run` 不会创建备份。
 
 使用 `ydm ann restore-backup --root path/to/yolo --timestamp source_labels` 可恢复初始基线；也可以传入时间戳目录名回滚后续操作。恢复前默认会备份当前文件；只有不需要安全快照时才添加 `--no-backup-current`。
 

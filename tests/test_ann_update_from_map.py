@@ -8,7 +8,9 @@ from yolo_data_manager import YoloManager
 
 def operation_snapshots(backup_root: Path) -> list[Path]:
     return sorted(
-        path for path in backup_root.iterdir() if path.name != "source_labels"
+        path
+        for path in backup_root.iterdir()
+        if path.is_dir() and path.name not in {"labels", "source_labels"}
     )
 
 

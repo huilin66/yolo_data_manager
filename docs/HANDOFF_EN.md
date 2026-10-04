@@ -24,7 +24,7 @@ Core principles:
 The default output groups below a dataset root are:
 
 ```text
-labels_backup/       timestamped backups before label writes; first backup also has immutable source_labels/
+labels_backup/       timestamped backups; first run stores labels/ and backup_metadata.json at the root
 ydm_quality/         check, query, duplicates, bad-images
 ydm_stats/           stats JSON, CSV files, basic_info.csv, plots/
 ydm_vis/             draw/, crop/, draw_att/, crop_att/, manual_box/
@@ -50,11 +50,12 @@ statistics, visualization, crop, and uint8 conversion outputs use the same group
 `YoloManager`; operations without safe all-modality write semantics must not silently modify
 only one image source.
 
-The first real label backup creates an immutable `source_labels/` baseline in the same
-backup root. It contains the source labels and available schema files before the first
-write and is never overwritten. Use `ydm ann restore-backup --timestamp source_labels`
-to restore that baseline; selecting an operation timestamp rolls back later snapshots in
-reverse order. The current files are backed up before a restore by default.
+The first real label backup stores an immutable baseline directly in the backup root as
+`labels/` and `backup_metadata.json`. It contains the source labels and available schema
+files before the first write and is never overwritten. The `source_labels` value remains
+as a compatibility alias for `ydm ann restore-backup`; selecting an operation timestamp
+rolls back later snapshots in reverse order. The current files are backed up before a
+restore by default.
 
 ## Example Code and External Datasets
 
