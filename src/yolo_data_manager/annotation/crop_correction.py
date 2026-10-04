@@ -178,7 +178,11 @@ def correct_labels_from_crops(
             dry_run=dry_run,
         )
 
-    backup = LabelBackup(dataset.root, backup_dir) if not dry_run else None
+    backup = (
+        LabelBackup(dataset.root, backup_dir, method="ann.correct_from_crops")
+        if not dry_run
+        else None
+    )
     result, edit_report = _correct_labels_from_crop_dir(
         dataset,
         crops_dir,
@@ -186,7 +190,7 @@ def correct_labels_from_crops(
         backup=backup,
         dry_run=dry_run,
     )
-    _set_crop_backup_info(result, backup)
+    _set_crop_backup_info(result, backup, method="ann.correct_from_crops")
     return result, edit_report
 
 
@@ -209,7 +213,11 @@ def correct_labels_from_crop_map(
     if not crops_to_classes:
         raise ValueError("crops_to_classes must contain at least one crop directory")
 
-    backup = LabelBackup(dataset.root, backup_dir) if not dry_run else None
+    backup = (
+        LabelBackup(dataset.root, backup_dir, method="ann.correct_from_crops")
+        if not dry_run
+        else None
+    )
     targets: dict[tuple[str, int], list[Path]] = {}
     target_class_by_target: dict[tuple[str, int], int | None] = {}
     target_specs: dict[str, dict[str, object]] = {}
@@ -253,7 +261,7 @@ def correct_labels_from_crop_map(
         dry_run=dry_run,
     )
     result.target_classes = target_specs
-    _set_crop_backup_info(result, backup)
+    _set_crop_backup_info(result, backup, method="ann.correct_from_crops")
     return result, edit_report
 
 
@@ -298,11 +306,31 @@ def _correct_labels_from_crop_dir(
 def _set_crop_backup_info(
     result: CropCorrectionResult,
     backup: LabelBackup | None,
+    *,
+    method: str,
 ) -> None:
     if backup is not None and backup.count:
         result.backup_dir = str(backup.snapshot_dir)
         result.backup_timestamp = backup.timestamp
         result.backup_files = backup.count
+        backup.write_metadata(
+            method=method,
+            result=_backup_result_summary(result.to_dict()),
+        )
+
+
+def _backup_result_summary(result: Mapping[str, Any]) -> dict[str, Any]:
+    """Keep backup metadata useful without duplicating long filename lists."""
+
+    summary: dict[str, Any] = {}
+    for key, value in result.items():
+        if key in {"backup_dir", "backup_timestamp", "backup_files"}:
+            continue
+        if isinstance(value, list):
+            summary[f"{key}_count"] = len(value)
+        else:
+            summary[key] = value
+    return summary
 
 
 def _normalise_optional_target(value: int | str | None) -> int | str | None:
@@ -367,6 +395,7 @@ def correct_gt_labels_from_error_crops(
         replace_gt_from_pred=replace_gt_from_pred,
         backup_dir=backup_dir,
         dry_run=dry_run,
+        operation="ann.correct_from_error_crops",
     )
 
 
@@ -425,6 +454,7 @@ def correct_gt_labels_from_error_crop_map(
         replace_gt_from_pred=replace_gt_from_pred,
         backup_dir=backup_dir,
         dry_run=dry_run,
+        operation="ann.correct_from_error_crops",
     )
 
 
@@ -441,6 +471,7 @@ def _correct_gt_labels_from_error_crop_specs(
     replace_gt_from_pred: bool,
     backup_dir: str | Path | None,
     dry_run: bool,
+    operation: str = "ann.correct_from_error_crops",
 ) -> tuple[CropCorrectionResult, EditReport]:
 
     if dedup_iou is not None and not 0.0 < float(dedup_iou) <= 1.0:
@@ -483,7 +514,11 @@ def _correct_gt_labels_from_error_crop_specs(
             if target_class_by_target is not None:
                 target_class_by_target[(stem, gt_index)] = mapped_target_id
 
-    backup = LabelBackup(dataset.root, backup_dir) if not dry_run else None
+    backup = (
+        LabelBackup(dataset.root, backup_dir, method=operation)
+        if not dry_run
+        else None
+    )
     result, edit_report = _correct_target_map(
         dataset,
         targets,
@@ -520,6 +555,10 @@ def _correct_gt_labels_from_error_crop_specs(
             result.backup_dir = str(backup.snapshot_dir)
             result.backup_timestamp = backup.timestamp
             result.backup_files = backup.count
+            backup.write_metadata(
+                method=operation,
+                result=_backup_result_summary(result.to_dict()),
+            )
     return result, edit_report
 
 
@@ -560,6 +599,7 @@ def correct_gt_attributes_from_crops(
         crop_parser=_parse_crop_name,
         require_attribute_suffix=False,
         operation="correct_attribute_from_crops",
+        backup_method="ann.att_correct_from_crops",
     )
 
 
@@ -605,6 +645,7 @@ def correct_gt_attributes_from_error_crops(
         dry_run=dry_run,
         crop_parser=_parse_attribute_error_crop_name,
         require_attribute_suffix=True,
+        backup_method="ann.att_correct_from_error_crops",
     )
 
 
@@ -667,6 +708,7 @@ def _correct_gt_attributes_from_error_crop_specs(
     crop_parser: Any = None,
     require_attribute_suffix: bool = True,
     operation: str = "correct_attribute_from_error_crops",
+    backup_method: str | None = None,
 ) -> tuple[AttributeCropCorrectionResult, EditReport]:
     """Apply multiple attribute crop rules in one backup session."""
 
@@ -843,7 +885,12 @@ def _correct_gt_attributes_from_error_crop_specs(
         )
         result.changed += 1
 
-    backup = LabelBackup(dataset.root, backup_dir) if not dry_run else None
+    resolved_backup_method = backup_method or operation
+    backup = (
+        LabelBackup(dataset.root, backup_dir, method=resolved_backup_method)
+        if not dry_run
+        else None
+    )
     if not dry_run:
         for label_path, changes in pending.items():
             if backup is not None:
@@ -860,6 +907,10 @@ def _correct_gt_attributes_from_error_crop_specs(
         result.backup_dir = str(backup.snapshot_dir)
         result.backup_timestamp = backup.timestamp
         result.backup_files = backup.count
+        backup.write_metadata(
+            method=resolved_backup_method,
+            result=_backup_result_summary(result.to_dict()),
+        )
     return result, edit_report
 
 

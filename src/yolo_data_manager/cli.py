@@ -32,6 +32,7 @@ from yolo_data_manager.dataset.select import select_from_file
 from yolo_data_manager.dataset.split import class_counts_for_images, extract_splits, split_dataset
 from yolo_data_manager.core.schema import find_attribute_file, write_dataset_yaml
 from yolo_data_manager.io.layout import detect_layout
+from yolo_data_manager.io.backup import restore_label_backup
 from yolo_data_manager.io.loader import load_yolo_dataset
 from yolo_data_manager.io.output_paths import (
     default_annotation_output,
@@ -480,6 +481,37 @@ def build_parser() -> argparse.ArgumentParser:
     apply_map.add_argument("--map", dest="map_file", required=True, help="YAML class map")
     apply_map.add_argument("--no-compact", dest="compact", action="store_false", help="do not compact class ids")
     apply_map.set_defaults(handler=handle_apply_map, compact=True, _output_operation="apply_map")
+
+    restore_backup = ann_sub.add_parser(
+        "restore-backup",
+        help="restore labels and related files from a timestamped backup",
+    )
+    add_dataset_args(restore_backup)
+    restore_backup.add_argument(
+        "--timestamp",
+        required=True,
+        help="backup timestamp directory name, or a direct backup snapshot path",
+    )
+    restore_backup.add_argument(
+        "--backup-dir",
+        default=None,
+        help="backup directory; default is <dataset-root>/labels_backup",
+    )
+    restore_backup.add_argument(
+        "--no-backup-current",
+        dest="backup_current",
+        action="store_false",
+        help="do not back up current files before restoring",
+    )
+    restore_backup.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="show the restore plan without changing files",
+    )
+    restore_backup.set_defaults(
+        handler=handle_restore_backup,
+        backup_current=True,
+    )
 
     correct_crops = ann_sub.add_parser(
         "correct-from-crops",
@@ -1390,6 +1422,11 @@ def handle_dataset_select(args: argparse.Namespace) -> int:
         progress=args.progress,
         progress_leave=args.progress_leave,
         backup_dir=args.backup_dir,
+        operation="dataset.select",
+        backup_result={
+            "action": "select_dataset",
+            "selected_images": len(selected.images),
+        },
     )
     print(json.dumps({"images": len(selected.images), "out": out}, indent=2, ensure_ascii=False))
     return 0
@@ -1411,6 +1448,12 @@ def handle_dataset_normalize(args: argparse.Namespace) -> int:
             progress=args.progress,
             progress_leave=args.progress_leave,
             backup_dir=args.backup_dir,
+            operation="dataset.normalize",
+            backup_result={
+                "action": "normalize_dataset",
+                "images": len(dataset.images),
+                "annotations": dataset.annotation_count(),
+            },
         )
     print(json.dumps({"images": len(dataset.images), "annotations": dataset.annotation_count(), "out": None if args.dry_run else out}, indent=2, ensure_ascii=False))
     return 0
@@ -1435,14 +1478,28 @@ def handle_dataset_split(args: argparse.Namespace) -> int:
         if args.backup_dir is not None
         else _resolved_output_root(args.root) / "labels_backup"
     )
-    backup_snapshot = move_existing_split_files_to_backup(out_dir, backup_root)
+    split_counts = {name: len(values) for name, values in splits.items()}
+    backup_snapshot = move_existing_split_files_to_backup(
+        out_dir,
+        backup_root,
+        method="dataset.split",
+        result={
+            "action": "regenerate_split_files",
+            "splits": split_counts,
+        },
+    )
     for split_name, names in splits.items():
         write_split_file(names, out_dir / f"{split_name}.txt")
     print(
         json.dumps(
             {
-                "splits": {name: len(values) for name, values in splits.items()},
+                "splits": split_counts,
                 "backup_dir": str(backup_snapshot) if backup_snapshot is not None else None,
+                "backup_metadata": (
+                    str(backup_snapshot / "backup_metadata.json")
+                    if backup_snapshot is not None
+                    else None
+                ),
                 "total_class_counts": class_counts_for_images(dataset),
                 "val_class_counts": class_counts_for_images(dataset, splits.get("val", [])),
             },
@@ -1521,6 +1578,14 @@ def handle_dataset_filter(args: argparse.Namespace) -> int:
                 progress=args.progress,
                 progress_leave=args.progress_leave,
                 backup_dir=args.backup_dir,
+                operation="dataset.filter",
+                backup_result={
+                    "action": "filter_annotations",
+                    "before": before,
+                    "after": after,
+                    "removed": before - after,
+                    "in_place": True,
+                },
             )
         else:
             backup = write_yolo_dataset(
@@ -1531,6 +1596,15 @@ def handle_dataset_filter(args: argparse.Namespace) -> int:
                 progress=args.progress,
                 progress_leave=args.progress_leave,
                 backup_dir=args.backup_dir,
+                operation="dataset.filter",
+                backup_result={
+                    "action": "filter_annotations",
+                    "before": before,
+                    "after": after,
+                    "removed": before - after,
+                    "in_place": False,
+                    "output_root": str(out),
+                },
             )
     print(
         json.dumps(
@@ -1595,6 +1669,13 @@ def handle_dataset_merge(args: argparse.Namespace) -> int:
             progress=args.progress,
             progress_leave=args.progress_leave,
             backup_dir=args.backup_dir,
+            operation="dataset.merge",
+            backup_result={
+                "action": "merge_datasets",
+                "images": report.image_count,
+                "annotations": report.annotation_count,
+                "renamed_images": len(report.renamed_images),
+            },
         )
     print(
         json.dumps(
@@ -1677,6 +1758,9 @@ def handle_apply_map(args: argparse.Namespace) -> int:
         default_annotation_output(_resolved_output_root(args.root), "apply_map"),
     )
     report_path = args.report or _default_report_path(args, "apply_map")
+    rows = []
+    for report in reports:
+        rows.extend(report.rows)
     if not args.dry_run:
         write_yolo_dataset(
             edited,
@@ -1687,15 +1771,39 @@ def handle_apply_map(args: argparse.Namespace) -> int:
             progress=args.progress,
             progress_leave=args.progress_leave,
             backup_dir=args.backup_dir,
+            operation="ann.apply_map",
+            backup_result={
+                "action": "apply_class_map",
+                "changed": len(rows),
+                "reports": len(reports),
+            },
         )
     if report_path:
-        rows = []
-        for report in reports:
-            rows.extend(report.rows)
         from yolo_data_manager.annotation.edit import EditReport
 
         EditReport(rows=rows).write_csv(report_path)
     print(json.dumps({"reports": len(reports), "out": None if args.dry_run else out, "report": report_path}, indent=2, ensure_ascii=False))
+    return 0
+
+
+def handle_restore_backup(args: argparse.Namespace) -> int:
+    result = restore_label_backup(
+        _resolved_output_root(args.root),
+        args.timestamp,
+        backup_dir=args.backup_dir,
+        backup_current=args.backup_current,
+        dry_run=args.dry_run,
+        workers=args.workers,
+        progress=args.progress,
+        progress_leave=args.progress_leave,
+    )
+    print(
+        json.dumps(
+            _compact_console_payload(result),
+            indent=2,
+            ensure_ascii=False,
+        )
+    )
     return 0
 
 
@@ -2671,6 +2779,11 @@ def _write_edit_result(
             progress=args.progress,
             progress_leave=args.progress_leave,
             backup_dir=args.backup_dir,
+            operation=f"ann.{operation}",
+            backup_result={
+                "action": operation,
+                "changed": len(report.rows),
+            },
         )
     report.write_csv(report_path)
     print(

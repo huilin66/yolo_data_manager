@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from collections.abc import Mapping
 from datetime import datetime
 import shutil
 from pathlib import Path
+from typing import Any
 
 from yolo_data_manager.core.models import YoloDataset, YoloImage
 from yolo_data_manager.core.schema import write_attribute_schema, write_class_schema, write_dataset_yaml
-from yolo_data_manager.io.backup import LabelBackup
+from yolo_data_manager.io.backup import LabelBackup, write_snapshot_metadata
+from yolo_data_manager.logging_utils import current_operation
 from yolo_data_manager.runtime import iter_progress, normalize_workers
 
 
@@ -23,6 +26,8 @@ def write_yolo_dataset(
     progress_leave: bool = False,
     backup_dir: str | Path | None = None,
     backup: bool = True,
+    operation: str | None = None,
+    backup_result: Mapping[str, Any] | None = None,
 ) -> LabelBackup | None:
     out_path = Path(out_root)
     image_dir = out_path / "images"
@@ -32,7 +37,11 @@ def write_yolo_dataset(
 
     backup_obj: LabelBackup | None = None
     if backup:
-        backup_obj = LabelBackup(dataset.root, backup_dir)
+        backup_obj = LabelBackup(
+            dataset.root,
+            backup_dir,
+            method=operation or current_operation() or "write_yolo_dataset",
+        )
         for image in dataset.images:
             if image.label_path is not None:
                 backup_obj.backup(image.label_path)
@@ -53,6 +62,14 @@ def write_yolo_dataset(
                 include_confidence=include_confidence,
                 overwrite_images=overwrite_images,
             )
+        _finalize_dataset_backup(
+            backup_obj,
+            output_root=out_path,
+            dataset=dataset,
+            copy_images=copy_images,
+            operation=operation,
+            backup_result=backup_result,
+        )
         return backup_obj
 
     with ThreadPoolExecutor(max_workers=worker_count) as executor:
@@ -71,6 +88,14 @@ def write_yolo_dataset(
         ]
         for future in iter_progress(as_completed(futures), enabled=progress, total=len(futures), desc="write dataset", leave=progress_leave):
             future.result()
+    _finalize_dataset_backup(
+        backup_obj,
+        output_root=out_path,
+        dataset=dataset,
+        copy_images=copy_images,
+        operation=operation,
+        backup_result=backup_result,
+    )
     return backup_obj
 
 
@@ -81,6 +106,8 @@ def write_yolo_labels_in_place(
     progress: bool = False,
     progress_leave: bool = False,
     backup_dir: str | Path | None = None,
+    operation: str | None = None,
+    backup_result: Mapping[str, Any] | None = None,
 ) -> LabelBackup:
     """Rewrite the loaded dataset's label files in place.
 
@@ -89,7 +116,11 @@ def write_yolo_labels_in_place(
     of :func:`write_yolo_dataset` for annotation-only operations.
     """
 
-    backup_obj = LabelBackup(dataset.root, backup_dir)
+    backup_obj = LabelBackup(
+        dataset.root,
+        backup_dir,
+        method=operation or current_operation() or "write_yolo_labels_in_place",
+    )
     for image in dataset.images:
         if image.label_path is not None:
             backup_obj.backup(image.label_path)
@@ -118,6 +149,12 @@ def write_yolo_labels_in_place(
             leave=progress_leave,
         ):
             write_one(image)
+        _finalize_in_place_backup(
+            backup_obj,
+            dataset=dataset,
+            operation=operation,
+            backup_result=backup_result,
+        )
         return backup_obj
 
     with ThreadPoolExecutor(max_workers=worker_count) as executor:
@@ -130,7 +167,56 @@ def write_yolo_labels_in_place(
             leave=progress_leave,
         ):
             future.result()
+    _finalize_in_place_backup(
+        backup_obj,
+        dataset=dataset,
+        operation=operation,
+        backup_result=backup_result,
+    )
     return backup_obj
+
+
+def _finalize_dataset_backup(
+    backup: LabelBackup | None,
+    *,
+    output_root: Path,
+    dataset: YoloDataset,
+    copy_images: bool,
+    operation: str | None,
+    backup_result: Mapping[str, Any] | None,
+) -> None:
+    if backup is None or backup.count == 0:
+        return
+    result: dict[str, Any] = {
+        "action": "write_yolo_dataset",
+        "output_root": str(output_root),
+        "images": len(dataset.images),
+        "labels": sum(image.label_path is not None for image in dataset.images),
+        "annotations": dataset.annotation_count(),
+        "copy_images": copy_images,
+    }
+    if backup_result:
+        result.update(dict(backup_result))
+    backup.write_metadata(method=operation, result=result)
+
+
+def _finalize_in_place_backup(
+    backup: LabelBackup,
+    *,
+    dataset: YoloDataset,
+    operation: str | None,
+    backup_result: Mapping[str, Any] | None,
+) -> None:
+    if backup.count == 0:
+        return
+    result: dict[str, Any] = {
+        "action": "write_yolo_labels_in_place",
+        "labels": sum(image.label_path is not None for image in dataset.images),
+        "annotations": dataset.annotation_count(),
+    }
+    if backup_result:
+        result.update(dict(backup_result))
+    backup.write_metadata(method=operation, result=result)
 
 
 def _write_image_item(
@@ -163,6 +249,9 @@ def write_split_file(image_names: list[str], path: str | Path) -> None:
 def move_existing_split_files_to_backup(
     split_root: str | Path,
     backup_dir: str | Path,
+    *,
+    method: str | None = None,
+    result: Mapping[str, Any] | None = None,
 ) -> Path | None:
     """Move existing train/val/test lists into one timestamped snapshot.
 
@@ -191,4 +280,19 @@ def move_existing_split_files_to_backup(
 
     for source in existing:
         shutil.move(str(source), str(snapshot / source.name))
+    metadata_result: dict[str, Any] = {
+        "action": "move_existing_split_files",
+        "split_root": str(source_root.resolve()),
+        "moved_files": [source.name for source in existing],
+    }
+    if result:
+        metadata_result.update(dict(result))
+    write_snapshot_metadata(
+        snapshot,
+        dataset_root=source_root,
+        method=method or current_operation() or "dataset.split",
+        created_at=datetime.now().astimezone().isoformat(timespec="microseconds"),
+        files=[source.name for source in existing],
+        result=metadata_result,
+    )
     return snapshot

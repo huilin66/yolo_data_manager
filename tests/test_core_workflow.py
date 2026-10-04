@@ -915,6 +915,12 @@ def test_dataset_split_moves_existing_split_files_to_timestamped_backup(tmp_path
     assert (snapshot / "train.txt").read_text(encoding="utf-8") == "a.jpg\n"
     assert (snapshot / "val.txt").read_text(encoding="utf-8") == "b.jpg\n"
     assert (snapshot / "test.txt").read_text(encoding="utf-8") == "\n"
+    split_metadata = json.loads(
+        (snapshot / "backup_metadata.json").read_text(encoding="utf-8")
+    )
+    assert split_metadata["method"] == "dataset.split"
+    assert split_metadata["backup_files"] == 3
+    assert split_metadata["result"]["action"] == "regenerate_split_files"
     assert (root / "train.txt").exists()
     assert (root / "val.txt").exists()
     assert (root / "test.txt").exists()

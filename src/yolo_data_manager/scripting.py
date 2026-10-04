@@ -36,6 +36,7 @@ TASK_COMMANDS: Mapping[str, tuple[str, ...]] = {
     "ann.merge_class": ("ann", "merge-class"),
     "ann.rename_class": ("ann", "rename-class"),
     "ann.apply_map": ("ann", "apply-map"),
+    "ann.restore_backup": ("ann", "restore-backup"),
     "ann.correct_from_crops": ("ann", "correct-from-crops"),
     "ann.correct_from_error_crops": ("ann", "correct-from-error-crops"),
     "ann.att_correct_from_crops": ("ann", "correct-attr-from-crops"),
@@ -86,6 +87,7 @@ _FALSE_FLAGS = {
     "skip_difficult": "--keep-difficult",
     "ignore_empty_classes": "--include-empty-classes",
     "copy_crops": "--no-copy-crops",
+    "backup_current": "--no-backup-current",
 }
 
 
@@ -278,6 +280,7 @@ _ROOT_TASKS: frozenset[str] = frozenset(
         "ann.merge_class",
         "ann.rename_class",
         "ann.apply_map",
+        "ann.restore_backup",
         "ann.correct_from_crops",
         "ann.correct_from_error_crops",
         "ann.att_correct_from_crops",
@@ -1250,6 +1253,11 @@ class YoloManager:
                 workers=workers,
                 progress=progress,
                 progress_leave=progress_leave,
+                operation="ann.merge_class",
+                backup_result={
+                    "action": "merge_class",
+                    "changed": len(combined_report.rows),
+                },
             )
         combined_report.write_csv(resolved_report)
         print(
@@ -1316,6 +1324,36 @@ class YoloManager:
             backup_dir=backup_dir,
             dry_run=dry_run,
             report=report,
+            **kwargs,
+        )
+
+    def ann_restore_backup(
+        self,
+        timestamp: str | Path,
+        *,
+        backup_dir: str | Path | None = None,
+        backup_current: bool = True,
+        dry_run: bool = False,
+        workers: int = 8,
+        progress: bool = True,
+        progress_leave: bool = False,
+        **kwargs: Any,
+    ) -> int:
+        """Restore files from a timestamped backup snapshot.
+
+        The current versions of the files being restored are backed up first
+        under ``labels_backup`` unless ``backup_current=False``.
+        """
+
+        return self._run(
+            "ann.restore_backup",
+            timestamp=timestamp,
+            backup_dir=backup_dir,
+            backup_current=backup_current,
+            dry_run=dry_run,
+            workers=workers,
+            progress=progress,
+            progress_leave=progress_leave,
             **kwargs,
         )
 
@@ -1401,7 +1439,11 @@ class YoloManager:
             resolved_backup_dir = (
                 self.output_labels_backup if backup_dir is None else backup_dir
             )
-            backup = LabelBackup(self.root, resolved_backup_dir)
+            backup = LabelBackup(
+                self.root,
+                resolved_backup_dir,
+                method="ann_update_from_map",
+            )
             for image in dataset.images:
                 if image.label_path is not None:
                     backup.backup(image.label_path)
@@ -1421,6 +1463,18 @@ class YoloManager:
                     encoding="utf-8",
                 )
             _write_updated_class_source(class_source, current.classes.names)
+
+            backup.write_metadata(
+                method="ann_update_from_map",
+                result={
+                    "action": "update_annotation_class_map",
+                    "changed": len(combined_report.rows),
+                    "deleted": sum(
+                        1 for row in combined_report.rows if row.action == "delete"
+                    ),
+                    "classes": current.classes.names,
+                },
+            )
 
         report_path = (
             Path(report)
@@ -1708,6 +1762,11 @@ class YoloManager:
                 progress=progress,
                 progress_leave=progress_leave,
                 backup_dir=resolved_backup_dir,
+                operation="ann_att_update_from_map",
+                backup_result={
+                    "action": "update_annotation_attribute_map",
+                    "changed": len(edit_report.rows),
+                },
             )
 
         report_path = (

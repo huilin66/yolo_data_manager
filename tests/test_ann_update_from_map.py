@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from PIL import Image
@@ -76,10 +77,18 @@ def test_ann_update_from_map_updates_labels_classes_and_backups(tmp_path):
         for path in snapshots[0].rglob("*")
         if path.is_file()
     ) == [
+        "backup_metadata.json",
         "class.txt",
         "labels/a.txt",
         "labels/b.txt",
     ]
+    metadata = json.loads(
+        (snapshots[0] / "backup_metadata.json").read_text(encoding="utf-8")
+    )
+    assert metadata["method"] == "ann_update_from_map"
+    assert metadata["status"] == "completed"
+    assert metadata["backup_files"] == 3
+    assert metadata["result"]["changed"] == 7
     assert (snapshots[0] / "class.txt").read_text(encoding="utf-8").splitlines()[0] == "Hollow High Risk"
 
 

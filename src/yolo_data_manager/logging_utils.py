@@ -21,6 +21,10 @@ _ACTIVE_LOG_ROOT: ContextVar[Path | None] = ContextVar(
     "ydm_active_log_root",
     default=None,
 )
+_ACTIVE_OPERATION: ContextVar[str | None] = ContextVar(
+    "ydm_active_operation",
+    default=None,
+)
 
 
 def now_text() -> str:
@@ -54,6 +58,12 @@ def resolve_log_root(root: str | Path | None) -> Path:
     if candidate.is_absolute():
         return candidate
     return (root_path.parent / candidate).resolve()
+
+
+def current_operation() -> str | None:
+    """Return the operation currently running in this execution context."""
+
+    return _ACTIVE_OPERATION.get()
 
 
 def log_file(root: str | Path | None, *, when: datetime | None = None) -> Path:
@@ -157,7 +167,8 @@ def operation_scope(
     suffix = f" params={detail_text}" if detail_text else ""
     started = time.perf_counter()
     active_root = resolve_log_root(root)
-    token = _ACTIVE_LOG_ROOT.set(active_root)
+    log_token = _ACTIVE_LOG_ROOT.set(active_root)
+    operation_token = _ACTIVE_OPERATION.set(operation)
     try:
         path = write_event(active_root, "INFO", f"START operation={operation}{suffix}")
         if announce:
@@ -185,12 +196,14 @@ def operation_scope(
             if announce:
                 console_event("INFO", message, record=False)
     finally:
-        _ACTIVE_LOG_ROOT.reset(token)
+        _ACTIVE_OPERATION.reset(operation_token)
+        _ACTIVE_LOG_ROOT.reset(log_token)
 
 
 __all__ = [
     "LOG_DIR_NAME",
     "console_event",
+    "current_operation",
     "log_file",
     "now_text",
     "operation_scope",

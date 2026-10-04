@@ -1,6 +1,6 @@
 """YOLO Data Manager public API."""
 
-__version__ = "1.2.6"
+__version__ = "1.2.8"
 
 from yolo_data_manager.core.models import (
     AttributeSchema,
@@ -20,6 +20,7 @@ from yolo_data_manager.core.multimodal import (
     MultimodalYoloDataset,
 )
 from yolo_data_manager.io.loader import load_yolo_dataset
+from yolo_data_manager.io.backup import restore_label_backup
 from yolo_data_manager.io.image_conversion import convert_multimodal_images_to_uint8
 from yolo_data_manager.io.multimodal import load_multimodal_yolo_dataset
 from yolo_data_manager.evaluation.metrics import (
@@ -117,6 +118,7 @@ __all__ = [
     "format_yolo_line",
     "load_multimodal_yolo_dataset",
     "load_yolo_dataset",
+    "restore_label_backup",
     "render_multimodal_dataset",
     "write_multimodal_stats_plots",
     "build_task_argv",
