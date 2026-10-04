@@ -27,7 +27,7 @@
 数据集根目录下的默认输出分组为：
 
 ```text
-labels_backup/       label 写入前的时间戳备份
+labels_backup/       label 写入前的时间戳备份；首次备份包含不可覆盖的 source_labels/
 ydm_quality/         check、query、duplicates、bad-images
 ydm_stats/           stats JSON、CSV、basic_info.csv、plots/
 ydm_vis/             draw/、crop/、draw_att/、crop_att/、manual_box/
@@ -41,6 +41,8 @@ train.txt/val.txt/test.txt、dataset.yaml  保留在根目录
 ```
 
 显式传入的 `out/csv/plots_dir` 始终优先；`labels_backup` 不使用 `ydm_` 前缀，因为它是写入安全策略的一部分。多模态不是一个独立的功能模块，而是数据集的模态属性：单模态和多模态操作共享上述功能分组。只有在同一操作需要区分图像源时，才在 `ydm_stats/plots/`、`ydm_vis/draw/`、`ydm_conversion/uint8/` 等目录下增加 `rgb/`、`depth/` 等模态子目录，不创建 `ydm_multimodal/`。
+
+首次实际生成标签备份时，会在同一备份根目录创建 `source_labels/`，保存首次备份前的数据集标签及可用 schema 文件。该目录只创建一次，不会被后续操作覆盖；`ydm ann restore-backup --timestamp source_labels` 可恢复初始基线，选择时间戳快照则按后续备份反向回滚。恢复前默认还会备份当前文件。
 
 `MultiModalYoloManager` 仅负责多图像目录与共享 label 的 scene 对齐、缓存和模态感知读取；它不是另一套业务流程。`check`、统计、可视化、crop、uint8 转换使用与 `YoloManager` 相同的输出组织；尚未定义安全的全模态写入语义的操作不会只修改某一路图像。
 

@@ -32,7 +32,10 @@ from yolo_data_manager.dataset.select import select_from_file
 from yolo_data_manager.dataset.split import class_counts_for_images, extract_splits, split_dataset
 from yolo_data_manager.core.schema import find_attribute_file, write_dataset_yaml
 from yolo_data_manager.io.layout import detect_layout
-from yolo_data_manager.io.backup import restore_label_backup
+from yolo_data_manager.io.backup import (
+    ensure_source_labels_backup,
+    restore_label_backup,
+)
 from yolo_data_manager.io.loader import load_yolo_dataset
 from yolo_data_manager.io.output_paths import (
     default_annotation_output,
@@ -1479,6 +1482,16 @@ def handle_dataset_split(args: argparse.Namespace) -> int:
         else _resolved_output_root(args.root) / "labels_backup"
     )
     split_counts = {name: len(values) for name, values in splits.items()}
+    if any((out_dir / f"{name}.txt").is_file() for name in ("train", "val", "test")):
+        ensure_source_labels_backup(
+            _resolved_output_root(args.root),
+            backup_root,
+            source_paths=(
+                image.label_path
+                for image in dataset.images
+                if image.label_path is not None
+            ),
+        )
     backup_snapshot = move_existing_split_files_to_backup(
         out_dir,
         backup_root,

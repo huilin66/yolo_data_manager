@@ -628,6 +628,12 @@ def make_dataset(root: Path) -> Path:
     return root
 
 
+def operation_snapshots(backup_root: Path) -> list[Path]:
+    return sorted(
+        path for path in backup_root.iterdir() if path.name != "source_labels"
+    )
+
+
 def test_load_query_and_validate(tmp_path):
     root = make_dataset(tmp_path / "yolo")
     dataset = load_yolo_dataset(root)
@@ -908,7 +914,7 @@ def test_dataset_split_moves_existing_split_files_to_timestamped_backup(tmp_path
         ]
     ) == 0
 
-    snapshots = list((root / "labels_backup").iterdir())
+    snapshots = operation_snapshots(root / "labels_backup")
     assert len(snapshots) == 1
     snapshot = snapshots[0]
     assert snapshot.is_dir()
@@ -1059,7 +1065,7 @@ def test_write_yolo_dataset_backups_source_labels_before_writing(tmp_path):
         backup_dir=backup_root,
     )
 
-    snapshots = list(backup_root.iterdir())
+    snapshots = operation_snapshots(backup_root)
     assert backup is not None
     assert backup.count == 2
     assert len(snapshots) == 1
@@ -1074,7 +1080,7 @@ def test_write_yolo_dataset_defaults_backup_to_dataset_root(tmp_path):
 
     write_yolo_dataset(dataset, tmp_path / "output", workers=1)
 
-    snapshots = list((root / "labels_backup").iterdir())
+    snapshots = operation_snapshots(root / "labels_backup")
     assert len(snapshots) == 1
     assert (snapshots[0] / "labels" / "a.txt").exists()
     assert (snapshots[0] / "labels" / "b.txt").exists()
@@ -1268,7 +1274,7 @@ def test_dataset_filter_without_out_rewrites_source_and_backups_labels(tmp_path,
     assert (root / "images" / "a.jpg").is_file()
     assert (root / "images" / "b.jpg").is_file()
 
-    snapshots = list((root / "labels_backup").iterdir())
+    snapshots = operation_snapshots(root / "labels_backup")
     assert len(snapshots) == 1
     assert (snapshots[0] / "labels" / "a.txt").read_text(encoding="utf-8") == original_a
     assert (snapshots[0] / "labels" / "b.txt").read_text(encoding="utf-8") == original_b
@@ -1719,7 +1725,7 @@ def test_correct_labels_from_crops_backups_changed_labels_with_timestamp(tmp_pat
         backup_dir=backup_root,
     )
 
-    snapshots = list(backup_root.iterdir())
+    snapshots = operation_snapshots(backup_root)
     assert len(snapshots) == 1
     assert snapshots[0].name.count("_") == 2
     assert result.backup_files == 1
@@ -1751,7 +1757,7 @@ def test_crop_correction_uses_dataset_default_backup_dir(tmp_path):
     dataset = load_yolo_dataset(root)
     result, _ = correct_labels_from_crops(dataset, crops, "person")
 
-    snapshots = list((root / "labels_backup").iterdir())
+    snapshots = operation_snapshots(root / "labels_backup")
     assert len(snapshots) == 1
     assert Path(result.backup_dir) == snapshots[0]
     assert (snapshots[0] / "labels" / "a.txt").read_text(encoding="utf-8") == original
@@ -1843,7 +1849,7 @@ def test_correct_gt_attributes_from_error_crops_updates_selected_gt_attribute(tm
         "0 1 0 0.5 0.5 0.2 0.2\n"
         "0 1 0 0.4 0.4 0.2 0.2\n"
     )
-    snapshots = list(backup_root.iterdir())
+    snapshots = operation_snapshots(backup_root)
     assert len(snapshots) == 1
     assert (snapshots[0] / "labels" / "a.txt").read_text(encoding="utf-8") == original
 
@@ -1901,7 +1907,7 @@ def test_attribute_error_crops_accept_directory_to_attribute_map(tmp_path):
         "0 1 0 0.5 0.5 0.2 0.2\n"
         "0 1 1 0.4 0.4 0.2 0.2\n"
     )
-    snapshots = list(backup_root.iterdir())
+    snapshots = operation_snapshots(backup_root)
     assert len(snapshots) == 1
 
 
@@ -1951,7 +1957,7 @@ def test_attribute_crops_accept_standard_crop_names_and_mapping(tmp_path):
     assert result.crop_files == 1
     assert result.unchanged == 1
     assert report.rows == []
-    snapshots = list(backup_root.iterdir())
+    snapshots = operation_snapshots(backup_root)
     assert len(snapshots) == 1
     assert (snapshots[0] / "labels" / "a.txt").read_text(encoding="utf-8") == original
 
@@ -1978,7 +1984,7 @@ def test_yolo_manager_attribute_update_map_updates_in_place(tmp_path):
     assert (root / "labels" / "a.txt").read_text(encoding="utf-8") == (
         "0 1 1 0.5 0.5 0.2 0.2\n"
     )
-    snapshots = list((root / "labels_backup").iterdir())
+    snapshots = operation_snapshots(root / "labels_backup")
     assert len(snapshots) == 1
     assert (snapshots[0] / "labels" / "a.txt").read_text(encoding="utf-8") == original
 
@@ -2073,7 +2079,7 @@ def test_correct_gt_labels_from_error_crops_replaces_gt_from_prediction(tmp_path
     assert result.deleted == 1
     assert result.added == 1
     assert result.changed == 3
-    snapshots = list(backup_root.iterdir())
+    snapshots = operation_snapshots(backup_root)
     assert len(snapshots) == 1
     assert result.backup_files == 1
     assert (snapshots[0] / "labels" / "a.txt").read_text(encoding="utf-8") == original

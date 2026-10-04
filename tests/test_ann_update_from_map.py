@@ -6,6 +6,12 @@ from PIL import Image
 from yolo_data_manager import YoloManager
 
 
+def operation_snapshots(backup_root: Path) -> list[Path]:
+    return sorted(
+        path for path in backup_root.iterdir() if path.name != "source_labels"
+    )
+
+
 def _make_class_map_dataset(root: Path) -> Path:
     (root / "images").mkdir(parents=True)
     (root / "labels").mkdir()
@@ -70,7 +76,7 @@ def test_ann_update_from_map_updates_labels_classes_and_backups(tmp_path):
     assert (root / "labels" / "b.txt").read_text(encoding="utf-8") == ""
     assert (root / "images" / "b.jpg").is_file()
 
-    snapshots = list((root / "labels_backup").iterdir())
+    snapshots = operation_snapshots(root / "labels_backup")
     assert len(snapshots) == 1
     assert sorted(
         path.relative_to(snapshots[0]).as_posix()
@@ -119,6 +125,6 @@ def test_ann_update_from_map_updates_yaml_class_source_and_backups_it(tmp_path):
     assert (root / "labels" / "a.txt").read_text(encoding="utf-8").splitlines() == [
         "0 0.5 0.5 0.2 0.2",
     ]
-    snapshots = list((root / "labels_backup").iterdir())
+    snapshots = operation_snapshots(root / "labels_backup")
     assert len(snapshots) == 1
     assert (snapshots[0] / "dataset.yaml").is_file()

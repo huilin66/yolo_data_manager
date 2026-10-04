@@ -6,6 +6,12 @@ from PIL import Image
 from yolo_data_manager.scripting import YoloManager, build_task_argv
 
 
+def operation_snapshots(backup_root: Path) -> list[Path]:
+    return sorted(
+        path for path in backup_root.iterdir() if path.name != "source_labels"
+    )
+
+
 def _make_dataset(root: Path) -> Path:
     (root / "images").mkdir(parents=True)
     (root / "labels").mkdir()
@@ -52,7 +58,7 @@ def test_crop_class_mapping_uses_one_backup_snapshot(tmp_path):
         "0 0.4 0.4 0.2 0.2",
     ]
     assert (root / "labels" / "b.txt").read_text(encoding="utf-8") == ""
-    snapshots = list(backup_root.iterdir())
+    snapshots = operation_snapshots(backup_root)
     assert len(snapshots) == 1
     assert sorted(path.name for path in snapshots[0].rglob("*.txt")) == ["a.txt", "b.txt"]
 
@@ -103,7 +109,7 @@ def test_error_crop_class_mapping_uses_one_backup_snapshot(tmp_path):
         "0 0.4 0.4 0.2 0.2",
     ]
     assert (root / "labels" / "b.txt").read_text(encoding="utf-8") == ""
-    snapshots = list(backup_root.iterdir())
+    snapshots = operation_snapshots(backup_root)
     assert len(snapshots) == 1
     assert sorted(path.name for path in snapshots[0].rglob("*.txt")) == ["a.txt", "b.txt"]
 

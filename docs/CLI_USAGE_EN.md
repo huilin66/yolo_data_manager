@@ -58,7 +58,7 @@ Explicit `--out`, `--csv`, and `--plots-dir` values always take precedence. When
 
 ```text
 <dataset_root>/
-  labels_backup/                         # timestamped label backups
+  labels_backup/                         # timestamped backups; first run has source_labels/
   ydm_quality/                           # check, query, duplicates, bad-images
   ydm_stats/                             # stats.json, CSV files, plots/
   ydm_vis/                               # draw/, crop/, manual_box/
@@ -126,7 +126,9 @@ ydm ann correct-attr-from-error-crops --root path/to/yolo --crops-dir result_ana
 `correct-from-error-crops` uses the `y` in `xxx_predx_gty` to locate the GT annotation. When `--pred-dir` is provided, a crop with `gt none` appends prediction txt record `x` to the corresponding GT label, omitting prediction confidence. Without `--pred-dir`, `gt none` crops are skipped.
 Added predictions and `--replace-gt-from-pred` replacement boxes are deduplicated by same-class IoU on the same image; overlapping candidates keep the higher-confidence prediction, and a suppressed replacement deletes its duplicate GT row. Use `--dedup-iou` to change the default `0.5` threshold.
 With `--delete-pred-none`, `prednone_gty` deletes GT annotation `y` even when `--to` names an update class. For deletion-only review crops, use `--to none --delete-pred-none`; `predx_gty` continues to follow `--to`. With `--replace-gt-from-pred` and `--pred-dir`, `predx_gty` replaces GT row `y` completely with prediction row `x` (class and geometry), `prednone_gty` deletes, and `predx_gtnone` appends.
-Commands that write GT label txt files, including `dataset filter`, `dataset merge`, and `ann` edits, support `--backup-dir` to snapshot current input labels before writing. When omitted, the default is `<dataset-root>/labels_backup`; passing it overrides the default. Crop corrections back up only labels they actually change. Each run creates a `YYYYMMDD_HHMMSS_microseconds` snapshot directory and preserves paths relative to the dataset root; a label file is copied at most once per run. `--dry-run` does not create a backup.
+Commands that write GT label txt files, including `dataset filter`, `dataset merge`, and `ann` edits, support `--backup-dir` to snapshot current input labels before writing. When omitted, the default is `<dataset-root>/labels_backup`; passing it overrides the default. The first real backup also creates an immutable `source_labels/` baseline containing all source labels and available schema files before the first write. Crop corrections back up only labels they actually change. Each run creates a `YYYYMMDD_HHMMSS_microseconds` snapshot directory and preserves paths relative to the dataset root; a label file is copied at most once per run. `--dry-run` does not create a backup.
+
+Use `ydm ann restore-backup --root path/to/yolo --timestamp source_labels` to restore the first baseline, or pass an operation timestamp to roll back later operations. Current files are backed up before restoration by default; add `--no-backup-current` only when that safety snapshot is not needed.
 
 ## Dataset Operations
 

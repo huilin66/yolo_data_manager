@@ -1341,8 +1341,10 @@ class YoloManager:
     ) -> int:
         """Restore files from a timestamped backup snapshot.
 
-        The current versions of the files being restored are backed up first
-        under ``labels_backup`` unless ``backup_current=False``.
+        ``source_labels`` restores the immutable first-source baseline;
+        timestamped operation snapshots roll back later backups in reverse
+        order. The current versions of the files being restored are backed up
+        first under ``labels_backup`` unless ``backup_current=False``.
         """
 
         return self._run(
@@ -1385,7 +1387,10 @@ class YoloManager:
         from yolo_data_manager.annotation.remap import apply_class_map_data
         from yolo_data_manager.core.models import YoloImage
         from yolo_data_manager.core.schema import find_class_source
-        from yolo_data_manager.io.backup import LabelBackup
+        from yolo_data_manager.io.backup import (
+            LabelBackup,
+            ensure_source_labels_backup,
+        )
         from yolo_data_manager.io.loader import load_yolo_dataset, parse_label_file
 
         dataset = load_yolo_dataset(
@@ -1438,6 +1443,16 @@ class YoloManager:
         if not dry_run:
             resolved_backup_dir = (
                 self.output_labels_backup if backup_dir is None else backup_dir
+            )
+            ensure_source_labels_backup(
+                self.root,
+                resolved_backup_dir,
+                source_paths=(
+                    image.label_path
+                    for image in dataset.images
+                    if image.label_path is not None
+                ),
+                extra_paths=[class_source],
             )
             backup = LabelBackup(
                 self.root,

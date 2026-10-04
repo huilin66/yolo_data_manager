@@ -12,7 +12,7 @@ from typing import Any
 from yolo_data_manager.core.models import YoloAnnotation, YoloDataset, YoloImage, is_image_file
 from yolo_data_manager.annotation.edit import EditReport, EditRow
 from yolo_data_manager.io.loader import parse_label_file
-from yolo_data_manager.io.backup import LabelBackup
+from yolo_data_manager.io.backup import LabelBackup, ensure_source_labels_backup
 
 
 _CROP_NAME_RE = re.compile(r"^(?P<stem>.+)_(?P<index>[1-9][0-9]*)$")
@@ -178,6 +178,8 @@ def correct_labels_from_crops(
             dry_run=dry_run,
         )
 
+    if not dry_run:
+        _ensure_crop_source_backup(dataset, backup_dir)
     backup = (
         LabelBackup(dataset.root, backup_dir, method="ann.correct_from_crops")
         if not dry_run
@@ -213,6 +215,8 @@ def correct_labels_from_crop_map(
     if not crops_to_classes:
         raise ValueError("crops_to_classes must contain at least one crop directory")
 
+    if not dry_run:
+        _ensure_crop_source_backup(dataset, backup_dir)
     backup = (
         LabelBackup(dataset.root, backup_dir, method="ann.correct_from_crops")
         if not dry_run
@@ -317,6 +321,25 @@ def _set_crop_backup_info(
             method=method,
             result=_backup_result_summary(result.to_dict()),
         )
+
+
+def _ensure_crop_source_backup(
+    dataset: YoloDataset,
+    backup_dir: str | Path | None,
+) -> None:
+    ensure_source_labels_backup(
+        dataset.root,
+        backup_dir,
+        source_paths=(
+            image.label_path
+            for image in dataset.images
+            if image.label_path is not None
+        ),
+        extra_paths=(
+            Path(dataset.root) / name
+            for name in ("class.txt", "dataset.yaml", "attribute.yaml")
+        ),
+    )
 
 
 def _backup_result_summary(result: Mapping[str, Any]) -> dict[str, Any]:
@@ -514,6 +537,8 @@ def _correct_gt_labels_from_error_crop_specs(
             if target_class_by_target is not None:
                 target_class_by_target[(stem, gt_index)] = mapped_target_id
 
+    if not dry_run:
+        _ensure_crop_source_backup(dataset, backup_dir)
     backup = (
         LabelBackup(dataset.root, backup_dir, method=operation)
         if not dry_run
@@ -886,6 +911,8 @@ def _correct_gt_attributes_from_error_crop_specs(
         result.changed += 1
 
     resolved_backup_method = backup_method or operation
+    if not dry_run:
+        _ensure_crop_source_backup(dataset, backup_dir)
     backup = (
         LabelBackup(dataset.root, backup_dir, method=resolved_backup_method)
         if not dry_run

@@ -9,7 +9,11 @@ from typing import Any
 
 from yolo_data_manager.core.models import YoloDataset, YoloImage
 from yolo_data_manager.core.schema import write_attribute_schema, write_class_schema, write_dataset_yaml
-from yolo_data_manager.io.backup import LabelBackup, write_snapshot_metadata
+from yolo_data_manager.io.backup import (
+    LabelBackup,
+    ensure_source_labels_backup,
+    write_snapshot_metadata,
+)
 from yolo_data_manager.logging_utils import current_operation
 from yolo_data_manager.runtime import iter_progress, normalize_workers
 
@@ -37,6 +41,19 @@ def write_yolo_dataset(
 
     backup_obj: LabelBackup | None = None
     if backup:
+        ensure_source_labels_backup(
+            dataset.root,
+            backup_dir,
+            source_paths=(
+                image.label_path
+                for image in dataset.images
+                if image.label_path is not None
+            ),
+            extra_paths=(
+                Path(dataset.root) / name
+                for name in ("class.txt", "dataset.yaml", "attribute.yaml")
+            ),
+        )
         backup_obj = LabelBackup(
             dataset.root,
             backup_dir,
@@ -116,6 +133,19 @@ def write_yolo_labels_in_place(
     of :func:`write_yolo_dataset` for annotation-only operations.
     """
 
+    ensure_source_labels_backup(
+        dataset.root,
+        backup_dir,
+        source_paths=(
+            image.label_path
+            for image in dataset.images
+            if image.label_path is not None
+        ),
+        extra_paths=(
+            Path(dataset.root) / name
+            for name in ("class.txt", "dataset.yaml", "attribute.yaml")
+        ),
+    )
     backup_obj = LabelBackup(
         dataset.root,
         backup_dir,

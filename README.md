@@ -173,7 +173,7 @@ ydm eval error-analysis-common --error-dir error_report_model_a --error-dir erro
 - Write operations default to a new output directory and do not overwrite the source dataset in place.
 - The CLI and `YoloManager` use common runtime defaults: `workers=8`, temporary tqdm progress bars, and `leave=False`. Tune them with `--workers/--no-progress/--progress-leave` or Python `workers/progress/progress_leave`.
 - `check` writes the full validation report to JSON, while the terminal prints only a red warning/error summary or a green OK summary. Without an output path, the default report is `<root>/ydm_quality/check.json`.
-- Default analysis outputs use `ydm_quality/`, `ydm_stats/`, `ydm_vis/`, `ydm_evaluation/`, `ydm_dataset/`, `ydm_annotation/`, and `ydm_conversion/`; `labels_backup/` remains unprefixed.
+- Default analysis outputs use `ydm_quality/`, `ydm_stats/`, `ydm_vis/`, `ydm_evaluation/`, `ydm_dataset/`, `ydm_annotation/`, and `ydm_conversion/`; `labels_backup/` remains unprefixed. The first real label backup also creates an immutable `labels_backup/source_labels/` baseline for restoration.
 - CLI and YoloManager operations write timestamped daily logs to `ydm_log/YYYY-MM-DD.log` under the dataset root; console operation messages include local timestamps.
 - `vis draw` and `vis crop` clear their output directory before running by default (pass `clean=False` in Python or `--no-clean` in the CLI to keep existing outputs).
 - `train.txt`, `val.txt`, `test.txt`, and `dataset.yaml` remain at the dataset root. Multimodal workflows add `rgb/`, `depth/`, and similar subdirectories only inside the relevant functional group; there is no `ydm_multimodal/` directory.

@@ -211,7 +211,7 @@ mgr.ann_att_correct_from_error_crops(
 # error-analysis crop 使用 `xxx_predx_gty`；提供 pred_dir 后，gtnone 会按 predx 从预测 txt 追加到 GT。
 # delete_pred_none=True 时，prednone_gty 会删除第 y 条 GT，即使 to 设置为更新类别。
 # replace_gt_from_pred=True 时，predx_gty 会用预测第 x 条完整替换 GT 第 y 条（类别和 geometry），并按 dedup_iou 对同图同类替换框去重；被抑制的重复 GT 会删除。
-# backup_dir 指定写出 GT 前的备份目录；省略时默认是 `<数据集根目录>/labels_backup`。每次实际写入会创建带时间戳的快照子目录，dry_run=True 不会创建备份。
+# backup_dir 指定写出 GT 前的备份目录；省略时默认是 `<数据集根目录>/labels_backup`。第一次实际备份会额外创建不可覆盖的 `source_labels/` 基线目录，保存首次备份前的全部源 label 及可用 schema；每次实际写入还会创建带时间戳的快照子目录，dry_run=True 不会创建备份。可用 `mgr.ann_restore_backup("source_labels")` 恢复基线，或传入时间戳回滚到对应备份点。
 # 属性错误 crop 使用 `xxx_predx_gty_<attribute>`，其中 `y` 定位 GT 框；去掉 dry_run=True 后只修改目标框的指定属性。
 
 # 可视化
@@ -394,7 +394,7 @@ mgr.eval_error_analysis(pred_root="pred", out="error_report", review=True, worke
 Python API 与 CLI 使用相同的默认输出规则；显式传入 `out`、`csv` 或 `plots_dir` 时仍以显式路径为准：
 
 ```text
-<root>/labels_backup/       label 写入前的时间戳备份
+<root>/labels_backup/       label 写入前的时间戳备份，首次包含 source_labels/ 基线
 <root>/ydm_quality/         check、query、duplicates、bad-images
 <root>/ydm_stats/           stats.json、CSV、plots/
 <root>/ydm_vis/             draw/、crop/、manual_box/
