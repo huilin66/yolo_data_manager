@@ -85,7 +85,13 @@ def load_yolo_dataset(
             )
         else:
             source_lists = [Path(effective_split_file)] if effective_split_file is not None else layout_info.split_files
-            image_paths = read_image_list(source_lists, root_path, images_dir=images_dir)
+            image_paths = read_image_list(
+                source_lists,
+                root_path,
+                images_dir=images_dir,
+                progress=progress,
+                desc="load read split image list",
+            )
     else:
         image_paths = scan_matching_files(
             image_root,

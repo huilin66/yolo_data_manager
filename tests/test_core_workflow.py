@@ -1088,7 +1088,7 @@ def test_write_yolo_dataset_defaults_backup_to_dataset_root(tmp_path):
     assert (snapshots[0] / "labels" / "b.txt").exists()
 
 
-def test_image_list_layout(tmp_path):
+def test_image_list_layout(tmp_path, capsys):
     root = tmp_path / "list_yolo"
     (root / "images").mkdir(parents=True)
     (root / "labels").mkdir(parents=True)
@@ -1097,12 +1097,15 @@ def test_image_list_layout(tmp_path):
     (root / "class.txt").write_text("obj\n", encoding="utf-8")
     (root / "train.txt").write_text("images/a.jpg\n", encoding="utf-8")
 
-    info = detect_layout(root)
-    dataset = load_yolo_dataset(root, layout="auto")
+    info = detect_layout(root, progress=True)
+    dataset = load_yolo_dataset(root, layout="auto", progress=True)
+    captured = capsys.readouterr()
 
     assert info.layout == "image_list"
     assert len(dataset.images) == 1
     assert dataset.annotation_count() == 1
+    assert "layout read split image list..." in captured.err
+    assert "load read split image list..." in captured.err
 
 
 @pytest.mark.parametrize(

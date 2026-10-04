@@ -12,7 +12,8 @@ from pathlib import Path
 from yolo_data_manager import YoloManager
 
 # DATA_DIR = Path(r"D:\zhl\data\road_forniture_v1")
-DATA_DIR = Path(r"D:\zhl\data\road_forniture_v1_rename")
+# DATA_DIR = Path(r"D:\zhl\data\road_forniture_v1_rename")
+DATA_DIR = Path(r"Z:\huilin\road_asset\data\merged_data\road_forniture_v3_src")
 PRED_RUNS_DIR = Path(r"D:\zhl\project\ultralytics\runs\detect")
 
 
@@ -33,7 +34,7 @@ CROP_MAP_PRED = {
 }
 # Select operations by uncommenting names in RUN_LIST.
 RUN_LIST = [
-    # "rename",
+    "rename",
     # "split",
     # "resize",
     # "sta",
@@ -49,7 +50,7 @@ RUN_LIST = [
     # "filter_small",
     # "mannual_draw",
     # "update_class_from_anno",
-    "update_class_from_pred",
+    # "update_class_from_pred",
     # "update_att_from_anno",
     # "update_att_from_pred",
 ]
@@ -60,7 +61,7 @@ def main() -> None:
     # preprocess
     if "rename" in RUN_LIST:
         ydm.remap_filenames(
-            out=ydm.root + "_rename",
+            out=r"Z:\huilin\road_asset\data\merged_data\road_forniture_v3",
         )
     if "resize" in RUN_LIST:
         ydm.resize_images(

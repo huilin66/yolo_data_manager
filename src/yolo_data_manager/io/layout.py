@@ -5,7 +5,11 @@ from dataclasses import dataclass, field
 
 from yolo_data_manager.core.models import is_image_file
 from yolo_data_manager.core.schema import find_class_source, read_dataset_class_schema
-from yolo_data_manager.runtime import ProgressCallback, count_matching_files
+from yolo_data_manager.runtime import (
+    ProgressCallback,
+    count_matching_files,
+    progress_stage,
+)
 
 
 @dataclass
@@ -50,7 +54,12 @@ def detect_layout(
     root_path = Path(root)
     split_files = [root_path / name for name in ("train.txt", "val.txt", "test.txt") if (root_path / name).exists()]
     if split_files:
-        return _image_list_layout(root_path, split_files, images_dir=images_dir)
+        return _image_list_layout(
+            root_path,
+            split_files,
+            images_dir=images_dir,
+            progress=progress,
+        )
 
     images_root = _resolve_under(root_path, images_dir)
     labels_root = root_path / "labels"
@@ -190,7 +199,12 @@ def resolve_layout(
         )
     if layout == "image_list":
         split_files = [root_path / name for name in ("train.txt", "val.txt", "test.txt") if (root_path / name).exists()]
-        return _image_list_layout(root_path, split_files, images_dir=images_dir)
+        return _image_list_layout(
+            root_path,
+            split_files,
+            images_dir=images_dir,
+            progress=progress,
+        )
     if layout == "mixed":
         return LayoutInfo(
             layout="mixed",
@@ -220,7 +234,10 @@ def read_image_list(
     root: Path,
     *,
     images_dir: str | Path = "images",
+    progress: bool = False,
+    desc: str = "read split image list",
 ) -> list[Path]:
+    progress_stage(desc, enabled=progress)
     image_root = _resolve_under(root, images_dir)
     image_paths: list[Path] = []
     for list_path in paths:
@@ -249,8 +266,15 @@ def _image_list_layout(
     split_files: list[Path],
     *,
     images_dir: str | Path = "images",
+    progress: bool = False,
 ) -> LayoutInfo:
-    image_paths = read_image_list(split_files, root, images_dir=images_dir)
+    image_paths = read_image_list(
+        split_files,
+        root,
+        images_dir=images_dir,
+        progress=progress,
+        desc="layout read split image list",
+    )
     label_paths = [infer_label_path_from_image(path) for path in image_paths]
     return LayoutInfo(
         layout="image_list",
