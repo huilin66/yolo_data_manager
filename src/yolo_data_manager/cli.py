@@ -912,7 +912,10 @@ def build_parser() -> argparse.ArgumentParser:
     filename_remap.add_argument(
         "--mapping-file",
         default=None,
-        help="mapping JSON path; defaults to <root>/ydm_conversion/filename_mapping.json",
+        help=(
+            "additional mapping JSON path; by default the mapping is written to "
+            "both source and output ydm_conversion directories"
+        ),
     )
     filename_remap.add_argument(
         "--dry-run",

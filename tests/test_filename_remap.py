@@ -66,6 +66,9 @@ def test_remap_yolo_dataset_filenames_copies_labels_and_writes_mapping(tmp_path)
             encoding="utf-8"
         )
     )
+    output_mapping_path = output / "ydm_conversion" / "filename_mapping.json"
+    assert output_mapping_path.is_file()
+    assert json.loads(output_mapping_path.read_text(encoding="utf-8")) == mapping
     assert mapping["digits"] == 4
     assert mapping["image_mapping"] == {
         "images/a.jpg": "images/0010.jpg",
@@ -110,4 +113,5 @@ def test_filename_remap_cli_and_python_task_argv(tmp_path, capsys):
     ) == 0
     assert (output / "images" / "000001.jpg").is_file()
     assert (source / "ydm_conversion" / "filename_mapping.json").is_file()
+    assert (output / "ydm_conversion" / "filename_mapping.json").is_file()
     assert '"images": 2' in capsys.readouterr().out

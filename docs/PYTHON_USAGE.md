@@ -361,7 +361,7 @@ mgr.import_mask(
 
 `resize_images` 默认保持宽高比；使用 letterbox 时会自动同步变换检测框和分割多边形，`keep_ratio=False` 则直接拉伸图像，归一化 YOLO 坐标保持不变。默认输出目录为 Manager 根目录下的 `ydm_conversion/resize`。
 
-`remap_filenames` 会把图像和对应 label 复制到新数据集，并将文件名改为统一的数字编号；不传 `digits` 时，编号位数按“图像数量乘以 10 后向上取最近的十次幂”计算。例如 8,951 张图像使用六位编号（`000000.jpg`、`000001.jpg`……）。默认从 0 开始，也可以通过 `start` 修改。原始数据不会被覆盖，未指定 `mapping_file` 时映射关系保存为 `<root>/ydm_conversion/filename_mapping.json`；显式指定 `mapping_file` 时使用指定路径，输出目录默认为 Manager 根目录下的 `ydm_conversion/filename_remap`。
+`remap_filenames` 会把图像和对应 label 复制到新数据集，并将文件名改为统一的数字编号；不传 `digits` 时，编号位数按“图像数量乘以 10 后向上取最近的十次幂”计算。例如 8,951 张图像使用六位编号（`000000.jpg`、`000001.jpg`……）。默认从 0 开始，也可以通过 `start` 修改。原始数据不会被覆盖，未指定 `mapping_file` 时同一份映射关系会同时保存到原数据集的 `<root>/ydm_conversion/filename_mapping.json` 和目标数据集的 `<out>/ydm_conversion/filename_mapping.json`；显式指定 `mapping_file` 时该路径也会保存一份，输出目录默认为 Manager 根目录下的 `ydm_conversion/filename_remap`。
 
 `YoloManager(..., layout="auto")` 初始化时会先做 layout 扫描，再加载图片和 label，最后执行 check。
 

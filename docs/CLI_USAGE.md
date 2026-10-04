@@ -290,7 +290,7 @@ ydm convert filename-remap --root yolo_data --out yolo_numeric
 
 `convert resize` 默认保持宽高比；同时指定 `--width` 和 `--height` 时会使用灰色 letterbox，并同步变换检测框和分割多边形。使用 `--no-keep-ratio` 可直接拉伸到目标尺寸。输出默认位于 `<root>/ydm_conversion/resize`，原始数据不会被覆盖。
 
-`convert filename-remap` 会复制图像和对应 label，并将文件名改为统一的数字编号；省略 `--digits` 时按图像数量乘以 10 后向上取最近的十次幂确定位数。例如 8,951 张图像使用六位编号。默认从 0 开始，`--start` 可修改起始编号；未指定 `--mapping-file` 时映射关系默认写入 `<root>/ydm_conversion/filename_mapping.json`，显式指定时使用指定路径，默认输出为 `<root>/ydm_conversion/filename_remap`。
+`convert filename-remap` 会复制图像和对应 label，并将文件名改为统一的数字编号；省略 `--digits` 时按图像数量乘以 10 后向上取最近的十次幂确定位数。例如 8,951 张图像使用六位编号。默认从 0 开始，`--start` 可修改起始编号；未指定 `--mapping-file` 时同一份映射会同时写入原数据集和目标数据集的 `ydm_conversion/filename_mapping.json`，显式指定的路径也会额外保存一份，默认输出为 `<root>/ydm_conversion/filename_remap`。
 
 ## VLM
 

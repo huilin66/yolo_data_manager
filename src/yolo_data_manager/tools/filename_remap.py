@@ -51,6 +51,7 @@ class FilenameRemapResult:
     out: Path
     mapping: Path
     split_counts: dict[str, int]
+    mapping_files: tuple[Path, ...] = ()
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -60,6 +61,7 @@ class FilenameRemapResult:
             "start": self.start,
             "out": str(self.out),
             "mapping": str(self.mapping),
+            "mapping_files": [str(path) for path in self.mapping_files],
             "split_counts": dict(self.split_counts),
         }
 
@@ -184,7 +186,7 @@ def remap_yolo_dataset_filenames(
         if (source_root / f"{split_name}.txt").is_file()
     }
     split_lines = _remapped_split_lines(source_root, source_split_files, jobs)
-    mapping_path = _resolve_mapping_path(source_root, out_path, mapping_file)
+    mapping_paths = _resolve_mapping_paths(source_root, out_path, mapping_file)
 
     if not dry_run:
         out_path.mkdir(parents=True, exist_ok=True)
@@ -226,7 +228,7 @@ def remap_yolo_dataset_filenames(
             )
 
         _write_mapping_json(
-            mapping_path,
+            mapping_paths,
             source_root=source_root,
             out_path=out_path,
             digits=resolved_digits,
@@ -241,8 +243,9 @@ def remap_yolo_dataset_filenames(
         digits=resolved_digits,
         start=start,
         out=out_path,
-        mapping=mapping_path,
+        mapping=mapping_paths[0],
         split_counts={name: len(lines) for name, lines in split_lines.items()},
+        mapping_files=tuple(mapping_paths),
     )
 
 
@@ -281,15 +284,29 @@ def _new_label_relative_path(source_relative: Path, new_stem: str) -> Path:
     return source_relative.parent / f"{new_stem}.txt"
 
 
-def _resolve_mapping_path(
+def _resolve_mapping_paths(
     source_root: Path,
     out_path: Path,
     mapping_file: str | Path | None,
-) -> Path:
-    if mapping_file is None:
-        return ydm_dir(source_root, "conversion") / "filename_mapping.json"
-    path = Path(mapping_file)
-    return path if path.is_absolute() else out_path / path
+) -> list[Path]:
+    """Return mapping destinations for both source and output datasets."""
+
+    source_mapping = ydm_dir(source_root, "conversion") / "filename_mapping.json"
+    output_mapping = ydm_dir(out_path, "conversion") / "filename_mapping.json"
+    candidates = [source_mapping, output_mapping]
+    if mapping_file is not None:
+        path = Path(mapping_file)
+        candidates.insert(0, path if path.is_absolute() else out_path / path)
+
+    result: list[Path] = []
+    seen: set[Path] = set()
+    for candidate in candidates:
+        resolved = candidate.resolve()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        result.append(candidate)
+    return result
 
 
 def _copy_remap_job(job: _FilenameRemapJob) -> None:
@@ -385,7 +402,7 @@ def _normalise_key(value: str | Path) -> str:
 
 
 def _write_mapping_json(
-    path: Path,
+    paths: list[Path],
     *,
     source_root: Path,
     out_path: Path,
@@ -394,7 +411,6 @@ def _write_mapping_json(
     jobs: list[_FilenameRemapJob],
     split_counts: dict[str, int],
 ) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
     image_mapping: dict[str, str] = {}
     label_mapping: dict[str, str] = {}
     for job in jobs:
@@ -416,8 +432,8 @@ def _write_mapping_json(
         "label_mapping": label_mapping,
         "items": [job.item.to_dict() for job in jobs],
     }
-    path.write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+    text = json.dumps(payload, ensure_ascii=False, indent=2)
+    for path in paths:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
 
