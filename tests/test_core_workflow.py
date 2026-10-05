@@ -113,6 +113,13 @@ def test_build_python_task_argv():
     )
     assert "--no-ensure-class-presence" in split_no_balance_argv
 
+    split_require_labels_argv = build_task_argv(
+        "dataset.split",
+        root=Path("dataset"),
+        require_labels=True,
+    )
+    assert "--require-labels" in split_require_labels_argv
+
     stats_argv = build_task_argv(
         "stats",
         root=Path("dataset"),
@@ -722,6 +729,25 @@ def test_split_dataset_can_write_absolute_paths(tmp_path):
     assert sorted(absolute["train"]) == sorted(
         str((root / "images" / name).resolve()) for name in ["a.jpg", "b.jpg"]
     )
+
+
+def test_split_dataset_can_exclude_images_without_label_files(tmp_path):
+    root = make_dataset(tmp_path / "require_labels")
+    Image.new("RGB", (100, 80), color="white").save(root / "images" / "missing.jpg")
+    dataset = load_yolo_dataset(root)
+
+    splits = split_dataset(
+        dataset,
+        train=1.0,
+        val=0.0,
+        test=0.0,
+        seed=1,
+        require_labels=True,
+    )
+
+    assert splits["train"] == ["a.jpg", "b.jpg"]
+    assert splits["val"] == []
+    assert splits["test"] == []
 
 
 def test_split_dataset_zero_test_ratio_never_assigns_test_images(tmp_path):

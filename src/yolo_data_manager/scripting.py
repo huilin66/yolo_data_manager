@@ -709,6 +709,7 @@ class YoloManager:
         train_include_list: str | Path | Sequence[str] | None = None,
         val_include_list: str | Path | Sequence[str] | None = None,
         ensure_class_presence: bool = True,
+        require_labels: bool = False,
         **kwargs: Any,
     ) -> int:
         """Write train/val/test split files (``ydm dataset split``)."""
@@ -724,6 +725,7 @@ class YoloManager:
             train_include_list=train_include_list,
             val_include_list=val_include_list,
             ensure_class_presence=ensure_class_presence,
+            require_labels=require_labels,
             **kwargs,
         )
 

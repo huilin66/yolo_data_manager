@@ -105,7 +105,7 @@ ydm dataset normalize --root yolo_data --layout auto --out yolo_normalized
 ### 3. 数据集管理
 
 - split train/val/test
-- split 的 train/val/test 比例必须为非负数且总和接近 1.0；`test=0` 时先按 train 比例分配 train，余数全部进入 val。split 默认启用 `ensure_class_presence`：先尽量把有标注的类别分布到每个非空 split，再按类别 box 数量近似匹配 train/val/test 比例；样本不足时覆盖优先级为 train/test/val，`test=0` 时为 train/val。图像不可拆分，因此 include list、图像粒度和容量限制下只能近似满足；可用 `seed` 复现结果，或用 `--no-ensure-class-presence` / `ensure_class_presence=False` 关闭
+- split 的 train/val/test 比例必须为非负数且总和接近 1.0；`test=0` 时先按 train 比例分配 train，余数全部进入 val。split 默认启用 `ensure_class_presence`：先尽量把有标注的类别分布到每个非空 split，再按类别 box 数量近似匹配 train/val/test 比例；样本不足时覆盖优先级为 train/test/val，`test=0` 时为 train/val。图像不可拆分，因此 include list、图像粒度和容量限制下只能近似满足；可用 `seed` 复现结果，或用 `--no-ensure-class-presence` / `ensure_class_presence=False` 关闭。`require_labels=True` / `--require-labels` 时只划分存在对应 `.txt` 的图像。
 - select/copy 子集
 - merge 数据集
 - class id remap

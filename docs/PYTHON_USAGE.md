@@ -455,7 +455,7 @@ mgr.output_dataset_yaml
 
 `dataset_split` 会写出 `train.txt`、`val.txt`、`test.txt`，并在输出中显示 `total_class_counts` 和 `val_class_counts`，方便检查验证集类别分布。
 `train_include_list` 和 `val_include_list` 可以传图片名/路径列表，也可以传一个 txt 文件路径（每行一个图片名或路径）。这些图片会先从随机池中排除，再分别加入 train 或 val；两个列表不能包含同一张图片。相对图片路径按数据集根目录匹配，也支持图片文件名和 stem。
-`train`、`val`、`test` 必须是非负数，且总和接近 `1.0`；当 `test=0` 时先按 `train` 比例选择 train，剩余图像全部进入 val。`ensure_class_presence=True`（默认）会按图像中的类别和 box 数量进行加权分层分配：先尽量让每个有标注的类别出现在每个非空 split 中，再让各类别的 box 数量接近 train/val/test 比例。当类别样本不足时，覆盖优先级为 train > test > val，`test=0` 时为 train > val。由于一张图像不能拆分、include list 可能固定分配，或 split 容量不足，结果只能近似满足比例；传 `False` 可关闭该策略。`seed` 控制图像顺序和并列决策，因此结果可复现。
+`train`、`val`、`test` 必须是非负数，且总和接近 `1.0`；当 `test=0` 时先按 `train` 比例选择 train，剩余图像全部进入 val。`ensure_class_presence=True`（默认）会按图像中的类别和 box 数量进行加权分层分配：先尽量让每个有标注的类别出现在每个非空 split 中，再让各类别的 box 数量接近 train/val/test 比例。当类别样本不足时，覆盖优先级为 train > test > val，`test=0` 时为 train > val。由于一张图像不能拆分、include list 可能固定分配，或 split 容量不足，结果只能近似满足比例；传 `False` 可关闭该策略。`seed` 控制图像顺序和并列决策，因此结果可复现。设置 `require_labels=True` 时只对存在对应 `.txt` label 的图像进行划分，没有对应 label 的图像会被排除；默认值为 `False`。
 如果目标目录中原本存在 `train.txt`、`val.txt` 或 `test.txt`，split 写入前会将它们移动到 `<数据集根目录>/labels_backup/<时间戳>/`；可用 `backup_dir` 覆盖备份目录。
 
 `dataset_extract_split` 用已有的 split txt 把各 set 物化出来：每个传入的 `train_include_list` / `val_include_list` / `test_include_list` 会把对应图片写到 `<out>/<set>`，作为独立扁平数据集（`images/` + `labels/` + `class.txt` + `dataset.yaml`）。这几个参数可以传图片名/路径列表，也可以传一个 txt 文件路径（每行一个图片名或路径）。未传入的 set 会跳过，空 set 会报告为 0 张且不落盘；`dry_run=True` 只报告数量和输出路径而不写文件，`copy_images=False` 不复制图片，`keep_empty_labels=False` 丢弃空标签文件。`out` 默认为 `<数据集根目录>/ydm_subsets`，可用 `out` 参数指定其他目录。

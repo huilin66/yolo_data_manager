@@ -317,6 +317,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_false",
         help="disable class-presence and per-class box-count balancing",
     )
+    dataset_split.add_argument(
+        "--require-labels",
+        action="store_true",
+        help="split only images with an existing corresponding label txt",
+    )
     dataset_split.set_defaults(ensure_class_presence=True)
     dataset_split.set_defaults(handler=handle_dataset_split)
 
@@ -1477,6 +1482,7 @@ def handle_dataset_split(args: argparse.Namespace) -> int:
         train_include_list=args.train_include_list,
         val_include_list=args.val_include_list,
         ensure_class_presence=args.ensure_class_presence,
+        require_labels=args.require_labels,
     )
     out_dir = Path(args.out) if args.out else _resolved_output_root(args.root)
     backup_root = (

@@ -25,6 +25,7 @@ def split_dataset(
     train_include_list: SplitIncludeList = None,
     val_include_list: SplitIncludeList = None,
     ensure_class_presence: bool = True,
+    require_labels: bool = False,
 ) -> dict[str, list[str]]:
     ratios = {"train": float(train), "val": float(val), "test": float(test)}
     if not all(math.isfinite(value) for value in ratios.values()):
@@ -37,6 +38,12 @@ def split_dataset(
         str(image.path.resolve()) if absolute_paths else image.file_name
         for image in dataset.images
     ]
+    eligible_indices = [
+        index
+        for index, image in enumerate(dataset.images)
+        if not require_labels
+        or (image.label_path is not None and Path(image.label_path).is_file())
+    ]
     train_indices = _resolve_include_indices(
         dataset,
         train_include_list,
@@ -47,6 +54,10 @@ def split_dataset(
         val_include_list,
         parameter="val_include_list",
     )
+    if require_labels:
+        eligible_set = set(eligible_indices)
+        train_indices = [index for index in train_indices if index in eligible_set]
+        val_indices = [index for index in val_indices if index in eligible_set]
     overlap = set(train_indices) & set(val_indices)
     if overlap:
         overlap_names = ", ".join(dataset.images[index].file_name for index in sorted(overlap))
@@ -56,7 +67,7 @@ def split_dataset(
         )
 
     forced = set(train_indices) | set(val_indices)
-    remaining_indices = [index for index in range(len(names)) if index not in forced]
+    remaining_indices = [index for index in eligible_indices if index not in forced]
     rng = random.Random(seed)
 
     if ensure_class_presence:

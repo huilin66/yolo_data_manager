@@ -103,7 +103,9 @@ requested train/val/test ratios. When class samples are insufficient, coverage
 priority is train > test > val; when `test=0`, it is train > val. Because an
 image cannot be split, forced include lists and split capacity can make exact
 ratios or full coverage impossible. `seed` controls image ordering and ties,
-so the result is reproducible. Pass `False` to disable this strategy.
+so the result is reproducible. Pass `False` to disable this strategy. Set
+`require_labels=True` to split only images with an existing corresponding label
+`.txt`; images without a label file are excluded. The default is `False`.
 If `train.txt`, `val.txt`, or `test.txt` already exists in the output directory,
 split moves it before writing into `<dataset-root>/labels_backup/<timestamp>/`;
 pass `backup_dir` to override the backup directory.
