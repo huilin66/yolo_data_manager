@@ -103,6 +103,12 @@ mgr.vis_draw(show_id=True, show_conf=True, style="cv2")
 mgr.vis_draw(show_attrs=True, filter_level=[1], att_seperate=True)
 mgr.vis_crop(out="crops", filter_level=[1], att_seperate=True)  # crops are copied into crop_att/attribute/value
 
+# Dataset information is loaded lazily and then cached by the manager.
+print(mgr.classes.names)
+print(len(mgr.dataset.images), mgr.dataset.annotation_count())
+# Use reload=True when files were changed outside the manager.
+mgr.load(reload=True)
+
 mgr.anno_update_by_size(
     min_width=0.01,
     min_height=0.01,

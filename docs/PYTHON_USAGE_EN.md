@@ -38,11 +38,19 @@ mgr = YoloManager(
     init_check_progress_leave=False,
 )
 
+# Lazy dataset access: images and labels are scanned only on first access.
+dataset = mgr.dataset
+print("Classes:", mgr.classes.names)
+print("Images:", len(dataset.images))
+print("Annotations:", dataset.annotation_count())
+# Rebuild the cache after files are changed outside the manager.
+dataset = mgr.load(reload=True)
+
 mgr.check(out="validation.json", fill_missing_txt=True)
 mgr.layout_detect()
 ```
 
-`YoloManager(..., layout="auto")` initializes by detecting layout, loading images/labels, and then running check.
+`YoloManager(..., layout="auto")` detects the layout and runs the initial check. Full image, label, and class parsing is lazy through `mgr.dataset`, `mgr.classes`, or `mgr.load()`.
 
 `root` may also be an Ultralytics-style `data.yaml/dataset.yaml`. In that case `path` becomes the dataset root and `names` becomes the class source. Dataset operations process all data by default; set `only_val=True` explicitly to use the YAML `val` entry (or `val.txt`/a `val` directory under the dataset root).
 

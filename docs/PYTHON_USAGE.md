@@ -35,6 +35,14 @@ mgr = YoloManager(r"E:\datasets\my_yolo", layout="flat",
                   init_check_workers=16, init_check_progress=True,
                   init_check_progress_leave=False)
 
+# 惰性读取数据集：首次访问时才扫描并解析图像、标签，之后复用缓存
+dataset = mgr.dataset
+print("类别:", mgr.classes.names)
+print("图像数:", len(dataset.images))
+print("标注数:", dataset.annotation_count())
+# 文件被外部修改后，显式重新加载
+dataset = mgr.load(reload=True)
+
 # 校验
 mgr.check()
 mgr.check(out="validation.json")
@@ -376,7 +384,7 @@ mgr.import_mask(
 
 `remap_filenames` 会把图像和对应 label 复制到新数据集，并将文件名改为统一的数字编号；不传 `digits` 时，编号位数按“图像数量乘以 10 后向上取最近的十次幂”计算。例如 8,951 张图像使用六位编号（`000000.jpg`、`000001.jpg`……）。默认从 0 开始，也可以通过 `start` 修改。原始数据不会被覆盖，未指定 `mapping_file` 时同一份映射关系会同时保存到原数据集的 `<root>/ydm_conversion/filename_mapping.json` 和目标数据集的 `<out>/ydm_conversion/filename_mapping.json`；显式指定 `mapping_file` 时该路径也会保存一份，输出目录默认为 Manager 根目录下的 `ydm_conversion/filename_remap`。
 
-`YoloManager(..., layout="auto")` 初始化时会先做 layout 扫描，再加载图片和 label，最后执行 check。
+`YoloManager(..., layout="auto")` 初始化时会先做 layout 扫描并执行 check；完整的图片、label 和类别解析通过 `mgr.dataset`、`mgr.classes` 或 `mgr.load()` 惰性进行。
 
 `YoloManager` 的 `root` 也可以直接传 Ultralytics 风格的 `data.yaml/dataset.yaml`。此时会读取 YAML 的 `path` 作为数据集根目录，读取 `names` 作为类别来源。默认所有数据操作都处理完整数据集；需要只处理验证集时显式设置 `only_val=True`，此时使用 YAML 的 `val`（或数据集目录下的 `val.txt`/`val` 目录）。
 

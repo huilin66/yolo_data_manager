@@ -12,6 +12,7 @@ from typing import Any
 
 import yaml
 
+from yolo_data_manager.core.models import AttributeSchema, ClassSchema, YoloDataset
 from yolo_data_manager.core.schema import read_dataset_yaml
 from yolo_data_manager.io.output_paths import ydm_dir
 from yolo_data_manager.logging_utils import operation_scope
@@ -312,19 +313,48 @@ _ROOT_TASKS: frozenset[str] = frozenset(
     }
 )
 
+_DATASET_MUTATING_TASKS: frozenset[str] = frozenset(
+    {
+        "check",
+        "dataset.select",
+        "dataset.normalize",
+        "dataset.split",
+        "dataset.extract_split",
+        "dataset.yaml",
+        "dataset.filter",
+        "dataset.merge",
+        "ann.delete_class",
+        "ann.replace_class",
+        "ann.merge_class",
+        "ann.rename_class",
+        "ann.apply_map",
+        "ann.restore_backup",
+        "ann.correct_from_crops",
+        "ann.correct_from_error_crops",
+        "ann.att_correct_from_crops",
+        "ann.att_correct_from_error_crops",
+        "ann.set_attr",
+        "ann.delete_attr",
+    }
+)
 
-def _logged_direct_operation(operation: str):
+
+def _logged_direct_operation(operation: str, *, invalidate_dataset: bool = False):
     """Add the same operation logging used by CLI-backed manager methods."""
 
     def decorator(function):
         @wraps(function)
         def wrapped(self, *args, **kwargs):
-            with operation_scope(
-                self.root,
-                operation,
-                {"positional": args, "parameters": kwargs},
-            ):
-                return function(self, *args, **kwargs)
+            try:
+                with operation_scope(
+                    self.root,
+                    operation,
+                    {"positional": args, "parameters": kwargs},
+                ):
+                    return function(self, *args, **kwargs)
+            finally:
+                if invalidate_dataset:
+                    self._invalidate_dataset()
 
         return wrapped
 
@@ -388,6 +418,7 @@ class YoloManager:
         self.init_check_workers = init_check_workers
         self.init_check_progress = init_check_progress
         self.init_check_progress_leave = init_check_progress_leave
+        self._dataset: YoloDataset | None = None
 
         self._warmup_()
 
@@ -495,6 +526,66 @@ class YoloManager:
 
         return Path(self.root) / "dataset.yaml"
 
+    @property
+    def dataset(self) -> YoloDataset:
+        """Lazily load and cache the current YOLO dataset."""
+
+        return self.load()
+
+    @property
+    def classes(self) -> ClassSchema:
+        """Class schema from the lazily loaded dataset."""
+
+        return self.load().classes
+
+    @property
+    def attributes(self) -> AttributeSchema | None:
+        """Attribute schema from the lazily loaded dataset, if available."""
+
+        return self.load().attributes
+
+    def load(
+        self,
+        *,
+        reload: bool = False,
+        workers: int = 8,
+        progress: bool = True,
+        progress_leave: bool = False,
+    ) -> YoloDataset:
+        """Load the dataset on demand and reuse it until explicitly reloaded.
+
+        ``reload=True`` rebuilds the cached object from the current files. The
+        cache is also invalidated automatically after manager operations that
+        can modify labels, class/attribute schemas, or split files.
+        """
+
+        if self._dataset is None or reload:
+            from yolo_data_manager.io.loader import load_yolo_dataset
+
+            requested_split_file = (
+                self.split_file if self.only_val else self._explicit_split_file
+            )
+            self._dataset = load_yolo_dataset(
+                self.root,
+                images_dir=self.images_dir,
+                labels_dir=self.labels_dir,
+                class_file=self.class_file,
+                attribute_file=self.attribute_file,
+                task=self.task,
+                split_file=requested_split_file,
+                only_val=self.only_val,
+                layout=self.layout,
+                workers=workers,
+                progress=progress,
+                progress_leave=progress_leave,
+            )
+        return self._dataset
+
+    def _invalidate_dataset(self) -> None:
+        """Drop the lazy dataset cache after a source-changing operation."""
+
+        self._dataset = None
+
     def _warmup_(self) -> None:
         if self.init_layout:
             self.layout_detect(
@@ -535,6 +626,11 @@ class YoloManager:
                 params.setdefault("split_file", self.split_file)
             elif not only_val and self._explicit_split_file is not None:
                 params.setdefault("split_file", self._explicit_split_file)
+        if task in _DATASET_MUTATING_TASKS:
+            try:
+                return run_task(task, **params)
+            finally:
+                self._invalidate_dataset()
         return run_task(task, **params)
 
     # -- check & stats -----------------------------------------------------
@@ -1173,21 +1269,24 @@ class YoloManager:
                     "only_val": requested_only_val,
                 },
             ):
-                return self._ann_merge_class_map(
-                    from_,
-                    out=out_data if out_data is not None else out,
-                    compact=compact,
-                    copy_images=copy_images,
-                    keep_empty_labels=keep_empty_labels,
-                    backup_dir=backup_dir,
-                    dry_run=dry_run,
-                    report=report,
-                    workers=workers,
-                    progress=progress,
-                    progress_leave=progress_leave,
-                    only_val=requested_only_val,
-                    backup_source=out_data is None,
-                )
+                try:
+                    return self._ann_merge_class_map(
+                        from_,
+                        out=out_data if out_data is not None else out,
+                        compact=compact,
+                        copy_images=copy_images,
+                        keep_empty_labels=keep_empty_labels,
+                        backup_dir=backup_dir,
+                        dry_run=dry_run,
+                        report=report,
+                        workers=workers,
+                        progress=progress,
+                        progress_leave=progress_leave,
+                        only_val=requested_only_val,
+                        backup_source=out_data is None,
+                    )
+                finally:
+                    self._invalidate_dataset()
         if to is None:
             raise ValueError("to is required when from_ is not a merge mapping")
         return self._run(
@@ -1394,7 +1493,7 @@ class YoloManager:
             **kwargs,
         )
 
-    @_logged_direct_operation("ann_update_from_map")
+    @_logged_direct_operation("ann_update_from_map", invalidate_dataset=True)
     def ann_update_from_map(
         self,
         class_map: Mapping[str, Any],
@@ -1799,7 +1898,7 @@ class YoloManager:
             **kwargs,
         )
 
-    @_logged_direct_operation("ann_att_update_from_map")
+    @_logged_direct_operation("ann_att_update_from_map", invalidate_dataset=True)
     def ann_att_update_from_map(
         self,
         attribute_map: Mapping[str, Any],
