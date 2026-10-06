@@ -13,7 +13,7 @@ from yolo_data_manager import YoloManager
 
 # DATA_DIR = Path(r"D:\zhl\data\road_forniture_v1")
 # DATA_DIR = Path(r"D:\zhl\data\road_forniture_v1_rename")
-DATA_DIR = Path(r"Z:\huilin\road_asset\data\merged_data\road_forniture_v3_src")
+DATA_DIR = Path(r"E:\repository\road_project\data\road_forniture_add_v2")
 PRED_RUNS_DIR = Path(r"D:\zhl\project\ultralytics\runs\detect")
 
 
@@ -34,12 +34,12 @@ CROP_MAP_PRED = {
 }
 # Select operations by uncommenting names in RUN_LIST.
 RUN_LIST = [
-    "rename",
+    # "rename",
     # "split",
     # "resize",
     # "sta",
     # "vis_draw",
-    # "vis_crop",
+    "vis_crop",
     # "query",
     # "copy_select",
     # "metric",
@@ -85,7 +85,7 @@ def main() -> None:
         )
     if "vis_crop" in RUN_LIST:
         ydm.vis_crop(
-            only_val=True,
+            # only_val=True,
         )
     if "query" in RUN_LIST:
         ydm.query_class(

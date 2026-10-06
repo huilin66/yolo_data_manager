@@ -102,6 +102,11 @@ txt file with one image name/path per line. These images are removed from the
 random pool before splitting, then forced into train or val. The two lists may
 not overlap. Relative image paths are matched from the dataset root; bare file
 names and stems are also supported.
+`val_source` fixes an existing validation set, such as v1's `val.txt`, as the
+complete v2 val split; it is mutually exclusive with `val_include_list`. No
+other images are added to val, and remaining images are split only between
+train/test. With `test=0`, all remaining images go to train. Every source item
+must match a v2 image by path, filename, or stem.
 `train`, `val`, and `test` must be non-negative and sum to approximately
 `1.0`. When `test=0`, train is allocated first using the train ratio and all
 remaining images go to val. `ensure_class_presence=True` (the default) uses weighted image-level
@@ -222,6 +227,13 @@ mgr.dataset_split(
     train_include_list=["images/keep_train_001.jpg", "keep_train_002.jpg"],
     val_include_list="val_include.txt",
 )
+mgr.dataset_split(
+    train=0.8,
+    val=0.2,
+    test=0.0,
+    seed=233,
+    val_source=r"E:\datasets\v1\val.txt",
+)  # keep v1 val fixed; new v2 images go only to train/test
 mgr.dataset_extract_split(
     train_include_list="train.txt",
     val_include_list="val.txt",

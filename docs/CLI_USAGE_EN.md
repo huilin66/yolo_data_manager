@@ -153,6 +153,7 @@ ydm dataset bad-images --root path/to/yolo --out bad_images.csv
 
 `dataset split` prints total box counts by class and validation box counts by class.
 `--train-include-list` and `--val-include-list` accept txt files or comma-separated image names/paths. Listed images are removed from the random pool before splitting and then forced into the corresponding split; the two parameters may not overlap.
+`--val-source` fixes the listed images as the complete validation split and does not fill val with other images. Remaining images are split only between train/test. It is mutually exclusive with `--val-include-list` and is intended for reusing v1's `val.txt` when splitting v2. Every source item must match a v2 image by path, filename, or stem.
 `--train`, `--val`, and `--test` must be non-negative and sum to approximately
 `1.0`. When `--test 0` is used, train is allocated first from the train ratio
 and all remaining images go to val.

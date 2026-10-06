@@ -24,6 +24,7 @@ def split_dataset(
     absolute_paths: bool = False,
     train_include_list: SplitIncludeList = None,
     val_include_list: SplitIncludeList = None,
+    val_source: SplitIncludeList = None,
     ensure_class_presence: bool = True,
     require_labels: bool = False,
 ) -> dict[str, list[str]]:
@@ -54,6 +55,16 @@ def split_dataset(
         val_include_list,
         parameter="val_include_list",
     )
+    if val_source is not None and val_include_list is not None:
+        raise ValueError("val_source and val_include_list are mutually exclusive")
+    fixed_val_source = val_source is not None
+    fixed_val_indices = _resolve_include_indices(
+        dataset,
+        val_source,
+        parameter="val_source",
+    )
+    if fixed_val_source:
+        val_indices = fixed_val_indices
     if require_labels:
         eligible_set = set(eligible_indices)
         train_indices = [index for index in train_indices if index in eligible_set]
@@ -61,8 +72,9 @@ def split_dataset(
     overlap = set(train_indices) & set(val_indices)
     if overlap:
         overlap_names = ", ".join(dataset.images[index].file_name for index in sorted(overlap))
+        val_parameter = "val_source" if fixed_val_source else "val_include_list"
         raise ValueError(
-            "train_include_list and val_include_list overlap: "
+            f"train_include_list and {val_parameter} overlap: "
             f"{overlap_names}"
         )
 
@@ -70,8 +82,28 @@ def split_dataset(
     remaining_indices = [index for index in eligible_indices if index not in forced]
     rng = random.Random(seed)
 
+    allocation_ratios = ratios
+    balance_indices: set[int] | None = None
+    if fixed_val_source:
+        remaining_ratio = ratios["train"] + ratios["test"]
+        if remaining_indices and remaining_ratio <= 0:
+            raise ValueError(
+                "val_source fixes the validation set, but train + test is zero "
+                "for remaining images"
+            )
+        if remaining_ratio > 0:
+            allocation_ratios = {
+                "train": ratios["train"] / remaining_ratio,
+                "val": 0.0,
+                "test": ratios["test"] / remaining_ratio,
+            }
+        else:
+            allocation_ratios = {"train": 0.0, "val": 0.0, "test": 0.0}
+        # Fixed validation images must not contribute to train/test box targets.
+        balance_indices = set(remaining_indices) | set(train_indices)
+
     if ensure_class_presence:
-        split_sizes = _allocate_split_sizes(len(remaining_indices), ratios)
+        split_sizes = _allocate_split_sizes(len(remaining_indices), allocation_ratios)
         split_indices = _assign_balanced_indices(
             dataset,
             remaining_indices,
@@ -82,11 +114,12 @@ def split_dataset(
                 "test": [],
             },
             rng,
-            ratios,
+            allocation_ratios,
+            balance_indices=balance_indices,
         )
     else:
         rng.shuffle(remaining_indices)
-        split_sizes = _allocate_split_sizes(len(remaining_indices), ratios)
+        split_sizes = _allocate_split_sizes(len(remaining_indices), allocation_ratios)
         n_train = split_sizes["train"]
         n_val = split_sizes["val"]
         split_indices = {
@@ -145,6 +178,7 @@ def _assign_balanced_indices(
     initial: dict[str, list[int]],
     rng: random.Random,
     ratios: dict[str, float],
+    balance_indices: set[int] | None = None,
 ) -> dict[str, list[int]]:
     """Assign images with weighted, image-level multi-label stratification.
 
@@ -165,6 +199,9 @@ def _assign_balanced_indices(
 
     split_names = ("train", "val", "test")
     considered_indices = set(remaining_indices).union(*initial.values())
+    target_indices = (
+        considered_indices if balance_indices is None else set(balance_indices)
+    )
     image_box_counts = {
         index: Counter(
             annotation.class_id
@@ -174,7 +211,8 @@ def _assign_balanced_indices(
     }
     class_box_totals: Counter[int] = Counter()
     class_image_counts: Counter[int] = Counter()
-    for counts in image_box_counts.values():
+    for index in target_indices:
+        counts = image_box_counts.get(index, Counter())
         class_box_totals.update(counts)
         class_image_counts.update(counts.keys())
 

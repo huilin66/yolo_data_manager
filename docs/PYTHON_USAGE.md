@@ -83,6 +83,13 @@ mgr.dataset_split(
     train_include_list=["images/keep_train_001.jpg", "keep_train_002.jpg"],
     val_include_list="val_include.txt",
 )
+mgr.dataset_split(
+    train=0.8,
+    val=0.2,
+    test=0.0,
+    seed=233,
+    val_source=r"E:\datasets\v1\val.txt",
+)  # 固定复用 v1 的 val，v2 新增图像只划入 train/test
 mgr.dataset_extract_split(
     train_include_list="train.txt",
     val_include_list="val.txt",
@@ -476,6 +483,7 @@ mgr.output_dataset_yaml
 
 `dataset_split` 会写出 `train.txt`、`val.txt`、`test.txt`，并在输出中显示 `total_class_counts` 和 `val_class_counts`，方便检查验证集类别分布。
 `train_include_list` 和 `val_include_list` 可以传图片名/路径列表，也可以传一个 txt 文件路径（每行一个图片名或路径）。这些图片会先从随机池中排除，再分别加入 train 或 val；两个列表不能包含同一张图片。相对图片路径按数据集根目录匹配，也支持图片文件名和 stem。
+`val_source` 用于固定已有验证集，例如将 v1 的 `val.txt` 原样作为 v2 的 val；它与 `val_include_list` 互斥。使用 `val_source` 时，val 中不会再自动加入其他图像，剩余图像只按 train/test 比例划分；如果 `test=0`，剩余图像全部进入 train。v1 列表中的每个图像必须能在 v2 中按路径、文件名或 stem 找到。
 `train`、`val`、`test` 必须是非负数，且总和接近 `1.0`；当 `test=0` 时先按 `train` 比例选择 train，剩余图像全部进入 val。`ensure_class_presence=True`（默认）会按图像中的类别和 box 数量进行加权分层分配：先尽量让每个有标注的类别出现在每个非空 split 中，再让各类别的 box 数量接近 train/val/test 比例。当类别样本不足时，覆盖优先级为 train > test > val，`test=0` 时为 train > val。由于一张图像不能拆分、include list 可能固定分配，或 split 容量不足，结果只能近似满足比例；传 `False` 可关闭该策略。`seed` 控制图像顺序和并列决策，因此结果可复现。设置 `require_labels=True` 时只对存在对应 `.txt` label 的图像进行划分，没有对应 label 的图像会被排除；默认值为 `False`。
 如果目标目录中原本存在 `train.txt`、`val.txt` 或 `test.txt`，split 写入前会将它们移动到 `<数据集根目录>/labels_backup/<时间戳>/`；可用 `backup_dir` 覆盖备份目录。
 

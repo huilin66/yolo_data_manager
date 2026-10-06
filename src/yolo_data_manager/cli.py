@@ -306,6 +306,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="txt file or comma-separated image names/paths forced into val",
     )
     dataset_split.add_argument(
+        "--val-source",
+        dest="val_source",
+        default=None,
+        help="txt file or image list used as the complete fixed val set; remaining images go to train/test",
+    )
+    dataset_split.add_argument(
         "--ensure-class-presence",
         dest="ensure_class_presence",
         action="store_true",
@@ -1537,6 +1543,7 @@ def handle_dataset_split(args: argparse.Namespace) -> int:
         absolute_paths=args.absolute_paths,
         train_include_list=args.train_include_list,
         val_include_list=args.val_include_list,
+        val_source=args.val_source,
         ensure_class_presence=args.ensure_class_presence,
         require_labels=args.require_labels,
     )

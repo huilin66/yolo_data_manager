@@ -141,6 +141,8 @@ ydm dataset split --root path/to/yolo --train 0.8 --val 0.2 --seed 233
 ydm dataset split --root path/to/yolo --train 0.8 --val 0.1 --test 0.1 --absolute-paths
 ydm dataset split --root path/to/yolo --train 0.8 --val 0.2 \
   --train-include-list train_include.txt --val-include-list val_include.txt
+ydm dataset split --root path/to/v2 --train 0.8 --val 0.2 --test 0 \
+  --val-source path/to/v1/val.txt
 ydm dataset split --root path/to/yolo --train 0.8 --val 0.1 --test 0.1 \
   --no-ensure-class-presence
 ydm dataset split --root path/to/yolo --train 0.8 --val 0.2 \
@@ -155,6 +157,7 @@ ydm dataset bad-images --root path/to/yolo --out bad_images.csv
 
 split 会打印总类别 box 数量和 val 类别 box 数量，方便检查验证集分布。
 `--train-include-list` 和 `--val-include-list` 可以传 txt 文件，也可以传逗号分隔的图片名/路径。指定的图片会先从随机池中排除，再强制加入对应 split；两个参数不能包含同一张图片。
+`--val-source` 会把已有 txt 中的图像固定为完整的 val 集，不再从剩余图像中补充 val；剩余图像只在 train/test 之间划分。它与 `--val-include-list` 互斥，适合在 v2 中复用 v1 的 `val.txt`。列表中的图像必须能在 v2 中按路径、文件名或 stem 找到。
 `--train`、`--val`、`--test` 必须是非负数，且总和接近 `1.0`；当 `--test 0` 时先按 train 比例分配 train，剩余图像全部进入 val。
 `split` 默认启用加权类别分布约束：先尽量让每个有标注的类别出现在每个非空 split 中，再让各类别的 box 数量接近 train/val/test 比例；当类别样本不足时，覆盖优先级为 train > test > val，`test=0` 时为 train > val。由于图像不能拆分、include list 固定分配或 split 容量不足，结果只能近似满足。`--seed` 控制随机顺序和并列决策；使用 `--no-ensure-class-presence` 可关闭。
 使用 `--require-labels` 时，只对存在对应 `.txt` label 文件的图像进行划分；没有对应 label 的图像会被排除。默认不启用。
