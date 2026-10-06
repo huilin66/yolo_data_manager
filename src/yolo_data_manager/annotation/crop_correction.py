@@ -13,6 +13,7 @@ from yolo_data_manager.core.models import YoloAnnotation, YoloDataset, YoloImage
 from yolo_data_manager.annotation.edit import EditReport, EditRow
 from yolo_data_manager.io.loader import parse_label_file
 from yolo_data_manager.io.backup import LabelBackup, ensure_source_labels_backup
+from yolo_data_manager.io.writer import clone_yolo_dataset_for_output
 
 
 _CROP_NAME_RE = re.compile(r"^(?P<stem>.+)_(?P<index>[1-9][0-9]*)$")
@@ -157,6 +158,7 @@ def correct_labels_from_crops(
     *,
     backup_dir: str | Path | None = None,
     dry_run: bool = False,
+    out_data: str | Path | None = None,
 ) -> tuple[CropCorrectionResult, EditReport]:
     """Update label classes identified by standard ``vis crop`` filenames.
 
@@ -167,6 +169,16 @@ def correct_labels_from_crops(
     ``crops_dir`` may alternatively be a mapping of crop directories to
     target classes; that form is processed in one backup session.
     """
+
+    if out_data is not None and not dry_run:
+        output_dataset = clone_yolo_dataset_for_output(dataset, out_data)
+        return correct_labels_from_crops(
+            output_dataset,
+            crops_dir,
+            target_class,
+            backup_dir=backup_dir,
+            dry_run=dry_run,
+        )
 
     if isinstance(crops_dir, Mapping):
         if target_class is not None:
@@ -202,6 +214,7 @@ def correct_labels_from_crop_map(
     *,
     backup_dir: str | Path | None = None,
     dry_run: bool = False,
+    out_data: str | Path | None = None,
 ) -> tuple[CropCorrectionResult, EditReport]:
     """Apply several crop-directory class corrections in one backup session.
 
@@ -211,6 +224,15 @@ def correct_labels_from_crop_map(
     the complete operation. If the same crop target occurs in more than one
     directory, the last mapping entry wins.
     """
+
+    if out_data is not None and not dry_run:
+        output_dataset = clone_yolo_dataset_for_output(dataset, out_data)
+        return correct_labels_from_crop_map(
+            output_dataset,
+            crops_to_classes,
+            backup_dir=backup_dir,
+            dry_run=dry_run,
+        )
 
     if not crops_to_classes:
         raise ValueError("crops_to_classes must contain at least one crop directory")
@@ -373,6 +395,7 @@ def correct_gt_labels_from_error_crops(
     replace_gt_from_pred: bool = False,
     backup_dir: str | Path | None = None,
     dry_run: bool = False,
+    out_data: str | Path | None = None,
 ) -> tuple[CropCorrectionResult, EditReport]:
     """Correct GT classes from ``eval_error_analysis`` crop filenames.
 
@@ -393,6 +416,20 @@ def correct_gt_labels_from_error_crops(
     directories to target classes; all directories are processed in one
     backup session.
     """
+
+    if out_data is not None and not dry_run:
+        output_dataset = clone_yolo_dataset_for_output(dataset, out_data)
+        return correct_gt_labels_from_error_crops(
+            output_dataset,
+            crops_dir,
+            target_class,
+            pred_labels_dir=pred_labels_dir,
+            dedup_iou=dedup_iou,
+            delete_pred_none=delete_pred_none,
+            replace_gt_from_pred=replace_gt_from_pred,
+            backup_dir=backup_dir,
+            dry_run=dry_run,
+        )
 
     if isinstance(crops_dir, Mapping):
         if target_class is not None:
@@ -432,6 +469,7 @@ def correct_gt_labels_from_error_crop_map(
     replace_gt_from_pred: bool = False,
     backup_dir: str | Path | None = None,
     dry_run: bool = False,
+    out_data: str | Path | None = None,
 ) -> tuple[CropCorrectionResult, EditReport]:
     """Apply several error-crop class corrections in one backup session.
 
@@ -440,6 +478,19 @@ def correct_gt_labels_from_error_crop_map(
     GT box. Prediction-backed append/replace behavior remains controlled by
     ``pred_labels_dir`` and the other correction options.
     """
+
+    if out_data is not None and not dry_run:
+        output_dataset = clone_yolo_dataset_for_output(dataset, out_data)
+        return correct_gt_labels_from_error_crop_map(
+            output_dataset,
+            crops_to_classes,
+            pred_labels_dir=pred_labels_dir,
+            dedup_iou=dedup_iou,
+            delete_pred_none=delete_pred_none,
+            replace_gt_from_pred=replace_gt_from_pred,
+            backup_dir=backup_dir,
+            dry_run=dry_run,
+        )
 
     if not crops_to_classes:
         raise ValueError("crops_to_classes must contain at least one crop directory")
@@ -595,6 +646,7 @@ def correct_gt_attributes_from_crops(
     *,
     backup_dir: str | Path | None = None,
     dry_run: bool = False,
+    out_data: str | Path | None = None,
 ) -> tuple[AttributeCropCorrectionResult, EditReport]:
     """Update GT attributes selected by standard ``vis crop`` filenames.
 
@@ -604,6 +656,17 @@ def correct_gt_attributes_from_crops(
     ``crops_dir`` may also be a mapping from crop directories to attribute
     rules, for example ``{"crops_yes": {"name": "defect", "value": "yes"}}``.
     """
+
+    if out_data is not None and not dry_run:
+        output_dataset = clone_yolo_dataset_for_output(dataset, out_data)
+        return correct_gt_attributes_from_crops(
+            output_dataset,
+            crops_dir,
+            attribute_name,
+            target_value,
+            backup_dir=backup_dir,
+            dry_run=dry_run,
+        )
 
     if isinstance(crops_dir, Mapping):
         specs = _attribute_crop_specs_from_map(
@@ -636,6 +699,7 @@ def correct_gt_attributes_from_error_crops(
     *,
     backup_dir: str | Path | None = None,
     dry_run: bool = False,
+    out_data: str | Path | None = None,
 ) -> tuple[AttributeCropCorrectionResult, EditReport]:
     """Update GT attributes on boxes selected by error-analysis crops.
 
@@ -651,6 +715,17 @@ def correct_gt_attributes_from_error_crops(
     may also be a mapping from crop directories to attribute rules, for
     example ``{"crops_yes": {"name": "defect", "value": "yes"}}``.
     """
+
+    if out_data is not None and not dry_run:
+        output_dataset = clone_yolo_dataset_for_output(dataset, out_data)
+        return correct_gt_attributes_from_error_crops(
+            output_dataset,
+            crops_dir,
+            attribute_name,
+            target_value,
+            backup_dir=backup_dir,
+            dry_run=dry_run,
+        )
 
     if isinstance(crops_dir, Mapping):
         specs = _attribute_crop_specs_from_map(

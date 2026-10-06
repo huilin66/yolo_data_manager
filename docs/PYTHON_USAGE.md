@@ -131,6 +131,10 @@ mgr.ann_update_from_map(
         "drop": ["background", "Hollow High Risk Line"],
     }
 )  # 原地更新；label 和 class 文件一起备份到 labels_backup
+mgr.ann_update_from_map(
+    {"rename": {"old": "new"}},
+    out_data="yolo_class_copy",
+)  # 输出新数据集，不修改原始 label
 mgr.ann_att_update_from_map(
     {
         "update": {
@@ -138,6 +142,10 @@ mgr.ann_att_update_from_map(
         }
     }
 )  # 原地更新属性；默认备份到 labels_backup
+mgr.ann_att_update_from_map(
+    {"update": {"defect": {"no": "yes"}}},
+    out_data="yolo_attribute_copy",
+)  # 输出新数据集
 mgr.ann_delete_attr(name="quality", value=["bad"], out="yolo_clean")
 mgr.ann_correct_from_crops(
     crops_dir="ydm_vis/crop/car",
@@ -157,6 +165,11 @@ mgr.ann_correct_from_crops(
     },
     backup_dir="label_backups",
 )  # 多个目录一次处理，只创建一个备份快照
+mgr.ann_correct_from_crops(
+    crops_dir="ydm_vis/crop/car",
+    to="defect",
+    out_data="yolo_crop_copy",
+)  # 复制数据集后只修改副本
 mgr.ann_correct_from_error_crops(
     crops_dir="result_ana/val-52/review/pred_gt/pred_car_gt_background/crops",
     pred_dir="result_ana/val-52/review/pred_txt",
@@ -369,7 +382,7 @@ mgr.import_mask(
 
 ## 统一运行参数
 
-大多数加载、写入、校验、可视化和评估方法都支持同一组运行参数：
+大多数加载、写入、校验、可视化和评估方法都支持同一组运行参数。类别/属性修改和 crop 校正还支持 `out_data="new_dataset"`：先复制图像、label 和 schema，再只修改副本；省略时保持原地修改和 `labels_backup` 备份行为。已有的 `out` 与 `out_data` 不能同时传入：
 
 | 参数 | 默认值 | 说明 |
 |---|---|---|

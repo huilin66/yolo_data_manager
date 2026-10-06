@@ -257,6 +257,7 @@ ydm vis crop --root yolo --out crops --by-attr
 - `vis crop` 支持 `padding`：整数按每边像素扩展，小数按 box 宽度/高度比例扩展，并自动限制在图像边界内
 - `ann correct-from-error-crops` / `ann_correct_from_error_crops` 支持 `--delete-pred-none` / `delete_pred_none=True`：对 `prednone_gty` 强制删除第 y 条 GT，即使 `--to` / `to` 是更新类别
 - 支持 `--replace-gt-from-pred` / `replace_gt_from_pred=True`：结合预测 txt，用 `predx_gty` 的预测 x 完整替换 GT y（类别和 geometry），同图同类替换框按 `dedup_iou` 去重并删除被抑制的重复 GT；`prednone_gty` 删除，`predx_gtnone` 追加
+- 新增 `out_data` / `--out-data`：类别/属性映射、尺寸过滤和 crop 校正可以先复制完整数据集，再只修改副本；不传时保持原有原地修改与 `labels_backup` 行为，`out` 与 `out_data` 互斥
 
 典型命令：
 

@@ -214,6 +214,7 @@ Supported:
 - `vis crop` supports `padding`: integers expand each side by pixels, decimals expand each side by the box width/height ratio, and crops are clamped to image boundaries.
 - Added `--delete-pred-none` / `delete_pred_none=True`: force deletion of GT row y for `prednone_gty` crops, even when `--to` / `to` is an update class.
 - Added `--replace-gt-from-pred` / `replace_gt_from_pred=True`: with prediction txt, replace GT row y completely with prediction x for `predx_gty`; same-image same-class replacements use `dedup_iou` and delete suppressed duplicate GT rows; delete `prednone_gty` and append `predx_gtnone`.
+- Added `out_data` / `--out-data`: class/attribute edits, geometry filtering, and crop corrections can materialize a complete dataset copy and edit only that copy; omitting it preserves the existing in-place and `labels_backup` behavior, and `out`/`out_data` are mutually exclusive.
 
 ## VLM Extension
 

@@ -91,6 +91,16 @@ _FALSE_FLAGS = {
 }
 
 
+def _check_output_aliases(
+    out: str | Path | None,
+    out_data: str | Path | None,
+) -> None:
+    """Reject ambiguous output arguments while keeping both APIs compatible."""
+
+    if out is not None and out_data is not None:
+        raise ValueError("out and out_data are mutually exclusive")
+
+
 def build_task_argv(command: str, **params: Any) -> list[str]:
     """Convert a Python task call into the argument list accepted by ``ydm``.
 
@@ -931,6 +941,7 @@ class YoloManager:
         self,
         out: str | None = None,
         *,
+        out_data: str | Path | None = None,
         class_: str | list[str] | None = None,
         min_width: float | None = None,
         min_height: float | None = None,
@@ -950,6 +961,7 @@ class YoloManager:
         backed up under ``<dataset-root>/labels_backup``.  Supplying ``out``
         writes a separate filtered dataset instead.
         """
+        _check_output_aliases(out, out_data)
         if isinstance(class_rules, Mapping):
             with tempfile.NamedTemporaryFile(
                 "w", suffix=".yaml", encoding="utf-8", delete=False
@@ -961,6 +973,7 @@ class YoloManager:
             try:
                 return self.anno_update_by_size(
                     out,
+                    out_data=out_data,
                     class_=class_,
                     min_width=min_width,
                     min_height=min_height,
@@ -979,6 +992,7 @@ class YoloManager:
         return self._run(
             "dataset.filter",
             out=out,
+            out_data=out_data,
             class_=class_,
             min_width=min_width,
             min_height=min_height,
@@ -1060,6 +1074,7 @@ class YoloManager:
         class_: str | list[str],
         out: str | None = None,
         *,
+        out_data: str | Path | None = None,
         compact: bool = False,
         copy_images: bool = True,
         keep_empty_labels: bool = True,
@@ -1072,10 +1087,12 @@ class YoloManager:
         **kwargs: Any,
     ) -> int:
         """Delete annotations of given classes (``ydm ann delete-class``)."""
+        _check_output_aliases(out, out_data)
         return self._run(
             "ann.delete_class",
             class_=class_,
             out=out,
+            out_data=out_data,
             compact=compact,
             copy_images=copy_images,
             keep_empty_labels=keep_empty_labels,
@@ -1094,6 +1111,7 @@ class YoloManager:
         to: str,
         out: str | None = None,
         *,
+        out_data: str | Path | None = None,
         compact: bool = False,
         copy_images: bool = True,
         keep_empty_labels: bool = True,
@@ -1106,11 +1124,13 @@ class YoloManager:
         **kwargs: Any,
     ) -> int:
         """Replace source classes with a target class (``ydm ann replace-class``)."""
+        _check_output_aliases(out, out_data)
         return self._run(
             "ann.replace_class",
             from_=from_,
             to=to,
             out=out,
+            out_data=out_data,
             compact=compact,
             copy_images=copy_images,
             keep_empty_labels=keep_empty_labels,
@@ -1126,6 +1146,7 @@ class YoloManager:
         to: str | None = None,
         *,
         out: str | None = None,
+        out_data: str | Path | None = None,
         compact: bool = True,
         copy_images: bool = True,
         keep_empty_labels: bool = True,
@@ -1138,6 +1159,7 @@ class YoloManager:
         **kwargs: Any,
     ) -> int:
         """Merge source classes into one (``ydm ann merge-class``)."""
+        _check_output_aliases(out, out_data)
         if isinstance(from_, Mapping):
             requested_only_val = kwargs.pop("only_val", None)
             with operation_scope(
@@ -1146,13 +1168,14 @@ class YoloManager:
                 {
                     "from": from_,
                     "out": out,
+                    "out_data": out_data,
                     "dry_run": dry_run,
                     "only_val": requested_only_val,
                 },
             ):
                 return self._ann_merge_class_map(
                     from_,
-                    out=out,
+                    out=out_data if out_data is not None else out,
                     compact=compact,
                     copy_images=copy_images,
                     keep_empty_labels=keep_empty_labels,
@@ -1163,6 +1186,7 @@ class YoloManager:
                     progress=progress,
                     progress_leave=progress_leave,
                     only_val=requested_only_val,
+                    backup_source=out_data is None,
                 )
         if to is None:
             raise ValueError("to is required when from_ is not a merge mapping")
@@ -1171,6 +1195,7 @@ class YoloManager:
             from_=from_,
             to=to,
             out=out,
+            out_data=out_data,
             compact=compact,
             copy_images=copy_images,
             keep_empty_labels=keep_empty_labels,
@@ -1198,6 +1223,7 @@ class YoloManager:
         progress: bool,
         progress_leave: bool,
         only_val: bool | None,
+        backup_source: bool = True,
     ) -> int:
         import json
 
@@ -1255,6 +1281,7 @@ class YoloManager:
                 workers=workers,
                 progress=progress,
                 progress_leave=progress_leave,
+                backup=backup_source,
                 operation="ann.merge_class",
                 backup_result={
                     "action": "merge_class",
@@ -1281,6 +1308,7 @@ class YoloManager:
         to: str,
         out: str | None = None,
         *,
+        out_data: str | Path | None = None,
         copy_images: bool = True,
         keep_empty_labels: bool = True,
         backup_dir: str | Path | None = None,
@@ -1289,11 +1317,13 @@ class YoloManager:
         **kwargs: Any,
     ) -> int:
         """Rename a class without changing IDs (``ydm ann rename-class``)."""
+        _check_output_aliases(out, out_data)
         return self._run(
             "ann.rename_class",
             from_=from_,
             to=to,
             out=out,
+            out_data=out_data,
             copy_images=copy_images,
             keep_empty_labels=keep_empty_labels,
             backup_dir=backup_dir,
@@ -1307,6 +1337,7 @@ class YoloManager:
         map_file: str,
         out: str | None = None,
         *,
+        out_data: str | Path | None = None,
         compact: bool = True,
         copy_images: bool = True,
         keep_empty_labels: bool = True,
@@ -1316,10 +1347,12 @@ class YoloManager:
         **kwargs: Any,
     ) -> int:
         """Apply a class remap YAML (``ydm ann apply-map``)."""
+        _check_output_aliases(out, out_data)
         return self._run(
             "ann.apply_map",
             map_file=map_file,
             out=out,
+            out_data=out_data,
             compact=compact,
             copy_images=copy_images,
             keep_empty_labels=keep_empty_labels,
@@ -1366,6 +1399,7 @@ class YoloManager:
         self,
         class_map: Mapping[str, Any],
         *,
+        out_data: str | Path | None = None,
         compact: bool = True,
         backup_dir: str | Path | None = None,
         dry_run: bool = False,
@@ -1377,9 +1411,11 @@ class YoloManager:
         """Update the current dataset from a Python class-operation mapping.
 
         Unlike :meth:`ann_apply_map`, this API does not read a YAML map and
-        updates the source labels and class schema in place. Before writing,
-        all source labels and the class schema are copied into one timestamped
-        backup under ``<dataset-root>/labels_backup`` by default.
+        updates the source labels and class schema in place by default.
+        Supplying ``out_data`` writes a complete edited dataset to that new
+        root and leaves the source untouched. In-place writes copy all source
+        labels and the class schema into one timestamped backup under
+        ``<dataset-root>/labels_backup`` by default.
         """
 
         if not isinstance(class_map, Mapping):
@@ -1394,6 +1430,7 @@ class YoloManager:
             ensure_source_labels_backup,
         )
         from yolo_data_manager.io.loader import load_yolo_dataset, parse_label_file
+        from yolo_data_manager.io.writer import write_yolo_dataset
 
         dataset = load_yolo_dataset(
             self.root,
@@ -1443,55 +1480,74 @@ class YoloManager:
 
         backup = None
         if not dry_run:
-            resolved_backup_dir = (
-                self.output_labels_backup if backup_dir is None else backup_dir
-            )
-            ensure_source_labels_backup(
-                self.root,
-                resolved_backup_dir,
-                source_paths=(
-                    image.label_path
-                    for image in dataset.images
-                    if image.label_path is not None
-                ),
-                extra_paths=[class_source],
-            )
-            backup = LabelBackup(
-                self.root,
-                resolved_backup_dir,
-                method="ann_update_from_map",
-            )
-            for image in dataset.images:
-                if image.label_path is not None:
-                    backup.backup(image.label_path)
-            if class_source.is_file():
-                backup.backup(class_source)
-
-            for image in current.images:
-                if image.label_path is None:
-                    continue
-                lines = [
-                    annotation.to_yolo_line(include_confidence=False)
-                    for annotation in image.annotations
-                ]
-                image.label_path.parent.mkdir(parents=True, exist_ok=True)
-                image.label_path.write_text(
-                    "\n".join(lines) + ("\n" if lines else ""),
-                    encoding="utf-8",
+            if out_data is not None:
+                output_root = Path(out_data).expanduser()
+                if output_root.resolve() == Path(self.root).resolve():
+                    raise ValueError(
+                        "out_data must point to a different dataset root; "
+                        "omit out_data to edit the source dataset in place"
+                    )
+                write_yolo_dataset(
+                    current,
+                    output_root,
+                    copy_images=True,
+                    keep_empty_labels=True,
+                    workers=workers,
+                    progress=progress,
+                    progress_leave=progress_leave,
+                    backup=False,
+                    operation="ann.update_from_map",
                 )
-            _write_updated_class_source(class_source, current.classes.names)
-
-            backup.write_metadata(
-                method="ann_update_from_map",
-                result={
-                    "action": "update_annotation_class_map",
-                    "changed": len(combined_report.rows),
-                    "deleted": sum(
-                        1 for row in combined_report.rows if row.action == "delete"
+            else:
+                resolved_backup_dir = (
+                    self.output_labels_backup if backup_dir is None else backup_dir
+                )
+                ensure_source_labels_backup(
+                    self.root,
+                    resolved_backup_dir,
+                    source_paths=(
+                        image.label_path
+                        for image in dataset.images
+                        if image.label_path is not None
                     ),
-                    "classes": current.classes.names,
-                },
-            )
+                    extra_paths=[class_source],
+                )
+                backup = LabelBackup(
+                    self.root,
+                    resolved_backup_dir,
+                    method="ann_update_from_map",
+                )
+                for image in dataset.images:
+                    if image.label_path is not None:
+                        backup.backup(image.label_path)
+                if class_source.is_file():
+                    backup.backup(class_source)
+
+                for image in current.images:
+                    if image.label_path is None:
+                        continue
+                    lines = [
+                        annotation.to_yolo_line(include_confidence=False)
+                        for annotation in image.annotations
+                    ]
+                    image.label_path.parent.mkdir(parents=True, exist_ok=True)
+                    image.label_path.write_text(
+                        "\n".join(lines) + ("\n" if lines else ""),
+                        encoding="utf-8",
+                    )
+                _write_updated_class_source(class_source, current.classes.names)
+
+                backup.write_metadata(
+                    method="ann_update_from_map",
+                    result={
+                        "action": "update_annotation_class_map",
+                        "changed": len(combined_report.rows),
+                        "deleted": sum(
+                            1 for row in combined_report.rows if row.action == "delete"
+                        ),
+                        "classes": current.classes.names,
+                    },
+                )
 
         report_path = (
             Path(report)
@@ -1508,6 +1564,9 @@ class YoloManager:
                     ),
                     "classes": current.classes.names,
                     "dry_run": dry_run,
+                    "out_data": (
+                        str(out_data) if out_data is not None and not dry_run else None
+                    ),
                     "backup_dir": (
                         str(backup.snapshot_dir)
                         if backup is not None and backup.count
@@ -1527,6 +1586,7 @@ class YoloManager:
         crops_dir: str | Path | Mapping[str | Path, str | int | None],
         to: str | int | None = None,
         *,
+        out_data: str | Path | None = None,
         report: str | None = None,
         backup_dir: str | Path | None = None,
         dry_run: bool = False,
@@ -1546,12 +1606,15 @@ class YoloManager:
             crops_dir = {str(path): target for path, target in crops_dir.items()}
         cli_target = None if crop_map_input else ("none" if to is None else to)
         resolved_backup_dir = (
-            self.output_labels_backup if backup_dir is None else backup_dir
+            backup_dir
+            if out_data is not None
+            else self.output_labels_backup if backup_dir is None else backup_dir
         )
         return self._run(
             "ann.correct_from_crops",
             crops_dir=crops_dir,
             to=cli_target,
+            out_data=out_data,
             report=report,
             backup_dir=resolved_backup_dir,
             dry_run=dry_run,
@@ -1564,6 +1627,7 @@ class YoloManager:
         crops_dir: str | Path | Mapping[str | Path, str | int | None],
         to: str | int | None = None,
         *,
+        out_data: str | Path | None = None,
         pred_dir: str | Path | None = None,
         dedup_iou: float | None = 0.5,
         delete_pred_none: bool = False,
@@ -1587,11 +1651,14 @@ class YoloManager:
             crops_dir = {str(path): target for path, target in crops_dir.items()}
         cli_target = None if crop_map_input else ("none" if to is None else to)
         resolved_backup_dir = (
-            self.output_labels_backup if backup_dir is None else backup_dir
+            backup_dir
+            if out_data is not None
+            else self.output_labels_backup if backup_dir is None else backup_dir
         )
         return self._run(
             "ann.correct_from_error_crops",
             crops_dir=crops_dir,
+            out_data=out_data,
             pred_dir=pred_dir,
             dedup_iou=dedup_iou,
             delete_pred_none=delete_pred_none,
@@ -1610,6 +1677,7 @@ class YoloManager:
         name: str | None = None,
         value: str | float | None = None,
         *,
+        out_data: str | Path | None = None,
         attribute_name: str | None = None,
         attribute_value: str | float | None = None,
         attribute: str | None = None,
@@ -1650,11 +1718,14 @@ class YoloManager:
         ):
             raise ValueError("name and value are required")
         resolved_backup_dir = (
-            self.output_labels_backup if backup_dir is None else backup_dir
+            backup_dir
+            if out_data is not None
+            else self.output_labels_backup if backup_dir is None else backup_dir
         )
         return self._run(
             "ann.att_correct_from_crops",
             crops_dir=crops_dir,
+            out_data=out_data,
             name=resolved_name,
             value=resolved_value,
             report=report,
@@ -1670,6 +1741,7 @@ class YoloManager:
         name: str | None = None,
         value: str | float | None = None,
         *,
+        out_data: str | Path | None = None,
         attribute_name: str | None = None,
         attribute_value: str | float | None = None,
         attribute: str | None = None,
@@ -1709,13 +1781,19 @@ class YoloManager:
             resolved_name is None or resolved_value is None
         ):
             raise ValueError("name and value are required")
+        resolved_backup_dir = (
+            backup_dir
+            if out_data is not None
+            else self.output_labels_backup if backup_dir is None else backup_dir
+        )
         return self._run(
             "ann.att_correct_from_error_crops",
             crops_dir=crops_dir,
+            out_data=out_data,
             name=resolved_name,
             value=resolved_value,
             report=report,
-            backup_dir=backup_dir,
+            backup_dir=resolved_backup_dir,
             dry_run=dry_run,
             only_val=only_val,
             **kwargs,
@@ -1726,6 +1804,7 @@ class YoloManager:
         self,
         attribute_map: Mapping[str, Any],
         *,
+        out_data: str | Path | None = None,
         backup_dir: str | Path | None = None,
         dry_run: bool = False,
         report: str | Path | None = None,
@@ -1734,7 +1813,11 @@ class YoloManager:
         progress: bool = True,
         progress_leave: bool = False,
     ) -> int:
-        """Update annotation attributes from a Python mapping in place."""
+        """Update attributes from a Python mapping.
+
+        The source dataset is updated in place by default.  ``out_data``
+        writes the edited annotations and schema to a new dataset instead.
+        """
 
         if not isinstance(attribute_map, Mapping):
             raise TypeError("attribute_map must be a mapping")
@@ -1744,7 +1827,10 @@ class YoloManager:
             set_attributes_from_map,
         )
         from yolo_data_manager.io.loader import load_yolo_dataset
-        from yolo_data_manager.io.writer import write_yolo_labels_in_place
+        from yolo_data_manager.io.writer import (
+            write_yolo_dataset,
+            write_yolo_labels_in_place,
+        )
 
         requested_only_val = self.only_val if only_val is None else bool(only_val)
         split_file = (
@@ -1770,21 +1856,40 @@ class YoloManager:
 
         backup = None
         if not dry_run:
-            resolved_backup_dir = (
-                self.output_labels_backup if backup_dir is None else backup_dir
-            )
-            backup = write_yolo_labels_in_place(
-                current,
-                workers=workers,
-                progress=progress,
-                progress_leave=progress_leave,
-                backup_dir=resolved_backup_dir,
-                operation="ann_att_update_from_map",
-                backup_result={
-                    "action": "update_annotation_attribute_map",
-                    "changed": len(edit_report.rows),
-                },
-            )
+            if out_data is not None:
+                output_root = Path(out_data).expanduser()
+                if output_root.resolve() == Path(self.root).resolve():
+                    raise ValueError(
+                        "out_data must point to a different dataset root; "
+                        "omit out_data to edit the source dataset in place"
+                    )
+                write_yolo_dataset(
+                    current,
+                    output_root,
+                    copy_images=True,
+                    keep_empty_labels=True,
+                    workers=workers,
+                    progress=progress,
+                    progress_leave=progress_leave,
+                    backup=False,
+                    operation="ann.att_update_from_map",
+                )
+            else:
+                resolved_backup_dir = (
+                    self.output_labels_backup if backup_dir is None else backup_dir
+                )
+                backup = write_yolo_labels_in_place(
+                    current,
+                    workers=workers,
+                    progress=progress,
+                    progress_leave=progress_leave,
+                    backup_dir=resolved_backup_dir,
+                    operation="ann_att_update_from_map",
+                    backup_result={
+                        "action": "update_annotation_attribute_map",
+                        "changed": len(edit_report.rows),
+                    },
+                )
 
         report_path = (
             Path(report)
@@ -1797,6 +1902,9 @@ class YoloManager:
                 {
                     "changed": len(edit_report.rows),
                     "dry_run": dry_run,
+                    "out_data": (
+                        str(out_data) if out_data is not None and not dry_run else None
+                    ),
                     "backup_dir": (
                         str(backup.snapshot_dir)
                         if backup is not None and backup.count
@@ -1819,6 +1927,7 @@ class YoloManager:
         class_: str | list[str] | None = None,
         where_value: str | None = None,
         out: str | None = None,
+        out_data: str | Path | None = None,
         copy_images: bool = True,
         keep_empty_labels: bool = True,
         backup_dir: str | Path | None = None,
@@ -1828,11 +1937,12 @@ class YoloManager:
     ) -> int:
         """Backward-compatible attribute setter.
 
-        Without ``out`` it now updates source labels in place.  Supplying
-        ``out`` keeps the historical separate-dataset behavior.
+        Without ``out`` or ``out_data`` it updates source labels in place.
+        Supplying either output argument writes a separate dataset.
         """
 
-        if out is not None:
+        _check_output_aliases(out, out_data)
+        if out is not None or out_data is not None:
             return self._run(
                 "ann.set_attr",
                 name=name,
@@ -1840,6 +1950,7 @@ class YoloManager:
                 class_=class_,
                 where_value=where_value,
                 out=out,
+                out_data=out_data,
                 copy_images=copy_images,
                 keep_empty_labels=keep_empty_labels,
                 backup_dir=backup_dir,
@@ -1881,6 +1992,7 @@ class YoloManager:
                 dry_run=dry_run,
                 report=report,
                 only_val=only_val,
+                out_data=out_data,
                 workers=workers,
                 progress=progress,
                 progress_leave=progress_leave,
@@ -1893,6 +2005,7 @@ class YoloManager:
         value: str | list[str] | None = None,
         nonzero: bool = False,
         out: str | None = None,
+        out_data: str | Path | None = None,
         copy_images: bool = True,
         keep_empty_labels: bool = True,
         backup_dir: str | Path | None = None,
@@ -1901,12 +2014,14 @@ class YoloManager:
         **kwargs: Any,
     ) -> int:
         """Delete annotations by attribute (``ydm ann delete-attr``)."""
+        _check_output_aliases(out, out_data)
         return self._run(
             "ann.delete_attr",
             name=name,
             value=value,
             nonzero=nonzero,
             out=out,
+            out_data=out_data,
             copy_images=copy_images,
             keep_empty_labels=keep_empty_labels,
             backup_dir=backup_dir,

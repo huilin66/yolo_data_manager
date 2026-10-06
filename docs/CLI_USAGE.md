@@ -118,11 +118,12 @@ ydm ann delete-attr --root path/to/yolo --name defect --value yes --out yolo_att
 ydm dataset filter --root path/to/yolo --min-area 0.001 --out yolo_filtered --backup-dir label_backups
 ydm ann merge-class --root path/to/yolo --from crack,break --to defect --out yolo_merged --backup-dir label_backups
 ydm ann correct-from-crops --root path/to/yolo --crops-dir ydm_vis/crop/car --to defect --backup-dir label_backups --report crop_correction.csv
+ydm ann correct-from-crops --root path/to/yolo --crops-dir ydm_vis/crop/car --to defect --out-data yolo_crop_copy
 ydm ann correct-from-error-crops --root path/to/yolo --crops-dir result_ana/val-52/review/pred_gt/pred_car_gt_background/crops --pred-dir result_ana/val-52/review/pred_txt --dedup-iou 0.5 --to defect --delete-pred-none --backup-dir label_backups --only-val --report gt_correction.csv
 ydm ann correct-attr-from-error-crops --root path/to/yolo --crops-dir result_ana/val-52/review/attribute_error/attribute_defect/gt_yes_pred_no/crops --name defect --value no --backup-dir label_backups --report attribute_correction.csv --dry-run
 ```
 
-`dataset filter` 省略 `--out` 时会直接过滤源数据的 label，并在写入前备份到 `<数据集根目录>/labels_backup/<时间戳>/`；指定 `--out` 才会写出新的数据集。`correct-from-crops` 和 `correct-attr-from-error-crops` 也会按 crop 文件名直接修改源数据对应 label；建议先使用 `--dry-run`，或保留 `--report` 作为修改记录。`vis crop` 文件名 `<image_stem>_<序号>.<扩展名>` 中的序号从 1 开始。`--to none` 或 `--to null` 会删除对应标注。
+`dataset filter` 省略 `--out` 时会直接过滤源数据的 label，并在写入前备份到 `<数据集根目录>/labels_backup/<时间戳>/`；指定 `--out` 或 `--out-data` 会写出新的数据集。类别/属性编辑命令以及 crop 校正都支持 `--out-data`；它会复制图像、label 和 schema 后只修改副本，不修改源 label。`--out` 与 `--out-data` 不能同时使用。省略输出参数时，crop 校正仍会按 crop 文件名直接修改源数据对应 label；建议先使用 `--dry-run`，或保留 `--report` 作为修改记录。`vis crop` 文件名 `<image_stem>_<序号>.<扩展名>` 中的序号从 1 开始。`--to none` 或 `--to null` 会删除对应标注。
 `correct-from-crops` 的 `--crops-dir` 也可以传 JSON 对象，例如 `{"ydm_vis/crop_change/2_l":"Leakage","ydm_vis/crop_change/2_none":null}`；此时省略 `--to`，多个目录在一次任务中处理，只创建一个备份快照。
 `correct-from-error-crops` 的 `--crops-dir` 也支持 JSON 对象，例如 `{".../pred_car_gt_background/crops":"defect",".../pred_person_gt_background/crops":"person"}`；此时省略 `--to`，多个错误 crop 目录一次处理并共用一个备份快照，值为 `null` 时删除对应 GT 框。
 `correct-from-error-crops` 使用 `xxx_predx_gty` 文件名中的 `y` 定位 GT 标注序号。提供 `--pred-dir` 后，`gt none` 的 crop 会使用预测 txt 中第 `x` 条记录追加到对应 GT label；追加时会去掉 prediction confidence。未提供 `--pred-dir` 时，`gt none` crop 会跳过。

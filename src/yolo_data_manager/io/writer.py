@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections.abc import Mapping
+from copy import deepcopy
 from datetime import datetime
 import shutil
 from pathlib import Path
@@ -114,6 +115,60 @@ def write_yolo_dataset(
         backup_result=backup_result,
     )
     return backup_obj
+
+
+def clone_yolo_dataset_for_output(
+    dataset: YoloDataset,
+    out_root: str | Path,
+    *,
+    workers: int = 8,
+    progress: bool = False,
+    progress_leave: bool = False,
+) -> YoloDataset:
+    """Materialize a dataset copy and retarget it for annotation edits.
+
+    The returned dataset has label paths under ``out_root/labels`` and image
+    paths under ``out_root/images``.  The source dataset is never written or
+    backed up.  This is used by ``out_data`` on crop-based correction APIs so
+    the existing in-place correction implementation can safely operate on a
+    new dataset.
+    """
+
+    output_root = Path(out_root).expanduser()
+    source_root = Path(dataset.root).expanduser()
+    if output_root.resolve() == source_root.resolve():
+        raise ValueError(
+            "out_data must point to a different dataset root; "
+            "omit out_data to edit the source dataset in place"
+        )
+
+    write_yolo_dataset(
+        dataset,
+        output_root,
+        copy_images=True,
+        keep_empty_labels=True,
+        workers=workers,
+        progress=progress,
+        progress_leave=progress_leave,
+        backup=False,
+        operation="annotation.out_data",
+    )
+
+    copied = deepcopy(dataset)
+    copied.root = output_root
+    for image in copied.images:
+        file_name = image.file_name
+        stem = Path(file_name).stem
+        image.path = output_root / "images" / file_name
+        # write_yolo_dataset keeps empty labels by default.  Giving every
+        # image a target label path also lets error-crop correction append a
+        # prediction to an image that originally had no txt file.
+        image.label_path = output_root / "labels" / f"{stem}.txt"
+    copied.orphan_labels = [
+        output_root / "labels" / Path(path).name
+        for path in dataset.orphan_labels
+    ]
+    return copied
 
 
 def write_yolo_labels_in_place(

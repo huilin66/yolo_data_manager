@@ -113,6 +113,7 @@ mgr.anno_update_by_size(
     },
 )
 # Omitting out updates source labels in place and backs them up under labels_backup/.
+# Pass out_data="yolo_filtered_copy" to copy the dataset and edit only the copy.
 
 mgr.eval_error_analysis(
     pred_root="datasets/pred_labels",

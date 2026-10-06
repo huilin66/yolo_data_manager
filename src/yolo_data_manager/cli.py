@@ -397,6 +397,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="output dataset root; omit to filter labels in place with a backup",
     )
     dataset_filter.add_argument(
+        "--out-data",
+        dest="out_data",
+        default=None,
+        help="output a new dataset root without modifying the source labels",
+    )
+    dataset_filter.add_argument(
         "--backup-dir",
         default=None,
         help="backup directory; default is <dataset-root>/labels_backup",
@@ -537,6 +543,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="backup directory; default is <dataset-root>/labels_backup",
     )
     correct_crops.add_argument(
+        "--out-data",
+        dest="out_data",
+        default=None,
+        help="write a complete corrected dataset here; leave the source untouched",
+    )
+    correct_crops.add_argument(
         "--to",
         dest="to_value",
         required=False,
@@ -561,6 +573,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--backup-dir",
         default=None,
         help="backup directory; default is <dataset-root>/labels_backup",
+    )
+    correct_error_crops.add_argument(
+        "--out-data",
+        dest="out_data",
+        default=None,
+        help="write a complete corrected dataset here; leave the source untouched",
     )
     correct_error_crops.add_argument(
         "--pred-dir",
@@ -626,6 +644,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="backup directory; default is <dataset-root>/labels_backup",
     )
     correct_attr_crops.add_argument(
+        "--out-data",
+        dest="out_data",
+        default=None,
+        help="write a complete corrected dataset here; leave the source untouched",
+    )
+    correct_attr_crops.add_argument(
         "--report",
         default=None,
         help="edit report CSV; defaults to ydm_annotation/correct_attr_from_crops/edit_report.csv",
@@ -669,6 +693,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--backup-dir",
         default=None,
         help="backup directory; default is <dataset-root>/labels_backup",
+    )
+    correct_attr_error_crops.add_argument(
+        "--out-data",
+        dest="out_data",
+        default=None,
+        help="write a complete corrected dataset here; leave the source untouched",
     )
     correct_attr_error_crops.add_argument(
         "--report",
@@ -1157,6 +1187,12 @@ def add_runtime_args(parser: argparse.ArgumentParser, *, workers: bool = True) -
 def add_write_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--out", default=None, help="output dataset root; defaults to the command's <root>/ydm_* directory")
     parser.add_argument(
+        "--out-data",
+        dest="out_data",
+        default=None,
+        help="output a new dataset root without modifying the source labels",
+    )
+    parser.add_argument(
         "--backup-dir",
         default=None,
         help="backup directory; default is <dataset-root>/labels_backup",
@@ -1215,6 +1251,25 @@ def _default_file_path(args: argparse.Namespace, group: str, filename: str) -> s
 
 def _value_or_default(value: str | Path | None, default: str | Path) -> str:
     return str(value) if value is not None else str(default)
+
+
+def _write_output_root(args: argparse.Namespace, default: str | Path) -> str:
+    """Resolve the compatible ``out``/new-dataset ``out_data`` pair."""
+
+    out = getattr(args, "out", None)
+    out_data = getattr(args, "out_data", None)
+    if out is not None and out_data is not None:
+        raise ValueError("--out and --out-data are mutually exclusive")
+    if out_data is not None:
+        source_root = _resolved_output_root(args.root)
+        output_root = Path(out_data).expanduser()
+        if output_root.resolve() == source_root.resolve():
+            raise ValueError(
+                "--out-data must point to a different dataset root; "
+                "omit it to use the command's existing in-place behavior"
+            )
+        return str(output_root)
+    return _value_or_default(out, default)
 
 
 def _default_report_path(args: argparse.Namespace, operation: str) -> str:
@@ -1445,8 +1500,8 @@ def handle_dataset_select(args: argparse.Namespace) -> int:
 
 def handle_dataset_normalize(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
-    out = _value_or_default(
-        args.out,
+    out = _write_output_root(
+        args,
         default_dataset_output(_resolved_output_root(args.root), "normalize"),
     )
     if not args.dry_run:
@@ -1459,6 +1514,7 @@ def handle_dataset_normalize(args: argparse.Namespace) -> int:
             progress=args.progress,
             progress_leave=args.progress_leave,
             backup_dir=args.backup_dir,
+            backup=getattr(args, "out_data", None) is None,
             operation="dataset.normalize",
             backup_result={
                 "action": "normalize_dataset",
@@ -1575,7 +1631,9 @@ def handle_dataset_yaml(args: argparse.Namespace) -> int:
 def handle_dataset_filter(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
     source_root = _resolved_output_root(args.root)
-    out = Path(args.out) if args.out is not None else source_root
+    _write_output_root(args, source_root)
+    explicit_out = getattr(args, "out_data", None) or args.out
+    out = Path(explicit_out) if explicit_out is not None else source_root
     in_place = out.resolve() == source_root.resolve()
     before = dataset.annotation_count()
     class_ids = {dataset.class_id(value) for value in _split_values(args.class_values)} if args.class_values else None
@@ -1618,6 +1676,7 @@ def handle_dataset_filter(args: argparse.Namespace) -> int:
                 progress=args.progress,
                 progress_leave=args.progress_leave,
                 backup_dir=args.backup_dir,
+                backup=getattr(args, "out_data", None) is None,
                 operation="dataset.filter",
                 backup_result={
                     "action": "filter_annotations",
@@ -1775,8 +1834,8 @@ def handle_rename_class(args: argparse.Namespace) -> int:
 def handle_apply_map(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
     edited, reports = apply_class_map(dataset, args.map_file, compact=args.compact)
-    out = _value_or_default(
-        args.out,
+    out = _write_output_root(
+        args,
         default_annotation_output(_resolved_output_root(args.root), "apply_map"),
     )
     report_path = args.report or _default_report_path(args, "apply_map")
@@ -1793,6 +1852,7 @@ def handle_apply_map(args: argparse.Namespace) -> int:
             progress=args.progress,
             progress_leave=args.progress_leave,
             backup_dir=args.backup_dir,
+            backup=getattr(args, "out_data", None) is None,
             operation="ann.apply_map",
             backup_result={
                 "action": "apply_class_map",
@@ -1840,6 +1900,7 @@ def handle_correct_from_crops(args: argparse.Namespace) -> int:
             crop_map,
             backup_dir=getattr(args, "backup_dir", None),
             dry_run=args.dry_run,
+            out_data=getattr(args, "out_data", None),
         )
     else:
         if args.to_value is None:
@@ -1850,11 +1911,13 @@ def handle_correct_from_crops(args: argparse.Namespace) -> int:
             _parse_optional_class_value(args.to_value),
             backup_dir=getattr(args, "backup_dir", None),
             dry_run=args.dry_run,
+            out_data=getattr(args, "out_data", None),
         )
     report_path = args.report or _default_report_path(args, "correct_from_crops")
     edit_report.write_csv(report_path)
     payload = result.to_dict()
     payload["dry_run"] = args.dry_run
+    payload["out_data"] = getattr(args, "out_data", None) if not args.dry_run else None
     payload["report"] = report_path
     print(json.dumps(_compact_console_payload(payload), indent=2, ensure_ascii=False))
     return 0
@@ -1883,11 +1946,13 @@ def handle_correct_from_error_crops(args: argparse.Namespace) -> int:
         replace_gt_from_pred=getattr(args, "replace_gt_from_pred", False),
         backup_dir=getattr(args, "backup_dir", None),
         dry_run=args.dry_run,
+        out_data=getattr(args, "out_data", None),
     )
     report_path = args.report or _default_report_path(args, "correct_from_error_crops")
     edit_report.write_csv(report_path)
     payload = result.to_dict()
     payload["dry_run"] = args.dry_run
+    payload["out_data"] = getattr(args, "out_data", None) if not args.dry_run else None
     payload["report"] = report_path
     print(json.dumps(_compact_console_payload(payload), indent=2, ensure_ascii=False))
     return 0
@@ -1909,11 +1974,13 @@ def handle_correct_attr_from_crops(args: argparse.Namespace) -> int:
         args.attribute_value,
         backup_dir=args.backup_dir,
         dry_run=args.dry_run,
+        out_data=getattr(args, "out_data", None),
     )
     report_path = args.report or _default_report_path(args, "correct_attr_from_crops")
     edit_report.write_csv(report_path)
     payload = result.to_dict()
     payload["dry_run"] = args.dry_run
+    payload["out_data"] = getattr(args, "out_data", None) if not args.dry_run else None
     payload["report"] = report_path
     print(json.dumps(_compact_console_payload(payload), indent=2, ensure_ascii=False))
     return 0
@@ -1935,11 +2002,13 @@ def handle_correct_attr_from_error_crops(args: argparse.Namespace) -> int:
         args.attribute_value,
         backup_dir=args.backup_dir,
         dry_run=args.dry_run,
+        out_data=getattr(args, "out_data", None),
     )
     report_path = args.report or _default_report_path(args, "correct_attr_from_error_crops")
     edit_report.write_csv(report_path)
     payload = result.to_dict()
     payload["dry_run"] = args.dry_run
+    payload["out_data"] = getattr(args, "out_data", None) if not args.dry_run else None
     payload["report"] = report_path
     print(json.dumps(_compact_console_payload(payload), indent=2, ensure_ascii=False))
     return 0
@@ -2187,8 +2256,8 @@ def handle_import_mask(args: argparse.Namespace) -> int:
 def handle_seg2det(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
     edited = segmentation_to_detection(dataset)
-    out = _value_or_default(
-        args.out,
+    out = _write_output_root(
+        args,
         default_conversion_output(_resolved_output_root(args.root), "seg2det"),
     )
     write_yolo_dataset(
@@ -2200,6 +2269,7 @@ def handle_seg2det(args: argparse.Namespace) -> int:
         progress=args.progress,
         progress_leave=args.progress_leave,
         backup_dir=args.backup_dir,
+        backup=getattr(args, "out_data", None) is None,
     )
     print(json.dumps({"out": out}, indent=2, ensure_ascii=False))
     return 0
@@ -2208,8 +2278,8 @@ def handle_seg2det(args: argparse.Namespace) -> int:
 def handle_pseudo(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
     pseudo = predictions_to_pseudo_labels(dataset, confidence_threshold=args.conf, drop_confidence=args.drop_confidence)
-    out = _value_or_default(
-        args.out,
+    out = _write_output_root(
+        args,
         default_conversion_output(_resolved_output_root(args.root), "pseudo"),
     )
     if not args.dry_run:
@@ -2223,6 +2293,7 @@ def handle_pseudo(args: argparse.Namespace) -> int:
             progress=args.progress,
             progress_leave=args.progress_leave,
             backup_dir=args.backup_dir,
+            backup=getattr(args, "out_data", None) is None,
         )
     print(json.dumps({"annotations": pseudo.annotation_count(), "out": None if args.dry_run else out}, indent=2, ensure_ascii=False))
     return 0
@@ -2786,8 +2857,8 @@ def _write_edit_result(
     operation: str | None = None,
 ) -> None:
     operation = operation or getattr(args, "_output_operation", "edit")
-    out = _value_or_default(
-        args.out,
+    out = _write_output_root(
+        args,
         default_annotation_output(_resolved_output_root(args.root), operation),
     )
     report_path = args.report or _default_report_path(args, operation)
@@ -2801,6 +2872,7 @@ def _write_edit_result(
             progress=args.progress,
             progress_leave=args.progress_leave,
             backup_dir=args.backup_dir,
+            backup=getattr(args, "out_data", None) is None,
             operation=f"ann.{operation}",
             backup_result={
                 "action": operation,
