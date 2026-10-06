@@ -1,9 +1,11 @@
+import json
 from pathlib import Path
 
 from PIL import Image
 
 from yolo_data_manager.dataset.split import split_dataset
 from yolo_data_manager.io.loader import load_yolo_dataset
+from yolo_data_manager.cli import main as cli_main
 
 
 def _make_dataset(root: Path) -> Path:
@@ -66,4 +68,45 @@ def test_val_source_splits_only_remaining_images_between_train_and_test(tmp_path
     assert len(splits["test"]) == 1
     assert not set(splits["train"]) & set(splits["val"])
     assert not set(splits["test"]) & set(splits["val"])
+
+
+def test_split_out_data_materializes_dataset_and_retargets_split_files(tmp_path, capsys):
+    root = _make_dataset(tmp_path / "source")
+    previous_val = tmp_path / "v1_val.txt"
+    previous_val.write_text("image_001.jpg\nimage_003.jpg\n", encoding="utf-8")
+    out = tmp_path / "v2_split"
+
+    assert cli_main(
+        [
+            "dataset",
+            "split",
+            "--root",
+            str(root),
+            "--train",
+            "0.8",
+            "--val",
+            "0.2",
+            "--test",
+            "0",
+            "--val-source",
+            str(previous_val),
+            "--out-data",
+            str(out),
+            "--no-progress",
+        ]
+    ) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["out_data"] == str(out)
+    assert all((out / "images" / f"image_{index:03d}.jpg").is_file() for index in range(8))
+    assert all((out / "labels" / f"image_{index:03d}.txt").is_file() for index in range(8))
+    assert (out / "class.txt").is_file()
+    assert (out / "dataset.yaml").is_file()
+    assert (out / "val.txt").read_text(encoding="utf-8").splitlines() == [
+        "image_001.jpg",
+        "image_003.jpg",
+    ]
+    assert not (root / "train.txt").exists()
+    assert not (root / "val.txt").exists()
+    assert not (root / "test.txt").exists()
 

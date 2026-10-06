@@ -809,7 +809,8 @@ class YoloManager:
         val: float = 0.2,
         test: float = 0.0,
         seed: int = 233,
-        out: str | None = None,
+        out: str | Path | None = None,
+        out_data: str | Path | None = None,
         backup_dir: str | Path | None = None,
         absolute_paths: bool = True,
         train_include_list: str | Path | Sequence[str] | None = None,
@@ -819,7 +820,8 @@ class YoloManager:
         require_labels: bool = False,
         **kwargs: Any,
     ) -> int:
-        """Write train/val/test split files (``ydm dataset split``)."""
+        """Write split files, or materialize a new dataset with ``out_data``."""
+        _check_output_aliases(out, out_data)
         return self._run(
             "dataset.split",
             train=train,
@@ -827,6 +829,7 @@ class YoloManager:
             test=test,
             seed=seed,
             out=out,
+            out_data=out_data,
             backup_dir=backup_dir,
             absolute_paths=absolute_paths,
             train_include_list=train_include_list,

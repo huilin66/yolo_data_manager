@@ -90,6 +90,12 @@ mgr.dataset_split(
     seed=233,
     val_source=r"E:\datasets\v1\val.txt",
 )  # 固定复用 v1 的 val，v2 新增图像只划入 train/test
+mgr.dataset_split(
+    train=0.8,
+    val=0.2,
+    test=0.0,
+    out_data=r"E:\datasets\v2_split",
+)  # 复制生成新数据集，源数据集不修改
 mgr.dataset_extract_split(
     train_include_list="train.txt",
     val_include_list="val.txt",
@@ -435,7 +441,11 @@ Python API 与 CLI 使用相同的默认输出规则；显式传入 `out`、`csv
 <root>/train.txt、val.txt、test.txt、dataset.yaml
 ```
 
-`dataset_split()` 仍把 split 文件写在数据集根目录；`dataset_yaml()` 默认也写在根目录。
+`dataset_split()` 默认把 split 文件写在数据集根目录；`dataset_yaml()` 默认也写在根目录。
+传入 `out_data` 时，会复制生成一个独立的扁平数据集（`images/`、`labels/`、`class.txt`、
+`attribute.yaml`、`dataset.yaml` 以及 `train.txt`/`val.txt`/`test.txt`），并让新数据集的
+`dataset.yaml` 指向这些 split 文件；源数据集不会修改，也不会创建源数据集备份。`out` 与
+`out_data` 不能同时传入。
 `only_val` 只改变处理的数据范围，不改变默认输出分组。多模态数据沿用这些相同的功能目录，
 必要时在 `ydm_stats/plots/`、`ydm_vis/draw/` 等目录下按模态建立子目录，不存在独立的
 `ydm_multimodal` 功能模块。

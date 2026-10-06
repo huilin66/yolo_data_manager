@@ -290,6 +290,12 @@ def build_parser() -> argparse.ArgumentParser:
     dataset_split.add_argument("--seed", type=int, default=233)
     dataset_split.add_argument("--out", default=None, help="output directory; defaults to dataset root")
     dataset_split.add_argument(
+        "--out-data",
+        dest="out_data",
+        default=None,
+        help="write a new flat YOLO dataset here without modifying the source dataset",
+    )
+    dataset_split.add_argument(
         "--backup-dir",
         default=None,
         help="backup directory for existing train/val/test txt; defaults to <dataset-root>/labels_backup",
@@ -1547,14 +1553,57 @@ def handle_dataset_split(args: argparse.Namespace) -> int:
         ensure_class_presence=args.ensure_class_presence,
         require_labels=args.require_labels,
     )
-    out_dir = Path(args.out) if args.out else _resolved_output_root(args.root)
+    out_data = getattr(args, "out_data", None)
+    out_dir = Path(
+        _write_output_root(
+            args,
+            _resolved_output_root(args.root),
+        )
+    )
+    if out_data is not None:
+        # Materialize a standalone flat dataset first.  The source dataset is
+        # never backed up or modified in this mode.
+        write_yolo_dataset(
+            dataset,
+            out_dir,
+            copy_images=True,
+            keep_empty_labels=True,
+            workers=args.workers,
+            progress=args.progress,
+            progress_leave=args.progress_leave,
+            backup=False,
+            operation="dataset.split",
+        )
+        output_splits = {
+            split_name: _split_names_for_output(
+                dataset,
+                names,
+                out_dir,
+                absolute_paths=args.absolute_paths,
+            )
+            for split_name, names in splits.items()
+        }
+        # A generated dataset should train/evaluate from the split lists, not
+        # from the complete images directory.  Keep test out of the YAML when
+        # the caller explicitly requested test=0.
+        write_dataset_yaml(
+            dataset.classes,
+            out_dir / "dataset.yaml",
+            train="train.txt",
+            val="val.txt",
+            test="test.txt" if args.test > 0 else None,
+        )
+    else:
+        output_splits = splits
     backup_root = (
         Path(args.backup_dir)
         if args.backup_dir is not None
         else _resolved_output_root(args.root) / "labels_backup"
     )
     split_counts = {name: len(values) for name, values in splits.items()}
-    if any((out_dir / f"{name}.txt").is_file() for name in ("train", "val", "test")):
+    if out_data is None and any(
+        (out_dir / f"{name}.txt").is_file() for name in ("train", "val", "test")
+    ):
         ensure_source_labels_backup(
             _resolved_output_root(args.root),
             backup_root,
@@ -1564,20 +1613,24 @@ def handle_dataset_split(args: argparse.Namespace) -> int:
                 if image.label_path is not None
             ),
         )
-    backup_snapshot = move_existing_split_files_to_backup(
-        out_dir,
-        backup_root,
-        method="dataset.split",
-        result={
-            "action": "regenerate_split_files",
-            "splits": split_counts,
-        },
-    )
-    for split_name, names in splits.items():
+        backup_snapshot = move_existing_split_files_to_backup(
+            out_dir,
+            backup_root,
+            method="dataset.split",
+            result={
+                "action": "regenerate_split_files",
+                "splits": split_counts,
+            },
+        )
+    else:
+        backup_snapshot = None
+    for split_name, names in output_splits.items():
         write_split_file(names, out_dir / f"{split_name}.txt")
     print(
         json.dumps(
             {
+                "out": str(out_dir),
+                "out_data": str(out_dir) if out_data is not None else None,
                 "splits": split_counts,
                 "backup_dir": str(backup_snapshot) if backup_snapshot is not None else None,
                 "backup_metadata": (
@@ -1593,6 +1646,44 @@ def handle_dataset_split(args: argparse.Namespace) -> int:
         )
     )
     return 0
+
+
+def _split_names_for_output(
+    dataset,
+    names: list[str],
+    out_root: str | Path,
+    *,
+    absolute_paths: bool,
+) -> list[str]:
+    """Retarget split entries from the source dataset to a copied dataset."""
+
+    def key(value: object) -> str:
+        return str(value).replace("\\", "/").casefold()
+
+    file_names: dict[str, str] = {}
+    for image in dataset.images:
+        image_file_name = str(image.file_name)
+        for value in (
+            image_file_name,
+            image.stem,
+            image.path,
+            image.path.resolve(),
+            image.path.name,
+            image.path.stem,
+        ):
+            file_names.setdefault(key(value), image_file_name)
+
+    output_root = Path(out_root)
+    result: list[str] = []
+    for name in names:
+        image_file_name = file_names.get(key(name))
+        if image_file_name is None:
+            raise ValueError(
+                f"cannot map split image {name!r} into output dataset {output_root}"
+            )
+        output_path = output_root / "images" / image_file_name
+        result.append(str(output_path.resolve()) if absolute_paths else image_file_name)
+    return result
 
 
 def handle_dataset_extract_split(args: argparse.Namespace) -> int:

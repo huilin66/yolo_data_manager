@@ -95,8 +95,11 @@ The Python API and CLI use the same defaults. Explicit `out`, `csv`, or `plots_d
 <root>/train.txt, val.txt, test.txt, dataset.yaml
 ```
 
-`dataset_split()` keeps split files in the dataset root, and `dataset_yaml()` keeps
-`dataset.yaml` there as well. `only_val` changes the data scope, not the output group.
+`dataset_split()` keeps split files in the dataset root by default, and `dataset_yaml()` keeps
+`dataset.yaml` there as well. Passing `out_data` materializes a standalone flat dataset with
+`images/`, `labels/`, schema files, and `train.txt`/`val.txt`/`test.txt`; the generated
+`dataset.yaml` points to those split lists. The source dataset is not modified or backed up.
+`out` and `out_data` are mutually exclusive. `only_val` changes the data scope, not the output group.
 `train_include_list` and `val_include_list` accept an image-name/path list or a
 txt file with one image name/path per line. These images are removed from the
 random pool before splitting, then forced into train or val. The two lists may
@@ -234,6 +237,12 @@ mgr.dataset_split(
     seed=233,
     val_source=r"E:\datasets\v1\val.txt",
 )  # keep v1 val fixed; new v2 images go only to train/test
+mgr.dataset_split(
+    train=0.8,
+    val=0.2,
+    test=0.0,
+    out_data=r"E:\datasets\v2_split",
+)  # materialize a new dataset without modifying the source
 mgr.dataset_extract_split(
     train_include_list="train.txt",
     val_include_list="val.txt",

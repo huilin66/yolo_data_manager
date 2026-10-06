@@ -143,6 +143,8 @@ ydm dataset split --root path/to/yolo --train 0.8 --val 0.2 \
   --train-include-list train_include.txt --val-include-list val_include.txt
 ydm dataset split --root path/to/v2 --train 0.8 --val 0.2 --test 0 \
   --val-source path/to/v1/val.txt
+ydm dataset split --root path/to/v2 --train 0.8 --val 0.2 --test 0 \
+  --out-data path/to/v2_split
 ydm dataset split --root path/to/yolo --train 0.8 --val 0.1 --test 0.1 \
   --no-ensure-class-presence
 ydm dataset split --root path/to/yolo --train 0.8 --val 0.2 \
@@ -162,6 +164,9 @@ split 会打印总类别 box 数量和 val 类别 box 数量，方便检查验�
 `split` 默认启用加权类别分布约束：先尽量让每个有标注的类别出现在每个非空 split 中，再让各类别的 box 数量接近 train/val/test 比例；当类别样本不足时，覆盖优先级为 train > test > val，`test=0` 时为 train > val。由于图像不能拆分、include list 固定分配或 split 容量不足，结果只能近似满足。`--seed` 控制随机顺序和并列决策；使用 `--no-ensure-class-presence` 可关闭。
 使用 `--require-labels` 时，只对存在对应 `.txt` label 文件的图像进行划分；没有对应 label 的图像会被排除。默认不启用。
 如果输出目录中已存在 `train.txt`、`val.txt` 或 `test.txt`，写入前会将其移动到 `<数据集根目录>/labels_backup/<时间戳>/`；可通过 `--backup-dir` 指定其他备份目录。
+传入 `--out-data` 时会复制生成一个独立的扁平 YOLO 数据集（包含 `images/`、`labels/`、schema、
+`dataset.yaml` 和 split txt），并让新数据集的 `dataset.yaml` 指向 split txt；源数据集不会修改或备份。
+`--out` 与 `--out-data` 互斥。
 
 `dataset extract-split` 用你已有的 split txt（`train.txt`、`val.txt`、`test.txt`）把各 set 物化出来：每个提供的 set 写到 `<out>/<set>`，作为独立扁平数据集（`images/` + `labels/` + `class.txt` + `dataset.yaml`）。`--*-include-list` 可以传 txt 文件，也可以传逗号分隔的图片名/路径；未提供的 set 会跳过，空 set 会报告为 0 张且不落盘。`--dry-run` 只报告各 set 数量和输出路径而不写文件，`--no-copy-images` 不复制图片，`--drop-empty-labels` 丢弃空标签文件。默认输出到 `<数据集根目录>/ydm_subsets`，可用 `--out` 指定其他目录。
 

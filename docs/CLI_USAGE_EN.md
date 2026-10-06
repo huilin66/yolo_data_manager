@@ -139,6 +139,8 @@ ydm dataset split --root path/to/yolo --train 0.8 --val 0.2 --seed 233
 ydm dataset split --root path/to/yolo --train 0.8 --val 0.1 --test 0.1 --absolute-paths
 ydm dataset split --root path/to/yolo --train 0.8 --val 0.2 \
   --train-include-list train_include.txt --val-include-list val_include.txt
+ydm dataset split --root path/to/v2 --train 0.8 --val 0.2 --test 0 \
+  --val-source path/to/v1/val.txt --out-data path/to/v2_split
 ydm dataset split --root path/to/yolo --train 0.8 --val 0.1 --test 0.1 \
   --no-ensure-class-presence
 ydm dataset split --root path/to/yolo --train 0.8 --val 0.2 \
@@ -169,6 +171,9 @@ Use `--require-labels` to split only images with an existing corresponding
 label `.txt`; images without a label file are excluded. It is disabled by
 default.
 If `train.txt`, `val.txt`, or `test.txt` already exists in the output directory, split moves it before writing into `<dataset-root>/labels_backup/<timestamp>/`; use `--backup-dir` to override the backup directory.
+With `--out-data`, split materializes a standalone flat YOLO dataset containing `images/`, `labels/`,
+schema files, `dataset.yaml`, and split txt files. The generated `dataset.yaml` points to those split
+lists; the source dataset is not modified or backed up. `--out` and `--out-data` are mutually exclusive.
 
 `dataset extract-split` materializes each set from your existing split txt files (`train.txt`, `val.txt`, `test.txt`): each supplied set is written to `<out>/<set>` as a standalone flat dataset (`images/` + `labels/` + `class.txt` + `dataset.yaml`). `--*-include-list` accepts a txt file or comma-separated image names/paths; omitted sets are skipped and empty sets are reported as 0 images without writing. `--dry-run` reports counts and output paths without writing, `--no-copy-images` skips copying images, and `--drop-empty-labels` omits empty label files. Output defaults to `<dataset-root>/ydm_subsets`; use `--out` to override.
 
