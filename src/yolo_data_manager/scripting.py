@@ -19,6 +19,8 @@ from yolo_data_manager.logging_utils import operation_scope
 
 TASK_COMMANDS: Mapping[str, tuple[str, ...]] = {
     "check": ("check",),
+    "image.check": ("image-check",),
+    "label.check": ("label-check",),
     "stats": ("stats",),
     "layout.detect": ("layout", "detect"),
     "query.class": ("query", "class"),
@@ -275,6 +277,8 @@ def _resolve_yaml_data_path(yaml_path: Path, dataset_root: Path, value: Any) -> 
 _ROOT_TASKS: frozenset[str] = frozenset(
     {
         "check",
+        "image.check",
+        "label.check",
         "stats",
         "query.class",
         "query.attr",
@@ -316,6 +320,7 @@ _ROOT_TASKS: frozenset[str] = frozenset(
 _DATASET_MUTATING_TASKS: frozenset[str] = frozenset(
     {
         "check",
+        "label.check",
         "dataset.select",
         "dataset.normalize",
         "dataset.split",
@@ -640,6 +645,8 @@ class YoloManager:
         *,
         out: str | None = None,
         fill_missing_txt: bool = False,
+        check_list: str | list[str] | None = None,
+        duplicate_iou: float | None = None,
         only_val: bool | None = None,
         workers: int = 8,
         progress: bool = True,
@@ -653,9 +660,67 @@ class YoloManager:
         only a compact terminal summary. Progress is enabled by default with
         multiple validation workers and ``leave=False``.
         """
+        params: dict[str, Any] = {
+            "out": out,
+            "fill_missing_txt": fill_missing_txt,
+            "only_val": only_val,
+            "workers": workers,
+            "progress": progress,
+            "progress_leave": progress_leave,
+            **kwargs,
+        }
+        if check_list is not None:
+            params["check_list"] = check_list
+        if duplicate_iou is not None:
+            params["duplicate_iou"] = duplicate_iou
+        return self._run("check", **params)
+
+    def image_check(
+        self,
+        *,
+        out: str | None = None,
+        check_list: str | list[str] | None = None,
+        only_val: bool | None = None,
+        algorithm: str = "sha256",
+        workers: int = 8,
+        progress: bool = True,
+        progress_leave: bool = False,
+        **kwargs: Any,
+    ) -> int:
+        """Check image existence, readability, names, and content duplicates."""
+
         return self._run(
-            "check",
+            "image.check",
             out=out,
+            check_list=check_list,
+            algorithm=algorithm,
+            only_val=only_val,
+            workers=workers,
+            progress=progress,
+            progress_leave=progress_leave,
+            **kwargs,
+        )
+
+    def label_check(
+        self,
+        *,
+        out: str | None = None,
+        check_list: str | list[str] | None = None,
+        duplicate_iou: float = 0.9,
+        fill_missing_txt: bool = False,
+        only_val: bool | None = None,
+        workers: int = 8,
+        progress: bool = True,
+        progress_leave: bool = False,
+        **kwargs: Any,
+    ) -> int:
+        """Check label format, geometry, pairing, and high-IoU overlaps."""
+
+        return self._run(
+            "label.check",
+            out=out,
+            check_list=check_list,
+            duplicate_iou=duplicate_iou,
             fill_missing_txt=fill_missing_txt,
             only_val=only_val,
             workers=workers,

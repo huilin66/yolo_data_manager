@@ -1395,6 +1395,10 @@ def _error_analysis_class_name(dataset: YoloDataset, class_id: int) -> str:
 def find_duplicate_gt(
     dataset: YoloDataset,
     duplicate_iou: float = 0.9,
+    *,
+    workers: int = 1,
+    progress: bool = False,
+    progress_leave: bool = False,
 ) -> list[DuplicateGt]:
     """Find highly-overlapping GT annotation pairs on the same image.
 
@@ -1405,43 +1409,87 @@ def find_duplicate_gt(
     duplicate_iou:
         IoU threshold above which two annotations are flagged as
         potential duplicates.
+    workers:
+        Worker threads used to inspect images independently.
 
     Returns
     -------
     rows:
         One :class:`DuplicateGt` per overlapping pair.
     """
+    worker_count = normalize_workers(workers)
+    if worker_count == 1:
+        rows: list[DuplicateGt] = []
+        for image in iter_progress(
+            dataset.images,
+            enabled=progress,
+            total=len(dataset.images),
+            desc="label duplicate IoU",
+            leave=progress_leave,
+        ):
+            rows.extend(_find_duplicate_gt_for_image(dataset, image, duplicate_iou))
+        return rows
+
+    indexed_rows: list[tuple[int, list[DuplicateGt]]] = []
+    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+        future_to_index = {
+            executor.submit(
+                _find_duplicate_gt_for_image,
+                dataset,
+                image,
+                duplicate_iou,
+            ): index
+            for index, image in enumerate(dataset.images)
+        }
+        for future in iter_progress(
+            as_completed(future_to_index),
+            enabled=progress,
+            total=len(future_to_index),
+            desc="label duplicate IoU",
+            leave=progress_leave,
+        ):
+            indexed_rows.append((future_to_index[future], future.result()))
+
+    rows = []
+    for _, image_rows in sorted(indexed_rows, key=lambda item: item[0]):
+        rows.extend(image_rows)
+    return rows
+
+
+def _find_duplicate_gt_for_image(
+    dataset: YoloDataset,
+    image: YoloImage,
+    duplicate_iou: float,
+) -> list[DuplicateGt]:
+    anns = image.annotations
+    if len(anns) <= 1:
+        return []
+
+    boxes = np.array([_annotation_box_norm(a) for a in anns], dtype=np.float64)
+    ious = box_iou_matrix(boxes, boxes)
     rows: list[DuplicateGt] = []
-    for image in dataset.images:
-        anns = image.annotations
-        if len(anns) <= 1:
-            continue
-        boxes = np.array(
-            [_annotation_box_norm(a) for a in anns], dtype=np.float64
-        )
-        ious = box_iou_matrix(boxes, boxes)
-        for i in range(len(anns)):
-            for j in range(i + 1, len(anns)):
-                if ious[i, j] >= duplicate_iou:
-                    rows.append(
-                        DuplicateGt(
-                            image=image.stem,
-                            gt_idx_i=_annotation_index(anns[i], i + 1),
-                            gt_idx_j=_annotation_index(anns[j], j + 1),
-                            iou=float(ious[i, j]),
-                            cls_i=anns[i].class_id,
-                            name_i=dataset.class_name(anns[i].class_id),
-                            cls_j=anns[j].class_id,
-                            name_j=dataset.class_name(anns[j].class_id),
-                            type=(
-                                "same_class_duplicate"
-                                if anns[i].class_id == anns[j].class_id
-                                else "overlap_different_class"
-                            ),
-                            line_i=anns[i].source_line,
-                            line_j=anns[j].source_line,
-                        )
+    for i in range(len(anns)):
+        for j in range(i + 1, len(anns)):
+            if ious[i, j] >= duplicate_iou:
+                rows.append(
+                    DuplicateGt(
+                        image=image.stem,
+                        gt_idx_i=_annotation_index(anns[i], i + 1),
+                        gt_idx_j=_annotation_index(anns[j], j + 1),
+                        iou=float(ious[i, j]),
+                        cls_i=anns[i].class_id,
+                        name_i=_error_analysis_class_name(dataset, anns[i].class_id),
+                        cls_j=anns[j].class_id,
+                        name_j=_error_analysis_class_name(dataset, anns[j].class_id),
+                        type=(
+                            "same_class_duplicate"
+                            if anns[i].class_id == anns[j].class_id
+                            else "overlap_different_class"
+                        ),
+                        line_i=anns[i].source_line,
+                        line_j=anns[j].source_line,
                     )
+                )
     return rows
 
 

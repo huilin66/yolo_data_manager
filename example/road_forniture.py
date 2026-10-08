@@ -13,7 +13,7 @@ from yolo_data_manager import YoloManager
 
 # DATA_DIR = Path(r"D:\zhl\data\road_forniture_v1")
 # DATA_DIR = Path(r"D:\zhl\data\road_forniture_v1_rename")
-DATA_DIR = Path(r"E:\repository\road_project\data\road_forniture_add_v3")
+DATA_DIR = Path(r"E:\repository\road_project\data\road_furniture_add_v3")
 PRED_RUNS_DIR = Path(r"D:\zhl\project\ultralytics\runs\detect")
 
 
@@ -37,9 +37,9 @@ RUN_LIST = [
     # "rename",
     # "split",
     # "resize",
-    # "sta",
-    "vis_draw",
-    "vis_crop",
+    "sta",
+    # "vis_draw",
+    # "vis_crop",
     # "query",
     # "copy_select",
     # "metric",

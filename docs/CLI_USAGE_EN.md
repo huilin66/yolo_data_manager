@@ -81,12 +81,23 @@ ydm layout detect --root path/to/yolo
 ydm check --root path/to/yolo --task auto
 ydm check --root path/to/yolo --layout auto
 ydm check --root path/to/yolo --layout flat --fill-missing-txt --out validation.json
+ydm image-check --root path/to/yolo --check-list all
+ydm image-check --root path/to/yolo --check-list duplicates
+ydm label-check --root path/to/yolo --check-list all --duplicate-iou 0.9
+ydm label-check --root path/to/yolo --check-list overlap
+ydm check --root path/to/yolo --check-list image,label
 ydm dataset normalize --root path/to/yolo --layout auto --out normalized_yolo
 ```
 
 `layout detect` emits `report_type: layout_detect`. It is a layout detection result, not a dataset validation/check result. The output also includes `class_source`, `class_count`, and `classes` so you can confirm whether classes were read from `class.txt`, `classes.txt`, `dataset.yaml`, or `data.yaml`.
 
 `check` writes the full validation report to JSON, while the terminal prints only a red warning/error summary or a green OK summary. If `--out` is omitted, the default file is `<root>/ydm_quality/check.json`. Use `--print-full` only when you also want the full JSON printed to the terminal.
+
+`image-check` accepts `all`, `bad_images`, and `duplicates` through `--check-list`; it
+defaults to `all` and writes `<root>/ydm_quality/image_check.json`. `label-check`
+accepts `all`, `format`, and `overlap`; it defaults to `all` and writes
+`<root>/ydm_quality/label_check.json`. `check --check-list` accepts `all`, `image`,
+and `label`; it runs both groups and merges their reports by default.
 
 `--fill-missing-txt` creates empty label txt files for images without labels and reports the created files in JSON.
 

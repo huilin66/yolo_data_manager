@@ -67,6 +67,9 @@ Most methods that load, write, validate, visualize, or evaluate datasets support
 
 ```python
 mgr.check(workers=16)
+mgr.image_check(check_list=["all"])
+mgr.label_check(check_list=["overlap"], duplicate_iou=0.9)
+mgr.check(check_list=["image"])
 mgr.stats(only_val=True)
 mgr.vis_draw(out="images_vis", progress=False)
 mgr.vis_crop(clean=False)  # keep outputs from previous runs instead of clearing
@@ -77,13 +80,23 @@ Lower-level functions such as `load_yolo_dataset()` and `validate_dataset()` def
 
 `check` writes the full validation report to JSON, while the terminal prints only a red warning/error summary or a green OK summary. If `out` is omitted, the default file is `<root>/ydm_quality/check.json`.
 
+Validation is split into `image_check()` and `label_check()`. `image_check()` accepts
+`check_list` values `all`, `bad_images`, and `duplicates`; it checks missing/corrupt
+images plus duplicate names and duplicate image content. Its default output is
+`<root>/ydm_quality/image_check.json`. `label_check()` accepts `all`, `format`, and
+`overlap`; it checks label pairing, class/coordinate/geometry validity, exact duplicate
+annotation rows, and GT pairs whose IoU is above `duplicate_iou` (default `0.9`). Its
+default output is `<root>/ydm_quality/label_check.json`. `check()` runs both groups by
+default and merges their report; use `check_list=["image"]` or `check_list=["label"]`
+to run only one group.
+
 ### Default output paths
 
 The Python API and CLI use the same defaults. Explicit `out`, `csv`, or `plots_dir` values always take precedence:
 
 ```text
 <root>/labels_backup/       timestamped backups; first run also has root labels/ and backup_metadata.json
-<root>/ydm_quality/         check, query, duplicates, bad-images
+<root>/ydm_quality/         check, image_check, label_check, query, duplicates, bad-images
 <root>/ydm_stats/           stats.json, CSV files, plots/
 <root>/ydm_vis/             draw/, crop/, manual_box/
 <root>/ydm_evaluation/      compare, review_pack, error_analysis, metrics

@@ -414,6 +414,9 @@ mgr.import_mask(
 
 ```python
 mgr.check(workers=16)
+mgr.image_check(check_list=["all"])
+mgr.label_check(check_list=["overlap"], duplicate_iou=0.9)
+mgr.check(check_list=["image"])
 mgr.stats(only_val=True)
 mgr.vis_draw(out="images_vis", progress=False)
 mgr.eval_error_analysis(pred_root="pred", out="error_report", review=True, workers=16)
@@ -423,13 +426,22 @@ mgr.eval_error_analysis(pred_root="pred", out="error_report", review=True, worke
 
 `check` 完整校验结果会写入 JSON 文件，终端只输出红色 warning/error 摘要或绿色 OK 摘要。`out` 不指定时默认写到 `<root>/ydm_quality/check.json`。
 
+校验已拆分为 `image_check()` 和 `label_check()`。`image_check()` 的
+`check_list` 支持 `all`、`bad_images`、`duplicates`，分别检查图像是否缺失/损坏、
+图像文件名及内容是否重复；默认是 `all`，输出默认为
+`<root>/ydm_quality/image_check.json`。`label_check()` 的 `check_list` 支持
+`all`、`format`、`overlap`，分别检查标签配对、类别/坐标/几何合法性、完全重复标注行，
+以及 IoU 高于 `duplicate_iou` 的 GT 框；默认 IoU 为 `0.9`，输出默认为
+`<root>/ydm_quality/label_check.json`。`check()` 默认调用两个检查并合并报告，
+也可以用 `check_list=["image"]` 或 `check_list=["label"]` 只执行其中一组。
+
 ### 默认输出路径
 
 Python API 与 CLI 使用相同的默认输出规则；显式传入 `out`、`csv` 或 `plots_dir` 时仍以显式路径为准：
 
 ```text
 <root>/labels_backup/       时间戳备份；首次直接包含 labels/ 和 backup_metadata.json 基线
-<root>/ydm_quality/         check、query、duplicates、bad-images
+<root>/ydm_quality/         check、image_check、label_check、query、duplicates、bad-images
 <root>/ydm_stats/           stats.json、CSV、plots/
 <root>/ydm_vis/             draw/、crop/、manual_box/
 <root>/ydm_evaluation/      compare、review_pack、error_analysis、metrics

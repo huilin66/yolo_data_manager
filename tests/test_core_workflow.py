@@ -440,7 +440,7 @@ def test_yolo_manager_init_check_can_write_to_path(tmp_path):
 
     payload = json.loads(out.read_text(encoding="utf-8"))
     assert payload["ok"] is True
-    assert payload["summary"] == {}
+    assert payload["summary"] == {"warning:duplicate_image_content": 2}
 
 
 def test_yolo_manager_init_check_can_fill_missing_txt(tmp_path):
@@ -529,8 +529,62 @@ def test_cli_check_uses_default_report_path(tmp_path, capsys):
 
     assert code == 0
     assert (root / "ydm_quality" / "check.json").exists()
-    assert "[CHECK OK]" in captured.err
+    assert "[CHECK WARNING]" in captured.err
+    assert "warning:duplicate_image_content: 2" in captured.err
     assert captured.out == ""
+
+
+def test_cli_image_check_can_select_duplicate_images_only(tmp_path):
+    root = make_dataset(tmp_path / "yolo")
+    out = tmp_path / "image_check.json"
+
+    code = cli_main([
+        "image-check",
+        "--root",
+        str(root),
+        "--layout",
+        "flat",
+        "--check-list",
+        "duplicates",
+        "--out",
+        str(out),
+        "--no-progress",
+    ])
+    payload = json.loads(out.read_text(encoding="utf-8"))
+
+    assert code == 0
+    assert payload["selected"] == ["duplicates"]
+    assert payload["summary"]["warning:duplicate_image_content"] == 2
+    assert not any(row["code"] == "bad_image" for row in payload["issues"])
+
+
+def test_cli_label_check_reports_high_iou_gt_overlap(tmp_path):
+    root = make_dataset(tmp_path / "yolo")
+    (root / "labels" / "a.txt").write_text(
+        "0 0.5 0.5 0.4 0.4\n0 0.5 0.5 0.4 0.4\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "label_check.json"
+
+    code = cli_main([
+        "label-check",
+        "--root",
+        str(root),
+        "--layout",
+        "flat",
+        "--check-list",
+        "overlap",
+        "--duplicate-iou",
+        "0.9",
+        "--out",
+        str(out),
+        "--no-progress",
+    ])
+    payload = json.loads(out.read_text(encoding="utf-8"))
+
+    assert code == 0
+    assert payload["selected"] == ["overlap"]
+    assert payload["summary"]["warning:duplicate_gt_iou"] == 1
 
 
 def test_validate_dataset_parallel_matches_serial(tmp_path):

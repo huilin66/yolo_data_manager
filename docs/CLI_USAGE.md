@@ -83,12 +83,23 @@ ydm layout detect --root path/to/yolo
 ydm check --root path/to/yolo --task auto
 ydm check --root path/to/yolo --layout auto
 ydm check --root path/to/yolo --layout flat --fill-missing-txt --out validation.json
+ydm image-check --root path/to/yolo --check-list all
+ydm image-check --root path/to/yolo --check-list duplicates
+ydm label-check --root path/to/yolo --check-list all --duplicate-iou 0.9
+ydm label-check --root path/to/yolo --check-list overlap
+ydm check --root path/to/yolo --check-list image,label
 ydm dataset normalize --root path/to/yolo --layout auto --out normalized_yolo
 ```
 
 `layout detect` 输出的 `report_type` 是 `layout_detect`，这是布局检测结果，不是 `check` 校验结果。输出中还会包含 `class_source`、`class_count`、`classes`，用于确认类别是从 `class.txt`、`classes.txt`、`dataset.yaml` 还是 `data.yaml` 读取到的。
 
 `check` 完整校验结果会写入 JSON 文件，终端只输出红色 warning/error 摘要或绿色 OK 摘要。`--out` 不指定时默认写到 `<root>/ydm_quality/check.json`。如确实需要在终端打印完整 JSON，可加 `--print-full`。
+
+`image-check` 的 `--check-list` 支持 `all`、`bad_images`、`duplicates`，默认是
+`all`；报告默认写入 `<root>/ydm_quality/image_check.json`。`label-check` 支持
+`all`、`format`、`overlap`，默认是 `all`，报告默认写入
+`<root>/ydm_quality/label_check.json`。`check --check-list` 支持 `all`、`image`、
+`label`，默认执行两组并合并报告。
 
 `--fill-missing-txt` 会为没有 label 的图片创建空 txt，并在 JSON 中列出创建结果。
 

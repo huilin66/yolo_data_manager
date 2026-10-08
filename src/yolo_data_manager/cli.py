@@ -24,6 +24,14 @@ from yolo_data_manager.converters.pseudo import predictions_to_pseudo_labels
 from yolo_data_manager.converters.seg_det import segmentation_to_detection
 from yolo_data_manager.converters.voc import import_voc_dir
 from yolo_data_manager.converters.xanylabeling import export_xanylabeling
+from yolo_data_manager.dataset.check import (
+    combine_check_payloads,
+    normalize_check_groups,
+    normalize_image_check_list,
+    normalize_label_check_list,
+    run_image_checks,
+    run_label_checks,
+)
 from yolo_data_manager.dataset.duplicates import find_duplicate_images, write_duplicate_image_csv
 from yolo_data_manager.dataset.filter import filter_by_geometry
 from yolo_data_manager.dataset.merge import merge_datasets
@@ -202,9 +210,53 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="JSON output path; defaults to <root>/ydm_quality/check.json",
     )
+    check.add_argument(
+        "--check-list",
+        default=None,
+        help="comma-separated checks: all, image, label; default all",
+    )
+    check.add_argument(
+        "--duplicate-iou",
+        type=float,
+        default=0.9,
+        help="label overlap IoU threshold; default 0.9",
+    )
     check.add_argument("--fill-missing-txt", action="store_true", help="create empty txt files for images without matching labels")
     check.add_argument("--print-full", action="store_true", help="also print the full JSON report to terminal")
     check.set_defaults(handler=handle_check)
+
+    image_check = subparsers.add_parser("image-check", help="check image files and duplicates")
+    add_dataset_args(image_check)
+    image_check.add_argument(
+        "--out",
+        default=None,
+        help="JSON output path; defaults to <root>/ydm_quality/image_check.json",
+    )
+    image_check.add_argument(
+        "--check-list",
+        default=None,
+        help="comma-separated checks: all, bad_images, duplicates; default all",
+    )
+    image_check.add_argument("--algorithm", default="sha256", help="hash algorithm for duplicate content detection")
+    image_check.add_argument("--print-full", action="store_true", help="also print the full JSON report to terminal")
+    image_check.set_defaults(handler=handle_image_check)
+
+    label_check = subparsers.add_parser("label-check", help="check label format, geometry, and overlaps")
+    add_dataset_args(label_check)
+    label_check.add_argument(
+        "--out",
+        default=None,
+        help="JSON output path; defaults to <root>/ydm_quality/label_check.json",
+    )
+    label_check.add_argument(
+        "--check-list",
+        default=None,
+        help="comma-separated checks: all, format, overlap; default all",
+    )
+    label_check.add_argument("--duplicate-iou", type=float, default=0.9, help="GT overlap IoU threshold; default 0.9")
+    label_check.add_argument("--fill-missing-txt", action="store_true", help="create empty txt files for images without matching labels")
+    label_check.add_argument("--print-full", action="store_true", help="also print the full JSON report to terminal")
+    label_check.set_defaults(handler=handle_label_check)
 
     stats = subparsers.add_parser("stats", help="compute dataset statistics")
     add_dataset_args(stats)
@@ -1216,7 +1268,13 @@ def add_write_args(parser: argparse.ArgumentParser) -> None:
     parser.set_defaults(copy_images=True, keep_empty_labels=True)
 
 
-def load_from_args(args: argparse.Namespace, *, progress: bool | None = None, progress_leave: bool | None = None):
+def load_from_args(
+    args: argparse.Namespace,
+    *,
+    progress: bool | None = None,
+    progress_leave: bool | None = None,
+    read_image_size: bool = True,
+):
     root = args.root
     class_file = args.class_file
     split_file = args.split_file
@@ -1243,6 +1301,7 @@ def load_from_args(args: argparse.Namespace, *, progress: bool | None = None, pr
         workers=getattr(args, "workers", 8),
         progress=getattr(args, "progress", True) if progress is None else progress,
         progress_leave=getattr(args, "progress_leave", False) if progress_leave is None else progress_leave,
+        read_image_size=read_image_size,
     )
 
 
@@ -1309,31 +1368,109 @@ def handle_layout_detect(args: argparse.Namespace) -> int:
 def handle_check(args: argparse.Namespace) -> int:
     out = _value_or_default(args.out, _default_file_path(args, "quality", "check.json"))
     _print_status("CHECK", f"loading and validating dataset: {args.root}")
-    dataset = load_from_args(args, progress=args.progress, progress_leave=args.progress_leave)
-    _print_status("CHECK", f"validating {len(dataset.images)} images with {max(1, int(args.workers))} worker(s)")
-    report = validate_dataset(
+    selected = normalize_check_groups(args.check_list)
+    dataset = load_from_args(
+        args,
+        progress=args.progress,
+        progress_leave=args.progress_leave,
+        read_image_size=False,
+    )
+    _print_status("CHECK", f"running {', '.join(selected)} checks on {len(dataset.images)} images with {max(1, int(args.workers))} worker(s)")
+
+    results = {}
+    if "image" in selected:
+        results["image"] = run_image_checks(
+            dataset,
+            check_list=["all"],
+            workers=args.workers,
+            progress=args.progress,
+            progress_leave=args.progress_leave,
+        )
+    if "label" in selected:
+        results["label"] = run_label_checks(
+            dataset,
+            check_list=["all"],
+            duplicate_iou=args.duplicate_iou,
+            workers=args.workers,
+            progress=args.progress,
+            progress_leave=args.progress_leave,
+        )
+
+    created = []
+    if args.fill_missing_txt and "label" in selected:
+        _print_status("CHECK", "creating empty txt files for missing labels")
+        created = fill_missing_label_files(dataset)
+    payload = combine_check_payloads(
+        results,
+        selected,
+        fixed={
+            "missing_txt_created": [str(path) for path in created],
+            "missing_txt_created_count": len(created),
+        },
+    )
+    write_json_report(payload, out)
+    _print_check_summary(payload, out)
+    if args.print_full:
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+    return 0 if payload["ok"] else 2
+
+
+def handle_image_check(args: argparse.Namespace) -> int:
+    out = _value_or_default(args.out, _default_file_path(args, "quality", "image_check.json"))
+    _print_status("IMAGE CHECK", f"loading image paths: {args.root}")
+    dataset = load_from_args(
+        args,
+        progress=args.progress,
+        progress_leave=args.progress_leave,
+        read_image_size=False,
+    )
+    payload = run_image_checks(
         dataset,
+        check_list=args.check_list,
+        algorithm=args.algorithm,
+        workers=args.workers,
+        progress=args.progress,
+        progress_leave=args.progress_leave,
+    )
+    payload["fixed"] = {}
+    write_json_report(payload, out)
+    _print_check_summary(payload, out, title="IMAGE CHECK")
+    if args.print_full:
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+    return 0 if payload["ok"] else 2
+
+
+def handle_label_check(args: argparse.Namespace) -> int:
+    out = _value_or_default(args.out, _default_file_path(args, "quality", "label_check.json"))
+    _print_status("LABEL CHECK", f"loading labels: {args.root}")
+    dataset = load_from_args(
+        args,
+        progress=args.progress,
+        progress_leave=args.progress_leave,
+        read_image_size=False,
+    )
+    payload = run_label_checks(
+        dataset,
+        check_list=args.check_list,
+        duplicate_iou=args.duplicate_iou,
         workers=args.workers,
         progress=args.progress,
         progress_leave=args.progress_leave,
     )
     if args.fill_missing_txt:
-        _print_status("CHECK", "creating empty txt files for missing labels")
-    created = fill_missing_label_files(dataset) if args.fill_missing_txt else []
-    payload = {
-        "ok": report.ok,
-        "summary": report.summary(),
-        "issues": report.to_rows(),
-        "fixed": {
-            "missing_txt_created": [str(path) for path in created],
-            "missing_txt_created_count": len(created),
-        },
+        _print_status("LABEL CHECK", "creating empty txt files for missing labels")
+        created = fill_missing_label_files(dataset)
+    else:
+        created = []
+    payload["fixed"] = {
+        "missing_txt_created": [str(path) for path in created],
+        "missing_txt_created_count": len(created),
     }
     write_json_report(payload, out)
-    _print_check_summary(payload, out)
+    _print_check_summary(payload, out, title="LABEL CHECK")
     if args.print_full:
         print(json.dumps(payload, indent=2, ensure_ascii=False))
-    return 0 if report.ok else 2
+    return 0 if payload["ok"] else 2
 
 
 def handle_stats(args: argparse.Namespace) -> int:
@@ -3120,7 +3257,7 @@ def _print_status(tag: str, message: str) -> None:
     print(f"\033[36m[{now_text()}] [{tag}] {message}\033[0m", file=sys.stderr)
 
 
-def _print_check_summary(payload: dict[str, object], out: str) -> None:
+def _print_check_summary(payload: dict[str, object], out: str, *, title: str = "CHECK") -> None:
     summary = payload.get("summary")
     fixed = payload.get("fixed")
     issue_counts = summary if isinstance(summary, dict) else {}
@@ -3133,7 +3270,7 @@ def _print_check_summary(payload: dict[str, object], out: str) -> None:
         color = "\033[31m"
         reset = "\033[0m"
         print(
-            f"{color}[{now_text()}] [CHECK WARNING] errors={error_count}, warnings={warning_count}, "
+            f"{color}[{now_text()}] [{title} WARNING] errors={error_count}, warnings={warning_count}, "
             f"missing_txt_created={created_count}. Full report: {out}{reset}",
             file=sys.stderr,
         )
@@ -3141,7 +3278,7 @@ def _print_check_summary(payload: dict[str, object], out: str) -> None:
             print(f"{color}[{now_text()}]  {key}: {count}{reset}", file=sys.stderr)
         return
 
-    print(f"\033[32m[{now_text()}] [CHECK OK] no issues. Full report: {out}\033[0m", file=sys.stderr)
+    print(f"\033[32m[{now_text()}] [{title} OK] no issues. Full report: {out}\033[0m", file=sys.stderr)
 
 
 if __name__ == "__main__":

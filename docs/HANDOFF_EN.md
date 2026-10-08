@@ -6,12 +6,13 @@ This document summarizes the project design, current scope, module boundaries, a
 
 After every code update, the project version must be updated before handoff. The single source of truth is `[project].version` in the root `pyproject.toml`: increment the patch version for backward-compatible fixes or features, and use a minor/major increment when a new public API or behavior change is incompatible. Before delivering code, tests, or documentation changes, verify that the version matches the change.
 
-The current version is `1.6.0`. `YoloManager` exposes lazy `dataset`, `classes`,
+The current version is `1.7.0`. `YoloManager` exposes lazy `dataset`, `classes`,
 and `attributes` properties; the first access loads and caches the dataset,
 `load(reload=True)` explicitly refreshes it, and source-changing operations
-automatically invalidate the cache. `dataset_split` supports `val_source` for
-reusing a fixed validation set and `out_data` for materializing a standalone
-dataset copy.
+automatically invalidate the cache. Validation is split into `image_check` and
+`label_check`; `check` combines both by default and accepts `check_list` to select
+groups. `dataset_split` supports `val_source` for reusing a fixed validation set
+and `out_data` for materializing a standalone dataset copy.
 
 ## Goals and Principles
 
@@ -32,7 +33,7 @@ The default output groups below a dataset root are:
 
 ```text
 labels_backup/       timestamped backups; first run stores labels/ and backup_metadata.json at the root
-ydm_quality/         check, query, duplicates, bad-images
+ydm_quality/         check, image_check, label_check, query, duplicates, bad-images
 ydm_stats/           stats JSON, CSV files, basic_info.csv, plots/
 ydm_vis/             draw/, crop/, draw_att/, crop_att/, manual_box/
 ydm_evaluation/      compare, review_pack, error_analysis, metrics

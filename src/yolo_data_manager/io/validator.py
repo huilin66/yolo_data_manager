@@ -75,6 +75,7 @@ def validate_dataset(
     workers: int = 1,
     progress: bool = False,
     progress_leave: bool = False,
+    check_image_names: bool = True,
 ) -> ValidationReport:
     report = ValidationReport()
 
@@ -82,10 +83,11 @@ def validate_dataset(
     duplicate_image_indices: set[int] = set()
     for label in dataset.orphan_labels:
         report.add("warning", "orphan_label", "label has no matching image", label=label)
-    for idx, image in enumerate(dataset.images):
-        if image.file_name in seen_image_names:
-            duplicate_image_indices.add(idx)
-        seen_image_names.add(image.file_name)
+    if check_image_names:
+        for idx, image in enumerate(dataset.images):
+            if image.file_name in seen_image_names:
+                duplicate_image_indices.add(idx)
+            seen_image_names.add(image.file_name)
 
     worker_count = normalize_workers(workers)
     class_count = len(dataset.classes)
