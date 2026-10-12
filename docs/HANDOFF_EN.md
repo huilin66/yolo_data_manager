@@ -6,13 +6,15 @@ This document summarizes the project design, current scope, module boundaries, a
 
 After every code update, the project version must be updated before handoff. The single source of truth is `[project].version` in the root `pyproject.toml`: increment the patch version for backward-compatible fixes or features, and use a minor/major increment when a new public API or behavior change is incompatible. Before delivering code, tests, or documentation changes, verify that the version matches the change.
 
-The current version is `1.7.0`. `YoloManager` exposes lazy `dataset`, `classes`,
+The current version is `1.8.0`. `YoloManager` exposes lazy `dataset`, `classes`,
 and `attributes` properties; the first access loads and caches the dataset,
 `load(reload=True)` explicitly refreshes it, and source-changing operations
 automatically invalidate the cache. Validation is split into `image_check` and
 `label_check`; `check` combines both by default and accepts `check_list` to select
 groups. `dataset_split` supports `val_source` for reusing a fixed validation set
-and `out_data` for materializing a standalone dataset copy.
+and `out_data` for materializing a standalone dataset copy. Size filtering
+supports multiple per-class pixel width/height rules shared by
+`anno_update_by_size`, `eval_metrics`, and `eval_error_analysis`.
 
 ## Goals and Principles
 

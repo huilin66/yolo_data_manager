@@ -13,7 +13,7 @@ from yolo_data_manager import YoloManager
 
 # DATA_DIR = Path(r"D:\zhl\data\road_forniture_v1")
 # DATA_DIR = Path(r"D:\zhl\data\road_forniture_v1_rename")
-DATA_DIR = Path(r"E:\repository\road_project\data\road_furniture_add_v3")
+DATA_DIR = Path(r"E:\repository\road_project\data\hyd_check\mongkok_d")
 PRED_RUNS_DIR = Path(r"D:\zhl\project\ultralytics\runs\detect")
 
 
@@ -57,7 +57,14 @@ RUN_LIST = [
 
 
 def main() -> None:
-    ydm = YoloManager(DATA_DIR, layout="auto", init_check=False, init_layout=False)
+    ydm = YoloManager(
+        DATA_DIR,
+        layout="flat",
+        init_check=False,
+        init_layout=False,
+        images_dir="cube_images",
+        labels_dir="cube_images_labels_all",
+    )
     # preprocess
     if "rename" in RUN_LIST:
         ydm.remap_filenames(

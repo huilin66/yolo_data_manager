@@ -35,6 +35,10 @@ from yolo_data_manager.core.models import (
 )
 from yolo_data_manager.core.errors import ClassNotFoundError
 from yolo_data_manager.core.schema import read_attribute_schema, read_class_schema
+from yolo_data_manager.dataset.size_rules import (
+    keep_by_min_pixel_rules,
+    min_pixel_rules_from_rule,
+)
 from yolo_data_manager.io.loader import load_yolo_dataset, parse_label_file
 from yolo_data_manager.evaluation.matching import (
     annotation_box_xyxy,
@@ -480,9 +484,10 @@ def filter_error_analysis_dataset(
     Width, height and area use normalised YOLO coordinates.  ``min_pixels``
     uses image dimensions when available.  A matching ``class_rules`` entry
     replaces the global size rule for that class; unmatched classes use the
-    global rule.  An optional ``image_sizes`` map is useful for prediction
-    label directories that do not contain the source images; its keys are
-    image stems.
+    global rule.  A class rule may also contain ``min_pixel_rules`` for
+    multiple pixel width/height conditions.  An optional ``image_sizes`` map
+    is useful for prediction label directories that do not contain the source
+    images; its keys are image stems.
     """
     if min_size_logic not in {"or", "and"}:
         raise ValueError("min_size_logic must be 'or' or 'and'")
@@ -537,17 +542,30 @@ def filter_error_analysis_dataset(
             return False
 
         rule_pixels = rule.get("min_pixels") if rule is not None else min_pixels
+        pixel_rule_config = min_pixel_rules_from_rule(rule)
+        image_width, image_height = image.width, image.height
+        if (
+            rule_pixels is not None or pixel_rule_config is not None
+        ) and (image_width is None or image_height is None):
+            fallback = image_sizes.get(image.stem) if image_sizes is not None else None
+            if fallback is not None:
+                image_width, image_height = fallback
         if rule_pixels is not None:
-            image_width, image_height = image.width, image.height
-            if image_width is None or image_height is None:
-                fallback = image_sizes.get(image.stem) if image_sizes is not None else None
-                if fallback is not None:
-                    image_width, image_height = fallback
             if image_width is not None and image_height is not None:
                 pixel_width = width * image_width
                 pixel_height = height * image_height
                 if pixel_width < float(rule_pixels) or pixel_height < float(rule_pixels):
                     return False
+        if pixel_rule_config is not None:
+            pixel_rules, pixel_logic, pixel_comparison = pixel_rule_config
+            if not keep_by_min_pixel_rules(
+                width * image_width if image_width is not None else None,
+                height * image_height if image_height is not None else None,
+                pixel_rules,
+                logic=pixel_logic,
+                comparison=pixel_comparison,
+            ):
+                return False
         return True
 
     filtered_images: list[YoloImage] = []

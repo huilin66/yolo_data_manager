@@ -297,6 +297,30 @@ mgr.anno_update_by_size(
 
 `min_size_logic="or"` removes boxes when width or height is too small. `min_size_logic="and"` removes boxes only when both width and height are too small.
 Per-class rules also accept the concise form `{"class_name": {"width": 0.03, "height": 0.03, "logic": "or"}}`; `width` and `height` are normalized YOLO dimensions, and `logic` is `or` or `and`.
+Per-class rules also support multiple pixel-size conditions. Each condition
+requires both width and height, while conditions are combined with
+`pixel_logic` (default `or`):
+
+```python
+mgr.anno_update_by_size(
+    class_rules={
+        "fence": {
+            "min_pixel_rules": [
+                {"width": 32, "height": 64},
+                {"width": 64, "height": 32},
+            ],
+            "pixel_logic": "or",
+            "pixel_comparison": "gt",
+        }
+    },
+    out_data="filtered_dataset",
+)
+```
+
+`pixel_comparison` accepts `gt` (strictly greater than) and `gte` (greater
+than or equal, the default). `min_pixel_rules` requires valid image
+dimensions. The same rules are supported by `eval_metrics` and
+`eval_error_analysis`.
 
 Merging:
 
@@ -588,7 +612,7 @@ Statistics, visualization, and evaluation process all data by default; set `only
 When `gt_root` or `class_file` is omitted, `YoloManager` falls back to the manager root and `class.txt` when available. Evaluation uses all data by default; set `only_val=True` or provide `val_source` to limit it to validation data.
 
 `eval_error_analysis` supports the same class and size filters: `class_` selects classes, `exclude_class_` excludes classes, and `min_width`, `min_height`, `min_area`, `min_size_logic`, and `min_pixels` filter both GT and predictions. Width and height/area use normalized YOLO coordinates; `min_pixels` checks pixel width or height.
-`class_rules` overrides the global size rule per class using `width`, `height`, and `logic`; classes without a rule continue to use the global parameters.
+`class_rules` overrides the global size rule per class using `width`, `height`, and `logic`; it can also use `min_pixel_rules`, `pixel_logic`, and `pixel_comparison` for multiple pixel width/height conditions. Classes without a rule continue to use the global parameters.
 `eval_error_analysis` and `eval_metrics` apply confidence-prioritized, class-aware NMS first by default (`nms_iou=0.5`), then use the same one-to-one IoU matching rule. Pass `nms_iou=None` to disable NMS; disabled-NMS duplicates are marked as `duplicate_prediction` in error analysis and counted as FPs in metrics.
 `eval_error_analysis(conf_curve=True)` reruns the analysis at confidence thresholds `0.1`, `0.2`, `0.3`, `0.4`, and `0.5`, then writes `conf_curve.csv`, `conf_curve_summary.csv`, and `conf_curve.png`, with one series per review error group.
 When `attribute.yaml` is found or `attribute_file` is supplied, error analysis compares each attribute only on a matched same-class box pair. Mismatches and missing values are written to `attribute_error.csv`; with `review=True`, visual results are grouped under `review/attribute_error/attribute_<name>/gt_<gt_value>_pred_<pred_value>/images` and `crops`, and each `attribute_<name>` directory also contains `confusion_matrix.png` (predicted values by row, true values by column, including correct and incorrect matches). For an external prediction-label directory, the GT schema is shared with predictions. Unmatched boxes remain class/geometry errors and are not counted again as attribute errors.

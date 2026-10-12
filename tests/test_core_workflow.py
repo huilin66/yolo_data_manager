@@ -1332,6 +1332,37 @@ def test_filter_by_geometry(tmp_path):
     assert class_filtered.images[0].annotations[0].class_id == 1
 
 
+def test_filter_by_geometry_supports_multiple_pixel_size_rules(tmp_path):
+    root = tmp_path / "pixel_size_rules"
+    (root / "images").mkdir(parents=True)
+    (root / "labels").mkdir(parents=True)
+    Image.new("RGB", (100, 100), color="white").save(root / "images" / "a.jpg")
+    (root / "class.txt").write_text("obj\n", encoding="utf-8")
+    (root / "labels" / "a.txt").write_text(
+        "0 0.2 0.2 0.33 0.65\n"
+        "0 0.4 0.4 0.65 0.33\n"
+        "0 0.6 0.6 0.50 0.50\n",
+        encoding="utf-8",
+    )
+    dataset = load_yolo_dataset(root)
+
+    filtered = filter_by_geometry(
+        dataset,
+        class_rules={
+            "obj": {
+                "min_pixel_rules": [
+                    {"width": 32, "height": 64},
+                    {"width": 64, "height": 32},
+                ],
+                "pixel_logic": "or",
+                "pixel_comparison": "gt",
+            }
+        },
+    )
+
+    assert filtered.annotation_count() == 2
+
+
 def test_dataset_filter_without_out_rewrites_source_and_backups_labels(tmp_path, capsys):
     root = make_dataset(tmp_path / "filter_in_place")
     original_a = (root / "labels" / "a.txt").read_text(encoding="utf-8")
@@ -2575,6 +2606,37 @@ def test_detection_metrics_class_rules_override_global_size_rule(tmp_path):
     assert [row.class_name for row in metrics.classes] == ["person", "car"]
 
 
+def test_detection_metrics_supports_multiple_pixel_size_rules(tmp_path):
+    root = tmp_path / "pixel_rule_metrics"
+    (root / "images").mkdir(parents=True)
+    (root / "labels").mkdir(parents=True)
+    Image.new("RGB", (100, 100), color="white").save(root / "images" / "a.jpg")
+    (root / "class.txt").write_text("obj\n", encoding="utf-8")
+    (root / "labels" / "a.txt").write_text(
+        "0 0.2 0.2 0.33 0.65\n"
+        "0 0.4 0.4 0.65 0.33\n"
+        "0 0.6 0.6 0.50 0.50\n",
+        encoding="utf-8",
+    )
+    dataset = load_yolo_dataset(root, task="detect")
+    class_rules = {
+        "obj": {
+            "min_pixel_rules": [
+                {"width": 32, "height": 64},
+                {"width": 64, "height": 32},
+            ],
+            "pixel_logic": "or",
+            "pixel_comparison": "gt",
+        }
+    }
+
+    metrics = compute_detection_metrics(dataset, dataset, class_rules=class_rules)
+
+    assert metrics.labels == 2
+    assert metrics.predictions == 2
+    assert metrics.class_rules == class_rules
+
+
 def test_cli_eval_metrics_supports_class_rules_file(tmp_path, capsys):
     gt_root = make_dataset(tmp_path / "gt_metrics_class_rules")
     pred_root = make_dataset(tmp_path / "pred_metrics_class_rules")
@@ -2998,6 +3060,40 @@ def test_error_analysis_class_rules_override_global_size_rule(tmp_path):
     )
     assert summary == {"tp": 2}
     assert len(rows) == 2
+
+
+def test_error_analysis_supports_multiple_pixel_size_rules(tmp_path):
+    root = tmp_path / "pixel_rule_error_analysis"
+    (root / "images").mkdir(parents=True)
+    (root / "labels").mkdir(parents=True)
+    Image.new("RGB", (100, 100), color="white").save(root / "images" / "a.jpg")
+    (root / "class.txt").write_text("obj\n", encoding="utf-8")
+    (root / "labels" / "a.txt").write_text(
+        "0 0.2 0.2 0.33 0.65\n"
+        "0 0.4 0.4 0.65 0.33\n"
+        "0 0.6 0.6 0.50 0.50\n",
+        encoding="utf-8",
+    )
+    dataset = load_yolo_dataset(root, task="detect")
+    class_rules = {
+        "obj": {
+            "min_pixel_rules": [
+                {"width": 32, "height": 64},
+                {"width": 64, "height": 32},
+            ],
+            "pixel_logic": "or",
+            "pixel_comparison": "gt",
+        }
+    }
+
+    filtered_gt, filtered_pred = filter_error_analysis_datasets(
+        dataset,
+        dataset,
+        class_rules=class_rules,
+    )
+
+    assert filtered_gt.annotation_count() == 2
+    assert filtered_pred.annotation_count() == 2
 
 
 def test_yolo_manager_error_analysis_defaults_to_manager_root(tmp_path, monkeypatch):

@@ -513,6 +513,25 @@ mgr.output_dataset_yaml
 
 `anno_update_by_size` 中 `min_width` 和 `min_height` 默认按 `or` 逻辑删除小框：`w < min_width` 或 `h < min_height` 即删除。设置 `min_size_logic="and"` 时，只有 `w < min_width` 且 `h < min_height` 才删除。`class_rules` 可以给不同类别设置不同过滤规则；类别没有命中规则时，继续使用全局过滤参数。不传 `out` 时原地更新 label，并默认备份到 `labels_backup`；传入 `out` 时写出新的数据集。旧方法名 `dataset_filter` 仍可兼容调用。
 类别规则也支持简写字段：`{"类别": {"width": 0.03, "height": 0.03, "logic": "or"}}`，其中 `width`/`height` 是归一化 YOLO 尺寸，`logic` 为 `or` 或 `and`。
+类别规则还支持多组像素尺寸条件。每组内部要求宽高同时满足，组之间默认取 `or`；例如只保留宽高大于 `32x64` 或 `64x32` 的 `fence`：
+
+```python
+ydm.anno_update_by_size(
+    class_rules={
+        "fence": {
+            "min_pixel_rules": [
+                {"width": 32, "height": 64},
+                {"width": 64, "height": 32},
+            ],
+            "pixel_logic": "or",
+            "pixel_comparison": "gt",
+        }
+    },
+    out_data="filtered_dataset",
+)
+```
+
+`pixel_comparison` 支持 `gt`（严格大于）和 `gte`（大于等于，默认）；`min_pixel_rules` 需要图像具有有效宽高。相同的 `min_pixel_rules` 规则也适用于 `eval_metrics` 和 `eval_error_analysis`。
 `eval_error_analysis(review=True)` 会在 `review/pred_gt` 下生成按 `pred_<预测类别>_gt_<真实类别>` 组织的复核图片和 crop，并写出 Ultralytics 风格 `confusion_matrix.png`。`copy_pred_txt=True` 会把参与分析的预测 txt 复制到 `review/pred_txt`。
 
 当存在 `attribute.yaml`（或显式传入 `attribute_file`）时，`eval_error_analysis` 会在一对一匹配成功的同类框上逐属性比较，仅将属性值不一致或一侧缺失的结果写入 `attribute_error.csv`。`review=True` 时，属性错误会额外输出到 `review/attribute_error/attribute_<属性名>/gt_<GT值>_pred_<预测值>/images` 和 `crops`，并在每个 `attribute_<属性名>` 目录下生成 `confusion_matrix.png`（行是预测值，列是真值，包含正确匹配和错误匹配）；外部预测 label 目录没有属性 schema 时，应使用 GT 的 `attribute.yaml` 作为共享 schema。未匹配框仍只归入 class/geometry 错误，不会重复计为属性错误。
@@ -520,13 +539,14 @@ mgr.output_dataset_yaml
 属性错误 crop 文件名中的 `predX_gtY` 使用预测和 GT label 的 1-based 行号，例如 `sample_pred1_gt3_defect.jpg` 表示修改 `sample.txt` 的第 3 条 GT 标注。使用 `ann_att_correct_from_error_crops` 时传入目标属性 `name` 和目标值 `value`，它会递归处理选中的 crop，按 `gtY` 找到 GT 框并只修改该框的属性；类别和 geometry 不变。`crops_dir` 也支持“目录: 属性规则”的字典，可在一次任务中修改多个属性并共用一次备份。建议先使用 `dry_run=True`/`backup_dir` 检查并备份。
 
 `eval_error_analysis` 的 `class_` 只保留指定类别，`exclude_class_` 独立排除类别；两者可以同时使用。`min_width`、`min_height`、`min_area` 和 `min_pixels` 会同时过滤 GT 与预测，宽高/面积使用归一化 YOLO 尺寸，`min_pixels` 按像素宽度或高度判断；`min_size_logic` 支持 `"or"` 或 `"and"`，语义与 `anno_update_by_size` 一致。
-`class_rules` 可以按类别覆盖全局尺寸规则，格式为 `{类别: {"width": ..., "height": ..., "logic": "or" 或 "and"}}`；命中类别使用自己的规则，未命中类别继续使用全局参数。
+`class_rules` 可以按类别覆盖全局尺寸规则，格式为 `{类别: {"width": ..., "height": ..., "logic": "or" 或 "and"}}`；也可以使用 `min_pixel_rules`、`pixel_logic` 和 `pixel_comparison` 配置多组像素尺寸条件。命中类别使用自己的规则，未命中类别继续使用全局参数。
 `eval_error_analysis` 与 `eval_metrics` 默认先按类别执行置信度优先的 NMS（`nms_iou=0.5`），再使用相同的一对一 IoU 匹配规则；传入 `nms_iou=None` 可关闭 NMS。关闭 NMS 时，重复预测会在错误分析中标记为 `duplicate_prediction`，并在 metrics 中作为 FP 统计。
 
 `eval_error_analysis(conf_curve=True)` 会使用 `0.1、0.2、0.3、0.4、0.5` 五个置信度阈值重新分析，并按 review 输出分组统计文件数量。结果为 `conf_curve.csv`（各分组明细）、`conf_curve_summary.csv`（FP/FN/error 和属性错误汇总）以及 `conf_curve.png`；每条曲线对应一个 review 分组。
 
 `eval_metrics` 使用 `class_` 指定只评估的类别，使用独立的 `exclude_class_` 排除类别；两者可以同时传入。`merge_class_map` 接受“目标类别: 原始类别列表”的字典，例如 `{"vehicle": ["car", "truck"]}`，并在 GT 和预测的类别选择、匹配、统计前同时应用。类别选择和排除使用合并后的目标类别名。设置 `show_original=True` 后，如果使用了类别、合并、`class_rules` 或 `min_pixels` 参数，会在最终结果前输出原始结果；JSON 输出包含 `original` 和 `final`，而 `out` 文件仍保存最终结果。
 `eval_metrics` 的 `class_rules` 可以按类别覆盖全局尺寸过滤规则；支持类别名或类别 id，字段为 `width`/`min_width`、`height`/`min_height`、`min_area`、`min_pixels` 和 `logic`/`min_size_logic`。配置了规则的类别使用自己的完整规则，未配置的类别继续使用全局参数；如果使用 `merge_class_map`，规则按合并后的目标类别名匹配。
+`eval_metrics` 的类别规则还支持 `min_pixel_rules`（每项包含像素 `width`/`height`）、`pixel_logic` 和 `pixel_comparison`，可表达多组像素宽高条件的 `or`/`and` 组合。
 `eval_metrics` 还会按 COCO 风格的像素面积输出 `small`、`medium`、`large` 目标指标：面积 `< 32²` 为 small、`32² <= 面积 < 96²` 为 medium、面积 `>= 96²` 为 large。JSON 中位于 `size_metrics`，并额外写出 `metrics_size.csv`；图片需要有有效宽高才能进行尺寸分类。
 
 统计、可视化和评估默认处理全部数据；设置 `only_val=True` 或显式提供 `val_source` 才限制为验证集。

@@ -12,6 +12,10 @@ import numpy as np
 from yolo_data_manager.annotation.edit import merge_classes
 from yolo_data_manager.core.errors import ClassNotFoundError
 from yolo_data_manager.core.models import YoloAnnotation, YoloDataset
+from yolo_data_manager.dataset.size_rules import (
+    keep_by_min_pixel_rules,
+    min_pixel_rules_from_rule,
+)
 from yolo_data_manager.evaluation.matching import (
     greedy_match_indices,
     non_max_suppress_annotations,
@@ -121,7 +125,11 @@ def compute_detection_metrics(
     replaces the global size filter for that class; classes without a rule use
     the global values.  Rule keys support ``width``/``min_width``,
     ``height``/``min_height``, ``min_area``, ``min_pixels``, and
-    ``logic``/``min_size_logic``.
+    ``logic``/``min_size_logic``.  A rule may also contain
+    ``min_pixel_rules``: a list of pixel-width/pixel-height conditions.  Each
+    condition combines width and height with ``and``; conditions are combined
+    using ``pixel_logic`` (``or`` by default).  ``pixel_comparison`` accepts
+    ``gte`` (default) or ``gt``.
     """
     if min_size_logic not in {"or", "and"}:
         raise ValueError("min_size_logic must be 'or' or 'and'")
@@ -601,6 +609,12 @@ def _filter_annotations(
         rule_min_pixels = (
             rule.get("min_pixels") if rule is not None else min_pixels
         )
+        pixel_rule_config = min_pixel_rules_from_rule(rule)
+        pixel_rules = pixel_rule_config[0] if pixel_rule_config is not None else None
+        pixel_logic = pixel_rule_config[1] if pixel_rule_config is not None else "or"
+        pixel_comparison = (
+            pixel_rule_config[2] if pixel_rule_config is not None else "gte"
+        )
         return _keep_by_size(
             ann,
             image_width=image_width,
@@ -610,6 +624,9 @@ def _filter_annotations(
             min_area=rule_min_area,
             min_size_logic=rule_logic,
             min_pixels=rule_min_pixels,
+            min_pixel_rules=pixel_rules,
+            pixel_logic=pixel_logic,
+            pixel_comparison=pixel_comparison,
         )
 
     def keep(ann: YoloAnnotation) -> bool:
@@ -635,6 +652,9 @@ def _keep_by_size(
     min_area: float | None,
     min_size_logic: str,
     min_pixels: float | None,
+    min_pixel_rules: Any = None,
+    pixel_logic: str = "or",
+    pixel_comparison: str = "gte",
 ) -> bool:
     if min_size_logic not in {"or", "and"}:
         raise ValueError("min_size_logic must be 'or' or 'and'")
@@ -654,6 +674,17 @@ def _keep_by_size(
         pixel_width = box.width * image_width
         pixel_height = box.height * image_height
         if pixel_width < float(min_pixels) or pixel_height < float(min_pixels):
+            return False
+    if min_pixel_rules is not None:
+        pixel_width = box.width * image_width if image_width is not None else None
+        pixel_height = box.height * image_height if image_height is not None else None
+        if not keep_by_min_pixel_rules(
+            pixel_width,
+            pixel_height,
+            min_pixel_rules,
+            logic=pixel_logic,
+            comparison=pixel_comparison,
+        ):
             return False
     return True
 

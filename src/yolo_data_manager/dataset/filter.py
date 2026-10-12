@@ -5,6 +5,10 @@ from collections.abc import Callable
 from typing import Any
 
 from yolo_data_manager.core.models import YoloAnnotation, YoloDataset
+from yolo_data_manager.dataset.size_rules import (
+    keep_by_min_pixel_rules,
+    min_pixel_rules_from_rule,
+)
 
 
 AnnotationPredicate = Callable[[YoloAnnotation], bool]
@@ -45,16 +49,32 @@ def filter_by_geometry(
         "min_confidence": min_confidence,
     }
 
-    def predicate(annotation: YoloAnnotation) -> bool:
-        if class_ids is not None and annotation.class_id not in class_ids:
-            return False
-        rule = resolved_rules.get(annotation.class_id, global_rule)
-        return _keep_by_rule(annotation, rule)
+    result = copy.deepcopy(dataset)
+    for image in result.images:
+        def predicate(annotation: YoloAnnotation) -> bool:
+            if class_ids is not None and annotation.class_id not in class_ids:
+                return False
+            rule = resolved_rules.get(annotation.class_id, global_rule)
+            return _keep_by_rule(
+                annotation,
+                rule,
+                image_width=image.width,
+                image_height=image.height,
+            )
 
-    return filter_annotations(dataset, predicate)
+        image.annotations = [
+            annotation for annotation in image.annotations if predicate(annotation)
+        ]
+    return result
 
 
-def _keep_by_rule(annotation: YoloAnnotation, rule: dict[str, Any]) -> bool:
+def _keep_by_rule(
+    annotation: YoloAnnotation,
+    rule: dict[str, Any],
+    *,
+    image_width: int | None = None,
+    image_height: int | None = None,
+) -> bool:
     min_confidence = rule.get("min_confidence")
     if min_confidence is not None and annotation.confidence is not None and annotation.confidence < float(min_confidence):
         return False
@@ -82,6 +102,18 @@ def _keep_by_rule(annotation: YoloAnnotation, rule: dict[str, Any]) -> bool:
     max_area = rule.get("max_area")
     if max_area is not None and area > float(max_area):
         return False
+
+    pixel_rule_config = min_pixel_rules_from_rule(rule)
+    if pixel_rule_config is not None:
+        pixel_rules, pixel_logic, pixel_comparison = pixel_rule_config
+        if not keep_by_min_pixel_rules(
+            box.width * image_width if image_width is not None else None,
+            box.height * image_height if image_height is not None else None,
+            pixel_rules,
+            logic=pixel_logic,
+            comparison=pixel_comparison,
+        ):
+            return False
     return True
 
 
