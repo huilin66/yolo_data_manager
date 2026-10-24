@@ -431,6 +431,8 @@ mgr.ann_correct_from_crops(
 ```
 
 Most write operations output to a new directory. `ann_update_from_map`, `ann_att_update_from_map`, and crop-correction methods update source labels in place by default and back them up under `labels_backup`; pass `out_data="new_dataset"` to copy images, labels, and schemas to a new dataset and edit only that copy. Existing `out` parameters remain compatible, and `out`/`out_data` cannot be supplied together. Use `dry_run=True` when you want to inspect the effect first.
+
+Use `ann_update_from_map({"drop": ["background"]}, keep_id=True)` to delete matching annotations while retaining the class schema and other class IDs. `keep_id` defaults to `False`; when enabled it overrides `compact` and also works with `out_data`. Explicit merge operations still change selected annotations to their target class, without compacting other IDs.
 Pass `to=None` to delete the corresponding annotation instead of assigning a class.
 New dataset exports preserve the original train/val/test image membership. Split lists contain absolute paths to the exported images, and dataset.yaml references those lists. Root split txt files take precedence; split folders are used only when no split txt exists. Subset exports include only exported images. A source without splits is not randomly split.
 

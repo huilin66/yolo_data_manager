@@ -1570,6 +1570,7 @@ class YoloManager:
         *,
         out_data: str | Path | None = None,
         compact: bool = True,
+        keep_id: bool = False,
         backup_dir: str | Path | None = None,
         dry_run: bool = False,
         report: str | Path | None = None,
@@ -1585,6 +1586,9 @@ class YoloManager:
         root and leaves the source untouched. In-place writes copy all source
         labels and the class schema into one timestamped backup under
         ``<dataset-root>/labels_backup`` by default.
+        With ``keep_id=True``, drop deletes annotations while retaining the
+        class schema and IDs. This overrides ``compact`` for all operations;
+        explicit merge mappings still change the selected annotations' class.
         """
 
         if not isinstance(class_map, Mapping):
@@ -1632,6 +1636,7 @@ class YoloManager:
             dataset,
             class_map,
             compact=compact,
+            keep_id=keep_id,
         )
         rows = []
         for edit_report in reports:
@@ -1710,6 +1715,7 @@ class YoloManager:
                     method="ann_update_from_map",
                     result={
                         "action": "update_annotation_class_map",
+                        "keep_id": keep_id,
                         "changed": len(combined_report.rows),
                         "deleted": sum(
                             1 for row in combined_report.rows if row.action == "delete"
@@ -1733,6 +1739,7 @@ class YoloManager:
                     ),
                     "classes": current.classes.names,
                     "dry_run": dry_run,
+                    "keep_id": keep_id,
                     "out_data": (
                         str(out_data) if out_data is not None and not dry_run else None
                     ),

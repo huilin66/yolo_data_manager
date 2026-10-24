@@ -23,18 +23,23 @@ def apply_class_map_data(
     dataset: YoloDataset,
     class_map: Mapping[str, Any],
     compact: bool = True,
+    *,
+    keep_id: bool = False,
 ) -> tuple[YoloDataset, list[EditReport]]:
     """Apply a class-operation mapping without reading a YAML file.
 
     Supported operations are ``rename`` (old name to new name), ``merge``
     (target name to source names), and ``drop`` (names to remove). Operations
     are applied in that order so one mapping can combine them.
+    ``keep_id`` disables class compaction: drop removes annotations only,
+    and merge changes selected annotations without renumbering other classes.
     """
 
     if not isinstance(class_map, Mapping):
         raise TypeError("class_map must be a mapping")
 
     data = dict(class_map)
+    compact = compact and not keep_id
     current = dataset
     reports: list[EditReport] = []
 

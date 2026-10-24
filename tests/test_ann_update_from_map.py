@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+import pytest
 
 from PIL import Image
 
@@ -98,6 +99,35 @@ def test_ann_update_from_map_updates_labels_classes_and_backups(tmp_path):
     assert metadata["backup_files"] == 3
     assert metadata["result"]["changed"] == 7
     assert (snapshots[0] / "class.txt").read_text(encoding="utf-8").splitlines()[0] == "Hollow High Risk"
+
+
+@pytest.mark.parametrize("export", [False, True])
+def test_ann_update_from_map_keep_id_drops_only_annotations(tmp_path, export):
+    root = _make_class_map_dataset(tmp_path / "dataset")
+    original_classes = (root / "class.txt").read_text(encoding="utf-8")
+    original_label = (root / "labels/a.txt").read_text(encoding="utf-8")
+    manager = YoloManager(root, layout="flat", init_check=False, init_layout=False)
+    output = tmp_path / "output" if export else root
+
+    assert manager.ann_update_from_map(
+        {"drop": ["Hollow Low Risk", "background"]},
+        keep_id=True,
+        out_data=output if export else None,
+        progress=False,
+    ) == 0
+
+    assert (output / "class.txt").read_text(encoding="utf-8") == original_classes
+    assert [line.split()[0] for line in (output / "labels/a.txt").read_text(encoding="utf-8").splitlines()] == ["0", "2", "4", "5"]
+    assert (output / "labels/b.txt").read_text(encoding="utf-8") == ""
+    assert (output / "images/b.jpg").is_file()
+    if export:
+        assert (root / "labels/a.txt").read_text(encoding="utf-8") == original_label
+    else:
+        snapshot = operation_snapshots(root / "labels_backup")[0]
+        assert (snapshot / "labels/a.txt").read_text(encoding="utf-8") == original_label
+        assert (snapshot / "class.txt").read_text(encoding="utf-8") == original_classes
+        metadata = json.loads((snapshot / "backup_metadata.json").read_text(encoding="utf-8"))
+        assert metadata["result"]["keep_id"] is True
 
 
 def test_ann_update_from_map_updates_yaml_class_source_and_backups_it(tmp_path):

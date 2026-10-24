@@ -156,6 +156,11 @@ mgr.ann_update_from_map(
     {"rename": {"old": "new"}},
     out_data="yolo_class_copy",
 )  # 输出新数据集，不修改原始 label
+mgr.ann_update_from_map(
+    {"drop": ["background"]},
+    keep_id=True,
+)  # 只删除标注，保留完整类别表和剩余标注的 class_id
+# keep_id 默认为 False；开启时优先于 compact，支持与 out_data 同时使用。
 mgr.ann_att_update_from_map(
     {
         "update": {
