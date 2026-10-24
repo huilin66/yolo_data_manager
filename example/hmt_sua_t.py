@@ -157,7 +157,8 @@ def main() -> None:
     if "update_class" in RUN_LIST:
         ydm.ann_update_from_map(
             UPDATE_CLASS_MAP,
-            out_data=r"/data/huilin/data/bdd_hmt/hmt_t_update_v7",)
+            out_data=r"/data/huilin/data/bdd_hmt/hmt_t_update_v7",
+            keep_id=True)
     if "filter_small" in RUN_LIST:
         ydm.anno_update_by_size(
             min_pixels=50,
