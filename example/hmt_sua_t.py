@@ -11,101 +11,68 @@ from pathlib import Path
 
 from yolo_data_manager import YoloManager
 
-# HMT_V2_DIR = r"/localnvme/data/bdd_hmt/hmt_t_update_v2"
-HMT_V3_DIR = r"/localnvme/data/bdd_hmt/hmt_t_update_v3"
-HMT_V4_DIR = r"/localnvme/data/bdd_hmt/hmt_t_update_v4"
-# DATA_DIR = Path(
-#     r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_t.yaml"
-# )
-DATA_DIR = Path(
-    r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_t_update_v6.yaml"
-)
-
-# PRED_RUNS_DIR = Path(r"/localnvme/project/aic_mdet/models/ultralytics/runs/detect")
-PRED_RUNS_DIR = Path(r"//localnvme/project/ultralytics/runs/detect")
-PRED_NAMES = [
-    # "predict-2",
-    # "predict-3",
-    # "predict-4",
-    # "predict-5",
-    # "predict-6",
-    "predict-13",
-]
-LEAKAGE_ONLY_LIST = (
-    "/localnvme/data/bdd_hmt/hmt_t_update_v3/train_leakage_loss_mask.txt"
-)
-PRED_DIR = "/localnvme/data/bdd_hmt/hmt_t_update_v6/ydm_evaluation/error_analysis/predict-13/review/pred_txt"
-CROP_ROOT_LABEL = "/localnvme/data/bdd_hmt/hmt_t_update_v6/ydm_vis/crop_change"
-CROP_ROOT_PRED = "/localnvme/data/bdd_hmt/hmt_t_update_v6/ydm_evaluation/error_analysis/predict-13/crop_change"
-
-CROP_MAP_LABEL = {
-    os.path.join(CROP_ROOT_LABEL, "2_l"): "Leakage",
-    os.path.join(CROP_ROOT_LABEL, "2_none"): "none",
-}
-
-CROP_MAP_PRED = {
-    # os.path.join(CROP_ROOT_PRED, "2_at"): "Abnormal Temperature",
-    os.path.join(CROP_ROOT_PRED, "2_h"): "Hollow",
-    os.path.join(CROP_ROOT_PRED, "2_l"): "Leakage",
-    # os.path.join(CROP_ROOT_PRED, "2_none"): "none",
-}
-MERGE_CLASS_MAP = {
-    "Hollow": [
-        "Hollow Low Risk",
-        "Hollow High Risk",
-    ],
-    "Temperature": [
-        "Temperature Medium Risk",
-        "Temperature High Risk",
-    ],
-}
-
-# Per-class size filter applied in yolo_metric. `logic="and"` keeps a box
-# unless BOTH normalized width and height are < 0.05 (i.e. long & wide small).
-METRIC_CLASS_RULES = {
-    "Leakage": {"width": 0.05, "height": 0.03, "logic": "and"},
-}
+DATA_DIR = Path(r"/data/huilin/data/bdd_hmt/hmt_t_update_v6")
+LEAKAGE_ONLY_LIST=os.path.join(DATA_DIR, 'train_leakage_loss_mask.txt')
 
 UPDATE_CLASS_MAP = {
-    # "merge": {
-    #     "Hollow Confirmed": ["Hollow High Risk"],
-    #     "Hollow Suspected": ["Hollow Low Risk"],
-    #     "Leakage": ["Leakage High Risk"],
-    # },
-    # "drop": [
-    #     "background",
-    #     "Hollow High Risk Line",
-    #     "Temperature Medium Risk",
-    #     "Temperature High Risk",
-    # ],
+    "drop": [
+        "Temperature",
+    ],
 }
 
+PRED_RUNS_DIR = Path(r"D:\zhl\project\ultralytics\runs\detect")
 
+
+PRED_NAMES = [
+    "predict-3",
+    "predict-4",
+    "predict-5",
+    "predict-6",
+]
+
+QUERY_CLASS = None
+SELECTION_FILE = None
+
+CROP_MAP_PRED_ROOT = r"D:\zhl\data\road_forniture_v1_rename\ydm_evaluation\common_error_report\error_analysis\common_crops\pred_gt"
+CROP_MAP_PRED = {
+    os.path.join(CROP_MAP_PRED_ROOT, "pred_fence_gt_background"): "fence",
+    os.path.join(CROP_MAP_PRED_ROOT, "pred_sign_gt_background"): "sign",
+}
 # Select operations by uncommenting names in RUN_LIST.
 RUN_LIST = [
     # "rename",
-    # "split",
+    "split",
     # "resize",
     # "sta",
     # "vis_draw",
     # "vis_crop",
+    # "query",
+    # "copy_select",
     # "metric",
     # "error_ana",
+    # "error_ana_common",
     # "update_class",
+    # "update_att",
+    # "filter_small",
     # "mannual_draw",
-    # "update_label_from_anno",
-    # "update_label_from_pred",
+    # "update_class_from_anno",
+    # "update_class_from_pred",
+    # "update_att_from_anno",
+    # "update_att_from_pred",
 ]
 
 
 def main() -> None:
-    # init
-    ydm = YoloManager(DATA_DIR, layout="auto", init_check=False, init_layout=False)
-
+    ydm = YoloManager(
+        DATA_DIR,
+        layout="flat",
+        init_check=False,
+        init_layout=False,
+    )
     # preprocess
     if "rename" in RUN_LIST:
         ydm.remap_filenames(
-            out=ydm.root + "_rename",
+            out=r"Z:\huilin\road_asset\data\merged_data\road_forniture_v3",
         )
     if "resize" in RUN_LIST:
         ydm.resize_images(
@@ -126,11 +93,29 @@ def main() -> None:
         )
     if "vis_draw" in RUN_LIST:
         ydm.vis_draw(
-            only_val=True,
+            # only_val=True,
         )
     if "vis_crop" in RUN_LIST:
         ydm.vis_crop(
+            # only_val=True,
+        )
+    if "query" in RUN_LIST:
+        ydm.query_class(
+            class_=QUERY_CLASS,
+            source="gt",
             only_val=True,
+        )
+    if "copy_select" in RUN_LIST:
+        file_path = (
+            Path(SELECTION_FILE)
+            if SELECTION_FILE is not None
+            else Path(ydm.root) / "val.txt"
+        )
+        out_path = Path(ydm.root) / "select"
+        ydm.dataset_select(
+            file=str(file_path),
+            out=out_path,
+            copy_images=True,
         )
 
     # post-analysis
@@ -153,30 +138,54 @@ def main() -> None:
             ydm.eval_error_analysis(
                 pred_root=pred_dir,
                 out=output_dir,
+                # attribute_file=ydm.root / "attribute.yaml",
                 # only_val=True,
             )
+    if "error_ana_common" in RUN_LIST:
+        pred_list = [
+            ydm.output_evaluation / pred_name / "error_analysis"
+            for pred_name in PRED_NAMES
+        ]
+        output_dir = ydm.output_evaluation / "common_error_report" / "error_analysis"
+        ydm.eval_error_analysis_common(
+            pred_list,
+            out=output_dir,
+            iou=0.5,
+        )
 
     # data update
     if "update_class" in RUN_LIST:
-        ydm.ann_update_from_map(UPDATE_CLASS_MAP)
+        ydm.ann_update_from_map(
+            UPDATE_CLASS_MAP,
+            out_data=r"/data/huilin/data/bdd_hmt/hmt_t_update_v7",)
+    if "filter_small" in RUN_LIST:
+        ydm.anno_update_by_size(
+            min_pixels=50,
+            logic="or",
+            # class_rules=None,
+        )
 
     if "mannual_draw" in RUN_LIST:
         ydm.vis_manual_box(
             "DJI_20260211161740_1654.png",
         )
 
-    if "update_label_from_anno" in RUN_LIST:
+    if "update_class_from_anno" in RUN_LIST:
         ydm.ann_correct_from_crops(
             crops_dir=CROP_MAP_LABEL,
         )
 
-    if "update_label_from_pred" in RUN_LIST:
-        for pred_name in PRED_NAMES:
-            pred_dir = PRED_RUNS_DIR / pred_name / "labels"
-            ydm.ann_correct_from_error_crops(
-                crops_dir=CROP_MAP_PRED,
-                pred_dir=pred_dir,
-            )
+    if "update_class_from_pred" in RUN_LIST:
+        common_pred_txt = (
+            ydm.output_evaluation
+            / "common_error_report"
+            / "error_analysis"
+            / "common_pred_txt"
+        )
+        ydm.ann_correct_from_error_crops(
+            crops_dir=CROP_MAP_PRED,
+            pred_dir=common_pred_txt,
+        )
 
 
 if __name__ == "__main__":
