@@ -403,7 +403,7 @@ mgr.import_mask(
 
 ## 统一运行参数
 
-大多数加载、写入、校验、可视化和评估方法都支持同一组运行参数。类别/属性修改和 crop 校正还支持 `out_data="new_dataset"`：先复制图像、label 和 schema，再只修改副本；省略时保持原地修改和 `labels_backup` 备份行为。已有的 `out` 与 `out_data` 不能同时传入：
+大多数加载、写入、校验、可视化和评估方法都支持同一组运行参数。类别/属性修改和 crop 校正还支持 `out_data="new_dataset"`：先复制图像、label 和 schema，再只修改副本；省略时保持原地修改和 `labels_backup` 备份行为。新数据集会保留原有 train/val/test 图像归属，生成指向新图像绝对路径的三个 txt，并更新 dataset.yaml；优先读取原始 split txt，没有 txt 时按 split 文件夹识别。仅导出原数据子集时，列表只包含实际导出的图像；没有原始划分则不自动划分。已有的 `out` 与 `out_data` 不能同时传入：
 
 | 参数 | 默认值 | 说明 |
 |---|---|---|

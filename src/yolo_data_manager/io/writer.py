@@ -65,7 +65,14 @@ def write_yolo_dataset(
                 backup_obj.backup(image.label_path)
 
     write_class_schema(dataset.classes, out_path / "class.txt")
-    write_dataset_yaml(dataset.classes, out_path / "dataset.yaml", train="images", val="images")
+    preserved_splits = _write_preserved_splits(dataset, out_path)
+    write_dataset_yaml(
+        dataset.classes,
+        out_path / "dataset.yaml",
+        train="train.txt" if preserved_splits else "images",
+        val="val.txt" if preserved_splits else "images",
+        test="test.txt" if preserved_splits else None,
+    )
     write_attribute_schema(dataset.attributes, out_path / "attribute.yaml")
 
     worker_count = normalize_workers(workers)
@@ -115,6 +122,32 @@ def write_yolo_dataset(
         backup_result=backup_result,
     )
     return backup_obj
+
+
+def _write_preserved_splits(dataset: YoloDataset, out_root: Path) -> bool:
+    """Keep source image membership while rebasing lists onto the exported images."""
+    if Path(dataset.root).resolve() == out_root.resolve():
+        return False
+
+    from yolo_data_manager.stats.report import infer_image_splits
+
+    memberships = infer_image_splits(dataset)
+    split_names = ("train", "val", "test")
+    has_lists = any(
+        (Path(dataset.root) / f"{split}.txt").is_file()
+        for split in split_names
+    )
+    if not has_lists and not memberships:
+        return False
+
+    for split in split_names:
+        paths = [
+            str((out_root / "images" / image.file_name).resolve())
+            for image in dataset.images
+            if memberships.get(id(image)) == split
+        ]
+        write_split_file(paths, out_root / f"{split}.txt")
+    return True
 
 
 def clone_yolo_dataset_for_output(

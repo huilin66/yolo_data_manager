@@ -6,7 +6,9 @@
 
 每次更新代码后，交付前必须同步更新项目版本号。版本号唯一维护在根目录 `pyproject.toml` 的 `[project].version`，遵循 SemVer：修复问题递增 patch（例如 `1.0.1`），新增向后兼容功能递增 minor（例如 `1.1.0`），不兼容的 API 或行为变更递增 major（例如 `2.0.0`）。提交代码、测试或文档变更时，应确认版本号与本次变更保持一致。
 
-当前版本为 `1.8.0`。`YoloManager` 提供惰性 `dataset`、`classes` 和 `attributes` 属性；首次访问时加载并缓存数据集，`load(reload=True)` 可显式刷新，数据修改操作会自动清理缓存。校验拆分为 `image_check`、`label_check`，`check` 默认合并调用两者，并支持 `check_list` 选择检查组。`dataset_split` 支持 `val_source` 固定复用已有验证集，也支持 `out_data` 复制生成独立的新数据集。尺寸过滤支持按类别配置多组像素宽高条件，`anno_update_by_size`、`eval_metrics` 和 `eval_error_analysis` 共用该规则。
+当前版本为 `1.9.0`。`YoloManager` 提供惰性 `dataset`、`classes` 和 `attributes` 属性；首次访问时加载并缓存数据集，`load(reload=True)` 可显式刷新，数据修改操作会自动清理缓存。校验拆分为 `image_check`、`label_check`，`check` 默认合并调用两者，并支持 `check_list` 选择检查组。`dataset_split` 支持 `val_source` 固定复用已有验证集，也支持 `out_data` 复制生成独立的新数据集。尺寸过滤支持按类别配置多组像素宽高条件，`anno_update_by_size`、`eval_metrics` 和 `eval_error_analysis` 共用该规则。
+
+通用数据集导出（包括标注修改的 `out_data`）保留原始 train/val/test 图像归属，重建指向目标 images 的绝对路径列表，并在 dataset.yaml 中引用列表。优先读取根目录 split txt，均不存在时才按 split 文件夹识别；没有原始划分时不自动随机划分。
 
 ## 目标与原则
 

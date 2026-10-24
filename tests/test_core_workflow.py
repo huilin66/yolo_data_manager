@@ -4,6 +4,7 @@ import json
 
 from PIL import Image
 import pytest
+import yaml
 
 from yolo_data_manager.annotation.edit import (
     delete_by_attribute,
@@ -1131,6 +1132,33 @@ def test_layout_detect_split_dirs_and_normalize(tmp_path):
     assert payload["classes"] == ["obj"]
     assert dataset.annotation_count() == 1
     assert (tmp_path / "normalized" / "images" / "a.jpg").exists()
+    assert (tmp_path / "normalized" / "train.txt").read_text(encoding="utf-8").splitlines() == [
+        str((tmp_path / "normalized" / "images" / "a.jpg").resolve())
+    ]
+    assert (tmp_path / "normalized" / "val.txt").read_text(encoding="utf-8") == ""
+
+
+def test_write_yolo_dataset_preserves_split_lists_with_new_paths(tmp_path):
+    root = make_dataset(tmp_path / "source_splits")
+    (root / "train.txt").write_text("images/a.jpg\n", encoding="utf-8")
+    (root / "val.txt").write_text("images/b.jpg\n", encoding="utf-8")
+    dataset = load_yolo_dataset(root, layout="flat")
+    output = tmp_path / "exported"
+
+    write_yolo_dataset(dataset, output, backup=False, workers=1)
+
+    assert (output / "train.txt").read_text(encoding="utf-8").splitlines() == [
+        str((output / "images" / "a.jpg").resolve())
+    ]
+    assert (output / "val.txt").read_text(encoding="utf-8").splitlines() == [
+        str((output / "images" / "b.jpg").resolve())
+    ]
+    assert (output / "test.txt").read_text(encoding="utf-8") == ""
+    config = yaml.safe_load((output / "dataset.yaml").read_text(encoding="utf-8"))
+    assert [config[name] for name in ("train", "val", "test")] == [
+        "train.txt", "val.txt", "test.txt"
+    ]
+    assert (root / "train.txt").read_text(encoding="utf-8") == "images/a.jpg\n"
 
 
 def test_write_yolo_dataset_backups_source_labels_before_writing(tmp_path):
