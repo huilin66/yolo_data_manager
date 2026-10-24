@@ -58,8 +58,9 @@ def test_remap_yolo_dataset_filenames_copies_labels_and_writes_mapping(tmp_path)
     assert (output / "labels" / "0010.txt").read_text(encoding="utf-8") == (
         "0 0.5 0.5 0.2 0.2 0.91\n"
     )
-    assert (output / "train.txt").read_text(encoding="utf-8") == "images/0010.jpg\n"
-    assert (output / "val.txt").read_text(encoding="utf-8") == "images/0011.png\n"
+    assert (output / "train.txt").read_text(encoding="utf-8").splitlines() == [str((output / "images/0010.jpg").resolve())]
+    assert (output / "val.txt").read_text(encoding="utf-8").splitlines() == [str((output / "images/0011.png").resolve())]
+    assert (output / "test.txt").read_text(encoding="utf-8") == ""
 
     mapping = json.loads(
         (source / "ydm_conversion" / "filename_mapping.json").read_text(
@@ -78,6 +79,28 @@ def test_remap_yolo_dataset_filenames_copies_labels_and_writes_mapping(tmp_path)
         "labels/a.txt": "labels/0010.txt",
         "labels/b.txt": "labels/0011.txt",
     }
+
+
+def test_filename_remap_preserves_split_folders_without_lists(tmp_path):
+    source = tmp_path / "split_source"
+    for split in ("train", "val", "test"):
+        (source / "images" / split).mkdir(parents=True)
+        (source / "labels" / split).mkdir(parents=True)
+        Image.new("RGB", (20, 20), "red").save(source / "images" / split / f"{split}.jpg")
+        (source / "labels" / split / f"{split}.txt").write_text("0 0.5 0.5 0.2 0.2\n", encoding="utf-8")
+    (source / "class.txt").write_text("object\n", encoding="utf-8")
+    dataset = load_yolo_dataset(source, layout="auto", workers=1)
+    output = tmp_path / "renamed"
+
+    result = remap_yolo_dataset_filenames(dataset, output, workers=1)
+
+    assert result.split_counts == {"train": 1, "val": 1, "test": 1}
+    for split in ("train", "val", "test"):
+        lines = (output / f"{split}.txt").read_text(encoding="utf-8").splitlines()
+        assert len(lines) == 1
+        assert Path(lines[0]).is_absolute()
+        assert Path(lines[0]).is_file()
+        assert Path(lines[0]).parent == output / "images" / split
 
 
 def test_filename_remap_cli_and_python_task_argv(tmp_path, capsys):

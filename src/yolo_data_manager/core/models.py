@@ -185,6 +185,7 @@ class YoloImage:
     height: int | None = None
     annotations: list[YoloAnnotation] = field(default_factory=list)
     output_name: str | None = None
+    split: str | None = None
 
     @property
     def stem(self) -> str:

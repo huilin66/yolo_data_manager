@@ -1670,6 +1670,10 @@ def test_basic_info_reports_box_and_attribute_counts_by_split(tmp_path):
 def test_merge_datasets_with_output_name_prefix(tmp_path):
     root1 = make_dataset(tmp_path / "yolo1")
     root2 = make_dataset(tmp_path / "yolo2")
+    (root1 / "train.txt").write_text("images/a.jpg\n", encoding="utf-8")
+    (root1 / "val.txt").write_text("images/b.jpg\n", encoding="utf-8")
+    (root2 / "train.txt").write_text("images/b.jpg\n", encoding="utf-8")
+    (root2 / "test.txt").write_text("images/a.jpg\n", encoding="utf-8")
     dataset1 = load_yolo_dataset(root1)
     dataset2 = load_yolo_dataset(root2)
 
@@ -1679,6 +1683,14 @@ def test_merge_datasets_with_output_name_prefix(tmp_path):
     assert merged.annotation_count() == 6
     assert merged.classes.names == ["person", "car"]
     assert sorted(image.file_name for image in merged.images) == ["d0_a.jpg", "d0_b.jpg", "d1_a.jpg", "d1_b.jpg"]
+    output = tmp_path / "merged"
+    write_yolo_dataset(merged, output, workers=1, backup=False)
+    assert (output / "train.txt").read_text(encoding="utf-8").splitlines() == [
+        str((output / "images/d0_a.jpg").resolve()),
+        str((output / "images/d1_b.jpg").resolve()),
+    ]
+    assert (output / "val.txt").read_text(encoding="utf-8").splitlines() == [str((output / "images/d0_b.jpg").resolve())]
+    assert (output / "test.txt").read_text(encoding="utf-8").splitlines() == [str((output / "images/d1_a.jpg").resolve())]
 
 
 def test_query_by_attribute_and_duplicate_validation(tmp_path):

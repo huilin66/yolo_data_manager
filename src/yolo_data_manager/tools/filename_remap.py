@@ -16,6 +16,7 @@ from yolo_data_manager.core.schema import (
 )
 from yolo_data_manager.io.output_paths import ydm_dir
 from yolo_data_manager.runtime import iter_progress, normalize_workers
+from yolo_data_manager.stats.report import infer_image_splits
 
 
 @dataclass(frozen=True)
@@ -186,6 +187,22 @@ def remap_yolo_dataset_filenames(
         if (source_root / f"{split_name}.txt").is_file()
     }
     split_lines = _remapped_split_lines(source_root, source_split_files, jobs)
+    if not source_split_files:
+        memberships = infer_image_splits(dataset)
+        if memberships:
+            split_lines = {
+                split: [
+                    job.item.new_image
+                    for image, job in zip(dataset.images, jobs)
+                    if memberships.get(id(image)) == split
+                ]
+                for split in ("train", "val", "test")
+            }
+    if split_lines:
+        split_lines = {
+            split: [str((out_path / name).resolve()) for name in split_lines.get(split, [])]
+            for split in ("train", "val", "test")
+        }
     mapping_paths = _resolve_mapping_paths(source_root, out_path, mapping_file)
 
     if not dry_run:
@@ -195,7 +212,7 @@ def remap_yolo_dataset_filenames(
         _write_dataset_metadata(
             out_path,
             jobs,
-            source_split_files=source_split_files,
+            source_split_files={name: out_path / f"{name}.txt" for name in split_lines},
             classes=dataset.classes,
         )
 

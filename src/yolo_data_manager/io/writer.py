@@ -65,7 +65,7 @@ def write_yolo_dataset(
                 backup_obj.backup(image.label_path)
 
     write_class_schema(dataset.classes, out_path / "class.txt")
-    preserved_splits = _write_preserved_splits(dataset, out_path)
+    preserved_splits = write_preserved_splits(dataset, out_path)
     write_dataset_yaml(
         dataset.classes,
         out_path / "dataset.yaml",
@@ -124,9 +124,11 @@ def write_yolo_dataset(
     return backup_obj
 
 
-def _write_preserved_splits(dataset: YoloDataset, out_root: Path) -> bool:
+def write_preserved_splits(dataset: YoloDataset, out_root: Path) -> bool:
     """Keep source image membership while rebasing lists onto the exported images."""
-    if Path(dataset.root).resolve() == out_root.resolve():
+    if Path(dataset.root).resolve() == out_root.resolve() and not any(
+        image.split is not None for image in dataset.images
+    ):
         return False
 
     from yolo_data_manager.stats.report import infer_image_splits

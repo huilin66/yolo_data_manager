@@ -22,6 +22,7 @@ def _make_dataset(root: Path) -> Path:
 
 def test_resize_yolo_dataset_letterbox_transforms_boxes(tmp_path):
     source = _make_dataset(tmp_path / "source")
+    (source / "val.txt").write_text("images/sample.jpg\n", encoding="utf-8")
     dataset = load_yolo_dataset(source, layout="auto", workers=1)
 
     result = resize_yolo_dataset(
@@ -37,6 +38,10 @@ def test_resize_yolo_dataset_letterbox_transforms_boxes(tmp_path):
     assert result.images == 1
     assert result.annotations == 1
     assert result.letterboxed_images == 1
+    output = tmp_path / "resized"
+    assert (output / "val.txt").read_text(encoding="utf-8").splitlines() == [str((output / "images/sample.jpg").resolve())]
+    assert (output / "train.txt").read_text(encoding="utf-8") == ""
+    assert (output / "test.txt").read_text(encoding="utf-8") == ""
     with Image.open(tmp_path / "resized" / "images" / "sample.jpg") as image:
         assert image.size == (200, 200)
 

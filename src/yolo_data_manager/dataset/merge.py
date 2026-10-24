@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from yolo_data_manager.core.models import AttributeSchema, ClassSchema, YoloDataset, YoloImage
+from yolo_data_manager.stats.report import infer_image_splits
 
 
 @dataclass
@@ -39,8 +40,10 @@ def merge_datasets(
 
     for dataset_idx, dataset in enumerate(datasets):
         mapping = class_maps[dataset_idx]
+        memberships = infer_image_splits(dataset)
         for image in dataset.images:
             new_image = copy.deepcopy(image)
+            new_image.split = memberships.get(id(image))
             original_name = new_image.file_name
             output_name = _unique_name(original_name, used_names, dataset_idx, rename_duplicates, source_prefix)
             if output_name != original_name:

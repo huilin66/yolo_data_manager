@@ -202,6 +202,9 @@ def infer_image_splits(dataset: YoloDataset) -> dict[int, str]:
     result: dict[int, str] = {}
     for image in dataset.images:
         candidates: set[str] = set()
+        if image.split in SPLIT_NAMES:
+            result[id(image)] = image.split
+            continue
         for key in _split_key_variants(root, image.path):
             candidates.update(assignments.get(key, set()))
         if not split_files:

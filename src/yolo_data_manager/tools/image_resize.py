@@ -16,6 +16,7 @@ from yolo_data_manager.core.schema import (
     write_dataset_yaml,
 )
 from yolo_data_manager.runtime import iter_progress, normalize_workers
+from yolo_data_manager.io.writer import write_preserved_splits
 
 
 _RESAMPLING_FILTERS = {
@@ -170,7 +171,14 @@ def resize_yolo_dataset(
     image_dir.mkdir(parents=True, exist_ok=True)
     label_dir.mkdir(parents=True, exist_ok=True)
     write_class_schema(dataset.classes, out_path / "class.txt")
-    write_dataset_yaml(dataset.classes, out_path / "dataset.yaml", train="images", val="images")
+    preserved_splits = write_preserved_splits(dataset, out_path)
+    write_dataset_yaml(
+        dataset.classes,
+        out_path / "dataset.yaml",
+        train="train.txt" if preserved_splits else "images",
+        val="val.txt" if preserved_splits else "images",
+        test="test.txt" if preserved_splits else None,
+    )
     write_attribute_schema(dataset.attributes, out_path / "attribute.yaml")
 
     output_names = [image.file_name for image in dataset.images]
