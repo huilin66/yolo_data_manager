@@ -14,7 +14,7 @@ def correct_prediction_sources(dataset, sources, *, progress=True, **options):
     # Keep the original GT indexing for the whole batch. Only prediction
     # indices are remapped, since pred1 in two runs denotes different rows.
     from yolo_data_manager.annotation.crop_correction import (
-        _normalise_optional_target,
+        _parse_error_crop_rule,
         _parse_error_crop_name,
         _prediction_at_index,
         correct_gt_labels_from_error_crops,
@@ -38,7 +38,7 @@ def correct_prediction_sources(dataset, sources, *, progress=True, **options):
         for directory, target in crops.items():
             if not Path(directory).is_dir():
                 raise FileNotFoundError(f"crop directory not found: {directory}")
-            value = _normalise_optional_target(target)
+            value, _ = _parse_error_crop_rule(target, options.get("replace_gt_from_pred", False))
             if value is not None:
                 dataset.class_id(value)
         prepared.append((pred_root, crops))
@@ -61,6 +61,7 @@ def correct_prediction_sources(dataset, sources, *, progress=True, **options):
                 files.setdefault(path.stem, []).append(path)
             count = 0
             for crop_index, (directory, target) in enumerate(crops.items()):
+                target_value, local_replace = _parse_error_crop_rule(target, options.get("replace_gt_from_pred", False))
                 destination = temporary_root / f"source_{source_index}" / str(crop_index)
                 destination.mkdir(parents=True)
                 combined_crops[destination] = target
@@ -74,7 +75,7 @@ def correct_prediction_sources(dataset, sources, *, progress=True, **options):
                     stem, pred_index, gt_index = parsed
                     prediction = None
                     needs_prediction = pred_index is not None and (
-                        gt_index is None or options.get("replace_gt_from_pred", False)
+                        gt_index is None or local_replace
                     )
                     if needs_prediction:
                         candidates = files.get(stem, [])
@@ -93,9 +94,9 @@ def correct_prediction_sources(dataset, sources, *, progress=True, **options):
                             indices[key] = len(lines)
                         pred_index = indices[key]
                     if gt_index is not None:
-                        value = _normalise_optional_target(target)
+                        value = target_value
                         deleting = pred_index is None and (
-                            options.get("delete_pred_none", False) or options.get("replace_gt_from_pred", False)
+                            options.get("delete_pred_none", False) or local_replace
                         )
                         if prediction is not None:
                             action = ("replace", prediction.to_yolo_line(include_confidence=False))
@@ -120,10 +121,12 @@ def correct_prediction_sources(dataset, sources, *, progress=True, **options):
         # Report the user's crop directories, not temporary staging paths.
         result.target_classes = {
             str(directory): {
-                "target_class_id": dataset.class_id(_normalise_optional_target(target)) if _normalise_optional_target(target) is not None else None,
-                "target_class_name": dataset.class_name(dataset.class_id(_normalise_optional_target(target))) if _normalise_optional_target(target) is not None else None,
+                "target_class_id": dataset.class_id(value) if value is not None else None,
+                "target_class_name": dataset.class_name(dataset.class_id(value)) if value is not None else None,
+                "replace_gt_from_pred": local_replace,
             }
             for _, crops in prepared for directory, target in crops.items()
+            for value, local_replace in [_parse_error_crop_rule(target, options.get("replace_gt_from_pred", False))]
         }
         if result.backup_dir is not None:
             from yolo_data_manager.io.backup import write_snapshot_metadata

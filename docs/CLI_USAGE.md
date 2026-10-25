@@ -139,6 +139,8 @@ ydm ann correct-attr-from-error-crops --root path/to/yolo --crops-dir result_ana
 `correct-from-error-crops` 的 `--crops-dir` 也支持 JSON 对象，例如 `{".../pred_car_gt_background/crops":"defect",".../pred_person_gt_background/crops":"person"}`；此时省略 `--to`，多个错误 crop 目录一次处理并共用一个备份快照，值为 `null` 时删除对应 GT 框。
 
 多次预测可使用 `--pred-sources '[{"pred_dir":"predict1/labels","crops_dir":{"review1/selected":"defect"}},{"pred_dir":"predict2/labels","crops_dir":{"review2/selected":"defect"}}]'`，与 `--crops-dir`、`--pred-dir`、`--to` 互斥。统一预测索引、共用备份，新增框按 `--dedup-iou` 跨来源去重；同一 GT 的冲突修改在写入前报错。报告 `pred_sources` 列出各来源路径和输入 crop 数量。
+
+`--crops-dir` JSON（以及 `--pred-sources` 内的 crops_dir）支持 `{"review/replace":["b",true],"review/class_only":["c",false],"review/inherit":"a"}`。列表第二项按路径覆盖全局 `--replace-gt-from-pred`，单值沿用全局参数；true 使用预测完整标注，false 只改 GT 类别，必须使用 JSON 布尔值。
 `correct-from-error-crops` 使用 `xxx_predx_gty` 文件名中的 `y` 定位 GT 标注序号。提供 `--pred-dir` 后，`gt none` 的 crop 会使用预测 txt 中第 `x` 条记录追加到对应 GT label；追加时会去掉 prediction confidence。未提供 `--pred-dir` 时，`gt none` crop 会跳过。
 追加预测以及 `--replace-gt-from-pred` 产生的替换框，默认按同一类别、同一图片的 IoU `0.5` 去重，重叠候选保留置信度更高的预测；替换框被去重时，对应的重复 GT 也会删除。可用 `--dedup-iou` 调整阈值。
 指定 `--delete-pred-none` 后，`prednone_gty` 会删除对应的第 `y` 条 GT 标注，即使 `--to` 设置了目标类别。只处理删除时可使用 `--to none --delete-pred-none`；`predx_gty` 仍按 `--to` 执行类别更新或删除。指定 `--replace-gt-from-pred` 后，需要同时提供 `--pred-dir`，`predx_gty` 会用预测第 `x` 条记录完整替换 GT 第 `y` 条（类别和 geometry），`prednone_gty` 删除，`predx_gtnone` 追加。

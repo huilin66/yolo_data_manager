@@ -2162,7 +2162,7 @@ def handle_correct_from_crops(args: argparse.Namespace) -> int:
 def handle_correct_from_error_crops(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
     sources = json.loads(args.pred_sources) if getattr(args, "pred_sources", None) is not None else None
-    crop_map = _parse_crop_class_map(args.crops_dir) if args.crops_dir is not None else None
+    crop_map = _parse_crop_class_map(args.crops_dir, allow_replace=True) if args.crops_dir is not None else None
     if sources is not None:
         if args.crops_dir is not None or args.to_value is not None or args.pred_dir is not None:
             raise ValueError("--pred-sources cannot be combined with --crops-dir, --pred-dir or --to")
@@ -3164,7 +3164,8 @@ def _parse_optional_class_value(value: str | None) -> str | None:
 
 def _parse_crop_class_map(
     value: str,
-) -> dict[str, str | int | None] | None:
+    *, allow_replace: bool = False,
+) -> dict[str, Any] | None:
     """Parse the JSON crop-directory-to-class form used by crop correction."""
 
     text = value.strip()
@@ -3177,10 +3178,15 @@ def _parse_crop_class_map(
     if not isinstance(parsed, dict) or not parsed:
         raise ValueError("--crops-dir JSON mapping must be a non-empty object")
 
-    result: dict[str, str | int | None] = {}
+    result: dict[str, Any] = {}
     for raw_path, raw_target in parsed.items():
         if not isinstance(raw_path, str) or not raw_path.strip():
             raise ValueError("crop mapping keys must be non-empty paths")
+        if allow_replace and isinstance(raw_target, list):
+            from yolo_data_manager.annotation.crop_correction import _parse_error_crop_rule
+            target, replace = _parse_error_crop_rule(raw_target, False)
+            result[raw_path] = [target, replace]
+            continue
         if raw_target is not None and not isinstance(raw_target, (str, int)):
             raise ValueError("crop mapping targets must be class names, ids, or null")
         result[raw_path] = (

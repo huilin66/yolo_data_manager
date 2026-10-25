@@ -364,6 +364,18 @@ mgr.ann_att_update_from_map(
     out_data="yolo_attribute_copy",
 )  # Write a new dataset without changing the source.
 # Bind each reviewed crop mapping to its own prediction directory.
+# A [class, bool] value overrides replace_gt_from_pred for that path only.
+mgr.ann_correct_from_error_crops(
+    crops_dir={
+        "review/to_a": "a",              # Inherit the global setting.
+        "review/replace": ["b", True],    # Use prediction class and geometry; b is not applied.
+        "review/class_only": ["c", False], # Change GT class, retain its geometry.
+        "review/delete": [None, False],   # Delete selected GT annotations.
+    },
+    pred_dir="predict/labels",
+    replace_gt_from_pred=False,
+)
+# Also supported inside pred_sources; the second item must be a boolean.
 mgr.ann_correct_from_error_crops(
     pred_sources=[
         {"pred_dir": "predict1/labels", "crops_dir": {"review1/selected": "defect"}},

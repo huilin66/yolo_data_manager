@@ -173,6 +173,18 @@ mgr.ann_att_update_from_map(
     out_data="yolo_attribute_copy",
 )  # 输出新数据集
 # 多次预测的人工筛选结果一次更新；每组绑定自己的预测 txt 目录。
+# 每个路径也可用 [类别, bool] 覆盖全局 replace_gt_from_pred。
+mgr.ann_correct_from_error_crops(
+    crops_dir={
+        "review/to_a": "a",           # 沿用全局设置
+        "review/replace": ["b", True], # 使用预测的类别和框替换 GT，b 不覆盖预测类别
+        "review/class_only": ["c", False], # 只改 GT 类别，保留原框
+        "review/delete": [None, False],    # 删除选中的 GT
+    },
+    pred_dir="predict/labels",
+    replace_gt_from_pred=False,
+)
+# 此写法同样支持 pred_sources 各项中的 crops_dir；布尔值必须为 True/False。
 mgr.ann_correct_from_error_crops(
     pred_sources=[
         {"pred_dir": "predict1/labels", "crops_dir": {"review1/selected": "Leakage"}},

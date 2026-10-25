@@ -1800,7 +1800,7 @@ class YoloManager:
 
     def ann_correct_from_error_crops(
         self,
-        crops_dir: str | Path | Mapping[str | Path, str | int | None] | None = None,
+        crops_dir: str | Path | Mapping[str | Path, Any] | None = None,
         to: str | int | None = None,
         *,
         out_data: str | Path | None = None,
@@ -1821,6 +1821,8 @@ class YoloManager:
         target class. Mapping mode processes all directories in one task and
         uses one label-backup snapshot.
         ``pred_sources`` binds each crop mapping to its own prediction directory.
+        Mapping values may be ``[class, bool]`` to override
+        ``replace_gt_from_pred`` for that directory; scalar values inherit it.
         """
         if pred_sources is not None:
             if isinstance(pred_sources, (str, bytes, Mapping)) or not isinstance(pred_sources, Sequence):

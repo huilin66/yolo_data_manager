@@ -386,9 +386,21 @@ def _normalise_optional_target(value: int | str | None) -> int | str | None:
     return value
 
 
+def _parse_error_crop_rule(value: Any, default_replace: bool) -> tuple[int | str | None, bool]:
+    """Resolve a class or [class, replace_gt_from_pred] directory rule."""
+    replace = default_replace
+    if isinstance(value, (list, tuple)):
+        if len(value) != 2 or not isinstance(value[1], bool):
+            raise ValueError("error crop rule must be [class, bool]")
+        value, replace = value
+    if value is not None and (isinstance(value, bool) or not isinstance(value, (str, int))):
+        raise ValueError("error crop target must be a class name, id, or None")
+    return _normalise_optional_target(value), replace
+
+
 def correct_gt_labels_from_error_crops(
     dataset: YoloDataset,
-    crops_dir: str | Path | Mapping[str | Path, int | str | None] | None = None,
+    crops_dir: str | Path | Mapping[str | Path, Any] | None = None,
     target_class: int | str | None = None,
     *,
     pred_labels_dir: str | Path | None = None,
@@ -478,7 +490,7 @@ def correct_gt_labels_from_error_crops(
 
 def correct_gt_labels_from_error_crop_map(
     dataset: YoloDataset,
-    crops_to_classes: Mapping[str | Path, int | str | None],
+    crops_to_classes: Mapping[str | Path, Any],
     *,
     pred_labels_dir: str | Path | None = None,
     dedup_iou: float | None = 0.5,
@@ -494,6 +506,8 @@ def correct_gt_labels_from_error_crop_map(
     the class assigned to its selected GT boxes. ``None`` deletes the selected
     GT box. Prediction-backed append/replace behavior remains controlled by
     ``pred_labels_dir`` and the other correction options.
+    Values may also be ``[class, bool]``; the boolean overrides the global
+    ``replace_gt_from_pred`` setting for that directory only.
     """
 
     if out_data is not None and not dry_run:
@@ -515,18 +529,21 @@ def correct_gt_labels_from_error_crop_map(
     crop_specs: list[tuple[Path, int | None]] = []
     target_class_by_target: dict[tuple[str, int], int | None] = {}
     target_specs: dict[str, dict[str, object]] = {}
+    replace_by_directory: dict[Path, bool] = {}
     for raw_crop_dir, raw_target in crops_to_classes.items():
         crop_root = Path(raw_crop_dir)
         if not crop_root.is_dir():
             raise FileNotFoundError(
                 f"error-analysis crop directory not found: {crop_root}"
             )
-        target_value = _normalise_optional_target(raw_target)
+        target_value, local_replace = _parse_error_crop_rule(raw_target, replace_gt_from_pred)
+        replace_by_directory[crop_root] = local_replace
         target_id = (
             dataset.class_id(target_value) if target_value is not None else None
         )
         crop_specs.append((crop_root, target_id))
         target_specs[str(crop_root)] = {
+            "replace_gt_from_pred": local_replace,
             "target_class_id": target_id,
             "target_class_name": (
                 dataset.class_name(target_id) if target_id is not None else None
@@ -539,6 +556,7 @@ def correct_gt_labels_from_error_crop_map(
         target_class=None,
         target_class_by_target=target_class_by_target,
         target_specs=target_specs,
+        replace_by_directory=replace_by_directory,
         pred_labels_dir=pred_labels_dir,
         dedup_iou=dedup_iou,
         delete_pred_none=delete_pred_none,
@@ -556,6 +574,7 @@ def _correct_gt_labels_from_error_crop_specs(
     target_class: int | str | None,
     target_class_by_target: dict[tuple[str, int], int | None] | None = None,
     target_specs: dict[str, dict[str, object]] | None = None,
+    replace_by_directory: Mapping[Path, bool] | None = None,
     pred_labels_dir: str | Path | None,
     dedup_iou: float | None,
     delete_pred_none: bool,
@@ -575,6 +594,10 @@ def _correct_gt_labels_from_error_crop_specs(
     crop_files = 0
     invalid_crops: list[str] = []
     for crop_root, mapped_target_id in crop_specs:
+        local_replace = (
+            replace_by_directory.get(crop_root, replace_gt_from_pred)
+            if replace_by_directory is not None else replace_gt_from_pred
+        )
         if not crop_root.is_dir():
             raise FileNotFoundError(
                 f"error-analysis crop directory not found: {crop_root}"
@@ -594,12 +617,12 @@ def _correct_gt_labels_from_error_crop_specs(
                 else:
                     prediction_targets.setdefault((stem, pred_index), []).append(crop_path)
                 continue
-            if replace_gt_from_pred and pred_index is not None:
+            if local_replace and pred_index is not None:
                 replacement_targets.setdefault((stem, gt_index), []).append(
                     (pred_index, crop_path)
                 )
                 continue
-            if (delete_pred_none or replace_gt_from_pred) and pred_index is None:
+            if (delete_pred_none or local_replace) and pred_index is None:
                 forced_delete_targets.add((stem, gt_index))
             targets.setdefault((stem, gt_index), []).append(crop_path)
             if target_class_by_target is not None:
@@ -1074,6 +1097,9 @@ def _correct_target_map(
     pending: dict[Path, list[tuple[int, int | None]]] = {}
     changed_annotations: list[tuple[YoloImage, YoloAnnotation, int | None]] = []
     forced_delete_targets = forced_delete_targets or set()
+    # Replacement deduplication may delete GT rows before class-only edits.
+    # Both modes must continue to address the original crop GT indices.
+    original_annotations = {id(image): list(image.annotations) for image in dataset.images}
     _replace_target_map_from_predictions(
         dataset,
         replacement_targets or {},
@@ -1098,11 +1124,12 @@ def _correct_target_map(
         if image.label_path is None or not image.label_path.is_file():
             result.missing_labels.append(stem)
             continue
-        if crop_index > len(image.annotations):
+        source_annotations = original_annotations[id(image)]
+        if crop_index > len(source_annotations):
             result.invalid_indices.append(f"{stem}_{crop_index}")
             continue
 
-        annotation = image.annotations[crop_index - 1]
+        annotation = source_annotations[crop_index - 1]
         line_no = annotation.line_no or crop_index
         force_delete = (stem, crop_index) in forced_delete_targets
         mapped_target_id = (
@@ -1143,7 +1170,13 @@ def _correct_target_map(
                 action="delete" if new_class_id is None else "update",
             )
         )
-        pending.setdefault(image.label_path, []).append((line_no, new_class_id))
+        remaining_lines = {item.line_no for item in image.annotations}
+        removed_before = sum(
+            1 for item in source_annotations
+            if item.line_no is not None and item.line_no < line_no
+            and item.line_no not in remaining_lines
+        )
+        pending.setdefault(image.label_path, []).append((line_no - removed_before, new_class_id))
         changed_annotations.append((image, annotation, new_class_id))
         result.changed += 1
         if new_class_id is None:
