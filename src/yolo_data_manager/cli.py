@@ -630,9 +630,10 @@ def build_parser() -> argparse.ArgumentParser:
     add_dataset_args(correct_error_crops)
     correct_error_crops.add_argument(
         "--crops-dir",
-        required=True,
+        default=None,
         help="pred_gt crop directory, or a JSON object mapping directories to target classes",
     )
+    correct_error_crops.add_argument("--pred-sources", default=None, help="JSON list of crops_dir mappings paired with pred_dir directories; excludes --crops-dir, --pred-dir and --to")
     correct_error_crops.add_argument(
         "--backup-dir",
         default=None,
@@ -2160,13 +2161,21 @@ def handle_correct_from_crops(args: argparse.Namespace) -> int:
 
 def handle_correct_from_error_crops(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
-    crop_map = _parse_crop_class_map(args.crops_dir)
-    if crop_map is not None:
+    sources = json.loads(args.pred_sources) if getattr(args, "pred_sources", None) is not None else None
+    crop_map = _parse_crop_class_map(args.crops_dir) if args.crops_dir is not None else None
+    if sources is not None:
+        if args.crops_dir is not None or args.to_value is not None or args.pred_dir is not None:
+            raise ValueError("--pred-sources cannot be combined with --crops-dir, --pred-dir or --to")
+        target_class = None
+        crops_input = None
+    elif crop_map is not None:
         if args.to_value is not None:
             raise ValueError("--to cannot be used when --crops-dir is a JSON mapping")
         target_class = None
         crops_input = crop_map
     else:
+        if args.crops_dir is None:
+            raise ValueError("--crops-dir or --pred-sources is required")
         if args.to_value is None:
             raise ValueError("--to is required unless --crops-dir is a JSON mapping")
         target_class = _parse_optional_class_value(args.to_value)
@@ -2176,6 +2185,8 @@ def handle_correct_from_error_crops(args: argparse.Namespace) -> int:
         crops_input,
         target_class,
         pred_labels_dir=getattr(args, "pred_dir", None),
+        pred_sources=sources,
+        progress=args.progress,
         dedup_iou=getattr(args, "dedup_iou", 0.5),
         delete_pred_none=getattr(args, "delete_pred_none", False),
         replace_gt_from_pred=getattr(args, "replace_gt_from_pred", False),

@@ -363,6 +363,17 @@ mgr.ann_att_update_from_map(
     {"update": {"defect": {"no": "yes"}}},
     out_data="yolo_attribute_copy",
 )  # Write a new dataset without changing the source.
+# Bind each reviewed crop mapping to its own prediction directory.
+mgr.ann_correct_from_error_crops(
+    pred_sources=[
+        {"pred_dir": "predict1/labels", "crops_dir": {"review1/selected": "defect"}},
+        {"pred_dir": "predict2/labels", "crops_dir": {"review2/selected": "defect"}},
+    ],
+    dedup_iou=0.5,
+    # out_data="corrected_dataset",
+)
+# pred_sources excludes top-level crops_dir/pred_dir/to. One backup session,
+# cross-source deduplication, and conflicting GT edits rejected before writing.
 mgr.ann_delete_attr(name="quality", value=["bad"], out="yolo_clean")
 mgr.ann_correct_from_crops(
     crops_dir="ydm_vis/crop/car",

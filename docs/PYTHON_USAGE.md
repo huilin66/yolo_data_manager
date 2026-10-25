@@ -172,6 +172,17 @@ mgr.ann_att_update_from_map(
     {"update": {"defect": {"no": "yes"}}},
     out_data="yolo_attribute_copy",
 )  # 输出新数据集
+# 多次预测的人工筛选结果一次更新；每组绑定自己的预测 txt 目录。
+mgr.ann_correct_from_error_crops(
+    pred_sources=[
+        {"pred_dir": "predict1/labels", "crops_dir": {"review1/selected": "Leakage"}},
+        {"pred_dir": "predict2/labels", "crops_dir": {"review2/selected": "Leakage"}},
+    ],
+    dedup_iou=0.5,
+    # out_data="corrected_dataset",
+)
+# pred_sources 与顶层 crops_dir/pred_dir/to 互斥。统一备份和跨来源去重；
+# 同一 GT 的冲突修改在写入前报错。dry_run=True 只预览，不修改标签。
 mgr.ann_delete_attr(name="quality", value=["bad"], out="yolo_clean")
 mgr.ann_correct_from_crops(
     crops_dir="ydm_vis/crop/car",

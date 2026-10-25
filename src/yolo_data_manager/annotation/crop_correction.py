@@ -53,12 +53,14 @@ class CropCorrectionResult:
     backup_timestamp: str | None = None
     backup_files: int = 0
     target_classes: dict[str, dict[str, object]] = field(default_factory=dict)
+    pred_sources: list[dict[str, object]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, object]:
         return {
             "target_class_id": self.target_class_id,
             "target_class_name": self.target_class_name,
             "target_classes": self.target_classes,
+            "pred_sources": self.pred_sources,
             "crop_files": self.crop_files,
             "unique_targets": self.unique_targets,
             "changed": self.changed,
@@ -386,10 +388,12 @@ def _normalise_optional_target(value: int | str | None) -> int | str | None:
 
 def correct_gt_labels_from_error_crops(
     dataset: YoloDataset,
-    crops_dir: str | Path | Mapping[str | Path, int | str | None],
+    crops_dir: str | Path | Mapping[str | Path, int | str | None] | None = None,
     target_class: int | str | None = None,
     *,
     pred_labels_dir: str | Path | None = None,
+    pred_sources: list[Mapping[str, Any]] | None = None,
+    progress: bool = True,
     dedup_iou: float | None = 0.5,
     delete_pred_none: bool = False,
     replace_gt_from_pred: bool = False,
@@ -416,6 +420,19 @@ def correct_gt_labels_from_error_crops(
     directories to target classes; all directories are processed in one
     backup session.
     """
+
+    if pred_sources is not None:
+        if crops_dir is not None or pred_labels_dir is not None or target_class is not None:
+            raise ValueError("pred_sources cannot be combined with crops_dir, pred_labels_dir or target_class")
+        from yolo_data_manager.annotation.pred_sources import correct_prediction_sources
+
+        return correct_prediction_sources(
+            dataset, pred_sources, dedup_iou=dedup_iou,
+            delete_pred_none=delete_pred_none, replace_gt_from_pred=replace_gt_from_pred,
+            backup_dir=backup_dir, dry_run=dry_run, out_data=out_data, progress=progress,
+        )
+    if crops_dir is None:
+        raise ValueError("crops_dir or pred_sources is required")
 
     if out_data is not None and not dry_run:
         output_dataset = clone_yolo_dataset_for_output(dataset, out_data)

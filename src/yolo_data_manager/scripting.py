@@ -1800,11 +1800,12 @@ class YoloManager:
 
     def ann_correct_from_error_crops(
         self,
-        crops_dir: str | Path | Mapping[str | Path, str | int | None],
+        crops_dir: str | Path | Mapping[str | Path, str | int | None] | None = None,
         to: str | int | None = None,
         *,
         out_data: str | Path | None = None,
         pred_dir: str | Path | None = None,
+        pred_sources: Sequence[Mapping[str, Any]] | None = None,
         dedup_iou: float | None = 0.5,
         delete_pred_none: bool = False,
         replace_gt_from_pred: bool = False,
@@ -1819,13 +1820,32 @@ class YoloManager:
         ``crops_dir`` may also be a mapping of ``error_crop_directory`` to
         target class. Mapping mode processes all directories in one task and
         uses one label-backup snapshot.
+        ``pred_sources`` binds each crop mapping to its own prediction directory.
         """
+        if pred_sources is not None:
+            if isinstance(pred_sources, (str, bytes, Mapping)) or not isinstance(pred_sources, Sequence):
+                raise TypeError("pred_sources must be a list of source mappings")
+            if crops_dir is not None or pred_dir is not None or to is not None:
+                raise ValueError("pred_sources cannot be combined with crops_dir, pred_dir, or to")
+            normalized_sources = []
+            for source in pred_sources:
+                if not isinstance(source, Mapping) or not isinstance(source.get("crops_dir"), Mapping):
+                    raise ValueError("each pred_sources entry requires a crops_dir mapping and pred_dir")
+                normalized_sources.append({
+                    **source,
+                    "crops_dir": {str(path): target for path, target in source["crops_dir"].items()},
+                })
+            pred_sources_json = json.dumps(normalized_sources, ensure_ascii=False, default=str)
+        else:
+            if crops_dir is None:
+                raise ValueError("crops_dir or pred_sources is required")
+            pred_sources_json = None
         crop_map_input = isinstance(crops_dir, Mapping)
         if crop_map_input:
             if to is not None:
                 raise ValueError("to must be omitted when crops_dir is a mapping")
             crops_dir = {str(path): target for path, target in crops_dir.items()}
-        cli_target = None if crop_map_input else ("none" if to is None else to)
+        cli_target = None if crop_map_input or pred_sources is not None else ("none" if to is None else to)
         resolved_backup_dir = (
             backup_dir
             if out_data is not None
@@ -1836,6 +1856,7 @@ class YoloManager:
             crops_dir=crops_dir,
             out_data=out_data,
             pred_dir=pred_dir,
+            pred_sources=pred_sources_json,
             dedup_iou=dedup_iou,
             delete_pred_none=delete_pred_none,
             replace_gt_from_pred=replace_gt_from_pred,
