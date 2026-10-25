@@ -11,7 +11,9 @@ from pathlib import Path
 
 from yolo_data_manager import YoloManager
 
-DATA_DIR = Path(r"/data/huilin/data/bdd_hmt/sua_rgb_update_v1")
+# DATA_DIR = Path(r"/data/huilin/data/bdd_hmt/sua_rgb_update_v1")
+# DATA_DIR = Path(r"/data/huilin/data/bdd_hmt/hmt_rgb_update_v2")
+DATA_DIR = Path(r"/data/huilin/data/bdd_hmt/hmt_rgb_update_v5")
 
 UPDATE_CLASS_MAP = {
     "drop": [
@@ -23,29 +25,33 @@ UPDATE_CLASS_MAP = {
     ],
     "merge": {
         "Efflorescene": ["Efflorescene High Risk", "Efflorescene Low Risk"],
-        "Delaminate": ["Delaminate Tile High Risk"],
         "Corrosion": ["Corrosion", "Spalling"],
-        "Broken": ["Broken High Risk"],
+        "Broken": ["Delaminate Tile High Risk", "Broken High Risk"],
     },
 }
 
-PRED_RUNS_DIR = Path(r"D:\zhl\project\ultralytics\runs\detect")
+PRED_RUNS_DIR = Path(r"/data/huilin/projects/ultralytics/runs/detect")
 
 
 PRED_NAMES = [
-    "predict-3",
+    # "predict",
+    # "predict-3",
     "predict-4",
     "predict-5",
-    "predict-6",
 ]
+CROP_MAP_LABEL = {
+    # os.path.join(CROP_ROOT_LABEL, "2_l"): "Leakage",
+    # os.path.join(CROP_ROOT_LABEL, "2_none"): "none",
+}
 
-QUERY_CLASS = None
-SELECTION_FILE = None
 
-CROP_MAP_PRED_ROOT = r"D:\zhl\data\road_forniture_v1_rename\ydm_evaluation\common_error_report\error_analysis\common_crops\pred_gt"
+CROP_MAP_PRED_ROOT = os.path.join(Path(r"/data/huilin/data/bdd_hmt/hmt_rgb_update_v2"), 'ydm_evaluation', 'crop_change3')
 CROP_MAP_PRED = {
-    os.path.join(CROP_MAP_PRED_ROOT, "pred_fence_gt_background"): "fence",
-    os.path.join(CROP_MAP_PRED_ROOT, "pred_sign_gt_background"): "sign",
+    # os.path.join(CROP_MAP_PRED_ROOT, "gt2none"): "none",
+    os.path.join(CROP_MAP_PRED_ROOT, "pred2broken"): "Broken",
+    os.path.join(CROP_MAP_PRED_ROOT, "pred2corrosion"): "Corrosion",
+    os.path.join(CROP_MAP_PRED_ROOT, "pred2de"): "Delaminate",
+    os.path.join(CROP_MAP_PRED_ROOT, "pred2eff"): "Efflorescene",
 }
 # Select operations by uncommenting names in RUN_LIST.
 RUN_LIST = [
@@ -59,8 +65,8 @@ RUN_LIST = [
     # "copy_select",
     # "metric",
     # "error_ana",
-    # "error_ana_common",
-    "update_class",
+    "error_ana_common",
+    # "update_class",
     # "update_att",
     # "filter_small",
     # "mannual_draw",
@@ -79,10 +85,6 @@ def main() -> None:
         init_layout=False,
     )
     # preprocess
-    if "rename" in RUN_LIST:
-        ydm.remap_filenames(
-            out=r"Z:\huilin\road_asset\data\merged_data\road_forniture_v3",
-        )
     if "resize" in RUN_LIST:
         ydm.resize_images(
             width=640,
@@ -147,7 +149,10 @@ def main() -> None:
             ydm.eval_error_analysis(
                 pred_root=pred_dir,
                 out=output_dir,
-                # attribute_file=ydm.root / "attribute.yaml",
+                conf_thres=0.1,
+                class_rules={
+                    "Efflorescene": {"min_area": 0.0025},
+                },
                 # only_val=True,
             )
     if "error_ana_common" in RUN_LIST:
@@ -166,8 +171,8 @@ def main() -> None:
     if "update_class" in RUN_LIST:
         ydm.ann_update_from_map(
             UPDATE_CLASS_MAP,
-            out_data=r"/data/huilin/data/bdd_hmt/hmt_rgb_update_v2",
-            keep_id=True)
+            out_data=r"/data/huilin/data/bdd_hmt/hmt_rgb_update_v3",
+        )
     if "filter_small" in RUN_LIST:
         ydm.anno_update_by_size(
             min_pixels=50,
@@ -192,9 +197,11 @@ def main() -> None:
             / "error_analysis"
             / "common_pred_txt"
         )
+        pred_txt = PRED_RUNS_DIR / PRED_NAMES[0] / "labels"
         ydm.ann_correct_from_error_crops(
             crops_dir=CROP_MAP_PRED,
-            pred_dir=common_pred_txt,
+            pred_dir=pred_txt,
+            out_data=r"/data/huilin/data/bdd_hmt/hmt_rgb_update_v5",
         )
 
 
