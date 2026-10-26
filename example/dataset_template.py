@@ -80,6 +80,7 @@ QUERY_CLASS = "Leakage"
 SELECTION_FILE = None
 # Select operations by uncommenting names in RUN_LIST.
 RUN_LIST = [
+    "merge",
     "rename",
     "split",
     "resize",
@@ -101,24 +102,23 @@ RUN_LIST = [
 ]
 
 
-def single2multi():
-    result = merge_modalities(
-        sources=[
-            {"root": "/data/rgb", "name": "rgb"},
-            {"root": "/data/thermal", "name": "thermal"},
-            {"root": "/data/depth"},  # 默认 image3
-        ],
-        out_data="/data/multimodal",
-        unmatched="keep",  # keep / drop / zero_fill
-        merge_labels=True,  # 默认合并标签
-        deduplicate=False,  # 默认不去重
-        dedup_iou=0.9,
-    )
-
-
 def main() -> None:
     # init
     ydm = YoloManager(DATA_DIR, layout="auto", init_check=False, init_layout=False)
+
+    if "merge" in RUN_LIST:
+        merge_modalities(
+            sources=[
+                {"root": "/data/rgb", "name": "rgb"},
+                {"root": "/data/thermal", "name": "thermal"},
+                {"root": "/data/depth"},  # 默认 image3
+            ],
+            out_data="/data/multimodal",
+            unmatched="keep",  # keep / drop / zero_fill
+            merge_labels=True,  # 默认合并标签
+            deduplicate=False,  # 默认不去重
+            dedup_iou=0.9,
+        )
 
     # preprocess
     if "rename" in RUN_LIST:

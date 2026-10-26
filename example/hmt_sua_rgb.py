@@ -13,20 +13,23 @@ from yolo_data_manager import YoloManager
 
 # DATA_DIR = Path(r"/data/huilin/data/bdd_hmt/sua_rgb_update_v1")
 # DATA_DIR = Path(r"/data/huilin/data/bdd_hmt/hmt_rgb_update_v2")
-DATA_DIR = Path(r"/data/huilin/data/bdd_hmt/hmt_rgb_update_v5")
+DATA_DIR = Path(r"/data/huilin/data/bdd_hmt/hmt_rgb_update_v7")
 
 UPDATE_CLASS_MAP = {
-    "drop": [
-        "background",
-        "Cracked Tile",
-        "Delaminated Tile Low Risk",
-        "Efforescene Low Gray",
-        "Broken Low Risk",
-    ],
+    # "drop": [
+    #     "background",
+    #     "Cracked Tile",
+    #     "Delaminated Tile Low Risk",
+    #     "Efforescene Low Gray",
+    #     "Broken Low Risk",
+    # ],
+    # "merge": {
+    #     "Efflorescene": ["Efflorescene High Risk", "Efflorescene Low Risk"],
+    #     "Corrosion": ["Corrosion", "Spalling"],
+    #     "Broken": ["Delaminate Tile High Risk", "Broken High Risk"],
+    # },
     "merge": {
-        "Efflorescene": ["Efflorescene High Risk", "Efflorescene Low Risk"],
-        "Corrosion": ["Corrosion", "Spalling"],
-        "Broken": ["Delaminate Tile High Risk", "Broken High Risk"],
+        "Broken": ["Delaminate", "Broken"],
     },
 }
 
@@ -37,7 +40,7 @@ PRED_NAMES = [
     # "predict",
     # "predict-3",
     "predict-4",
-    "predict-5",
+    # "predict-5",
 ]
 CROP_MAP_LABEL = {
     # os.path.join(CROP_ROOT_LABEL, "2_l"): "Leakage",
@@ -45,10 +48,12 @@ CROP_MAP_LABEL = {
 }
 
 
-CROP_MAP_PRED_ROOT = os.path.join(Path(r"/data/huilin/data/bdd_hmt/hmt_rgb_update_v2"), 'ydm_evaluation', 'crop_change3')
+CROP_MAP_PRED_ROOT = os.path.join(DATA_DIR, 'ydm_evaluation', 'crop_change_common')
 CROP_MAP_PRED = {
-    # os.path.join(CROP_MAP_PRED_ROOT, "gt2none"): "none",
-    os.path.join(CROP_MAP_PRED_ROOT, "pred2broken"): "Broken",
+    os.path.join(CROP_MAP_PRED_ROOT, "gt2none"): "none",
+    os.path.join(CROP_MAP_PRED_ROOT, "gt2broken"): ["Broken", False],
+    os.path.join(CROP_MAP_PRED_ROOT, "gt2del"): ["Delaminate", False],
+    # os.path.join(CROP_MAP_PRED_ROOT, "pred2broken"): "Broken",
     os.path.join(CROP_MAP_PRED_ROOT, "pred2corrosion"): "Corrosion",
     os.path.join(CROP_MAP_PRED_ROOT, "pred2de"): "Delaminate",
     os.path.join(CROP_MAP_PRED_ROOT, "pred2eff"): "Efflorescene",
@@ -58,14 +63,14 @@ RUN_LIST = [
     # "rename",
     # "split",
     # "resize",
-    # "sta",
+    "sta",
     # "vis_draw",
-    # "vis_crop",
+    "vis_crop",
     # "query",
     # "copy_select",
     # "metric",
     # "error_ana",
-    "error_ana_common",
+    # "error_ana_common",
     # "update_class",
     # "update_att",
     # "filter_small",
@@ -171,7 +176,7 @@ def main() -> None:
     if "update_class" in RUN_LIST:
         ydm.ann_update_from_map(
             UPDATE_CLASS_MAP,
-            out_data=r"/data/huilin/data/bdd_hmt/hmt_rgb_update_v3",
+            out_data=r"/data/huilin/data/bdd_hmt/hmt_rgb_update_v7",
         )
     if "filter_small" in RUN_LIST:
         ydm.anno_update_by_size(
@@ -201,7 +206,7 @@ def main() -> None:
         ydm.ann_correct_from_error_crops(
             crops_dir=CROP_MAP_PRED,
             pred_dir=pred_txt,
-            out_data=r"/data/huilin/data/bdd_hmt/hmt_rgb_update_v5",
+            out_data=r"/data/huilin/data/bdd_hmt/hmt_rgb_update_v6",
         )
 
 
