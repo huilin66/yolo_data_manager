@@ -98,6 +98,7 @@ class MultimodalScene:
     annotations: list[YoloAnnotation] = field(default_factory=list)
     images: dict[str, MultimodalImage] = field(default_factory=dict)
     duplicate_modalities: set[str] = field(default_factory=set)
+    split: str | None = None
 
 
 @dataclass
@@ -152,6 +153,7 @@ class MultimodalYoloDataset:
                     height=source.height,
                     annotations=scene.annotations,
                     output_name=source.relative_path.as_posix(),
+                    split=scene.split,
                 )
             )
         return YoloDataset(

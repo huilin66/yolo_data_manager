@@ -211,3 +211,68 @@ def test_merge_summary_counts_and_console_report(tmp_path, capsys, policy, image
     saved = json.loads((output / "merge_report.json").read_text())
     assert saved["summary"] == summary
     assert "Merge modalities summary" in next((output / "ydm_log").glob("*.log")).read_text(encoding="utf-8")
+
+
+def test_multimodal_manager_splits_scenes_and_preserves_all_modalities(tmp_path):
+    sources = make_sources(tmp_path)
+    sources[0]["name"] = "rgb"
+    sources[1]["name"] = "thermal"
+    output = tmp_path / "scene_split"
+    merge_modalities(sources, output, unmatched="keep", progress=False)
+
+    manager = MultiModalYoloManager(
+        output,
+        image_dirs=["rgb", "thermal"],
+        progress=False,
+    )
+    assert isinstance(manager, YoloManager)
+    report = manager.dataset_split(
+        train=0.5,
+        val=0.5,
+        test=0.0,
+        seed=7,
+        ensure_class_presence=False,
+        progress=False,
+    )
+    assert report["splits"]["train"] + report["splits"]["val"] == 3
+    assert report["splits"]["test"] == 0
+    train_names = (output / "train.txt").read_text(encoding="utf-8").splitlines()
+    val_names = (output / "val.txt").read_text(encoding="utf-8").splitlines()
+    assert len(train_names) == 1
+    assert len(val_names) == 2
+    assert set(train_names).isdisjoint(val_names)
+
+    reloaded = manager.load(reload=True, progress=False)
+    assert {scene.split for scene in reloaded.scenes.values()} == {"train", "val"}
+
+    out_data = tmp_path / "scene_split_copy"
+    copied = manager.dataset_split(
+        train=0.5,
+        val=0.5,
+        test=0.0,
+        seed=7,
+        ensure_class_presence=False,
+        out_data=out_data,
+        progress=False,
+    )
+    assert copied["out_data"] == str(out_data)
+    assert (out_data / "rgb").is_dir()
+    assert (out_data / "thermal").is_dir()
+    assert (out_data / "labels").is_dir()
+    assert (out_data / "multimodal.yaml").is_file()
+
+    selection = tmp_path / "selection.txt"
+    selection.write_text("rgb/a.png\n", encoding="utf-8")
+    selected_out = tmp_path / "selected_multimodal"
+    assert manager.dataset_select(
+        selection,
+        out=selected_out,
+        progress=False,
+    ) == 0
+    assert len(list((selected_out / "rgb").glob("*"))) == 1
+    assert len(list((selected_out / "thermal").glob("*"))) == 1
+    assert len(list((selected_out / "labels").glob("*.txt"))) == 1
+    assert sum(
+        len((selected_out / f"{split}.txt").read_text(encoding="utf-8").splitlines())
+        for split in ("train", "val", "test")
+    ) == 1

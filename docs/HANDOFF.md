@@ -6,9 +6,11 @@
 
 每次更新代码后，交付前必须同步更新项目版本号。版本号唯一维护在根目录 `pyproject.toml` 的 `[project].version`，遵循 SemVer：修复问题递增 patch（例如 `1.0.1`），新增向后兼容功能递增 minor（例如 `1.1.0`），不兼容的 API 或行为变更递增 major（例如 `2.0.0`）。提交代码、测试或文档变更时，应确认版本号与本次变更保持一致。
 
-当前版本为 `2.1.2`。`YoloManager` 提供惰性 `dataset`、`classes` 和 `attributes` 属性；首次访问时加载并缓存数据集，`load(reload=True)` 可显式刷新，数据修改操作会自动清理缓存。校验拆分为 `image_check`、`label_check`，`check` 默认合并调用两者，并支持 `check_list` 选择检查组。`dataset_split` 支持 `val_source` 固定复用已有验证集，也支持 `out_data` 复制生成独立的新数据集。尺寸过滤支持按类别配置多组像素宽高条件，`anno_update_by_size`、`eval_metrics` 和 `eval_error_analysis` 共用该规则。
+当前版本为 `2.2.1`。`YoloManager` 提供惰性 `dataset`、`classes` 和 `attributes` 属性；首次访问时加载并缓存数据集，`load(reload=True)` 可显式刷新，数据修改操作会自动清理缓存。校验拆分为 `image_check`、`label_check`，`check` 默认合并调用两者，并支持 `check_list` 选择检查组。`dataset_split` 支持 `val_source` 固定复用已有验证集，也支持 `out_data` 复制生成独立的新数据集。尺寸过滤支持按类别配置多组像素宽高条件，`anno_update_by_size`、`eval_metrics` 和 `eval_error_analysis` 共用该规则。
 
-`example/hmt_sua_rgbt.py` 按合并后的多模态目录使用两个 manager：`MultiModalYoloManager` 负责多模态统计和可视化，绑定参考模态的 `YoloManager` 负责 split、评估、查询和共享 label 修改；不会把单模态 `out_data` 写入多模态数据集。
+`MultiModalYoloManager` 继承 `YoloManager` 的共享 label、查询、评估和标注操作；其 `dataset_split` 和 `dataset_select` 按 scene stem 同步所有模态，并在 `out_data`/`out` 模式复制完整多模态目录。涉及图像复制、重排或尺寸变换的单模态输出方法不能直接复用；多模态示例会在合并前处理 resize，选择数据集时使用 MDM 自己的 scene 级实现。
+
+`example/hmt_sua_rgbt.py` 按合并后的多模态目录只使用一个 `MultiModalYoloManager`：多模态统计、可视化和 scene 级 split 使用其自定义实现，共享 label 的查询、评估和原地修改直接继承 `YoloManager`；不会把单模态 `out_data` 写入多模态数据集。
 
 包级函数 `merge_modalities`：单模态数据集合并为多图像目录和共享 labels，支持 keep/drop/zero_fill、可选标注去重；默认不继承 split，inherit_splits=True 时保留；类型不统一的缺失模态需指定补零规格，数据必须事先配准。无需 manager；日志保存到 out_data/ydm_log（dry_run 仅产生日志），旧 manager 方法保留兼容。详见 [MERGE_MODALITIES.md](MERGE_MODALITIES.md)。
 

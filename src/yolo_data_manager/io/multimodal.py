@@ -79,6 +79,7 @@ def load_multimodal_yolo_dataset(
         all_stems.update(index)
 
     progress_stage("load prepare scene association", enabled=progress)
+    scene_splits, split_conflicts = _read_scene_splits(root_path)
     scene_stems = sorted(all_stems)
     scenes: dict[str, MultimodalScene] = {}
     required_modalities = {name for name, config in modalities.items() if config.required}
@@ -113,10 +114,19 @@ def load_multimodal_yolo_dataset(
         label_path = label_paths[0] if len(label_paths) == 1 else None
         scene = MultimodalScene(
             stem=stem,
+            split=scene_splits.get(stem),
             label_path=label_path,
             images={name: paths[0] for name, paths in images_by_modality.items() if len(paths) == 1},
             duplicate_modalities=duplicate_modalities,
         )
+        if stem in split_conflicts:
+            report.add(
+                "error",
+                "conflicting_split",
+                f"scene appears in more than one split: {stem}",
+                scene_stem=stem,
+                modality="split",
+            )
 
         has_images = bool(scene.images) or bool(duplicate_modalities)
         if label_path is None and has_images:
@@ -243,6 +253,29 @@ def _resolve_label_config(params: Mapping[str, object] | None) -> dict[str, str]
         "suffix": _clean_suffix(config.get("suffix", ""), extensions=(extension,)),
         "extension": extension,
     }
+
+
+def _read_scene_splits(root: Path) -> tuple[dict[str, str], set[str]]:
+    assignments: dict[str, set[str]] = {}
+    for split in ("train", "val", "test"):
+        split_path = root / f"{split}.txt"
+        if not split_path.is_file():
+            continue
+        for raw_line in split_path.read_text(encoding="utf-8").splitlines():
+            text = raw_line.strip()
+            if not text or text.startswith("#"):
+                continue
+            stem = Path(text.replace("\\", "/")).stem
+            if stem:
+                assignments.setdefault(stem, set()).add(split)
+
+    conflicts = {stem for stem, values in assignments.items() if len(values) > 1}
+    resolved = {
+        stem: next(iter(values))
+        for stem, values in assignments.items()
+        if len(values) == 1
+    }
+    return resolved, conflicts
 
 
 def _read_classes(root: Path, class_file: str | Path | None) -> ClassSchema:

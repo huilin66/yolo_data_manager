@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from yolo_data_manager import MultiModalYoloManager, YoloManager, merge_modalities
+from yolo_data_manager import MultiModalYoloManager, merge_modalities
 
 # DATA_DIR = Path(r"/data/huilin/data/bdd_hmt/sua_rgb_update_v1")
 # DATA_DIR = Path(r"/data/huilin/data/bdd_hmt/hmt_rgb_update_v2")
@@ -114,21 +114,11 @@ def main() -> None:
             deduplicate=False,  # 默认不去重
         )
 
-    # YoloManager is bound to one reference modality. It is used for
-    # operations whose labels are shared but whose APIs still operate on one
-    # image directory. MultiModalYoloManager is used for all-modality work.
-    ydm = YoloManager(
-        DATA_DIR,
-        layout="flat",
-        images_dir=REFERENCE_MODALITY,
-        labels_dir="labels",
-        init_check=False,
-        init_layout=False,
-    )
-    mdm = MultiModalYoloManager(
+    ydm = MultiModalYoloManager(
         DATA_DIR,
         image_dirs=MODALITY_DIRS,
         labels_dir="labels",
+        reference_modality=REFERENCE_MODALITY,
         init_check=False,
     )
 
@@ -141,15 +131,15 @@ def main() -> None:
             require_labels=True,
         )
     if "sta" in RUN_LIST:
-        mdm.stats(
+        ydm.stats(
             stats_list=["all"],
         )
     if "vis_draw" in RUN_LIST:
-        mdm.vis_draw(
+        ydm.vis_draw(
             modalities=MODALITY_DIRS,
         )
     if "vis_crop" in RUN_LIST:
-        mdm.vis_crop(
+        ydm.vis_crop(
             modalities=MODALITY_DIRS,
         )
     if "query" in RUN_LIST:

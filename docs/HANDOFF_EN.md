@@ -6,7 +6,7 @@ This document summarizes the project design, current scope, module boundaries, a
 
 After every code update, the project version must be updated before handoff. The single source of truth is `[project].version` in the root `pyproject.toml`: increment the patch version for backward-compatible fixes or features, and use a minor/major increment when a new public API or behavior change is incompatible. Before delivering code, tests, or documentation changes, verify that the version matches the change.
 
-The current version is `2.1.2`. `YoloManager` exposes lazy `dataset`, `classes`,
+The current version is `2.2.1`. `YoloManager` exposes lazy `dataset`, `classes`,
 
 Package-level `merge_modalities` (no manager required; logs in out_data/ydm_log, including dry runs; the old manager method delegates for compatibility) for aligned single-modality sources: named image folders, shared labels, keep/drop/zero_fill policies, optional annotation deduplication, opt-in split inheritance (inherit_splits=False by default) and source/schema validation. See [MERGE_MODALITIES_EN.md](MERGE_MODALITIES_EN.md).
 and `attributes` properties; the first access loads and caches the dataset,
@@ -58,9 +58,10 @@ subdirectories such as `ydm_stats/plots/rgb/`, `ydm_vis/draw/depth/`, or
 
 `MultiModalYoloManager` is a modality-aware loader/cache for associating multiple image
 folders with one shared label set. It is not a second business workflow. Its check,
-statistics, visualization, crop, and uint8 conversion outputs use the same groups as
-`YoloManager`; operations without safe all-modality write semantics must not silently modify
-only one image source.
+statistics, visualization, crop, uint8 conversion, scene split, and scene selection use
+the same output groups as `YoloManager`; shared-label query/evaluation and in-place label
+updates are inherited directly. Operations without safe all-modality write semantics are
+explicitly rejected instead of silently copying or modifying only one image source.
 
 The first real label backup stores an immutable baseline directly in the backup root as
 `labels/` and `backup_metadata.json`. It contains the source labels and available schema

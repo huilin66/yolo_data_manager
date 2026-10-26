@@ -88,7 +88,7 @@ runtime process.
 
 With empty image and label configuration, matching uses identical filename stems and standard `labels/<stem>.txt` labels. `image_params` and `label_params` configure modality/label suffixes when names differ. `check()` reports missing modalities, orphan images or labels, suffix mismatches, and duplicate scene images. The manager caches the associated dataset, so `stats()`, `vis_draw()`, and `vis_crop()` reuse parsed labels rather than loading once per image folder.
 
-Multimodal support is currently a Python API; use `MultiModalYoloManager` for modality-aware loading. Its first supported operations are `check`, `stats`, `vis_draw`, `vis_crop`, and uint8 conversion. It uses the same output groups as single-modal workflows. Full parameters and examples are in [Python Usage](docs/PYTHON_USAGE_EN.md#multimodal-yolo-datasets).
+Multimodal support is currently a Python API; use `MultiModalYoloManager` for modality-aware loading. It inherits shared-label query/evaluation operations from `YoloManager` and provides scene-safe `check`, `stats`, `dataset_split`, `dataset_select`, `vis_draw`, `vis_crop`, and uint8 conversion. Full parameters and examples are in [Python Usage](docs/PYTHON_USAGE_EN.md#multimodal-yolo-datasets).
 
 ## Python Quick Demo
 
