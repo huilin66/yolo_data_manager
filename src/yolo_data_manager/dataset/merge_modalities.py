@@ -21,6 +21,7 @@ from yolo_data_manager.io.loader import load_yolo_dataset
 from yolo_data_manager.io.writer import write_split_file
 from yolo_data_manager.runtime import iter_progress, normalize_workers, progress_stage
 from yolo_data_manager.stats.report import infer_image_splits, _split_key_variants
+from yolo_data_manager.logging_utils import operation_scope
 
 
 def _parallel(function, items, workers, progress, leave, desc):
@@ -135,6 +136,55 @@ def merge_modalities(
     progress_leave: bool = False,
     dry_run: bool = False,
 ) -> dict[str, Any]:
+    """Merge equal-status sources without requiring a manager instance.
+
+    Operation logs live in out_data/ydm_log, including dry runs. Validate
+    source/output separation before logging so input datasets stay read-only.
+    """
+    output = Path(out_data).expanduser().resolve()
+    if not isinstance(sources, Sequence) or isinstance(sources, (str, bytes)) or len(sources) < 2:
+        raise ValueError("sources requires at least two source mappings")
+    for source in sources:
+        if not isinstance(source, Mapping) or "root" not in source:
+            raise ValueError("each source requires root")
+        root = Path(source["root"]).expanduser().resolve()
+        if root.is_file() and root.suffix.lower() in (".yaml", ".yml"):
+            from yolo_data_manager.scripting import _resolve_manager_root
+            root, _, _ = _resolve_manager_root(root)
+            root = root.resolve()
+        if root == output or root in output.parents or output in root.parents:
+            raise ValueError("output must be outside the source dataset directories")
+    _check_output_directory(output)
+    options = dict(
+        unmatched=unmatched, merge_labels=merge_labels, deduplicate=deduplicate,
+        dedup_iou=dedup_iou, workers=workers, progress=progress,
+        progress_leave=progress_leave, dry_run=dry_run,
+    )
+    with operation_scope(output, "dataset.merge_modalities", {"sources": sources, **options}):
+        return _merge_modalities(sources, output, **options)
+
+
+def _check_output_directory(output: Path) -> None:
+    if output.exists() and (
+        not output.is_dir()
+        or any(path.name != "ydm_log" or not path.is_dir() for path in output.iterdir())
+    ):
+        raise FileExistsError(f"output must be new or contain only ydm_log: {output}")
+
+
+def _merge_modalities(
+    sources: Sequence[Mapping[str, Any]],
+    out_data: str | Path,
+    *,
+    unmatched: str = "keep",
+    merge_labels: bool = True,
+    deduplicate: bool = False,
+    dedup_iou: float = 0.9,
+    workers: int = 8,
+    progress: bool = True,
+    progress_leave: bool = False,
+    dry_run: bool = False,
+) -> dict[str, Any]:
     """Align images by stem; coordinates must already refer to aligned views.
 
     Each source defines root, optional name (image1, image2, ...), loader
@@ -172,8 +222,7 @@ def merge_modalities(
         names.append(name)
         config["root"] = root
         configs.append(config)
-    if output.exists() and (not output.is_dir() or any(output.iterdir())):
-        raise FileExistsError(f"output must be a new or empty directory: {output}")
+    _check_output_directory(output)
 
     progress_stage("merge modalities load sources", enabled=progress)
     datasets = []

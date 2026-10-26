@@ -1178,7 +1178,6 @@ class YoloManager:
 
         return self.anno_update_by_size(*args, **kwargs)
 
-    @_logged_direct_operation("dataset.merge_modalities")
     def dataset_merge_modalities(
         self,
         sources: Sequence[Mapping[str, Any]],
@@ -1193,12 +1192,13 @@ class YoloManager:
         progress_leave: bool = False,
         dry_run: bool = False,
     ) -> dict[str, Any]:
-        """Merge aligned single-modality sources into shared-label multimodal YOLO.
+        """Compatibility delegate to the package-level merge_modalities function.
 
         Each source supplies root and an optional output folder name (image1,
         image2, ...). Non-common scenes are kept, dropped, or zero-filled via
         unmatched. Labels merge by default; deduplication is opt-in. The
         output must be new or empty and outside all source dataset folders.
+        This manager's root is not used; logs belong to the output dataset.
         """
         from yolo_data_manager.dataset.merge_modalities import merge_modalities
 

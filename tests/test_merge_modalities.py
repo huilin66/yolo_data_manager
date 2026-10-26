@@ -6,8 +6,7 @@ from PIL import Image
 import pytest
 import yaml
 
-from yolo_data_manager import YoloManager, MultiModalYoloManager
-from yolo_data_manager.dataset.merge_modalities import merge_modalities
+from yolo_data_manager import YoloManager, MultiModalYoloManager, merge_modalities
 
 
 def make_sources(tmp_path):
@@ -81,12 +80,12 @@ def test_merge_modalities_conflicts_and_dry_run(tmp_path):
     output = tmp_path / "merged"
     result = merge_modalities(sources, output, dry_run=True, progress=False)
     assert result["dry_run"]
-    assert not output.exists()
+    assert {path.name for path in output.iterdir()} == {"ydm_log"}
     (sources[1]["root"] / "train.txt").write_text("", encoding="utf-8")
     (sources[1]["root"] / "val.txt").write_text("images/a.png\n", encoding="utf-8")
     with pytest.raises(ValueError, match="conflicting train/val/test"):
         merge_modalities(sources, output, progress=False)
-    assert not output.exists()
+    assert {path.name for path in output.iterdir()} == {"ydm_log"}
 
 
 def test_merge_modalities_heterogeneous_zero_fill_requires_spec(tmp_path):
@@ -148,3 +147,28 @@ def test_merge_modalities_empty_modality_can_use_explicit_zero_spec(tmp_path):
     with Image.open(output / "image2/a.tif") as image:
         assert np.asarray(image).dtype == np.float32
         assert not np.asarray(image).any()
+
+
+def test_public_merge_logs_only_to_output_and_accepts_dry_run_logs(tmp_path):
+    sources = make_sources(tmp_path)
+    output = tmp_path / "public_merge"
+    merge_modalities(sources, output, dry_run=True, progress=False)
+    merge_modalities(sources, output, progress=False)
+    logs = list((output / "ydm_log").glob("*.log"))
+    assert len(logs) == 1
+    text = logs[0].read_text(encoding="utf-8")
+    assert text.count("START operation=dataset.merge_modalities") == 2
+    assert text.count("END operation=dataset.merge_modalities status=ok") == 2
+    assert all(not (source["root"] / "ydm_log").exists() for source in sources)
+    with pytest.raises(FileExistsError):
+        merge_modalities(sources, output, progress=False)
+
+
+def test_manager_merge_delegate_does_not_use_its_root(tmp_path):
+    sources = make_sources(tmp_path)
+    unrelated = tmp_path / "unrelated"
+    manager = YoloManager(unrelated, init_check=False, init_layout=False)
+    output = tmp_path / "delegated"
+    manager.dataset_merge_modalities(sources, output, progress=False)
+    assert not unrelated.exists()
+    assert (output / "ydm_log").is_dir()

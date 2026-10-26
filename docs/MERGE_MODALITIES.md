@@ -1,12 +1,11 @@
 # 单模态合并为多模态
 
-`YoloManager.dataset_merge_modalities` 将多个单模态 YOLO 数据集合并为多个图像目录和一份共享 `labels`。图像默认按不含后缀的文件名（stem，忽略大小写）匹配，同一来源不能出现重复 stem。该方法只组织数据，不进行图像配准；各模态的归一化标注坐标必须已对齐。
+包级函数 `merge_modalities` 将多个单模态 YOLO 数据集合并为多个图像目录和一份共享 `labels`。图像默认按不含后缀的文件名（stem，忽略大小写）匹配，同一来源不能出现重复 stem。该方法只组织数据，不进行图像配准；各模态的归一化标注坐标必须已对齐。
 
 ```python
-from yolo_data_manager import YoloManager, MultiModalYoloManager
+from yolo_data_manager import merge_modalities, MultiModalYoloManager
 
-mgr = YoloManager("/data/rgb", init_check=False, init_layout=False)
-result = mgr.dataset_merge_modalities(
+result = merge_modalities(
     sources=[
         {"root": "/data/rgb", "name": "rgb"},
         {"root": "/data/thermal", "name": "thermal"},
@@ -27,7 +26,7 @@ multimodal = MultiModalYoloManager(
 dataset = multimodal.load()
 ```
 
-`sources` 定义全部来源，至少两个；创建 manager 时的 root 用于记录操作日志，不会隐式追加到来源列表。每项可指定 `images_dir`、`labels_dir`、`layout`、`class_file`、`attribute_file` 和 `task`。默认读取标准 `images/labels` 的 flat 布局；原数据为 split 文件夹时可以指定 `layout="split_dirs"`。`root` 也接受 Ultralytics data YAML。省略 name 时目录按来源位置命名为 image1、image2 等，名称不能重名或占用 labels 等保留路径。
+`sources` 定义全部来源，至少两个；无需创建 manager，也没有隐含的主数据集。每项可指定 `images_dir`、`labels_dir`、`layout`、`class_file`、`attribute_file` 和 `task`。默认读取标准 `images/labels` 的 flat 布局；原数据为 split 文件夹时可以指定 `layout="split_dirs"`。`root` 也接受 Ultralytics data YAML。省略 name 时目录按来源位置命名为 image1、image2 等，名称不能重名或占用 labels 等保留路径。
 
 | 参数 | 默认值 | 行为 |
 | --- | --- | --- |
@@ -38,7 +37,7 @@ dataset = multimodal.load()
 | merge_labels=False | | 只使用 sources[0] 的标签；缺少时生成空 txt，并记录 primary_labels_missing |
 | deduplicate | False | 默认不去重，完整保留合并标注 |
 | deduplicate=True | | 同类别且属性一致的框按 dedup_iou 去重，保留来源顺序靠前的框；多边形仅删除完全相同的点集 |
-| dry_run | False | True 时检查和统计，不创建输出数据集 |
+| dry_run | False | True 时检查和统计，只创建输出目录中的 ydm_log，不生成数据文件 |
 
 补零默认检查该模态全部源图像的尺寸、通道数和数据类型。若规格不统一或模态没有可参考图像，必须显式指定该来源的补零规格：
 
@@ -56,4 +55,4 @@ dataset = multimodal.load()
 
 `keep` 模式允许输出不完整 scene；现有多模态加载器的 `complete_scenes` 只包含模态齐全且有标签的样本，不完整样本仍保存在 `scenes` 和输出文件中。需要所有 scene 完整时选择 drop 或 zero_fill。
 
-所有来源只读（操作日志除外），不生成源标签备份。out_data 必须是所有源目录之外的新目录或空目录，避免混入旧结果。报告包含样本数量、缺失模态、补零规格与数量、空标签、标签合并与去重数量、split 统计和来源路径。耗时阶段提供提示，复制和补零、标签写入支持多线程。
+所有来源只读，不生成源标签备份。日志按天保存到 out_data/ydm_log，并记录开始、阶段、结束和异常。out_data 必须是所有源目录之外的新目录、空目录或仅含 ydm_log 的目录，避免混入旧数据结果。原 mgr.dataset_merge_modalities 仍可兼容调用，但 manager root 不参与来源选择和日志保存。报告包含样本数量、缺失模态、补零规格与数量、空标签、标签合并与去重数量、split 统计和来源路径。耗时阶段提供提示，复制和补零、标签写入支持多线程。

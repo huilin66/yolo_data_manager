@@ -1,6 +1,6 @@
 """YOLO Data Manager public API."""
 
-__version__ = "1.13.0"
+__version__ = "1.14.0"
 
 from yolo_data_manager.core.models import (
     AttributeSchema,
@@ -47,6 +47,7 @@ from yolo_data_manager.annotation.crop_correction import (
     correct_labels_from_crops,
 )
 from yolo_data_manager.annotation.remap import apply_class_map_data
+from yolo_data_manager.dataset.merge_modalities import merge_modalities
 from yolo_data_manager.annotation.edit import set_attributes_from_map
 from yolo_data_manager.multimodal_manager import MultiModalYoloManager
 from yolo_data_manager.scripting import YoloManager, build_task_argv, run_task
@@ -82,6 +83,7 @@ from yolo_data_manager.vlm import (
 )
 
 __all__ = [
+    "merge_modalities",
     "AttributeSchema",
     "Box",
     "ClassSchema",

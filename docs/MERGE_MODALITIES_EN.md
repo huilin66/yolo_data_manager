@@ -1,10 +1,9 @@
 # Merge single-modality YOLO datasets into multimodal YOLO
 
 ```python
-from yolo_data_manager import YoloManager, MultiModalYoloManager
+from yolo_data_manager import merge_modalities, MultiModalYoloManager
 
-mgr = YoloManager("/data/rgb", init_check=False, init_layout=False)
-result = mgr.dataset_merge_modalities(
+result = merge_modalities(
     sources=[
         {"root": "/data/rgb", "name": "rgb"},
         {"root": "/data/thermal", "name": "thermal"},
@@ -19,7 +18,7 @@ result = mgr.dataset_merge_modalities(
 dataset = MultiModalYoloManager(result["out"], image_dirs=result["image_dirs"]).load()
 ```
 
-All sources must be supplied explicitly (at least two). The manager's root is used for logging, not implicitly added. Sources accept root, name, images_dir, labels_dir, layout, class_file, attribute_file and task. The default layout is flat images/labels; specify split_dirs where appropriate. A source root may also be a data YAML. Default output folder names are image1, image2, etc.
+All sources must be supplied explicitly (at least two). No manager instance or primary dataset is required. Sources accept root, name, images_dir, labels_dir, layout, class_file, attribute_file and task. The default layout is flat images/labels; specify split_dirs where appropriate. A source root may also be a data YAML. Default output folder names are image1, image2, etc.
 
 Images align by case-insensitive filename stem, ignoring extension. Duplicate stems within a source and conflicting scene split assignments are rejected before output writes. Images and annotations must already be spatially aligned: this operation does not register images.
 
@@ -29,7 +28,7 @@ Images align by case-insensitive filename stem, ignoring extension. Duplicate st
 - merge_labels=True (default): combine annotations with class IDs mapped by class name.
 - merge_labels=False: use only sources[0] labels; absent labels become empty txt files and are reported in primary_labels_missing.
 - deduplicate=False (default): retain all annotations. When enabled, suppress same-class, same-attribute boxes at dedup_iou, keeping the earliest source. Polygons are deduplicated only when their points are identical.
-- dry_run=True: validate and report without creating output files.
+- dry_run=True: validate and report, creating only output operation logs and no dataset files.
 
 Zero filling infers width, height, channels and dtype from all existing images of the missing modality. For heterogeneous or empty modalities, specify the source's zero_fill={"width":640,"height":512,"channels":1,"dtype":"uint16"}. Supported zero image formats are PNG for uint8/uint16 with 1/3/4 channels, and TIFF for single-channel float32/int32. Existing images are copied without conversion.
 
@@ -39,4 +38,4 @@ Attribute schemas must be compatible. Global definitions must agree; class-scope
 
 The existing multimodal loader exposes incomplete scenes in scenes, but complete_scenes includes only samples with all required modalities and labels. Use drop or zero_fill when complete samples are required.
 
-out_data must be new or empty and outside all source dataset directories. Sources are not modified (except operation logs), and no source label backup is needed. Image copying, zero filling and label output support worker threads and stage progress.
+out_data must be new, empty, or contain only ydm_log, and be outside all source dataset directories. Sources are read-only. Daily operation logs are written to out_data/ydm_log, including for dry runs. The old manager method remains a compatibility delegate; its root is not used. No source label backup is needed. Image copying, zero filling and label output support worker threads and stage progress.
