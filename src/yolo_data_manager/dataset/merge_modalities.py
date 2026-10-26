@@ -8,6 +8,7 @@ from copy import deepcopy
 import json
 from pathlib import Path
 import shutil
+import sys
 from typing import Any
 
 import cv2
@@ -20,8 +21,8 @@ from yolo_data_manager.core.schema import write_attribute_schema, write_class_sc
 from yolo_data_manager.io.loader import load_yolo_dataset
 from yolo_data_manager.io.writer import write_split_file
 from yolo_data_manager.runtime import iter_progress, normalize_workers, progress_stage
-from yolo_data_manager.stats.report import infer_image_splits, _split_key_variants
-from yolo_data_manager.logging_utils import operation_scope
+from yolo_data_manager.stats.report import infer_image_splits, _split_key_variants, _format_table
+from yolo_data_manager.logging_utils import operation_scope, console_event
 
 
 def _parallel(function, items, workers, progress, leave, desc):
@@ -162,7 +163,38 @@ def merge_modalities(
         progress_leave=progress_leave, dry_run=dry_run,
     )
     with operation_scope(output, "dataset.merge_modalities", {"sources": sources, **options}):
-        return _merge_modalities(sources, output, **options)
+        report = _merge_modalities(sources, output, **options)
+        console_event("INFO", format_merge_summary(report), stream=sys.stdout)
+        return report
+
+
+def format_merge_summary(report: Mapping[str, Any]) -> str:
+    """Show physical image counts separately from shared-label scene counts."""
+    summary = report["summary"]
+    rows = [
+        [f"input:{item['name']}", item["images"], item["scenes"], item["classes"],
+         item["used_classes"], item["annotations"], item["label_files"], item["empty_labels"]]
+        for item in summary["inputs"]
+    ]
+    item = summary["output"]
+    rows.append(["output", item["images"], item["scenes"], item["classes"],
+                 item["used_classes"], item["annotations"], item["label_files"], item["empty_labels"]])
+    table = _format_table(
+        ["dataset", "images", "scenes", "classes", "used_classes", "annotations", "labels", "empty_labels"], rows,
+    )
+    modality_table = _format_table(
+        ["modality", "input_images", "copied", "zero_filled", "discarded", "output_images"],
+        [[item[key] for key in ("name", "input_images", "copied", "zero_filled", "discarded", "output_images")]
+         for item in summary["modalities"]],
+    )
+    return (
+        f"Merge modalities summary{' (dry run / planned output)' if report['dry_run'] else ''}\n{table}\n\n"
+        f"Image changes by modality\n{modality_table}\n"
+        f"Common scenes: {report['common_scenes']}; discarded scenes: {report['discarded_scenes']}; "
+        f"deduplicated annotations: {report['deduplicated']}\n"
+        "Output annotations are shared across modalities and counted once; classes includes unused schema entries.\n"
+        f"Output: {report['out']}"
+    )
 
 
 def _check_output_directory(output: Path) -> None:
@@ -326,6 +358,35 @@ def _merge_modalities(
         "unassigned_scenes": sum(value is None for value in scene_splits.values()),
         "sources": [{"root": str(config["root"]), "name": name} for name, config in zip(names, configs)],
         "dry_run": dry_run,
+    }
+    input_summaries = []
+    modality_summaries = []
+    for name, dataset, index in zip(names, datasets, indexes):
+        copied = len(set(selected) & set(index))
+        filled = len(missing[name]) if unmatched == "zero_fill" else 0
+        input_summaries.append({
+            "name": name, "root": str(dataset.root), "images": len(dataset.images),
+            "scenes": len(index), "classes": len(dataset.classes.names),
+            "used_classes": len({ann.class_id for image in dataset.images for ann in image.annotations}),
+            "annotations": dataset.annotation_count(),
+            "label_files": sum(image.label_path is not None for image in dataset.images),
+            "empty_labels": sum(image.label_path is not None and not image.annotations for image in dataset.images),
+        })
+        modality_summaries.append({
+            "name": name, "input_images": len(dataset.images), "copied": copied,
+            "zero_filled": filled, "discarded": len(dataset.images) - copied,
+            "output_images": copied + filled,
+        })
+    report["summary"] = {
+        "inputs": input_summaries,
+        "output": {
+            "root": str(output), "images": len(tasks), "scenes": len(selected),
+            "classes": len(classes.names),
+            "used_classes": len({line.split()[0] for lines in labels.values() for line in lines}),
+            "annotations": report["annotations"], "label_files": len(labels),
+            "empty_labels": report["empty_labels"],
+        },
+        "modalities": modality_summaries,
     }
     if dry_run:
         return report

@@ -186,3 +186,28 @@ def test_default_merge_ignores_source_split_conflicts(tmp_path):
     for name in ("dataset.yaml", "multimodal.yaml"):
         config = yaml.safe_load((output / name).read_text())
         assert not any(split in config for split in ("train", "val", "test"))
+
+
+@pytest.mark.parametrize("policy,images,scenes,annotations", [("keep", 4, 3, 4), ("drop", 2, 1, 2), ("zero_fill", 6, 3, 4)])
+def test_merge_summary_counts_and_console_report(tmp_path, capsys, policy, images, scenes, annotations):
+    sources = make_sources(tmp_path)
+    output = tmp_path / "summary"
+    result = merge_modalities(sources, output, unmatched=policy, progress=False)
+    summary = result["summary"]
+    assert [item["images"] for item in summary["inputs"]] == [2, 2]
+    assert [item["annotations"] for item in summary["inputs"]] == [2, 2]
+    assert [item["classes"] for item in summary["inputs"]] == [2, 2]
+    assert summary["output"]["images"] == images
+    assert summary["output"]["scenes"] == scenes
+    assert summary["output"]["annotations"] == annotations
+    assert summary["output"]["classes"] == 2
+    assert summary["output"]["used_classes"] == 1
+    assert sum(item["output_images"] for item in summary["modalities"]) == images
+    text = capsys.readouterr().out
+    assert text.count("Merge modalities summary") == 1
+    assert "input:image1" in text and "input:image2" in text
+    assert "Image changes by modality" in text
+    assert "shared across modalities and counted once" in text
+    saved = json.loads((output / "merge_report.json").read_text())
+    assert saved["summary"] == summary
+    assert "Merge modalities summary" in next((output / "ydm_log").glob("*.log")).read_text(encoding="utf-8")

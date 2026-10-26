@@ -1,5 +1,7 @@
 # Merge single-modality YOLO datasets into multimodal YOLO
 
+Completion prints input/output tables for physical images, scenes, schema classes, used classes, annotations, label files and empty labels. A per-modality table shows input, copied, zero-filled, discarded and output image counts. Shared annotations are counted once, not once per modality. The same summary is recorded in output logs and merge_report.json under summary; dry runs mark it as planned output. The compatibility manager method prints the same tables without an additional full JSON dump.
+
 ```python
 from yolo_data_manager import merge_modalities, MultiModalYoloManager
 

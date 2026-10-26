@@ -1208,8 +1208,6 @@ class YoloManager:
             deduplicate=deduplicate, dedup_iou=dedup_iou, workers=workers,
             progress=progress, progress_leave=progress_leave, dry_run=dry_run,
         )
-        from yolo_data_manager.cli import _compact_console_payload
-        print(json.dumps(_compact_console_payload(result), ensure_ascii=False, indent=2))
         return result
 
     def dataset_merge(
