@@ -13,7 +13,7 @@ from yolo_data_manager import YoloManager, merge_modalities
 
 # DATA_DIR = Path(r"/data/huilin/data/bdd_hmt/sua_rgb_update_v1")
 # DATA_DIR = Path(r"/data/huilin/data/bdd_hmt/hmt_rgb_update_v2")
-DATA_DIR = Path(r"/data/huilin/data/bdd_hmt/hmt_rgb_update_v7")
+DATA_DIR = Path(r"/data/huilin/data/bdd_hmt/hmt_rgbt_update_v6")
 
 UPDATE_CLASS_MAP = {
     # "drop": [
@@ -91,16 +91,16 @@ def main() -> None:
         init_layout=False,
     )
     if "merge" in RUN_LIST:
-            merge_modalities(
-        sources=[
-            {"root": "/data/huilin/data/bdd_hmt/hmt_rgb_update_v6", "name": "rgb"},
-            {"root": "/data/huilin/data/bdd_hmt/hmt_t_update_v6", "name": "t"},
-        ],
-        out_data="/data/huilin/data/bdd_hmt/hmt_rgbt_update_v6",
-        unmatched="keep",  # keep / drop / zero_fill
-        merge_labels=True,  # 默认合并标签
-        deduplicate=False,  # 默认不去重
-    )
+        merge_modalities(
+            sources=[
+                {"root": "/data/huilin/data/bdd_hmt/hmt_rgb_update_v6", "name": "rgb"},
+                {"root": "/data/huilin/data/bdd_hmt/hmt_t_update_v6", "name": "t"},
+            ],
+            out_data="/data/huilin/data/bdd_hmt/hmt_rgbt_update_v6",
+            unmatched="keep",  # keep / drop / zero_fill
+            merge_labels=True,  # 默认合并标签
+            deduplicate=False,  # 默认不去重
+        )
     # preprocess
     if "resize" in RUN_LIST:
         ydm.resize_images(
