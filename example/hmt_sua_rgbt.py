@@ -72,11 +72,11 @@ UPDATE_ATT_MAP: dict = {}
 
 # Select operations by uncommenting names in RUN_LIST.
 RUN_LIST = [
-    "merge",
+    # "merge",
     # "rename",
     # "split",
     # "resize",
-    # "sta",
+    "sta",
     # "vis_draw",
     # "vis_crop",
     # "query",

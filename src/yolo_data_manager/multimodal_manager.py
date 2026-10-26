@@ -580,7 +580,7 @@ class MultiModalYoloManager(YoloManager):
         stats_list: str | Sequence[str] | None = None,
         print_details: bool = False,
         reload: bool = False,
-        progress: bool | None = None,
+        progress: bool | None = True,
         progress_leave: bool | None = None,
     ) -> dict[str, object]:
         """Compute multimodal statistics and print compact tables by default."""
