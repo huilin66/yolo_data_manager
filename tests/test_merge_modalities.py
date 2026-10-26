@@ -242,6 +242,24 @@ def test_multimodal_manager_splits_scenes_and_preserves_all_modalities(tmp_path)
     assert len(val_names) == 2
     assert set(train_names).isdisjoint(val_names)
 
+    multimodal_report = manager.dataset_split(
+        train=0.5,
+        val=0.5,
+        test=0.0,
+        seed=7,
+        ensure_class_presence=False,
+        absolute_paths=False,
+        split_modalities="multimodal",
+        progress=False,
+    )
+    multimodal_names = (
+        (output / "train.txt").read_text(encoding="utf-8").splitlines()
+        + (output / "val.txt").read_text(encoding="utf-8").splitlines()
+    )
+    assert multimodal_report["split_modalities"] == "multimodal"
+    assert len(multimodal_names) == 4
+    assert {name.split("/", 1)[0] for name in multimodal_names} == {"rgb", "thermal"}
+
     reloaded = manager.load(reload=True, progress=False)
     assert {scene.split for scene in reloaded.scenes.values()} == {"train", "val"}
 

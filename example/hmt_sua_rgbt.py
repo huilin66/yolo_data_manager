@@ -109,7 +109,7 @@ def main() -> None:
                 {"root": "/data/huilin/data/bdd_hmt/hmt_t_update_v6", "name": "t"},
             ],
             out_data="/data/huilin/data/bdd_hmt/hmt_rgbt_update_v6",
-            unmatched="keep",  # keep / drop / zero_fill
+            unmatched="zero_fill",  # keep / drop / zero_fill
             merge_labels=True,  # 默认合并标签
             deduplicate=False,  # 默认不去重
         )
@@ -127,8 +127,7 @@ def main() -> None:
         ydm.dataset_split(
             train=0.9,
             val=0.1,
-            test=0.0,
-            require_labels=True,
+            split_modalities="all",
         )
     if "sta" in RUN_LIST:
         ydm.stats(

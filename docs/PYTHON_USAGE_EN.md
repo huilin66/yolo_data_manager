@@ -651,7 +651,7 @@ Attribute-error crop filenames contain `predX_gtY` with 1-based prediction and G
 
 ## Multimodal YOLO Datasets
 
-Multimodality is a dataset property, not a separate functional module. `MultiModalYoloManager` inherits the shared-label, query, and evaluation APIs from `YoloManager`. Statistics, validation, visualization, image conversion, scene-level splitting, and scene-level selection use multimodal implementations, so all image folders receive the same scene membership. `dataset_split()` supports `out_data`, and `dataset_select()` copies every selected modality together with the shared labels. These multimodal operations are currently Python APIs and have no CLI command.
+Multimodality is a dataset property, not a separate functional module. `MultiModalYoloManager` inherits the shared-label, query, and evaluation APIs from `YoloManager`. Statistics, validation, visualization, image conversion, scene-level splitting, and scene-level selection use multimodal implementations, so all image folders receive the same scene membership. `dataset_split()` supports `out_data`; its split lists use the reference modality by default, a named modality when `split_modalities="rgb"` is supplied, or every available modality path when `split_modalities="multimodal"`/`"all"` is supplied. `dataset_select()` copies every selected modality together with the shared labels. These multimodal operations are currently Python APIs and have no CLI command.
 
 Each image or label filename is normalized to a scene stem by removing its extension and its configured source `suffix`. For example, `visible/0001_V.jpg`, `infrared/0001_T.png`, and `labels/0001_gt.txt` all associate with scene `0001`.
 
@@ -673,6 +673,13 @@ mgr = MultiModalYoloManager(
 
 stats = mgr.stats(stats_list=["all"])
 mgr.dataset_split(train=0.9, val=0.1, test=0.0, require_labels=True)
+mgr.dataset_split(
+    train=0.9,
+    val=0.1,
+    test=0.0,
+    absolute_paths=False,
+    split_modalities="multimodal",
+)
 mgr.dataset_select(r"E:\datasets\mdet_train\val.txt", out=r"E:\datasets\mdet_val")
 mgr.vis_draw(show_id=True, workers=8)
 mgr.vis_crop(workers=8)

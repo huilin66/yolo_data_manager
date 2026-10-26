@@ -335,6 +335,7 @@ class MultiModalYoloManager(YoloManager):
         out_data: str | Path | None = None,
         backup_dir: str | Path | None = None,
         absolute_paths: bool = True,
+        split_modalities: str | Sequence[str] | None = None,
         train_include_list: SplitIncludeList = None,
         val_include_list: SplitIncludeList = None,
         val_source: SplitIncludeList = None,
@@ -349,7 +350,9 @@ class MultiModalYoloManager(YoloManager):
 
         The split algorithm is shared with :class:`YoloManager`, but its input
         is a scene-level single view.  A materialized ``out_data`` keeps all
-        configured image directories and the shared labels directory.
+        configured image directories and the shared labels directory.  Split
+        txt paths use the reference modality by default; ``split_modalities``
+        can select one modality or emit all available modality paths.
         """
 
         if out is not None and out_data is not None:
@@ -384,6 +387,15 @@ class MultiModalYoloManager(YoloManager):
             split_name: _scenes_for_split_names(split_view, names)
             for split_name, names in splits.items()
         }
+        output_modality_mode = _normalise_split_modalities(
+            dataset,
+            split_modalities,
+        )
+        _validate_split_modalities(
+            dataset,
+            split_scenes,
+            output_modality_mode,
+        )
         output_root = Path(out_data) if out_data is not None else Path(out or self.root)
         source_root = Path(self.root).resolve()
 
@@ -397,6 +409,7 @@ class MultiModalYoloManager(YoloManager):
                 absolute_paths=absolute_paths,
                 include_test=test > 0,
                 copy_images=True,
+                split_modalities=output_modality_mode,
                 workers=workers,
                 progress=progress_enabled,
                 progress_leave=progress_leave_enabled,
@@ -408,6 +421,7 @@ class MultiModalYoloManager(YoloManager):
                 output_root,
                 reference_modality=self.reference_modality,
                 absolute_paths=absolute_paths,
+                split_modalities=output_modality_mode,
             )
         else:
             backup_snapshot = None
@@ -442,6 +456,7 @@ class MultiModalYoloManager(YoloManager):
                 output_root,
                 reference_modality=self.reference_modality,
                 absolute_paths=absolute_paths,
+                split_modalities=output_modality_mode,
             )
             for split_name, names in output_splits.items():
                 write_split_file(names, output_root / f"{split_name}.txt")
@@ -465,6 +480,10 @@ class MultiModalYoloManager(YoloManager):
                 splits.get("val", []),
             ),
             "modalities": list(dataset.modalities),
+            "split_modalities": _split_modalities_report_value(
+                output_modality_mode,
+                reference_modality=self.reference_modality,
+            ),
             "scene_count": len(split_view.images),
         }
         print(json.dumps(payload, indent=2, ensure_ascii=False))
@@ -849,6 +868,84 @@ def _representative_scene_image(
     return None
 
 
+def _normalise_split_modalities(
+    dataset: MultimodalYoloDataset,
+    value: str | Sequence[str] | None,
+) -> str | tuple[str, ...] | None:
+    """Normalize split-list output selection.
+
+    ``None`` keeps the historical reference-modality fallback.  ``all`` and
+    ``multimodal`` emit every available modality path for each scene; an
+    explicit name or sequence emits only those modality paths.
+    """
+
+    if value is None:
+        return None
+    if isinstance(value, str):
+        values = [value]
+    else:
+        values = [str(item) for item in value]
+    values = [item.strip() for item in values if item.strip()]
+    if not values:
+        raise ValueError("split_modalities must not be empty")
+
+    aliases = {item.casefold() for item in values}
+    if aliases & {"all", "multimodal"}:
+        if len(values) != 1:
+            raise ValueError(
+                "split_modalities='all'/'multimodal' cannot be combined "
+                "with explicit modality names"
+            )
+        return "all"
+
+    available = set(dataset.modalities)
+    unknown = [item for item in values if item not in available]
+    if unknown:
+        raise ValueError(
+            "unknown split modality(s): "
+            f"{', '.join(unknown)}; available: {', '.join(dataset.modalities)}"
+        )
+    return tuple(dict.fromkeys(values))
+
+
+def _validate_split_modalities(
+    dataset: MultimodalYoloDataset,
+    split_scenes: Mapping[str, Sequence[str]],
+    output_mode: str | tuple[str, ...] | None,
+) -> None:
+    """Reject an explicit modality list that cannot represent every scene."""
+
+    if output_mode is None or output_mode == "all":
+        return
+    missing: list[str] = []
+    for split_name, stems in split_scenes.items():
+        for stem in stems:
+            scene = dataset.scenes[stem]
+            absent = [modality for modality in output_mode if modality not in scene.images]
+            if absent:
+                missing.append(f"{stem} ({split_name}: {', '.join(absent)})")
+    if missing:
+        preview = ", ".join(missing[:5])
+        if len(missing) > 5:
+            preview += f", ... ({len(missing) - 5} more)"
+        raise ValueError(
+            "explicit split_modalities are missing for scenes: "
+            f"{preview}; use split_modalities='multimodal' to emit available paths"
+        )
+
+
+def _split_modalities_report_value(
+    output_mode: str | tuple[str, ...] | None,
+    *,
+    reference_modality: str,
+) -> str | list[str]:
+    if output_mode is None:
+        return f"reference:{reference_modality}"
+    if output_mode == "all":
+        return "multimodal"
+    return list(output_mode)
+
+
 def _output_split_paths(
     dataset: MultimodalYoloDataset,
     split_scenes: Mapping[str, Sequence[str]],
@@ -856,22 +953,42 @@ def _output_split_paths(
     *,
     reference_modality: str,
     absolute_paths: bool,
+    split_modalities: str | tuple[str, ...] | None = None,
 ) -> dict[str, list[str]]:
     output: dict[str, list[str]] = {}
     for split_name, stems in split_scenes.items():
         values: list[str] = []
         for stem in stems:
             scene = dataset.scenes[stem]
-            representative = _representative_scene_image(
-                dataset,
-                scene,
-                reference_modality,
-            )
-            if representative is None:
-                continue
-            modality, source = representative
-            path = output_root / modality / source.relative_path
-            values.append(str(path.resolve()) if absolute_paths else path.relative_to(output_root).as_posix())
+            if split_modalities is None:
+                representative = _representative_scene_image(
+                    dataset,
+                    scene,
+                    reference_modality,
+                )
+                selected_images = [representative] if representative is not None else []
+            elif split_modalities == "all":
+                selected_images = [
+                    (modality, scene.images[modality])
+                    for modality in dataset.modalities
+                    if modality in scene.images
+                ]
+            else:
+                selected_images = [
+                    (modality, scene.images[modality])
+                    for modality in split_modalities
+                    if modality in scene.images
+                ]
+            for selected in selected_images:
+                if selected is None:
+                    continue
+                modality, source = selected
+                path = output_root / modality / source.relative_path
+                values.append(
+                    str(path.resolve())
+                    if absolute_paths
+                    else path.relative_to(output_root).as_posix()
+                )
         output[split_name] = values
     return output
 
@@ -889,6 +1006,7 @@ def _write_multimodal_split_dataset(
     workers: int,
     progress: bool,
     progress_leave: bool,
+    split_modalities: str | tuple[str, ...] | None = None,
 ) -> None:
     if output_root.exists():
         existing = [path for path in output_root.iterdir() if path.name != "ydm_log"]
@@ -973,6 +1091,7 @@ def _write_multimodal_split_dataset(
         output_root,
         reference_modality=reference_modality,
         absolute_paths=absolute_paths,
+        split_modalities=split_modalities,
     )
     for split_name, names in output_splits.items():
         write_split_file(names, output_root / f"{split_name}.txt")

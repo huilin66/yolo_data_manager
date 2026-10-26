@@ -728,7 +728,7 @@ for issue in report.issues:
 
 ## 多模态 YOLO 数据集
 
-多模态是数据集的模态属性，不是独立的功能模块。`MultiModalYoloManager` 继承 `YoloManager` 的共享 label、查询和评估能力；统计、校验、可视化、图像转换、scene 级 split 和 scene 级 select 使用多模态实现，不会把 RGB 和其他模态分别划分。`dataset_split()` 会按 scene stem 同步写入所有模态的 train/val/test 归属并支持 `out_data`；`dataset_select()` 会复制选中 scene 的所有模态和共享 label。它目前不提供 CLI 命令。
+多模态是数据集的模态属性，不是独立的功能模块。`MultiModalYoloManager` 继承 `YoloManager` 的共享 label、查询和评估能力；统计、校验、可视化、图像转换、scene 级 split 和 scene 级 select 使用多模态实现，不会把 RGB 和其他模态分别划分。`dataset_split()` 会按 scene stem 同步写入所有模态的 train/val/test 归属并支持 `out_data`。默认 split txt 每个 scene 写参考模态路径；传入 `split_modalities="rgb"` 可指定单一模态，传入 `split_modalities="multimodal"` 或 `"all"` 会写入该 scene 的所有可用模态路径。`dataset_select()` 会复制选中 scene 的所有模态和共享 label。它目前不提供 CLI 命令。
 
 图像关联使用场景 stem：每个图像或 label 文件先去扩展名，再去掉其 source 配置的 `suffix`，得到同一个 `scene_stem`。例如 `visible/0001_V.jpg`、`infrared/0001_T.png` 和 `labels/0001_gt.txt` 可关联为场景 `0001`。
 
@@ -753,6 +753,13 @@ mgr = MultiModalYoloManager(
 # 省略输出参数时使用 ydm_stats/、ydm_vis/ 等统一功能目录。
 stats = mgr.stats(stats_list=["all"])
 mgr.dataset_split(train=0.9, val=0.1, test=0.0, require_labels=True)
+mgr.dataset_split(
+    train=0.9,
+    val=0.1,
+    test=0.0,
+    absolute_paths=False,
+    split_modalities="multimodal",
+)
 mgr.dataset_select(r"E:\datasets\mdet_train\val.txt", out=r"E:\datasets\mdet_val")
 mgr.vis_draw(show_id=True, workers=8)
 mgr.vis_crop(workers=8)
