@@ -1,5 +1,7 @@
 # Python 使用指南
 
+单模态数据集合并为多模态：使用 `mgr.dataset_merge_modalities(sources=[...], out_data=...)`，详见 [单模态合并为多模态](MERGE_MODALITIES.md)。
+
 YOLO Data Manager 可以完全通过 Python 脚本运行。README 是主入口教程；本文档记录更完整的 Python 调用方式。命令行用法见 [CLI_USAGE.md](CLI_USAGE.md)，项目交接说明见 [HANDOFF.md](HANDOFF.md)。
 
 普通使用，包含所有运行功能：

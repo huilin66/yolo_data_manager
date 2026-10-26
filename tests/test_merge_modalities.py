@@ -1,0 +1,150 @@
+import json
+from pathlib import Path
+
+import numpy as np
+from PIL import Image
+import pytest
+import yaml
+
+from yolo_data_manager import YoloManager, MultiModalYoloManager
+from yolo_data_manager.dataset.merge_modalities import merge_modalities
+
+
+def make_sources(tmp_path):
+    sources = []
+    for idx, stems in enumerate((('a', 'b'), ('a', 'c'))):
+        root = tmp_path / f"source{idx}"
+        (root / "images").mkdir(parents=True)
+        (root / "labels").mkdir()
+        (root / "class.txt").write_text("thing\nother\n" if idx == 0 else "other\nthing\n", encoding="utf-8")
+        for stem in stems:
+            array = np.full((12, 16, 3), 100, dtype=np.uint8) if idx == 0 else np.full((6, 8), 3000, dtype=np.uint16)
+            Image.fromarray(array).save(root / "images" / f"{stem}.png")
+            (root / "labels" / f"{stem}.txt").write_text(f"{idx} 0.5 0.5 0.2 0.2\n", encoding="utf-8")
+        (root / "train.txt").write_text("images/a.png\n", encoding="utf-8")
+        (root / ("val.txt" if idx == 0 else "test.txt")).write_text(f"images/{stems[1]}.png\n", encoding="utf-8")
+        sources.append({"root": root})
+    return sources
+
+
+@pytest.mark.parametrize("unmatched,expected", [("keep", 3), ("drop", 1), ("zero_fill", 3)])
+def test_merge_modalities_policies_and_splits(tmp_path, unmatched, expected):
+    sources = make_sources(tmp_path)
+    output = tmp_path / "merged"
+    manager = YoloManager(sources[0]["root"], init_check=False, init_layout=False)
+    report = manager.dataset_merge_modalities(sources, output, unmatched=unmatched, workers=2, progress=False)
+    assert report["scenes"] == expected
+    assert report["image_dirs"] == ["image1", "image2"]
+    assert (output / "labels/a.txt").read_text().splitlines() == ["0 0.5 0.5 0.2 0.2"] * 2
+    assert (output / "train.txt").read_text().strip() == str(output / "image1/a.png")
+    config = yaml.safe_load((output / "dataset.yaml").read_text())
+    assert config["image_dirs"] == ["image1", "image2"]
+    assert config["train"] == "train.txt"
+    assert json.loads((output / "merge_report.json").read_text())["scenes"] == expected
+    multimodal = MultiModalYoloManager(output, image_dirs=report["image_dirs"], progress=False).load()
+    assert len(multimodal.scenes) == expected
+    assert len(multimodal.complete_scenes) == (3 if unmatched == "zero_fill" else 1)
+    if unmatched == "zero_fill":
+        with Image.open(output / "image2/b.png") as image:
+            assert image.size == (8, 6)
+            assert np.asarray(image).dtype == np.uint16
+            assert not np.asarray(image).any()
+        with Image.open(output / "image1/c.png") as image:
+            assert image.size == (16, 12)
+            assert np.asarray(image).shape == (12, 16, 3)
+            assert not np.asarray(image).any()
+        assert report["zero_filled"] == 2
+    elif unmatched == "keep":
+        assert not (output / "image2/b.png").exists()
+        assert not (output / "image1/c.png").exists()
+    else:
+        assert not (output / "labels/b.txt").exists()
+
+
+def test_merge_modalities_first_labels_and_deduplication(tmp_path):
+    sources = make_sources(tmp_path)
+    sources[0]["name"] = "rgb"
+    sources[1]["name"] = "thermal"
+    output = tmp_path / "first_labels"
+    result = merge_modalities(sources, output, merge_labels=False, progress=False)
+    assert result["image_dirs"] == ["rgb", "thermal"]
+    assert (output / "labels/c.txt").read_text() == ""
+    assert result["primary_labels_missing"] == ["c"]
+    assert len((output / "labels/a.txt").read_text().splitlines()) == 1
+    result = merge_modalities(sources, tmp_path / "dedup", deduplicate=True, progress=False)
+    assert result["deduplicated"] == 1
+    assert len((tmp_path / "dedup/labels/a.txt").read_text().splitlines()) == 1
+
+
+def test_merge_modalities_conflicts_and_dry_run(tmp_path):
+    sources = make_sources(tmp_path)
+    output = tmp_path / "merged"
+    result = merge_modalities(sources, output, dry_run=True, progress=False)
+    assert result["dry_run"]
+    assert not output.exists()
+    (sources[1]["root"] / "train.txt").write_text("", encoding="utf-8")
+    (sources[1]["root"] / "val.txt").write_text("images/a.png\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="conflicting train/val/test"):
+        merge_modalities(sources, output, progress=False)
+    assert not output.exists()
+
+
+def test_merge_modalities_heterogeneous_zero_fill_requires_spec(tmp_path):
+    sources = make_sources(tmp_path)
+    Image.new("RGB", (20, 30)).save(sources[0]["root"] / "images/b.png")
+    with pytest.raises(ValueError, match="uniform image specification"):
+        merge_modalities(sources, tmp_path / "invalid", unmatched="zero_fill", progress=False)
+    sources[0]["zero_fill"] = {"width": 16, "height": 12, "channels": 3, "dtype": "uint8"}
+    merge_modalities(sources, tmp_path / "explicit", unmatched="zero_fill", progress=False)
+    assert (tmp_path / "explicit/image1/c.png").is_file()
+
+
+def test_merge_modalities_duplicate_stems_and_output_protection(tmp_path):
+    sources = make_sources(tmp_path)
+    Image.new("RGB", (16, 12)).save(sources[0]["root"] / "images/a.jpg")
+    with pytest.raises(ValueError, match="duplicate image stem"):
+        merge_modalities(sources, tmp_path / "duplicate", progress=False)
+    with pytest.raises(ValueError, match="outside"):
+        merge_modalities(sources, sources[0]["root"], progress=False)
+    with pytest.raises(ValueError, match="folder name"):
+        merge_modalities([{**sources[0], "name": "../bad"}, sources[1]], tmp_path / "bad", progress=False)
+
+
+def test_merge_modalities_attribute_conflicts(tmp_path):
+    sources = make_sources(tmp_path)
+    for index, source in enumerate(sources):
+        (source["root"] / "attribute.yaml").write_text(f"attributes:\n  risk: [low, {'high' if index == 0 else 'medium'}]\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="conflicting attribute"):
+        merge_modalities(sources, tmp_path / "conflict", progress=False)
+
+
+def test_merge_modalities_reorders_attribute_values_and_has_no_implicit_split(tmp_path):
+    sources = make_sources(tmp_path)
+    for idx, source in enumerate(sources):
+        root = source["root"]
+        for path in (root / "train.txt", root / "val.txt", root / "test.txt"):
+            path.unlink(missing_ok=True)
+        fields = "  risk: [low, high]\n  wet: [dry, wet]\n" if idx == 0 else "  wet: [dry, wet]\n  risk: [low, high]\n"
+        (root / "attribute.yaml").write_text("attributes:\n" + fields, encoding="utf-8")
+        values = "1 0" if idx == 0 else "0 1"
+        (root / "labels/a.txt").write_text(f"{idx} 2 {values} 0.5 0.5 0.2 0.2\n", encoding="utf-8")
+    output = tmp_path / "attribute_merged"
+    result = merge_modalities(sources, output, deduplicate=True, unmatched="drop", progress=False)
+    assert (output / "labels/a.txt").read_text().strip() == "0 2 1 0 0.5 0.5 0.2 0.2"
+    assert result["deduplicated"] == 1
+    assert not (output / "train.txt").exists()
+    assert "train" not in yaml.safe_load((output / "dataset.yaml").read_text())
+
+
+def test_merge_modalities_empty_modality_can_use_explicit_zero_spec(tmp_path):
+    sources = make_sources(tmp_path)
+    for folder in ("images", "labels"):
+        for path in (sources[1]["root"] / folder).iterdir():
+            path.unlink()
+    sources[1]["zero_fill"] = {"width": 8, "height": 6, "channels": 1, "dtype": "float32"}
+    output = tmp_path / "empty_filled"
+    result = merge_modalities(sources, output, unmatched="zero_fill", progress=False)
+    assert result["zero_filled"] == 2
+    with Image.open(output / "image2/a.tif") as image:
+        assert np.asarray(image).dtype == np.float32
+        assert not np.asarray(image).any()

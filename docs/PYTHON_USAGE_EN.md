@@ -1,5 +1,7 @@
 # Python Usage
 
+To merge single-modality sources into a shared-label multimodal dataset, use `mgr.dataset_merge_modalities(sources=[...], out_data=...)`. See [Merge Modalities](MERGE_MODALITIES_EN.md).
+
 This document describes Python-first usage. For CLI usage, see [CLI_USAGE_EN.md](CLI_USAGE_EN.md). For handoff notes, see [HANDOFF_EN.md](HANDOFF_EN.md).
 
 ## Installation

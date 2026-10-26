@@ -7,6 +7,7 @@ YOLO Data Manager 是一个用于管理 YOLO 数据集的 Python 工具包和命
 ## 文档入口
 
 - [Python 详细使用](docs/PYTHON_USAGE.md)
+- [单模态合并为多模态](docs/MERGE_MODALITIES.md)
 - [CLI 详细使用](docs/CLI_USAGE.md)
 - [项目交接说明](docs/HANDOFF.md)
 - [Python Usage in English](docs/PYTHON_USAGE_EN.md)
