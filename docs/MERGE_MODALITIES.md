@@ -14,6 +14,7 @@ result = merge_modalities(
     out_data="/data/multimodal",
     unmatched="keep",
     merge_labels=True,
+    inherit_splits=False,  # 默认不继承原数据划分
     deduplicate=False,
     dedup_iou=0.9,
     workers=8,
@@ -49,7 +50,7 @@ dataset = multimodal.load()
 
 支持 uint8/uint16 的 1、3、4 通道补零（PNG），以及 float32/int32 的单通道补零（TIFF）；原图直接复制，不转换原图的数据类型。参数 `zero_fill` 只影响新生成的缺失图像。
 
-输出包含各图像目录、`labels/`、`class.txt`、可选 `attribute.yaml`、`dataset.yaml`、`multimodal.yaml` 和 `merge_report.json`。YAML 记录 image_dirs/labels_dir，供用户配置现有多模态 manager；不会修改第三方训练框架的多模态读取方式。源数据有划分时生成 train.txt、val.txt、test.txt；按 scene 保留原归属，每行指向新目录中该 scene 实际存在的一张图像，其他模态通过 stem 对齐。无原始 split 时不自动划分。同一 scene 的 split 冲突会在写入前报错。
+输出包含各图像目录、`labels/`、`class.txt`、可选 `attribute.yaml`、`dataset.yaml`、`multimodal.yaml` 和 `merge_report.json`。YAML 记录 image_dirs/labels_dir，供用户配置现有多模态 manager；不会修改第三方训练框架的多模态读取方式。默认不继承原数据划分，不生成 train.txt、val.txt、test.txt，也不在 YAML 中写入 split。显式设置 inherit_splits=True 时，源数据有划分才生成这三个 txt；按 scene 保留原归属，每行指向新目录中该 scene 实际存在的一张图像，其他模态通过 stem 对齐。无原始 split 时不自动划分。仅开启 inherit_splits 时校验 split 冲突，冲突会在写入前报错。
 
 属性定义必须兼容：全局属性要求名称和值定义一致；class-scoped 属性可以合并互不冲突的类别定义，同类定义冲突时报错。字段顺序不同时会重排标注属性以保持语义。
 

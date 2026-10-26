@@ -129,6 +129,7 @@ def merge_modalities(
     *,
     unmatched: str = "keep",
     merge_labels: bool = True,
+    inherit_splits: bool = False,
     deduplicate: bool = False,
     dedup_iou: float = 0.9,
     workers: int = 8,
@@ -156,7 +157,7 @@ def merge_modalities(
             raise ValueError("output must be outside the source dataset directories")
     _check_output_directory(output)
     options = dict(
-        unmatched=unmatched, merge_labels=merge_labels, deduplicate=deduplicate,
+        unmatched=unmatched, merge_labels=merge_labels, inherit_splits=inherit_splits, deduplicate=deduplicate,
         dedup_iou=dedup_iou, workers=workers, progress=progress,
         progress_leave=progress_leave, dry_run=dry_run,
     )
@@ -178,6 +179,7 @@ def _merge_modalities(
     *,
     unmatched: str = "keep",
     merge_labels: bool = True,
+    inherit_splits: bool = False,
     deduplicate: bool = False,
     dedup_iou: float = 0.9,
     workers: int = 8,
@@ -243,7 +245,7 @@ def _merge_modalities(
                 raise ValueError(f"duplicate image stem in source: {image.stem}, {dataset.root}")
             index[key] = image
         indexes.append(index)
-        memberships.append(_split_membership(dataset))
+        memberships.append(_split_membership(dataset) if inherit_splits else {})
         for name in dataset.classes.names:
             classes.ensure(name)
     attributes = _merge_attributes(datasets if merge_labels else datasets[:1])
@@ -308,14 +310,14 @@ def _merge_modalities(
                     tasks.append((output / name / f"{scene_name}{extension}", None, spec))
         labels[scene_name] = [ann.to_yolo_line(include_confidence=False) for ann in annotations]
 
-    has_splits = any(scene_splits.values()) or any((Path(dataset.root) / f"{split}.txt").is_file() for dataset in datasets for split in ("train", "val", "test"))
+    has_splits = inherit_splits and (any(scene_splits.values()) or any((Path(dataset.root) / f"{split}.txt").is_file() for dataset in datasets for split in ("train", "val", "test")))
     report = {
         "out": str(output), "image_dirs": names, "scenes": len(selected),
         "common_scenes": len(common), "discarded_scenes": len(all_stems) - len(selected),
         "unmatched": unmatched, "missing_modalities": {name: len(stems) for name, stems in missing.items()},
         "missing_scenes": {name: [scene_names[stem] for stem in stems] for name, stems in missing.items()},
         "zero_filled": sum(len(stems) for stems in missing.values()) if unmatched == "zero_fill" else 0,
-        "zero_specs": zero_specs, "merge_labels": merge_labels, "deduplicate": deduplicate,
+        "zero_specs": zero_specs, "merge_labels": merge_labels, "inherit_splits": inherit_splits, "deduplicate": deduplicate,
         "dedup_iou": dedup_iou, "input_annotations": input_annotations,
         "deduplicated": removed, "annotations": sum(len(lines) for lines in labels.values()),
         "empty_labels": sum(not lines for lines in labels.values()),

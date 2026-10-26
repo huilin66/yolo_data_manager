@@ -1185,6 +1185,7 @@ class YoloManager:
         *,
         unmatched: str = "keep",
         merge_labels: bool = True,
+        inherit_splits: bool = False,
         deduplicate: bool = False,
         dedup_iou: float = 0.9,
         workers: int = 8,
@@ -1203,7 +1204,7 @@ class YoloManager:
         from yolo_data_manager.dataset.merge_modalities import merge_modalities
 
         result = merge_modalities(
-            sources, out_data, unmatched=unmatched, merge_labels=merge_labels,
+            sources, out_data, unmatched=unmatched, merge_labels=merge_labels, inherit_splits=inherit_splits,
             deduplicate=deduplicate, dedup_iou=dedup_iou, workers=workers,
             progress=progress, progress_leave=progress_leave, dry_run=dry_run,
         )

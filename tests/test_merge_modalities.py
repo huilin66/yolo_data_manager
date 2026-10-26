@@ -31,7 +31,7 @@ def test_merge_modalities_policies_and_splits(tmp_path, unmatched, expected):
     sources = make_sources(tmp_path)
     output = tmp_path / "merged"
     manager = YoloManager(sources[0]["root"], init_check=False, init_layout=False)
-    report = manager.dataset_merge_modalities(sources, output, unmatched=unmatched, workers=2, progress=False)
+    report = manager.dataset_merge_modalities(sources, output, unmatched=unmatched, inherit_splits=True, workers=2, progress=False)
     assert report["scenes"] == expected
     assert report["image_dirs"] == ["image1", "image2"]
     assert (output / "labels/a.txt").read_text().splitlines() == ["0 0.5 0.5 0.2 0.2"] * 2
@@ -84,7 +84,7 @@ def test_merge_modalities_conflicts_and_dry_run(tmp_path):
     (sources[1]["root"] / "train.txt").write_text("", encoding="utf-8")
     (sources[1]["root"] / "val.txt").write_text("images/a.png\n", encoding="utf-8")
     with pytest.raises(ValueError, match="conflicting train/val/test"):
-        merge_modalities(sources, output, progress=False)
+        merge_modalities(sources, output, inherit_splits=True, progress=False)
     assert {path.name for path in output.iterdir()} == {"ydm_log"}
 
 
@@ -172,3 +172,17 @@ def test_manager_merge_delegate_does_not_use_its_root(tmp_path):
     manager.dataset_merge_modalities(sources, output, progress=False)
     assert not unrelated.exists()
     assert (output / "ydm_log").is_dir()
+
+
+def test_default_merge_ignores_source_split_conflicts(tmp_path):
+    sources = make_sources(tmp_path)
+    (sources[1]["root"] / "val.txt").write_text("images/a.png\n", encoding="utf-8")
+    output = tmp_path / "no_split"
+    report = merge_modalities(sources, output, progress=False)
+    assert report["inherit_splits"] is False
+    assert report["unassigned_scenes"] == 3
+    for split in ("train", "val", "test"):
+        assert not (output / f"{split}.txt").exists()
+    for name in ("dataset.yaml", "multimodal.yaml"):
+        config = yaml.safe_load((output / name).read_text())
+        assert not any(split in config for split in ("train", "val", "test"))

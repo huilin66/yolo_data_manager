@@ -12,6 +12,7 @@ result = merge_modalities(
     out_data="/data/multimodal",
     unmatched="keep",
     merge_labels=True,
+    inherit_splits=False,  # Source splits are not inherited by default.
     deduplicate=False,
     dedup_iou=0.9,
 )
@@ -20,7 +21,7 @@ dataset = MultiModalYoloManager(result["out"], image_dirs=result["image_dirs"]).
 
 All sources must be supplied explicitly (at least two). No manager instance or primary dataset is required. Sources accept root, name, images_dir, labels_dir, layout, class_file, attribute_file and task. The default layout is flat images/labels; specify split_dirs where appropriate. A source root may also be a data YAML. Default output folder names are image1, image2, etc.
 
-Images align by case-insensitive filename stem, ignoring extension. Duplicate stems within a source and conflicting scene split assignments are rejected before output writes. Images and annotations must already be spatially aligned: this operation does not register images.
+Images align by case-insensitive filename stem, ignoring extension. Duplicate stems within a source are rejected; conflicting scene split assignments are checked only with inherit_splits=True. Images and annotations must already be spatially aligned: this operation does not register images.
 
 - unmatched="keep" (default): retain the union of scenes, permitting missing modality images.
 - unmatched="drop": retain only scenes present in every modality.
@@ -32,7 +33,7 @@ Images align by case-insensitive filename stem, ignoring extension. Duplicate st
 
 Zero filling infers width, height, channels and dtype from all existing images of the missing modality. For heterogeneous or empty modalities, specify the source's zero_fill={"width":640,"height":512,"channels":1,"dtype":"uint16"}. Supported zero image formats are PNG for uint8/uint16 with 1/3/4 channels, and TIFF for single-channel float32/int32. Existing images are copied without conversion.
 
-The output contains the image directories, shared labels/, class.txt, optional attribute.yaml, dataset.yaml, multimodal.yaml, and merge_report.json. YAML records image_dirs and labels_dir for configuring the existing multimodal manager; this does not add multimodal loading to external training frameworks. Existing scene split membership is preserved in train.txt/val.txt/test.txt, each entry referencing an existing exported image; other modalities align by stem. Sources without splits are not automatically split.
+The output contains the image directories, shared labels/, class.txt, optional attribute.yaml, dataset.yaml, multimodal.yaml, and merge_report.json. YAML records image_dirs and labels_dir for configuring the existing multimodal manager; this does not add multimodal loading to external training frameworks. By default no split txt files or YAML split entries are generated. Set inherit_splits=True to preserve existing scene membership in train.txt/val.txt/test.txt, each entry referencing an existing exported image; other modalities align by stem. Sources without splits are not automatically split.
 
 Attribute schemas must be compatible. Global definitions must agree; class-scoped schemas can combine non-conflicting class definitions. Attribute values are reordered when field order differs. Reports include missing images, zero-filled counts/specifications, labels, deduplication, splits and source paths.
 
