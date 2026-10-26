@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from yolo_data_manager import YoloManager
+from yolo_data_manager import YoloManager, merge_modalities
 
 DATA_DIR = Path(
     r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_t_update_v6.yaml"
@@ -99,6 +99,21 @@ RUN_LIST = [
     "update_att_from_anno",
     "update_att_from_pred",
 ]
+
+
+def single2multi():
+    result = merge_modalities(
+        sources=[
+            {"root": "/data/rgb", "name": "rgb"},
+            {"root": "/data/thermal", "name": "thermal"},
+            {"root": "/data/depth"},  # 默认 image3
+        ],
+        out_data="/data/multimodal",
+        unmatched="keep",  # keep / drop / zero_fill
+        merge_labels=True,  # 默认合并标签
+        deduplicate=False,  # 默认不去重
+        dedup_iou=0.9,
+    )
 
 
 def main() -> None:
