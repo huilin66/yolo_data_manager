@@ -6,14 +6,18 @@ one dataset here and call the public manager API directly.
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
-from yolo_data_manager import YoloManager, merge_modalities
+from yolo_data_manager import MultiModalYoloManager, YoloManager, merge_modalities
 
 # DATA_DIR = Path(r"/data/huilin/data/bdd_hmt/sua_rgb_update_v1")
 # DATA_DIR = Path(r"/data/huilin/data/bdd_hmt/hmt_rgb_update_v2")
 DATA_DIR = Path(r"/data/huilin/data/bdd_hmt/hmt_rgbt_update_v6")
+
+# The merged dataset has one shared labels/ directory and one image directory
+# per modality. Use one modality as the reference for single-image APIs.
+REFERENCE_MODALITY = "rgb"
+MODALITY_DIRS = ["rgb", "t"]
 
 UPDATE_CLASS_MAP = {
     # "drop": [
@@ -43,21 +47,29 @@ PRED_NAMES = [
     # "predict-5",
 ]
 CROP_MAP_LABEL = {
-    # os.path.join(CROP_ROOT_LABEL, "2_l"): "Leakage",
-    # os.path.join(CROP_ROOT_LABEL, "2_none"): "none",
+    # Path(CROP_ROOT_LABEL) / "2_l": "Leakage",
+    # Path(CROP_ROOT_LABEL) / "2_none": "none",
 }
 
 
-CROP_MAP_PRED_ROOT = os.path.join(DATA_DIR, 'ydm_evaluation', 'crop_change_common')
+CROP_MAP_PRED_ROOT = DATA_DIR / "ydm_evaluation" / "crop_change_common"
 CROP_MAP_PRED = {
-    os.path.join(CROP_MAP_PRED_ROOT, "gt2none"): "none",
-    os.path.join(CROP_MAP_PRED_ROOT, "gt2broken"): ["Broken", False],
-    os.path.join(CROP_MAP_PRED_ROOT, "gt2del"): ["Delaminate", False],
-    # os.path.join(CROP_MAP_PRED_ROOT, "pred2broken"): "Broken",
-    os.path.join(CROP_MAP_PRED_ROOT, "pred2corrosion"): "Corrosion",
-    os.path.join(CROP_MAP_PRED_ROOT, "pred2de"): "Delaminate",
-    os.path.join(CROP_MAP_PRED_ROOT, "pred2eff"): "Efflorescene",
+    CROP_MAP_PRED_ROOT / "gt2none": "none",
+    CROP_MAP_PRED_ROOT / "gt2broken": ["Broken", False],
+    CROP_MAP_PRED_ROOT / "gt2del": ["Delaminate", False],
+    # CROP_MAP_PRED_ROOT / "pred2broken": "Broken",
+    CROP_MAP_PRED_ROOT / "pred2corrosion": "Corrosion",
+    CROP_MAP_PRED_ROOT / "pred2de": "Delaminate",
+    CROP_MAP_PRED_ROOT / "pred2eff": "Efflorescene",
 }
+
+# Optional operations use these values only when their names are added to
+# RUN_LIST. Defining them here avoids a NameError when a switch is enabled.
+QUERY_CLASS: str | None = None
+SELECTION_FILE: Path | None = None
+UPDATE_ATT_MAP: dict = {}
+
+
 # Select operations by uncommenting names in RUN_LIST.
 RUN_LIST = [
     "merge",
@@ -84,12 +96,12 @@ RUN_LIST = [
 
 
 def main() -> None:
-    ydm = YoloManager(
-        DATA_DIR,
-        layout="flat",
-        init_check=False,
-        init_layout=False,
-    )
+    if "resize" in RUN_LIST:
+        raise RuntimeError(
+            "resize is not a post-merge operation; resize each source dataset "
+            "before running this multimodal example"
+        )
+
     if "merge" in RUN_LIST:
         merge_modalities(
             sources=[
@@ -101,33 +113,48 @@ def main() -> None:
             merge_labels=True,  # 默认合并标签
             deduplicate=False,  # 默认不去重
         )
-    # preprocess
-    if "resize" in RUN_LIST:
-        ydm.resize_images(
-            width=640,
-        )
+
+    # YoloManager is bound to one reference modality. It is used for
+    # operations whose labels are shared but whose APIs still operate on one
+    # image directory. MultiModalYoloManager is used for all-modality work.
+    ydm = YoloManager(
+        DATA_DIR,
+        layout="flat",
+        images_dir=REFERENCE_MODALITY,
+        labels_dir="labels",
+        init_check=False,
+        init_layout=False,
+    )
+    mdm = MultiModalYoloManager(
+        DATA_DIR,
+        image_dirs=MODALITY_DIRS,
+        labels_dir="labels",
+        init_check=False,
+    )
 
     # pre-analysis
     if "split" in RUN_LIST:
         ydm.dataset_split(
             train=0.9,
             val=0.1,
-            # train_include_list=LEAKAGE_ONLY_LIST,
+            test=0.0,
+            require_labels=True,
         )
     if "sta" in RUN_LIST:
-        ydm.stats(
+        mdm.stats(
             stats_list=["all"],
-            # only_val=True,
         )
     if "vis_draw" in RUN_LIST:
-        ydm.vis_draw(
-            # only_val=True,
+        mdm.vis_draw(
+            modalities=MODALITY_DIRS,
         )
     if "vis_crop" in RUN_LIST:
-        ydm.vis_crop(
-            # only_val=True,
+        mdm.vis_crop(
+            modalities=MODALITY_DIRS,
         )
     if "query" in RUN_LIST:
+        if QUERY_CLASS is None:
+            raise ValueError("set QUERY_CLASS before enabling 'query'")
         ydm.query_class(
             class_=QUERY_CLASS,
             source="gt",
@@ -188,8 +215,11 @@ def main() -> None:
     if "update_class" in RUN_LIST:
         ydm.ann_update_from_map(
             UPDATE_CLASS_MAP,
-            out_data=r"/data/huilin/data/bdd_hmt/hmt_rgb_update_v7",
+            # Labels are shared by rgb and t. In-place editing preserves the
+            # multimodal directory structure and creates labels_backup.
         )
+    if "update_att" in RUN_LIST and UPDATE_ATT_MAP:
+        ydm.ann_att_update_from_map(UPDATE_ATT_MAP)
     if "filter_small" in RUN_LIST:
         ydm.anno_update_by_size(
             min_pixels=50,
@@ -214,11 +244,11 @@ def main() -> None:
             / "error_analysis"
             / "common_pred_txt"
         )
-        pred_txt = PRED_RUNS_DIR / PRED_NAMES[0] / "labels"
         ydm.ann_correct_from_error_crops(
             crops_dir=CROP_MAP_PRED,
-            pred_dir=pred_txt,
-            out_data=r"/data/huilin/data/bdd_hmt/hmt_rgb_update_v6",
+            pred_dir=common_pred_txt,
+            # Do not pass out_data here: the current correction writer is
+            # single-modal and would drop the other modality folders.
         )
 
 
