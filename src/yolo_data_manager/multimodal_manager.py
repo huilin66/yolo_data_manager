@@ -585,10 +585,20 @@ class MultiModalYoloManager(YoloManager):
     ) -> dict[str, object]:
         """Compute multimodal statistics and print compact tables by default."""
 
-        dataset = self.load(
-            reload=reload, progress=progress, progress_leave=progress_leave
+        progress_enabled = self.progress if progress is None else progress
+        progress_leave_enabled = (
+            self.progress_leave if progress_leave is None else progress_leave
         )
-        payload = compute_multimodal_stats(dataset)
+        dataset = self.load(
+            reload=reload,
+            progress=progress_enabled,
+            progress_leave=progress_leave_enabled,
+        )
+        payload = compute_multimodal_stats(
+            dataset,
+            progress=progress_enabled,
+            progress_leave=progress_leave_enabled,
+        )
         stats_dir = ydm_dir(self.root, "stats")
         report_path = Path(out) if out is not None else stats_dir / "multimodal_stats.json"
         basic_info_path = (
@@ -600,14 +610,18 @@ class MultiModalYoloManager(YoloManager):
         primary = _primary_multimodal_view(dataset)
         basic_info_rows = build_basic_info_rows(
             primary,
-            progress=progress if progress is not None else self.progress,
-            progress_leave=progress_leave
-            if progress_leave is not None
-            else self.progress_leave,
+            progress=progress_enabled,
+            progress_leave=progress_leave_enabled,
         )
         write_basic_info_csv(basic_info_rows, basic_info_path)
         write_json_report(payload, report_path)
-        write_multimodal_stats_plots(dataset, plots_path, stats_list=stats_list)
+        write_multimodal_stats_plots(
+            dataset,
+            plots_path,
+            stats_list=stats_list,
+            progress=progress_enabled,
+            progress_leave=progress_leave_enabled,
+        )
         print(format_basic_info_tables(basic_info_rows))
         if print_details:
             print(json.dumps(payload, indent=2, ensure_ascii=False))
