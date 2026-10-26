@@ -253,6 +253,7 @@ ydm stats --root path/to/yolo --out stats.json
 ydm stats --root path/to/yolo --ann-csv annotations.csv --basic-info-csv basic_info.csv --plots-dir stats_plots
 ydm stats --root path/to/yolo --plots-dir labels_sta --stats-list all
 ydm stats --root path/to/yolo --plots-dir labels_sta --stats-list image_shape,box_shape_pix,box_pos_center
+ydm stats --root path/to/yolo --print-details
 ```
 
 `--stats-list` supports:
@@ -269,7 +270,7 @@ directory layout (such as `images/train`, `images/val`, and `images/test`) is
 used only when none of the three files exists. The value is empty when the
 split cannot be determined uniquely.
 
-The `stats` command now prints three compact tables: image total/train/val/test counts, box counts by class and split, and standalone attribute/value counts by split. The same rows are written by default to `ydm_stats/basic_info.csv`; use `--basic-info-csv` to override the path. The full class-attribute cross counts remain available in `stats.json`.
+The `stats` command prints only three compact tables by default: image total/train/val/test counts, box counts by class and split, and standalone attribute/value counts by split. The same rows are written by default to `ydm_stats/basic_info.csv`; use `--basic-info-csv` to override the path. The full class-attribute cross counts remain available in `stats.json`. Pass `--print-details` to also print the detailed JSON and output paths.
 
 With `--stats-list attribute`, the attribute output is limited to `attribute_num.png` plus the corresponding `attribute_num.csv`; per-attribute image files are no longer generated.
 

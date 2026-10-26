@@ -36,7 +36,12 @@ from yolo_data_manager.stats.multimodal import (
     compute_multimodal_stats,
     write_multimodal_stats_plots,
 )
-from yolo_data_manager.stats.report import write_json_report
+from yolo_data_manager.stats.report import (
+    build_basic_info_rows,
+    format_basic_info_tables,
+    write_basic_info_csv,
+    write_json_report,
+)
 from yolo_data_manager.vis.multimodal import (
     crop_multimodal_dataset,
     render_multimodal_dataset,
@@ -551,13 +556,15 @@ class MultiModalYoloManager(YoloManager):
         self,
         *,
         out: str | Path | None = None,
+        basic_info_csv: str | Path | None = None,
         plots_dir: str | Path | None = None,
         stats_list: str | Sequence[str] | None = None,
+        print_details: bool = False,
         reload: bool = False,
         progress: bool | None = None,
         progress_leave: bool | None = None,
     ) -> dict[str, object]:
-        """Compute shared annotation statistics plus per-modality image statistics."""
+        """Compute multimodal statistics and print compact tables by default."""
 
         dataset = self.load(
             reload=reload, progress=progress, progress_leave=progress_leave
@@ -565,10 +572,29 @@ class MultiModalYoloManager(YoloManager):
         payload = compute_multimodal_stats(dataset)
         stats_dir = ydm_dir(self.root, "stats")
         report_path = Path(out) if out is not None else stats_dir / "multimodal_stats.json"
+        basic_info_path = (
+            Path(basic_info_csv)
+            if basic_info_csv is not None
+            else stats_dir / "basic_info.csv"
+        )
         plots_path = Path(plots_dir) if plots_dir is not None else stats_dir / "plots"
+        primary = _primary_multimodal_view(dataset)
+        basic_info_rows = build_basic_info_rows(
+            primary,
+            progress=progress if progress is not None else self.progress,
+            progress_leave=progress_leave
+            if progress_leave is not None
+            else self.progress_leave,
+        )
+        write_basic_info_csv(basic_info_rows, basic_info_path)
         write_json_report(payload, report_path)
         write_multimodal_stats_plots(dataset, plots_path, stats_list=stats_list)
-        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        print(format_basic_info_tables(basic_info_rows))
+        if print_details:
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
+            print(f"\nStats JSON: {report_path}")
+            print(f"Basic info CSV: {basic_info_path}")
+            print(f"Plots directory: {plots_path}")
         return payload
 
     @_logged_operation("multimodal_convert_to_uint8")
@@ -702,6 +728,23 @@ class MultiModalYoloManager(YoloManager):
             json.dumps({"out": str(output_path), "crops": counts}, indent=2, ensure_ascii=False)
         )
         return counts
+
+
+def _primary_multimodal_view(dataset: MultimodalYoloDataset) -> YoloDataset:
+    """Return the complete scene view used for shared basic-info tables."""
+
+    modality = next(iter(dataset.required_modalities), None)
+    if modality is None:
+        modality = next(iter(dataset.modalities), None)
+    if modality is None:
+        return YoloDataset(
+            root=dataset.root,
+            images=[],
+            classes=dataset.classes,
+            attributes=dataset.attributes,
+            task=dataset.task,
+        )
+    return dataset.to_yolo_dataset(modality)
 
 
 def _multimodal_split_view(

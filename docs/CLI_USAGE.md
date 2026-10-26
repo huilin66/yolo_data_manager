@@ -241,6 +241,7 @@ ydm stats --root path/to/yolo
 ydm stats --root path/to/yolo --out stats.json --ann-csv annotations.csv --basic-info-csv basic_info.csv --plots-dir stats_plots
 ydm stats --root path/to/yolo --stats-list all
 ydm stats --root path/to/yolo --plots-dir labels_sta --stats-list image_shape,box_shape_pix,box_pos_center
+ydm stats --root path/to/yolo --print-details
 ```
 
 `--stats-list` 支持：
@@ -253,7 +254,7 @@ box_pos_start, box_pos_center, box_pos_end, attribute, legacy_csv
 
 `annotations.csv` 包含 `split` 列：如果数据集根目录存在任一 `train.txt`、`val.txt`、`test.txt`，只根据这些 split txt 推断；只有三个文件都不存在时，才退回根据 `images/train`、`images/val`、`images/test` 等目录推断。无法唯一判断时为空。
 
-`stats` 控制台只输出三张基础表：图像的 total/train/val/test 数量、按类别和 split 统计的 box 数量，以及按 attribute/value 和 split 汇总的属性数量。相同内容默认保存到 `ydm_stats/basic_info.csv`，也可以通过 `--basic-info-csv` 指定路径；完整统计中的 class-attribute 交叉信息仍保存到 `stats.json`。
+`stats` 默认只输出三张基础表：图像的 total/train/val/test 数量、按类别和 split 统计的 box 数量，以及按 attribute/value 和 split 汇总的属性数量。相同内容默认保存到 `ydm_stats/basic_info.csv`，也可以通过 `--basic-info-csv` 指定路径；完整统计中的 class-attribute 交叉信息仍保存到 `stats.json`。使用 `--print-details` 才会额外打印详细 JSON 和各输出路径。
 
 使用 `--stats-list attribute` 时，属性图表只生成 `attribute_num.png`，并生成对应的 `attribute_num.csv`；不再生成按单个属性拆分的图片。
 

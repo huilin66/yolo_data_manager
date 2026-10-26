@@ -739,9 +739,15 @@ class YoloManager:
         plots_dir: str | None = None,
         stats_list: str | list[str] | None = None,
         only_val: bool | None = None,
+        print_details: bool = False,
         **kwargs: Any,
     ) -> int:
-        """Compute dataset statistics (``ydm stats``)."""
+        """Compute dataset statistics (``ydm stats``).
+
+        The default terminal output is limited to the compact statistic
+        tables.  Set ``print_details=True`` to also print the detailed JSON
+        summary and output paths.
+        """
         return self._run(
             "stats",
             out=out,
@@ -751,6 +757,7 @@ class YoloManager:
             plots_dir=plots_dir,
             stats_list=stats_list,
             only_val=only_val,
+            print_details=print_details,
             **kwargs,
         )
 

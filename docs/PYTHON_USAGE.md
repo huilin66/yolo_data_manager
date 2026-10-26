@@ -53,6 +53,7 @@ mgr.check(out="validation.json", fill_missing_txt=True)
 # 统计
 mgr.stats(out="stats.json", class_csv="class_counts.csv", basic_info_csv="basic_info.csv")
 mgr.stats(plots_dir="labels_sta", stats_list=["all"])
+mgr.stats(print_details=True)  # 额外在终端输出详细 JSON 和输出路径
 mgr.stats(plots_dir="labels_sta", stats_list=["image_shape", "box_shape_pix", "box_pos_center"])
 
 # 布局检测
@@ -525,7 +526,7 @@ mgr.output_dataset_yaml
 
 `annotations.csv` 包含 `split` 列。若数据集根目录存在任一 `train.txt`、`val.txt`、`test.txt`，则只根据这些 split txt 判断；仅当三个文件都不存在时，才退回根据 `images/train`、`images/val`、`images/test` 等 split 目录判断。无法唯一判断时留空。
 
-`stats` 控制台会输出图像 total/train/val/test 表、按类别/split 的 box 表和按 attribute/value 汇总的属性表；相同内容默认保存到 `ydm_stats/basic_info.csv`，可通过 `basic_info_csv` 指定其他路径。完整统计 JSON 中仍保留 class-attribute 交叉统计。
+`stats` 默认只在控制台输出图像 total/train/val/test 表、按类别/split 的 box 表和按 attribute/value 汇总的属性表；相同内容默认保存到 `ydm_stats/basic_info.csv`，可通过 `basic_info_csv` 指定其他路径。完整统计 JSON 中仍保留 class-attribute 交叉统计；传入 `print_details=True` 才会额外打印详细 JSON 和输出路径。
 
 选择 `attribute` 时，属性图表仅输出 `attribute_num.png`，并同时生成对应的 `attribute_num.csv`；不再生成按单个属性拆分的图片。
 

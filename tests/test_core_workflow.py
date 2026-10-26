@@ -1506,7 +1506,20 @@ def test_stats_prints_basic_tables_and_writes_basic_info_csv(tmp_path, capsys):
     assert "Box counts" in output
     assert "Attribute counts" in output
     assert '"image_count"' not in output
+    assert "Stats JSON:" not in output
+    assert "Basic info CSV:" not in output
     assert (root / "ydm_stats" / "basic_info.csv").exists()
+
+
+def test_stats_print_details_is_opt_in(tmp_path, capsys):
+    root = make_dataset(tmp_path / "stats_details")
+
+    assert cli_main(["stats", "--root", str(root), "--no-progress", "--print-details"]) == 0
+
+    output = capsys.readouterr().out
+    assert '"image_count"' in output
+    assert "Stats JSON:" in output
+    assert "Basic info CSV:" in output
 
 
 def test_annotation_csv_includes_split_from_split_lists(tmp_path):

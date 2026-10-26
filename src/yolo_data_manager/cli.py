@@ -266,6 +266,11 @@ def build_parser() -> argparse.ArgumentParser:
     stats.add_argument("--basic-info-csv", default=None, help="compact image/box/attribute CSV; defaults to <root>/ydm_stats/basic_info.csv")
     stats.add_argument("--plots-dir", default=None, help="PNG plot directory; defaults to <root>/ydm_stats/plots")
     stats.add_argument("--stats-list", default=None, help="comma-separated stats to plot/export; use all for every stats output")
+    stats.add_argument(
+        "--print-details",
+        action="store_true",
+        help="also print the detailed JSON summary and output paths",
+    )
     stats.set_defaults(handler=handle_stats)
 
     layout_cmd = subparsers.add_parser("layout", help="detect or inspect YOLO dataset layouts")
@@ -1509,8 +1514,13 @@ def handle_stats(args: argparse.Namespace) -> int:
     )
     write_json_report(payload, out)
     print(format_basic_info_tables(basic_info_rows))
-    print(f"\nStats JSON: {out}")
-    print(f"Basic info CSV: {basic_info_csv}")
+    if args.print_details:
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        print(f"\nStats JSON: {out}")
+        print(f"Class CSV: {class_csv}")
+        print(f"Annotations CSV: {ann_csv}")
+        print(f"Basic info CSV: {basic_info_csv}")
+        print(f"Plots directory: {plots_dir}")
     return 0
 
 

@@ -1,6 +1,6 @@
 """YOLO Data Manager public API."""
 
-__version__ = "2.2.1"
+__version__ = "2.3.0"
 
 from yolo_data_manager.core.models import (
     AttributeSchema,

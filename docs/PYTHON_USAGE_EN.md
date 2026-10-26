@@ -175,6 +175,7 @@ manager operation creates outputs as needed.
 mgr.stats()
 mgr.stats(out="stats.json", class_csv="class_counts.csv", basic_info_csv="basic_info.csv")
 mgr.stats(plots_dir="labels_sta", stats_list=["all"])
+mgr.stats(print_details=True)  # also print detailed JSON and output paths
 mgr.stats(plots_dir="labels_sta", stats_list=["image_shape", "box_shape_pix", "box_pos_center"])
 ```
 
@@ -206,7 +207,7 @@ directory layout (such as `images/train`, `images/val`, and `images/test`) is
 used only when none of the three files exists. The value is left empty when the
 split cannot be determined uniquely.
 
-The `stats` console output contains compact image total/train/val/test counts, box counts by class/split, and standalone attribute/value counts by split. The same rows are written by default to `ydm_stats/basic_info.csv`; use `basic_info_csv` to override the path. The full class-attribute cross counts remain in the statistics JSON.
+The `stats` console output contains only compact image total/train/val/test counts, box counts by class/split, and standalone attribute/value counts by split by default. The same rows are written to `ydm_stats/basic_info.csv`; use `basic_info_csv` to override the path. The full class-attribute cross counts remain in the statistics JSON; pass `print_details=True` to also print the detailed JSON and output paths.
 
 Selecting `attribute` now writes only `attribute_num.png` for the attribute chart and the corresponding `attribute_num.csv`; per-attribute image files are no longer generated.
 

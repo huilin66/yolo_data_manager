@@ -131,9 +131,10 @@ def test_multimodal_manager_caches_one_load_for_stats_check_and_visualization(tm
     assert check["ok"] is True
     assert rendered == {"rgb": 1, "infrared": 1}
     assert (tmp_path / "manager_vis" / "rgb" / "a_V.jpg").exists()
+    assert (root / "ydm_stats" / "basic_info.csv").exists()
     captured = capsys.readouterr()
-    assert '"report_type": "multimodal_stats"' in captured.out
-    assert '"out":' in captured.out
+    assert "Image counts" in captured.out
+    assert '"report_type": "multimodal_stats"' not in captured.out
     assert "[MULTIMODAL CHECK WARNING]" in captured.err
 
 
