@@ -6,7 +6,7 @@ This document summarizes the project design, current scope, module boundaries, a
 
 After every code update, the project version must be updated before handoff. The single source of truth is `[project].version` in the root `pyproject.toml`: increment the patch version for backward-compatible fixes or features, and use a minor/major increment when a new public API or behavior change is incompatible. Before delivering code, tests, or documentation changes, verify that the version matches the change.
 
-The current version is `2.4.1`. `YoloManager` exposes lazy `dataset`, `classes`,
+The current version is `2.5.0`. `YoloManager` exposes lazy `dataset`, `classes`,
 
 Package-level `merge_modalities` (no manager required; logs in out_data/ydm_log, including dry runs; the old manager method delegates for compatibility) for aligned single-modality sources: named image folders, shared labels, keep/drop/zero_fill policies, optional annotation deduplication, opt-in split inheritance (inherit_splits=False by default) and source/schema validation. See [MERGE_MODALITIES_EN.md](MERGE_MODALITIES_EN.md).
 and `attributes` properties; the first access loads and caches the dataset,
@@ -17,6 +17,11 @@ groups. `dataset_split` supports `val_source` for reusing a fixed validation set
 and `out_data` for materializing a standalone dataset copy. Size filtering
 supports multiple per-class pixel width/height rules shared by
 `anno_update_by_size`, `eval_metrics`, and `eval_error_analysis`.
+
+Single-modality and multimodal `eval_metrics` calls print aligned overall,
+per-class, and small/medium/large target-size tables by default. Pass
+`print_table=False` in Python or use CLI `--no-print-table` to print detailed
+JSON instead.
 
 ## Goals and Principles
 

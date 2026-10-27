@@ -1190,7 +1190,19 @@ def build_parser() -> argparse.ArgumentParser:
     metrics.add_argument("--pred-root", required=True)
     metrics.add_argument("--out", default=None, help="JSON output path; defaults to <gt-root>/ydm_evaluation/metrics.json")
     metrics.add_argument("--csv", default=None, help="per-class CSV; defaults to <gt-root>/ydm_evaluation/metrics.csv")
-    metrics.add_argument("--print-table", action="store_true", help="print an Ultralytics-style metrics table instead of JSON")
+    metrics.add_argument(
+        "--print-table",
+        dest="print_table",
+        action="store_true",
+        default=True,
+        help="print an Ultralytics-style metrics table (default)",
+    )
+    metrics.add_argument(
+        "--no-print-table",
+        dest="print_table",
+        action="store_false",
+        help="print the detailed metrics JSON instead of the table",
+    )
     metrics.add_argument(
         "--show-original",
         action="store_true",

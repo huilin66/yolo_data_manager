@@ -2428,6 +2428,7 @@ def test_cli_eval_metrics_supports_merge_class_map(tmp_path, capsys):
             "--exclude-class",
             "vehicle",
             "--no-progress",
+            "--no-print-table",
         ]
     )
     payload = json.loads(capsys.readouterr().out)
@@ -2511,6 +2512,7 @@ def test_cli_eval_metrics_writes_json_and_csv(tmp_path, capsys):
             "--csv",
             str(csv_path),
             "--no-progress",
+            "--no-print-table",
         ]
     )
     payload = json.loads(out.read_text(encoding="utf-8"))
@@ -2527,6 +2529,30 @@ def test_cli_eval_metrics_writes_json_and_csv(tmp_path, capsys):
     assert size_csv_path.exists()
     assert "small" in size_csv_path.read_text(encoding="utf-8")
     assert "detection_metrics" in captured.out
+
+
+def test_cli_eval_metrics_prints_table_by_default(tmp_path, capsys):
+    root = make_dataset(tmp_path / "default_metrics_table")
+
+    code = cli_main(
+        [
+            "eval",
+            "metrics",
+            "--gt-root",
+            str(root),
+            "--pred-root",
+            str(root),
+            "--names",
+            str(root / "class.txt"),
+            "--no-progress",
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert code == 0
+    assert "Class" in captured.out
+    assert "Target size metrics" in captured.out
+    assert "detection_metrics" not in captured.out
 
 
 def test_cli_eval_metrics_can_show_original_before_filtered_result(tmp_path, capsys):
@@ -2549,6 +2575,7 @@ def test_cli_eval_metrics_can_show_original_before_filtered_result(tmp_path, cap
             "15",
             "--show-original",
             "--no-progress",
+            "--no-print-table",
         ]
     )
     payload = json.loads(capsys.readouterr().out)

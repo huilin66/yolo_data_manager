@@ -192,6 +192,38 @@ def test_multimodal_check_reports_image_types_and_uint8_conversion(tmp_path, cap
     assert "depth: 1 source image(s), 1 type(s)" in capsys.readouterr().err
 
 
+def test_multimodal_manager_eval_metrics_prints_table_by_default(tmp_path, capsys):
+    root = tmp_path / "multimodal_metrics"
+    for name in ("rgb", "thermal", "labels"):
+        (root / name).mkdir(parents=True)
+    Image.new("RGB", (80, 60), color="white").save(root / "rgb" / "scene.jpg")
+    Image.new("L", (80, 60), color=120).save(root / "thermal" / "scene.png")
+    (root / "labels" / "scene.txt").write_text(
+        "0 0.5 0.5 0.4 0.4\n", encoding="utf-8"
+    )
+    (root / "class.txt").write_text("object\n", encoding="utf-8")
+
+    manager = MultiModalYoloManager(
+        root,
+        image_dirs=["rgb", "thermal"],
+        class_file=root / "class.txt",
+        progress=False,
+    )
+    metrics_out = tmp_path / "multimodal_metrics.json"
+    code = manager.eval_metrics(
+        pred_root=root / "labels",
+        out=str(metrics_out),
+        progress=False,
+    )
+    captured = capsys.readouterr()
+
+    assert code == 0
+    assert metrics_out.exists()
+    assert "Class" in captured.out
+    assert "Target size metrics" in captured.out
+    assert "detection_metrics" not in captured.out
+
+
 def _make_multimodal_dataset(root: Path) -> Path:
     for name in ("rgb", "infrared", "labels"):
         (root / name).mkdir(parents=True)

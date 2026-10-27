@@ -89,6 +89,7 @@ _FALSE_FLAGS = {
     "keep_ratio": "--no-keep-ratio",
     "skip_difficult": "--keep-difficult",
     "ignore_empty_classes": "--include-empty-classes",
+    "print_table": "--no-print-table",
     "copy_crops": "--no-copy-crops",
     "backup_current": "--no-backup-current",
 }
@@ -2914,7 +2915,7 @@ class YoloManager:
         gt_root: str | None = None,
         out: str | None = None,
         csv: str | None = None,
-        print_table: bool = False,
+        print_table: bool = True,
         show_original: bool = False,
         class_: str | list[str] | None = None,
         exclude_class_: str | list[str] | None = None,

@@ -363,6 +363,8 @@ mgr.eval_metrics(
     show_original=True,
     out="metrics.json",
 )
+# 默认在控制台输出按类别和目标尺寸整理的表格；需要 JSON 明细时：
+mgr.eval_metrics(pred_root=r"E:\datasets\pred_labels", print_table=False)
 
 # 细粒度错误分析 —— 7 种错误子类型、属性错误 + 重复 GT 检测
 mgr.eval_error_analysis(gt_root=r"E:\datasets\gt", pred_root=r"E:\datasets\pred",
@@ -576,6 +578,7 @@ ydm.anno_update_by_size(
 `eval_error_analysis(conf_curve=True)` 会使用 `0.1、0.2、0.3、0.4、0.5` 五个置信度阈值重新分析，并按 review 输出分组统计文件数量。结果为 `conf_curve.csv`（各分组明细）、`conf_curve_summary.csv`（FP/FN/error 和属性错误汇总）以及 `conf_curve.png`；每条曲线对应一个 review 分组。
 
 `eval_metrics` 使用 `class_` 指定只评估的类别，使用独立的 `exclude_class_` 排除类别；两者可以同时传入。`merge_class_map` 接受“目标类别: 原始类别列表”的字典，例如 `{"vehicle": ["car", "truck"]}`，并在 GT 和预测的类别选择、匹配、统计前同时应用。类别选择和排除使用合并后的目标类别名。设置 `show_original=True` 后，如果使用了类别、合并、`class_rules` 或 `min_pixels` 参数，会在最终结果前输出原始结果；JSON 输出包含 `original` 和 `final`，而 `out` 文件仍保存最终结果。
+`eval_metrics` 默认在控制台输出对齐表格，包含总体/各类别指标以及 small、medium、large 目标尺寸指标；`print_table=False`（CLI 使用 `--no-print-table`）时恢复输出详细 JSON。单模态和 `MultiModalYoloManager` 使用相同的表格格式。
 `eval_metrics` 的 `class_rules` 可以按类别覆盖全局尺寸过滤规则；支持类别名或类别 id，字段为 `width`/`min_width`、`height`/`min_height`、`min_area`、`min_pixels` 和 `logic`/`min_size_logic`。配置了规则的类别使用自己的完整规则，未配置的类别继续使用全局参数；如果使用 `merge_class_map`，规则按合并后的目标类别名匹配。
 `eval_metrics` 的类别规则还支持 `min_pixel_rules`（每项包含像素 `width`/`height`）、`pixel_logic` 和 `pixel_comparison`，可表达多组像素宽高条件的 `or`/`and` 组合。
 `eval_metrics` 还会按 COCO 风格的像素面积输出 `small`、`medium`、`large` 目标指标：面积 `< 32²` 为 small、`32² <= 面积 < 96²` 为 medium、面积 `>= 96²` 为 large。JSON 中位于 `size_metrics`，并额外写出 `metrics_size.csv`；图片需要有有效宽高才能进行尺寸分类。
