@@ -32,11 +32,12 @@ PRED_NAMES = [
 METRIC_SUMMARY = {
     "metric": "map50",
     "csv": None,  # defaults to <dataset>/ydm_evaluation/metric_summary.csv
-    "data": None,  # defaults to DATA_DIR.stem
-    "model": "yolo8",
-    "weight": "",
-    "method": "ydm",
-    "conf": 0.0,
+    # Optional CSV columns. Use None or "" to omit a column entirely.
+    "data": None,
+    "model": None,
+    "weight": None,
+    "method": None,
+    "conf": None,
 }
 LEAKAGE_ONLY_LIST = (
     # "/localnvme/data/bdd_hmt/hmt_t_update_v3/train_leakage_loss_mask.txt"
@@ -160,10 +161,10 @@ def _write_metric_summary_csv(
     metric_outputs: list[Path],
     *,
     output: str | Path,
-    data: str,
-    model: str,
-    weight: str,
-    method: str,
+    data: str | None,
+    model: str | None,
+    weight: str | None,
+    method: str | None,
     conf: object,
     metric: str,
 ) -> None:
@@ -198,15 +199,20 @@ def _write_metric_summary_csv(
                 class_names.append(name)
         class_values.append(values)
 
-    headers = [
-        "data",
-        "model",
-        "weight",
-        "method",
-        "conf",
-        aggregate_key,
-        *class_names,
+    optional_fields = [
+        ("data", data),
+        ("model", model),
+        ("weight", weight),
+        ("method", method),
+        ("conf", conf),
     ]
+    optional_fields = [
+        (name, value)
+        for name, value in optional_fields
+        if value is not None and str(value).strip()
+    ]
+    headers = [name for name, _value in optional_fields]
+    headers.extend([aggregate_key, *class_names])
     output_path = Path(output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", newline="", encoding="utf-8-sig") as handle:
@@ -215,11 +221,7 @@ def _write_metric_summary_csv(
         for payload, values in zip(payloads, class_values):
             writer.writerow(
                 [
-                    data,
-                    model,
-                    weight,
-                    method,
-                    "" if conf is None else conf,
+                    *[value for _name, value in optional_fields],
                     _format_metric_value(payload[aggregate_key]),
                     *[_format_metric_value(values.get(name)) for name in class_names],
                 ]
@@ -315,10 +317,10 @@ def main() -> None:
                 METRIC_SUMMARY["csv"]
                 or ydm.output_evaluation / "metric_summary.csv"
             ),
-            data=str(METRIC_SUMMARY["data"] or DATA_DIR.stem),
-            model=str(METRIC_SUMMARY["model"]),
-            weight=str(METRIC_SUMMARY["weight"]),
-            method=str(METRIC_SUMMARY["method"]),
+            data=METRIC_SUMMARY["data"],
+            model=METRIC_SUMMARY["model"],
+            weight=METRIC_SUMMARY["weight"],
+            method=METRIC_SUMMARY["method"],
             conf=METRIC_SUMMARY["conf"],
             metric=str(METRIC_SUMMARY["metric"]),
         )
