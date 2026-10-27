@@ -213,7 +213,7 @@ def test_merge_summary_counts_and_console_report(tmp_path, capsys, policy, image
     assert "Merge modalities summary" in next((output / "ydm_log").glob("*.log")).read_text(encoding="utf-8")
 
 
-def test_multimodal_manager_splits_scenes_and_preserves_all_modalities(tmp_path):
+def test_multimodal_manager_splits_scenes_and_preserves_all_modalities(tmp_path, capsys):
     sources = make_sources(tmp_path)
     sources[0]["name"] = "rgb"
     sources[1]["name"] = "thermal"
@@ -236,6 +236,9 @@ def test_multimodal_manager_splits_scenes_and_preserves_all_modalities(tmp_path)
     )
     assert report["splits"]["train"] + report["splits"]["val"] == 3
     assert report["splits"]["test"] == 0
+    assert sum(
+        item["images"] for item in report["split_distribution"].values()
+    ) == 3
     train_names = (output / "train.txt").read_text(encoding="utf-8").splitlines()
     val_names = (output / "val.txt").read_text(encoding="utf-8").splitlines()
     assert len(train_names) == 1
@@ -278,6 +281,9 @@ def test_multimodal_manager_splits_scenes_and_preserves_all_modalities(tmp_path)
     assert (out_data / "thermal").is_dir()
     assert (out_data / "labels").is_dir()
     assert (out_data / "multimodal.yaml").is_file()
+    captured = capsys.readouterr()
+    assert captured.err.count("Split distribution") >= 3
+    assert "annotations" in captured.err
 
     selection = tmp_path / "selection.txt"
     selection.write_text("rgb/a.png\n", encoding="utf-8")

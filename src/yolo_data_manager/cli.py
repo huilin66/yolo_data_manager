@@ -37,7 +37,12 @@ from yolo_data_manager.dataset.filter import filter_by_geometry
 from yolo_data_manager.dataset.merge import merge_datasets
 from yolo_data_manager.dataset.quality import find_bad_images, write_image_quality_csv
 from yolo_data_manager.dataset.select import select_from_file
-from yolo_data_manager.dataset.split import class_counts_for_images, extract_splits, split_dataset
+from yolo_data_manager.dataset.split import (
+    class_counts_for_images,
+    extract_splits,
+    split_dataset,
+    split_distribution_for_images,
+)
 from yolo_data_manager.core.schema import find_attribute_file, write_dataset_yaml
 from yolo_data_manager.io.layout import detect_layout
 from yolo_data_manager.io.backup import (
@@ -65,6 +70,7 @@ from yolo_data_manager.stats.export import write_annotation_csv, write_stats_plo
 from yolo_data_manager.stats.report import (
     build_basic_info_rows,
     format_basic_info_tables,
+    format_split_distribution_table,
     write_basic_info_csv,
     write_class_counts_csv,
     write_json_report,
@@ -1761,6 +1767,7 @@ def handle_dataset_split(args: argparse.Namespace) -> int:
         else _resolved_output_root(args.root) / "labels_backup"
     )
     split_counts = {name: len(values) for name, values in splits.items()}
+    split_distribution = split_distribution_for_images(dataset, splits)
     if out_data is None and any(
         (out_dir / f"{name}.txt").is_file() for name in ("train", "val", "test")
     ):
@@ -1780,6 +1787,7 @@ def handle_dataset_split(args: argparse.Namespace) -> int:
             result={
                 "action": "regenerate_split_files",
                 "splits": split_counts,
+                "split_distribution": split_distribution,
             },
         )
     else:
@@ -1792,6 +1800,7 @@ def handle_dataset_split(args: argparse.Namespace) -> int:
                 "out": str(out_dir),
                 "out_data": str(out_dir) if out_data is not None else None,
                 "splits": split_counts,
+                "split_distribution": split_distribution,
                 "backup_dir": str(backup_snapshot) if backup_snapshot is not None else None,
                 "backup_metadata": (
                     str(backup_snapshot / "backup_metadata.json")
@@ -1805,6 +1814,7 @@ def handle_dataset_split(args: argparse.Namespace) -> int:
             ensure_ascii=False,
         )
     )
+    print(format_split_distribution_table(split_distribution), file=sys.stderr)
     return 0
 
 

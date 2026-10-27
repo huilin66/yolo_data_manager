@@ -786,6 +786,34 @@ def test_split_dataset_can_write_absolute_paths(tmp_path):
     )
 
 
+def test_cli_dataset_split_prints_image_and_annotation_distribution(tmp_path, capsys):
+    root = make_dataset(tmp_path / "split_distribution")
+
+    code = cli_main(
+        [
+            "dataset",
+            "split",
+            "--root",
+            str(root),
+            "--train",
+            "0.5",
+            "--val",
+            "0.5",
+            "--test",
+            "0",
+            "--no-progress",
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert code == 0
+    assert "Split distribution" in captured.err
+    assert "images" in captured.err
+    assert "label_files" in captured.err
+    assert "annotations" in captured.err
+    assert "total" in captured.err
+
+
 def test_split_dataset_can_exclude_images_without_label_files(tmp_path):
     root = make_dataset(tmp_path / "require_labels")
     Image.new("RGB", (100, 80), color="white").save(root / "images" / "missing.jpg")

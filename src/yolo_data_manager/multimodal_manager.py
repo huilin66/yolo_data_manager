@@ -22,6 +22,7 @@ from yolo_data_manager.dataset.split import (
     SplitIncludeList,
     class_counts_for_images,
     split_dataset,
+    split_distribution_for_images,
 )
 from yolo_data_manager.io.backup import ensure_source_labels_backup
 from yolo_data_manager.io.image_conversion import convert_multimodal_images_to_uint8
@@ -39,6 +40,7 @@ from yolo_data_manager.stats.multimodal import (
 from yolo_data_manager.stats.report import (
     build_basic_info_rows,
     format_basic_info_tables,
+    format_split_distribution_table,
     write_basic_info_csv,
     write_json_report,
 )
@@ -463,11 +465,13 @@ class MultiModalYoloManager(YoloManager):
 
         if output_root.resolve() == source_root:
             self._invalidate_dataset()
+        split_distribution = split_distribution_for_images(split_view, splits)
         payload: dict[str, object] = {
             "report_type": "multimodal_split",
             "out": str(output_root),
             "out_data": str(output_root) if out_data is not None else None,
             "splits": {name: len(values) for name, values in output_splits.items()},
+            "split_distribution": split_distribution,
             "backup_dir": str(backup_snapshot) if backup_snapshot is not None else None,
             "backup_metadata": (
                 str(backup_snapshot / "backup_metadata.json")
@@ -486,6 +490,7 @@ class MultiModalYoloManager(YoloManager):
             ),
             "scene_count": len(split_view.images),
         }
+        print(format_split_distribution_table(split_distribution), file=sys.stderr)
         print(json.dumps(payload, indent=2, ensure_ascii=False))
         return payload
 

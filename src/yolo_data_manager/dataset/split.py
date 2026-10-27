@@ -5,7 +5,7 @@ import math
 import os
 import random
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 
 from yolo_data_manager.core.models import YoloDataset, is_image_file
@@ -501,6 +501,37 @@ def class_counts_for_images(
             class_name = dataset.class_name(annotation.class_id)
             counts[class_name] = counts.get(class_name, 0) + 1
     return counts
+
+
+def split_distribution_for_images(
+    dataset: YoloDataset,
+    splits: Mapping[str, Iterable[str]],
+) -> dict[str, dict[str, int]]:
+    """Count images, label files, and boxes assigned to each split.
+
+    The split values may contain either dataset-relative names or absolute
+    paths. Counts are resolved against the source dataset, so they also work
+    before a split is materialized with ``out_data``.
+    """
+
+    distribution: dict[str, dict[str, int]] = {}
+    for split_name in ("train", "val", "test"):
+        selected = _image_key_set(splits.get(split_name, ()))
+        selected_images = [
+            image
+            for image in dataset.images
+            if selected and (_image_keys(image) & selected)
+        ]
+        distribution[split_name] = {
+            "images": len(selected_images),
+            "label_files": sum(
+                1
+                for image in selected_images
+                if image.label_path is not None and Path(image.label_path).is_file()
+            ),
+            "annotations": sum(len(image.annotations) for image in selected_images),
+        }
+    return distribution
 
 
 def _image_key_set(values: Iterable[str]) -> set[str]:

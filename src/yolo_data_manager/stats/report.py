@@ -177,6 +177,35 @@ def format_basic_info_tables(rows: Iterable[dict[str, object]]) -> str:
     return "\n".join(sections)
 
 
+def format_split_distribution_table(
+    distribution: dict[str, dict[str, int]],
+) -> str:
+    """Format train/val/test image and annotation counts for the terminal."""
+
+    split_names = ("train", "val", "test")
+    rows = [
+        [
+            split_name,
+            distribution.get(split_name, {}).get("images", 0),
+            distribution.get(split_name, {}).get("label_files", 0),
+            distribution.get(split_name, {}).get("annotations", 0),
+        ]
+        for split_name in split_names
+    ]
+    rows.append(
+        [
+            "total",
+            sum(row[1] for row in rows),
+            sum(row[2] for row in rows),
+            sum(row[3] for row in rows),
+        ]
+    )
+    return "Split distribution\n" + _format_table(
+        ["split", "images", "label_files", "annotations"],
+        rows,
+    )
+
+
 def infer_image_splits(dataset: YoloDataset) -> dict[int, str]:
     """Infer train/val/test membership for the images in *dataset*.
 
