@@ -79,6 +79,7 @@ class DetectionMetrics:
     excluded_class_ids: list[int] | None
     merge_class_map: dict[str, list[str]] | None
     class_map: dict[str, Any] | None
+    class_map_keep_id: bool
     iou_thresholds: list[float]
     nms_iou: float | None
     overlap_metric: str
@@ -114,6 +115,7 @@ def compute_detection_metrics(
     exclude_class_ids: Iterable[int | str] | int | str | None = None,
     merge_class_map: Mapping[int | str, int | str | Iterable[int | str]] | None = None,
     class_map: Mapping[str, Any] | None = None,
+    keep_id: bool = False,
     conf_thres: float = 0.0,
     nms_iou: float | None = 0.5,
     min_width: float | None = None,
@@ -136,7 +138,8 @@ def compute_detection_metrics(
     IoU so prediction deduplication remains unchanged.
     ``class_map`` is an evaluation-only operation map supporting ``rename``,
     ``merge``, and ``drop``; it is applied to in-memory copies of both GT and
-    predictions before matching and never writes back to either dataset.
+    predictions before matching and never writes back to either dataset. Set
+    ``keep_id=True`` to preserve class IDs/schema while applying that map.
     In addition to the aggregate metrics, ``size_metrics`` reports metrics for
     COCO-style target areas: small < 32² pixels, medium 32²–96² pixels, and
     large >= 96² pixels.  Images must have known dimensions for this breakdown.
@@ -159,7 +162,12 @@ def compute_detection_metrics(
         raise ValueError("min_size_logic must be 'or' or 'and'")
     validate_nms_iou(nms_iou)
     overlap_metric = normalize_overlap_metric(overlap_metric)
-    gt, pred, normalized_class_map = _prepare_eval_class_map(gt, pred, class_map)
+    gt, pred, normalized_class_map = _prepare_eval_class_map(
+        gt,
+        pred,
+        class_map,
+        keep_id=keep_id,
+    )
     gt, pred, normalized_merge_map = _prepare_eval_datasets(gt, pred, merge_class_map)
     resolved_class_rules, normalized_class_rules = _resolve_eval_class_rules(
         gt, pred, class_rules
@@ -349,6 +357,7 @@ def compute_detection_metrics(
         excluded_class_ids=sorted(excluded) if excluded is not None else None,
         merge_class_map=normalized_merge_map,
         class_map=normalized_class_map,
+        class_map_keep_id=bool(keep_id and class_map),
         iou_thresholds=[float(v) for v in iouv],
         nms_iou=None if nms_iou is None else float(nms_iou),
         overlap_metric=overlap_metric,
@@ -437,6 +446,8 @@ def _prepare_eval_class_map(
     gt: YoloDataset,
     pred: YoloDataset,
     class_map: Mapping[str, Any] | None,
+    *,
+    keep_id: bool = False,
 ) -> tuple[YoloDataset, YoloDataset, dict[str, Any] | None]:
     """Apply an annotation-style class map only to evaluation copies."""
 
@@ -455,8 +466,18 @@ def _prepare_eval_class_map(
     elif not pred_result.classes.names and gt_result.classes.names:
         pred_result.classes = deepcopy(gt_result.classes)
 
-    gt_result, _ = apply_class_map_data(gt_result, normalized, compact=True)
-    pred_result, _ = apply_class_map_data(pred_result, normalized, compact=True)
+    gt_result, _ = apply_class_map_data(
+        gt_result,
+        normalized,
+        compact=True,
+        keep_id=keep_id,
+    )
+    pred_result, _ = apply_class_map_data(
+        pred_result,
+        normalized,
+        compact=True,
+        keep_id=keep_id,
+    )
     return gt_result, pred_result, normalized
 
 

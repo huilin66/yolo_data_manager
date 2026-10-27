@@ -207,6 +207,20 @@ def test_metrics_class_map_only_changes_evaluation_copies():
     assert gt.images[0].annotations[0].class_id == 1
     assert pred.images[0].annotations[0].class_id == 2
 
+    keep_id_metrics = compute_detection_metrics(
+        gt,
+        pred,
+        class_map={
+            "merge": {"vehicle": ["car", "truck"]},
+            "drop": ["background"],
+        },
+        keep_id=True,
+        iou_thresholds=(0.5,),
+    )
+    assert keep_id_metrics.class_map_keep_id is True
+    assert keep_id_metrics.classes[0].class_id == 3
+    assert keep_id_metrics.classes[0].class_name == "vehicle"
+
 
 def test_attribute_error_analysis_compares_only_matched_pairs(tmp_path):
     gt_root = tmp_path / "gt"

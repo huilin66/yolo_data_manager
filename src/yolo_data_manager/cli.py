@@ -1231,6 +1231,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="evaluation-only rename/merge/drop class map as inline JSON/YAML or a JSON/YAML file",
     )
+    metrics.add_argument(
+        "--keep-id",
+        action="store_true",
+        help="preserve class IDs/schema while applying the evaluation-only --class-map",
+    )
     metrics.add_argument("--conf-thres", type=float, default=0.0, help="confidence threshold for predictions")
     metrics.add_argument("--nms-iou", type=float, default=0.5, help="same-class NMS IoU threshold; default 0.5")
     metrics.add_argument("--no-nms", dest="nms_iou", action="store_const", const=None, help="disable prediction NMS")
@@ -3117,6 +3122,7 @@ def handle_eval_metrics(args: argparse.Namespace) -> int:
         exclude_class_ids=exclude_class_values,
         merge_class_map=merge_class_map,
         class_map=class_map,
+        keep_id=args.keep_id,
         conf_thres=args.conf_thres,
         nms_iou=args.nms_iou,
         overlap_metric=args.overlap_metric,
