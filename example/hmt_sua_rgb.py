@@ -13,7 +13,7 @@ from yolo_data_manager import YoloManager
 
 # DATA_DIR = Path(r"/data/huilin/data/bdd_hmt/sua_rgb_update_v1")
 # DATA_DIR = Path(r"/data/huilin/data/bdd_hmt/hmt_rgb_update_v2")
-DATA_DIR = Path(r"/data/huilin/data/bdd_hmt/hmt_rgb_update_v7")
+DATA_DIR = Path(r"/srv/nas/home/dataset/hmt_rgb_update_v6")
 
 UPDATE_CLASS_MAP = {
     # "drop": [
@@ -32,15 +32,24 @@ UPDATE_CLASS_MAP = {
         "Broken": ["Delaminate", "Broken"],
     },
 }
-
-PRED_RUNS_DIR = Path(r"/data/huilin/projects/ultralytics/runs/detect")
+METRIC_CLASS_MAP = {
+    # "drop": [
+    #     "Broken",
+    # ],
+    "merge": {
+        "Delaminate": ["Delaminate", "Broken"],
+    },
+}
+PRED_RUNS_DIR = Path(r"/root/huilin/projects/ultralytics/runs/detect")
 
 
 PRED_NAMES = [
-    # "predict",
-    # "predict-3",
-    "predict-4",
-    # "predict-5",
+    "predict-7",
+    "predict-8",
+    "predict-9",
+    "predict-10",
+    "predict-11",
+    "predict-12",
 ]
 CROP_MAP_LABEL = {
     # os.path.join(CROP_ROOT_LABEL, "2_l"): "Leakage",
@@ -63,12 +72,12 @@ RUN_LIST = [
     # "rename",
     # "split",
     # "resize",
-    "sta",
+    # "sta",
     # "vis_draw",
-    "vis_crop",
+    # "vis_crop",
     # "query",
     # "copy_select",
-    # "metric",
+    "metric",
     # "error_ana",
     # "error_ana_common",
     # "update_class",
@@ -148,9 +157,12 @@ def main() -> None:
                 pred_root=pred_dir,
                 out=output_dir,
                 # class_rules=METRIC_CLASS_RULES,
-                # class_map={"merge": MERGE_CLASS_MAP},
+                # merge_class_map=MERGE_CLASS_MAP,
                 # min_pixels=50,
-                # only_val=True,
+                only_val=True,
+                class_map=METRIC_CLASS_MAP,
+                overlap_metric="ios",
+                conf=0.1,
             )
             metric_outputs.append(output_dir)
 
@@ -158,7 +170,6 @@ def main() -> None:
 
         _write_metric_summary_csv(
             metric_outputs,
-            output="ydm_results",
             metric=str(METRIC_SUMMARY["metric"]),
         )
     if "error_ana" in RUN_LIST:

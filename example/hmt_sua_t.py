@@ -11,19 +11,29 @@ from pathlib import Path
 
 from yolo_data_manager import YoloManager
 
-DATA_DIR = Path(r"/data/huilin/data/bdd_hmt/hmt_t_update_v6")
-LEAKAGE_ONLY_LIST=os.path.join(DATA_DIR, 'train_leakage_loss_mask.txt')
+DATA_DIR = Path(r"/srv/nas/home/dataset/hmt_t_update_v6")
+LEAKAGE_ONLY_LIST = os.path.join(DATA_DIR, "train_leakage_loss_mask.txt")
 
 UPDATE_CLASS_MAP = {
     "drop": [
         "Temperature",
     ],
 }
-
-PRED_RUNS_DIR = Path(r"D:\zhl\project\ultralytics\runs\detect")
+METRIC_CLASS_RULES = {
+    "fence": {
+        "min_pixel_rules": [
+            {"width": 32, "height": 64},
+            {"width": 64, "height": 32},
+        ],
+        "pixel_logic": "or",
+    }
+}
+PRED_RUNS_DIR = Path(r"/root/huilin/projects/ultralytics/runs/detect")
 
 
 PRED_NAMES = [
+    "predict",
+    "predict-2",
     "predict-3",
     "predict-4",
     "predict-5",
@@ -41,14 +51,14 @@ CROP_MAP_PRED = {
 # Select operations by uncommenting names in RUN_LIST.
 RUN_LIST = [
     # "rename",
-    "split",
+    # "split",
     # "resize",
     # "sta",
     # "vis_draw",
     # "vis_crop",
     # "query",
     # "copy_select",
-    # "metric",
+    "metric",
     # "error_ana",
     # "error_ana_common",
     # "update_class",
@@ -60,6 +70,10 @@ RUN_LIST = [
     # "update_att_from_anno",
     # "update_att_from_pred",
 ]
+METRIC_SUMMARY = {
+    "metric": "map50",
+    "csv": None,  # defaults to <dataset>/ydm_evaluation/metric_summary.csv
+}
 
 
 def main() -> None:
@@ -120,6 +134,7 @@ def main() -> None:
 
     # post-analysis
     if "metric" in RUN_LIST:
+        metric_outputs = []
         for pred_name in PRED_NAMES:
             pred_dir = PRED_RUNS_DIR / pred_name / "labels"
             output_dir = ydm.output_evaluation / pred_name / "metrics"
@@ -127,10 +142,19 @@ def main() -> None:
                 pred_root=pred_dir,
                 out=output_dir,
                 # class_rules=METRIC_CLASS_RULES,
-                # class_map={"merge": MERGE_CLASS_MAP},
+                # merge_class_map=MERGE_CLASS_MAP,
                 # min_pixels=50,
-                # only_val=True,
+                overlap_metric="ios",
+                only_val=True,
+                conf=0.1,
             )
+            metric_outputs.append(output_dir)
+        from dataset_template import _write_metric_summary_csv
+
+        _write_metric_summary_csv(
+            metric_outputs,
+            metric=str(METRIC_SUMMARY["metric"]),
+        )
     if "error_ana" in RUN_LIST:
         for pred_name in PRED_NAMES:
             pred_dir = PRED_RUNS_DIR / pred_name / "labels"
@@ -158,7 +182,8 @@ def main() -> None:
         ydm.ann_update_from_map(
             UPDATE_CLASS_MAP,
             out_data=r"/data/huilin/data/bdd_hmt/hmt_t_update_v7",
-            keep_id=True)
+            keep_id=True,
+        )
     if "filter_small" in RUN_LIST:
         ydm.anno_update_by_size(
             min_pixels=50,

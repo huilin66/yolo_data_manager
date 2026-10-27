@@ -6,58 +6,230 @@ one dataset here and call the public manager API directly.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
+
 from yolo_data_manager import YoloManager
 
-DATA_DIR = Path(
-    r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_bp_cube.yaml"
-)
+DATA_DIR = Path(r"/srv/nas/home/dataset/hmt_cube_update_v6")
 
-# Select the operations for this dataset by uncommenting the calls in main().
-PRED_RUNS_DIR = Path(r"/localnvme/project/aic_mdet/models/ultralytics/runs/detect")
-# PRED_NAME = "val-161"
+UPDATE_CLASS_MAP = {
+    # "drop": [
+    #     "background",
+    #     "Cracked Tile",
+    #     "Delaminated Tile Low Risk",
+    #     "Efforescene Low Gray",
+    #     "Broken Low Risk",
+    # ],
+    # "merge": {
+    #     "Efflorescene": ["Efflorescene High Risk", "Efflorescene Low Risk"],
+    #     "Corrosion": ["Corrosion", "Spalling"],
+    #     "Broken": ["Delaminate Tile High Risk", "Broken High Risk"],
+    # },
+    "merge": {
+        "Broken": ["Delaminate", "Broken"],
+    },
+}
+METRIC_CLASS_MAP = {
+    # "drop": [
+    #     "Broken",
+    # ],
+    "merge": {
+        "Delaminate": ["Delaminate", "Broken"],
+    },
+}
+PRED_RUNS_DIR = Path(r"/root/huilin/projects/ultralytics/runs/detect")
+
+
 PRED_NAMES = [
-    "val-176",
-    "val-177",
-    "val-172",
-    "val-173",
-    "val-174",
-    "val-175",
+    "predict-13",
+    "predict-14",
+    "predict-15",
+    "predict-16",
+    "predict-17",
+    "predict-18",
 ]
+CROP_MAP_LABEL = {
+    # os.path.join(CROP_ROOT_LABEL, "2_l"): "Leakage",
+    # os.path.join(CROP_ROOT_LABEL, "2_none"): "none",
+}
 
-crops_map = {
-    "/localnvme/data/bdd_hmt/bp_cube/ydm_vis/crop_change/2_b": "broken",
-    "/localnvme/data/bdd_hmt/bp_cube/ydm_vis/crop_change/b_2_none": None,
-    "/localnvme/data/bdd_hmt/bp_cube/ydm_vis/crop_change/e_2_none": None,
-    "/localnvme/data/bdd_hmt/bp_cube/ydm_vis/crop_change/p_2_none": None,
+
+CROP_MAP_PRED_ROOT = os.path.join(DATA_DIR, "ydm_evaluation", "crop_change_common")
+CROP_MAP_PRED = {
+    os.path.join(CROP_MAP_PRED_ROOT, "gt2none"): "none",
+    os.path.join(CROP_MAP_PRED_ROOT, "gt2broken"): ["Broken", False],
+    os.path.join(CROP_MAP_PRED_ROOT, "gt2del"): ["Delaminate", False],
+    # os.path.join(CROP_MAP_PRED_ROOT, "pred2broken"): "Broken",
+    os.path.join(CROP_MAP_PRED_ROOT, "pred2corrosion"): "Corrosion",
+    os.path.join(CROP_MAP_PRED_ROOT, "pred2de"): "Delaminate",
+    os.path.join(CROP_MAP_PRED_ROOT, "pred2eff"): "Efflorescene",
+}
+# Select operations by uncommenting names in RUN_LIST.
+RUN_LIST = [
+    # "rename",
+    # "split",
+    # "resize",
+    # "sta",
+    # "vis_draw",
+    # "vis_crop",
+    # "query",
+    # "copy_select",
+    "metric",
+    # "error_ana",
+    # "error_ana_common",
+    # "update_class",
+    # "update_att",
+    # "filter_small",
+    # "mannual_draw",
+    # "update_class_from_anno",
+    # "update_class_from_pred",
+    # "update_att_from_anno",
+    # "update_att_from_pred",
+]
+METRIC_SUMMARY = {
+    "metric": "map50",
+    "csv": None,  # defaults to <dataset>/ydm_evaluation/metric_summary.csv
 }
 
 
 def main() -> None:
-    ydm = YoloManager(DATA_DIR, layout="auto", init_check=False, init_layout=False)
+    ydm = YoloManager(
+        DATA_DIR,
+        layout="flat",
+        init_check=False,
+        init_layout=False,
+    )
+    # preprocess
+    if "resize" in RUN_LIST:
+        ydm.resize_images(
+            width=640,
+        )
 
-    # ydm.stats(
-    #     stats_list=["all"],
-    #     only_val=False,
-    # )
+    # pre-analysis
+    if "split" in RUN_LIST:
+        ydm.dataset_split(
+            train=0.9,
+            val=0.1,
+            # train_include_list=LEAKAGE_ONLY_LIST,
+        )
+    if "sta" in RUN_LIST:
+        ydm.stats(
+            stats_list=["all"],
+            # only_val=True,
+        )
+    if "vis_draw" in RUN_LIST:
+        ydm.vis_draw(
+            # only_val=True,
+        )
+    if "vis_crop" in RUN_LIST:
+        ydm.vis_crop(
+            # only_val=True,
+        )
+    if "query" in RUN_LIST:
+        ydm.query_class(
+            class_=QUERY_CLASS,
+            source="gt",
+            only_val=True,
+        )
+    if "copy_select" in RUN_LIST:
+        file_path = (
+            Path(SELECTION_FILE)
+            if SELECTION_FILE is not None
+            else Path(ydm.root) / "val.txt"
+        )
+        out_path = Path(ydm.root) / "select"
+        ydm.dataset_select(
+            file=str(file_path),
+            out=out_path,
+            copy_images=True,
+        )
 
-    # ydm.vis_draw(only_val=False)
-    # ydm.vis_crop(only_val=False)
+    # post-analysis
+    if "metric" in RUN_LIST:
+        metric_outputs = []
+        for pred_name in PRED_NAMES:
+            pred_dir = PRED_RUNS_DIR / pred_name / "labels"
+            output_dir = ydm.output_evaluation / pred_name / "metrics"
+            ydm.eval_metrics(
+                pred_root=pred_dir,
+                out=output_dir,
+                # class_rules=METRIC_CLASS_RULES,
+                # merge_class_map=MERGE_CLASS_MAP,
+                # min_pixels=50,
+                only_val=True,
+                # class_map=METRIC_CLASS_MAP,
+                overlap_metric="ios",
+                conf=0.1,
+            )
+            metric_outputs.append(output_dir)
 
-    # ydm.eval_metrics(
-    #     pred_root=PRED_RUNS_DIR / PRED_NAMES[0] / "labels",
-    #     only_val=True,
-    #     show_original=True,
-    # )
-    # for k, v in crops_map.items():
-    #     ydm.ann_correct_from_crops(crops_dir=k, to=v)
-    for pred_name in PRED_NAMES:
-        ydm.eval_metrics(
-            pred_root=PRED_RUNS_DIR / pred_name / "labels",
-            out=ydm.output_evaluation / pred_name / "metrics",
-        # class_map={"merge": merge_class_map},
-        min_pixels=20,
-        # conf_thres=0.20,
+        from dataset_template import _write_metric_summary_csv
+
+        _write_metric_summary_csv(
+            metric_outputs,
+            metric=str(METRIC_SUMMARY["metric"]),
+        )
+    if "error_ana" in RUN_LIST:
+        for pred_name in PRED_NAMES:
+            pred_dir = PRED_RUNS_DIR / pred_name / "labels"
+            output_dir = ydm.output_evaluation / pred_name / "error_analysis"
+            ydm.eval_error_analysis(
+                pred_root=pred_dir,
+                out=output_dir,
+                conf_thres=0.1,
+                class_rules={
+                    "Efflorescene": {"min_area": 0.0025},
+                },
+                # only_val=True,
+            )
+    if "error_ana_common" in RUN_LIST:
+        pred_list = [
+            ydm.output_evaluation / pred_name / "error_analysis"
+            for pred_name in PRED_NAMES
+        ]
+        output_dir = ydm.output_evaluation / "common_error_report" / "error_analysis"
+        ydm.eval_error_analysis_common(
+            pred_list,
+            out=output_dir,
+            iou=0.5,
+        )
+
+    # data update
+    if "update_class" in RUN_LIST:
+        ydm.ann_update_from_map(
+            UPDATE_CLASS_MAP,
+            out_data=r"/data/huilin/data/bdd_hmt/hmt_rgb_update_v7",
+        )
+    if "filter_small" in RUN_LIST:
+        ydm.anno_update_by_size(
+            min_pixels=50,
+            logic="or",
+            # class_rules=None,
+        )
+
+    if "mannual_draw" in RUN_LIST:
+        ydm.vis_manual_box(
+            "DJI_20260211161740_1654.png",
+        )
+
+    if "update_class_from_anno" in RUN_LIST:
+        ydm.ann_correct_from_crops(
+            crops_dir=CROP_MAP_LABEL,
+        )
+
+    if "update_class_from_pred" in RUN_LIST:
+        common_pred_txt = (
+            ydm.output_evaluation
+            / "common_error_report"
+            / "error_analysis"
+            / "common_pred_txt"
+        )
+        pred_txt = PRED_RUNS_DIR / PRED_NAMES[0] / "labels"
+        ydm.ann_correct_from_error_crops(
+            crops_dir=CROP_MAP_PRED,
+            pred_dir=pred_txt,
+            out_data=r"/data/huilin/data/bdd_hmt/hmt_rgb_update_v6",
         )
 
 
