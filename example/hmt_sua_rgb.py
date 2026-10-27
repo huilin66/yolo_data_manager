@@ -48,7 +48,7 @@ CROP_MAP_LABEL = {
 }
 
 
-CROP_MAP_PRED_ROOT = os.path.join(DATA_DIR, 'ydm_evaluation', 'crop_change_common')
+CROP_MAP_PRED_ROOT = os.path.join(DATA_DIR, "ydm_evaluation", "crop_change_common")
 CROP_MAP_PRED = {
     os.path.join(CROP_MAP_PRED_ROOT, "gt2none"): "none",
     os.path.join(CROP_MAP_PRED_ROOT, "gt2broken"): ["Broken", False],
@@ -80,6 +80,10 @@ RUN_LIST = [
     # "update_att_from_anno",
     # "update_att_from_pred",
 ]
+METRIC_SUMMARY = {
+    "metric": "map50",
+    "csv": None,  # defaults to <dataset>/ydm_evaluation/metric_summary.csv
+}
 
 
 def main() -> None:
@@ -136,6 +140,7 @@ def main() -> None:
 
     # post-analysis
     if "metric" in RUN_LIST:
+        metric_outputs = []
         for pred_name in PRED_NAMES:
             pred_dir = PRED_RUNS_DIR / pred_name / "labels"
             output_dir = ydm.output_evaluation / pred_name / "metrics"
@@ -147,6 +152,15 @@ def main() -> None:
                 # min_pixels=50,
                 # only_val=True,
             )
+            metric_outputs.append(output_dir)
+
+        from dataset_template import _write_metric_summary_csv
+
+        _write_metric_summary_csv(
+            metric_outputs,
+            output="ydm_results",
+            metric=str(METRIC_SUMMARY["metric"]),
+        )
     if "error_ana" in RUN_LIST:
         for pred_name in PRED_NAMES:
             pred_dir = PRED_RUNS_DIR / pred_name / "labels"
