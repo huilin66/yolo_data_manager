@@ -160,7 +160,7 @@ def _format_metric_value(value: object) -> str:
 def _write_metric_summary_csv(
     metric_outputs: list[Path],
     *,
-    output: str | Path,
+    output: str | Path = "ydm_results/metric_summary.csv",
     data: str | None = None,
     model: str | None = None,
     weight: str | None = None,
