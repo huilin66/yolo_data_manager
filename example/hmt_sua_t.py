@@ -154,6 +154,7 @@ def main() -> None:
         _write_metric_summary_csv(
             metric_outputs,
             metric=str(METRIC_SUMMARY["metric"]),
+            summary_mode="overall",
         )
     if "error_ana" in RUN_LIST:
         for pred_name in PRED_NAMES:
