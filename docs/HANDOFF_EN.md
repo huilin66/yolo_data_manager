@@ -6,7 +6,7 @@ This document summarizes the project design, current scope, module boundaries, a
 
 After every code update, the project version must be updated before handoff. The single source of truth is `[project].version` in the root `pyproject.toml`: increment the patch version for backward-compatible fixes or features, and use a minor/major increment when a new public API or behavior change is incompatible. Before delivering code, tests, or documentation changes, verify that the version matches the change.
 
-The current version is `2.9.0`. `YoloManager` exposes lazy `dataset`, `classes`,
+The current version is `2.11.0`. `YoloManager` exposes lazy `dataset`, `classes`,
 
 Package-level `merge_modalities` (no manager required; logs in out_data/ydm_log, including dry runs; the old manager method delegates for compatibility) for aligned single-modality sources: named image folders, shared labels, keep/drop/zero_fill policies, optional annotation deduplication, opt-in split inheritance (inherit_splits=False by default) and source/schema validation. See [MERGE_MODALITIES_EN.md](MERGE_MODALITIES_EN.md).
 and `attributes` properties; the first access loads and caches the dataset,
@@ -31,6 +31,11 @@ aggregate F1 is the harmonic mean of aggregate precision and recall.
 Prediction NMS always uses IoU. The CLI equivalent is
 `--overlap-metric iou|ios`; the default is `iou`, and JSON/table output records
 the selected matching metric.
+
+`example/dataset_template.py` exposes `METRIC_SUMMARY` so an aggregate metric
+such as `map50`, `map75`, `map`, `precision`, `recall`, `f1`, or `fitness` can be
+selected and written with per-class values to
+`ydm_evaluation/metric_summary.csv`.
 
 Single-modality and multimodal `dataset_split` calls also print train/val/test
 counts for images, label files, and annotation boxes. The same data is stored

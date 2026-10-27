@@ -7,6 +7,8 @@ details in ``example/functions``.
 
 from __future__ import annotations
 
+import csv
+import json
 from pathlib import Path
 
 from yolo_data_manager import YoloManager, merge_modalities
@@ -24,6 +26,18 @@ PRED_NAMES = [
     # "predict-6",
     # "predict-13",
 ]
+# Select any aggregate numeric metric written by eval_metrics. Common values
+# are map50, map75, map, precision, recall, f1, and fitness. ``maps`` is an
+# alias for ``map``.
+METRIC_SUMMARY = {
+    "metric": "map50",
+    "csv": None,  # defaults to <dataset>/ydm_evaluation/metric_summary.csv
+    "data": None,  # defaults to DATA_DIR.stem
+    "model": "yolo8",
+    "weight": "",
+    "method": "ydm",
+    "conf": 0.0,
+}
 LEAKAGE_ONLY_LIST = (
     # "/localnvme/data/bdd_hmt/hmt_t_update_v3/train_leakage_loss_mask.txt"
 )
@@ -102,6 +116,117 @@ RUN_LIST = [
 ]
 
 
+def _resolve_metrics_file(path: str | Path) -> Path:
+    """Resolve the file written by ``eval_metrics(out=...)``."""
+
+    candidate = Path(path)
+    if candidate.is_file():
+        return candidate
+    for item in (
+        candidate / "metrics.json",
+        candidate / "metrics",
+        candidate.with_name(f"{candidate.name}.json"),
+    ):
+        if item.is_file():
+            return item
+    raise FileNotFoundError(
+        f"metrics output not found for {candidate}; run eval_metrics first"
+    )
+
+
+def _metric_keys(metric: str) -> tuple[str, str]:
+    """Return aggregate and per-class keys for a selected metric."""
+
+    normalized = str(metric).strip().lower()
+    aliases = {
+        "maps": "map",
+        "map50-95": "map",
+        "map50_95": "map",
+        "map50/95": "map",
+    }
+    aggregate_key = aliases.get(normalized, normalized)
+    class_key = {
+        "map50": "ap50",
+        "map75": "ap75",
+    }.get(aggregate_key, aggregate_key)
+    return aggregate_key, class_key
+
+
+def _format_metric_value(value: object) -> str:
+    return "" if value is None else f"{float(value):.3f}"
+
+
+def _write_metric_summary_csv(
+    metric_outputs: list[Path],
+    *,
+    output: str | Path,
+    data: str,
+    model: str,
+    weight: str,
+    method: str,
+    conf: object,
+    metric: str,
+) -> None:
+    """Write aggregate and per-class values for a selected metric."""
+
+    if not metric_outputs:
+        return
+
+    aggregate_key, class_key = _metric_keys(metric)
+    payloads: list[dict[str, object]] = []
+    class_names: list[str] = []
+    class_values: list[dict[str, object]] = []
+    for metrics_output in metric_outputs:
+        metrics_path = _resolve_metrics_file(metrics_output)
+        payload = json.loads(metrics_path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError(f"metrics output must be a JSON object: {metrics_path}")
+        if aggregate_key not in payload:
+            available = ", ".join(sorted(str(key) for key in payload))
+            raise KeyError(
+                f"metric {metric!r} is not available in {metrics_path}; "
+                f"available aggregate fields: {available}"
+            )
+        payloads.append(payload)
+        values: dict[str, object] = {}
+        for item in payload.get("classes", []) or []:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("class_name", item.get("class_id", "unknown")))
+            values[name] = item.get(class_key)
+            if name not in class_names:
+                class_names.append(name)
+        class_values.append(values)
+
+    headers = [
+        "data",
+        "model",
+        "weight",
+        "method",
+        "conf",
+        aggregate_key,
+        *class_names,
+    ]
+    output_path = Path(output)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("w", newline="", encoding="utf-8-sig") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(headers)
+        for payload, values in zip(payloads, class_values):
+            writer.writerow(
+                [
+                    data,
+                    model,
+                    weight,
+                    method,
+                    "" if conf is None else conf,
+                    _format_metric_value(payload[aggregate_key]),
+                    *[_format_metric_value(values.get(name)) for name in class_names],
+                ]
+            )
+    print(f"Metric summary CSV: {output_path}")
+
+
 def main() -> None:
     # init
     ydm = YoloManager(DATA_DIR, layout="auto", init_check=False, init_layout=False)
@@ -171,6 +296,7 @@ def main() -> None:
 
     # post-analysis
     if "metric" in RUN_LIST:
+        metric_outputs: list[Path] = []
         for pred_name in PRED_NAMES:
             pred_dir = PRED_RUNS_DIR / pred_name / "labels"
             output_dir = ydm.output_evaluation / pred_name / "metrics"
@@ -182,6 +308,20 @@ def main() -> None:
                 # min_pixels=50,
                 # only_val=True,
             )
+            metric_outputs.append(output_dir)
+        _write_metric_summary_csv(
+            metric_outputs,
+            output=(
+                METRIC_SUMMARY["csv"]
+                or ydm.output_evaluation / "metric_summary.csv"
+            ),
+            data=str(METRIC_SUMMARY["data"] or DATA_DIR.stem),
+            model=str(METRIC_SUMMARY["model"]),
+            weight=str(METRIC_SUMMARY["weight"]),
+            method=str(METRIC_SUMMARY["method"]),
+            conf=METRIC_SUMMARY["conf"],
+            metric=str(METRIC_SUMMARY["metric"]),
+        )
     if "error_ana" in RUN_LIST:
         for pred_name in PRED_NAMES:
             pred_dir = PRED_RUNS_DIR / pred_name / "labels"
