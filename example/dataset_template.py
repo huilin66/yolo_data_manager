@@ -161,12 +161,12 @@ def _write_metric_summary_csv(
     metric_outputs: list[Path],
     *,
     output: str | Path,
-    data: str | None,
-    model: str | None,
-    weight: str | None,
-    method: str | None,
-    conf: object,
-    metric: str,
+    data: str | None = None,
+    model: str | None = None,
+    weight: str | None = None,
+    method: str | None = None,
+    conf: object = None,
+    metric: str = None,
 ) -> None:
     """Write aggregate and per-class values for a selected metric."""
 
@@ -314,8 +314,7 @@ def main() -> None:
         _write_metric_summary_csv(
             metric_outputs,
             output=(
-                METRIC_SUMMARY["csv"]
-                or ydm.output_evaluation / "metric_summary.csv"
+                METRIC_SUMMARY["csv"] or ydm.output_evaluation / "metric_summary.csv"
             ),
             data=METRIC_SUMMARY["data"],
             model=METRIC_SUMMARY["model"],
