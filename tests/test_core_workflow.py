@@ -1871,7 +1871,7 @@ def test_crop_padding_supports_pixels_and_box_ratio(tmp_path):
         assert crop.size == (40, 48)
 
 
-def test_correct_labels_from_crops_updates_one_based_annotation_and_preserves_geometry(tmp_path):
+def test_correct_labels_from_crops_updates_one_based_annotation_and_preserves_geometry(tmp_path, capsys):
     root = make_dataset(tmp_path / "crop_correction")
     crops = tmp_path / "image_vis" / "crop" / "car" / "material-metal"
     crops.mkdir(parents=True)
@@ -1904,6 +1904,11 @@ def test_correct_labels_from_crops_updates_one_based_annotation_and_preserves_ge
     assert (root / "labels" / "a.txt").read_text(encoding="utf-8").splitlines() == [
         "0 0.4 0.4 0.2 0.2",
     ]
+    captured = capsys.readouterr()
+    assert "Before annotation class distribution" in captured.err
+    assert "After annotation class distribution" in captured.err
+    assert "Changed annotation class distribution" in captured.err
+    assert "Annotation split distribution" in captured.err
 
 
 def test_correct_labels_from_crops_backups_changed_labels_with_timestamp(tmp_path):
@@ -1960,7 +1965,7 @@ def test_crop_correction_uses_dataset_default_backup_dir(tmp_path):
     assert (snapshots[0] / "labels" / "a.txt").read_text(encoding="utf-8") == original
 
 
-def test_correct_gt_labels_from_error_crops_uses_gt_index(tmp_path):
+def test_correct_gt_labels_from_error_crops_uses_gt_index(tmp_path, capsys):
     root = make_dataset(tmp_path / "error_crop_correction")
     crops = tmp_path / "error_review" / "pred_gt" / "pred_car_gt_person" / "crops"
     crops.mkdir(parents=True)
@@ -1985,6 +1990,9 @@ def test_correct_gt_labels_from_error_crops_uses_gt_index(tmp_path):
     assert (root / "labels" / "a.txt").read_text(encoding="utf-8").splitlines() == [
         "0 0.5 0.5 0.2 0.3",
     ]
+    captured = capsys.readouterr()
+    assert captured.err.count("Before annotation class distribution") == 2
+    assert captured.err.count("Annotation split distribution") == 2
 
 
 def test_correct_gt_attributes_from_error_crops_updates_selected_gt_attribute(tmp_path):

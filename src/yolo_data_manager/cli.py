@@ -68,9 +68,12 @@ from yolo_data_manager.io.writer import (
 from yolo_data_manager.stats.compute import compute_stats
 from yolo_data_manager.stats.export import write_annotation_csv, write_stats_plots
 from yolo_data_manager.stats.report import (
+    build_label_edit_summary,
     build_basic_info_rows,
     format_basic_info_tables,
+    format_label_edit_summary,
     format_split_distribution_table,
+    snapshot_label_distribution,
     write_basic_info_csv,
     write_class_counts_csv,
     write_json_report,
@@ -2159,6 +2162,7 @@ def handle_restore_backup(args: argparse.Namespace) -> int:
 
 def handle_correct_from_crops(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
+    before_distribution = snapshot_label_distribution(dataset)
     crop_map = _parse_crop_class_map(args.crops_dir)
     if crop_map is not None:
         if args.to_value is not None:
@@ -2187,12 +2191,16 @@ def handle_correct_from_crops(args: argparse.Namespace) -> int:
     payload["dry_run"] = args.dry_run
     payload["out_data"] = getattr(args, "out_data", None) if not args.dry_run else None
     payload["report"] = report_path
+    summary = build_label_edit_summary(before_distribution, edit_report.rows)
+    payload["summary"] = summary
+    print(format_label_edit_summary(summary), file=sys.stderr)
     print(json.dumps(_compact_console_payload(payload), indent=2, ensure_ascii=False))
     return 0
 
 
 def handle_correct_from_error_crops(args: argparse.Namespace) -> int:
     dataset = load_from_args(args)
+    before_distribution = snapshot_label_distribution(dataset)
     sources = json.loads(args.pred_sources) if getattr(args, "pred_sources", None) is not None else None
     crop_map = _parse_crop_class_map(args.crops_dir, allow_replace=True) if args.crops_dir is not None else None
     if sources is not None:
@@ -2232,6 +2240,9 @@ def handle_correct_from_error_crops(args: argparse.Namespace) -> int:
     payload["dry_run"] = args.dry_run
     payload["out_data"] = getattr(args, "out_data", None) if not args.dry_run else None
     payload["report"] = report_path
+    summary = build_label_edit_summary(before_distribution, edit_report.rows)
+    payload["summary"] = summary
+    print(format_label_edit_summary(summary), file=sys.stderr)
     print(json.dumps(_compact_console_payload(payload), indent=2, ensure_ascii=False))
     return 0
 

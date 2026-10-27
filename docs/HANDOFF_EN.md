@@ -6,7 +6,7 @@ This document summarizes the project design, current scope, module boundaries, a
 
 After every code update, the project version must be updated before handoff. The single source of truth is `[project].version` in the root `pyproject.toml`: increment the patch version for backward-compatible fixes or features, and use a minor/major increment when a new public API or behavior change is incompatible. Before delivering code, tests, or documentation changes, verify that the version matches the change.
 
-The current version is `2.6.0`. `YoloManager` exposes lazy `dataset`, `classes`,
+The current version is `2.7.0`. `YoloManager` exposes lazy `dataset`, `classes`,
 
 Package-level `merge_modalities` (no manager required; logs in out_data/ydm_log, including dry runs; the old manager method delegates for compatibility) for aligned single-modality sources: named image folders, shared labels, keep/drop/zero_fill policies, optional annotation deduplication, opt-in split inheritance (inherit_splits=False by default) and source/schema validation. See [MERGE_MODALITIES_EN.md](MERGE_MODALITIES_EN.md).
 and `attributes` properties; the first access loads and caches the dataset,
@@ -26,6 +26,10 @@ JSON instead.
 Single-modality and multimodal `dataset_split` calls also print train/val/test
 counts for images, label files, and annotation boxes. The same data is stored
 under `split_distribution` in the returned/printed JSON payload.
+
+`ann_correct_from_crops` and `ann_correct_from_error_crops` print before/after
+class distributions, changed class mappings, and annotation split counts. The
+same compact summary is stored under `summary` in the console JSON payload.
 
 ## Goals and Principles
 

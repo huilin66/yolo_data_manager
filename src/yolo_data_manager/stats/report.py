@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import csv
 import json
+from collections import Counter
 from collections.abc import Iterable
 from pathlib import Path
+from typing import Any
 
 from yolo_data_manager.core.models import YoloDataset
 from yolo_data_manager.runtime import iter_progress
@@ -206,6 +208,193 @@ def format_split_distribution_table(
     )
 
 
+def snapshot_label_distribution(dataset: YoloDataset) -> dict[str, object]:
+    """Capture class and split counts before a label-edit operation."""
+
+    split_by_image = infer_image_splits(dataset)
+    class_counts: Counter[str] = Counter()
+    split_counts: Counter[str] = Counter()
+    image_splits: dict[str, str] = {}
+    for image in dataset.images:
+        split = split_by_image.get(id(image), "unassigned")
+        split_counts[split] += len(image.annotations)
+        for annotation in image.annotations:
+            class_counts[dataset.class_name(annotation.class_id)] += 1
+        for value in (
+            image.file_name,
+            image.stem,
+            image.path,
+            image.path.name,
+            image.path.resolve(),
+            image.label_path,
+        ):
+            if value is not None:
+                image_splits.setdefault(_summary_key(value), split)
+
+    for class_name in dataset.classes.names:
+        class_counts.setdefault(class_name, 0)
+    for split_name in ("train", "val", "test"):
+        split_counts.setdefault(split_name, 0)
+    return {
+        "class_counts": dict(class_counts),
+        "split_counts": dict(split_counts),
+        "image_splits": image_splits,
+    }
+
+
+def build_label_edit_summary(
+    before: dict[str, object],
+    rows: Iterable[Any],
+) -> dict[str, object]:
+    """Build before/after class and split summaries from edit rows."""
+
+    before_class_counts = Counter(
+        {str(name): int(count) for name, count in dict(before["class_counts"]).items()}
+    )
+    after_class_counts = Counter(before_class_counts)
+    before_split_counts = Counter(
+        {str(name): int(count) for name, count in dict(before["split_counts"]).items()}
+    )
+    after_split_counts = Counter(before_split_counts)
+    changed_classes: Counter[tuple[str, str, str]] = Counter()
+    split_changes: dict[str, dict[str, int]] = {
+        split_name: {
+            "before": before_split_counts.get(split_name, 0),
+            "after": after_split_counts.get(split_name, 0),
+            "changed": 0,
+            "added": 0,
+            "deleted": 0,
+        }
+        for split_name in ("train", "val", "test")
+    }
+    image_splits = {
+        str(key): str(value)
+        for key, value in dict(before.get("image_splits", {})).items()
+    }
+
+    for row in rows:
+        action = str(getattr(row, "action", None) or "update")
+        old_name = str(getattr(row, "old_class_name", ""))
+        new_value = getattr(row, "new_class_name", None)
+        new_name = str(new_value) if new_value not in (None, "") else None
+        if action == "add":
+            from_name = "<none>"
+            to_name = new_name or old_name
+            after_class_counts[to_name] += 1
+        elif action == "delete" or new_name is None:
+            from_name = old_name
+            to_name = "<deleted>"
+            after_class_counts[old_name] -= 1
+        else:
+            from_name = old_name
+            to_name = new_name
+            after_class_counts[old_name] -= 1
+            after_class_counts[new_name] += 1
+        changed_classes[(action, from_name, to_name)] += 1
+
+        split = _edit_row_split(row, image_splits)
+        split_entry = split_changes.setdefault(
+            split,
+            {
+                "before": before_split_counts.get(split, 0),
+                "after": after_split_counts.get(split, 0),
+                "changed": 0,
+                "added": 0,
+                "deleted": 0,
+            },
+        )
+        if action == "add":
+            split_entry["added"] += 1
+            split_entry["after"] += 1
+            after_split_counts[split] += 1
+        elif action == "delete" or new_name is None:
+            split_entry["deleted"] += 1
+            split_entry["after"] -= 1
+            after_split_counts[split] -= 1
+        else:
+            split_entry["changed"] += 1
+
+    class_names = list(before_class_counts)
+    for name in after_class_counts:
+        if name not in class_names:
+            class_names.append(name)
+    changed_rows = [
+        {
+            "action": action,
+            "from_class": from_name,
+            "to_class": to_name,
+            "count": count,
+        }
+        for (action, from_name, to_name), count in sorted(changed_classes.items())
+    ]
+    split_names = [name for name in ("train", "val", "test") if name in split_changes]
+    split_names.extend(
+        name for name in split_changes if name not in {"train", "val", "test"}
+    )
+    return {
+        "before_class_counts": {
+            name: before_class_counts.get(name, 0) for name in class_names
+        },
+        "after_class_counts": {
+            name: after_class_counts.get(name, 0) for name in class_names
+        },
+        "changed_class_counts": changed_rows,
+        "split_distribution": {
+            name: split_changes[name] for name in split_names
+        },
+    }
+
+
+def format_label_edit_summary(summary: dict[str, object]) -> str:
+    """Format class and split distributions for crop-driven class updates."""
+
+    before = dict(summary.get("before_class_counts", {}))
+    after = dict(summary.get("after_class_counts", {}))
+    changed = list(summary.get("changed_class_counts", []))
+    splits = dict(summary.get("split_distribution", {}))
+    sections = [
+        "Before annotation class distribution",
+        _format_table(
+            ["class_name", "annotations"],
+            [[name, count] for name, count in before.items()],
+        ),
+        "After annotation class distribution",
+        _format_table(
+            ["class_name", "annotations"],
+            [[name, count] for name, count in after.items()],
+        ),
+        "Changed annotation class distribution",
+        _format_table(
+            ["action", "from_class", "to_class", "annotations"],
+            [
+                [
+                    row.get("action", ""),
+                    row.get("from_class", ""),
+                    row.get("to_class", ""),
+                    row.get("count", 0),
+                ]
+                for row in changed
+            ],
+        ),
+        "Annotation split distribution",
+        _format_table(
+            ["split", "before", "after", "changed", "added", "deleted"],
+            [
+                [
+                    split_name,
+                    values.get("before", 0),
+                    values.get("after", 0),
+                    values.get("changed", 0),
+                    values.get("added", 0),
+                    values.get("deleted", 0),
+                ]
+                for split_name, values in splits.items()
+            ],
+        ),
+    ]
+    return "\n".join(sections)
+
+
 def infer_image_splits(dataset: YoloDataset) -> dict[int, str]:
     """Infer train/val/test membership for the images in *dataset*.
 
@@ -241,6 +430,28 @@ def infer_image_splits(dataset: YoloDataset) -> dict[int, str]:
         if len(candidates) == 1:
             result[id(image)] = next(iter(candidates))
     return result
+
+
+def _edit_row_split(row: Any, image_splits: dict[str, str]) -> str:
+    for value in (
+        getattr(row, "image", None),
+        getattr(row, "label_path", None),
+    ):
+        if value is None:
+            continue
+        split = image_splits.get(_summary_key(value))
+        if split is not None:
+            return split
+        path = Path(str(value))
+        for candidate in (path.name, path.stem):
+            split = image_splits.get(_summary_key(candidate))
+            if split is not None:
+                return split
+    return "unassigned"
+
+
+def _summary_key(value: str | Path) -> str:
+    return str(value).replace("\\", "/").casefold()
 
 
 def _empty_split_counts() -> dict[str, int]:
