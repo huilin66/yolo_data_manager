@@ -6,7 +6,7 @@
 
 每次更新代码后，交付前必须同步更新项目版本号。版本号唯一维护在根目录 `pyproject.toml` 的 `[project].version`，遵循 SemVer：修复问题递增 patch（例如 `1.0.1`），新增向后兼容功能递增 minor（例如 `1.1.0`），不兼容的 API 或行为变更递增 major（例如 `2.0.0`）。提交代码、测试或文档变更时，应确认版本号与本次变更保持一致。
 
-当前版本为 `2.12.0`。`YoloManager` 提供惰性 `dataset`、`classes` 和 `attributes` 属性；首次访问时加载并缓存数据集，`load(reload=True)` 可显式刷新，数据修改操作会自动清理缓存。校验拆分为 `image_check`、`label_check`，`check` 默认合并调用两者，并支持 `check_list` 选择检查组。`dataset_split` 支持 `val_source` 固定复用已有验证集，也支持 `out_data` 复制生成独立的新数据集。尺寸过滤支持按类别配置多组像素宽高条件，`anno_update_by_size`、`eval_metrics` 和 `eval_error_analysis` 共用该规则。
+当前版本为 `2.13.0`。`YoloManager` 提供惰性 `dataset`、`classes` 和 `attributes` 属性；首次访问时加载并缓存数据集，`load(reload=True)` 可显式刷新，数据修改操作会自动清理缓存。校验拆分为 `image_check`、`label_check`，`check` 默认合并调用两者，并支持 `check_list` 选择检查组。`dataset_split` 支持 `val_source` 固定复用已有验证集，也支持 `out_data` 复制生成独立的新数据集。尺寸过滤支持按类别配置多组像素宽高条件，`anno_update_by_size`、`eval_metrics` 和 `eval_error_analysis` 共用该规则。
 
 单模态和多模态 `stats` 默认只在控制台输出 image/box/attribute 三张基础统计表；详细 JSON、输出路径和多模态明细仍保存到文件，需显式传入 `print_details=True` 或 CLI 的 `--print-details` 才打印。
 
@@ -15,6 +15,8 @@
 `eval_metrics` 的总体、类别和目标尺寸指标均包含 F1；总体 F1 根据总体 Precision 和 Recall 的调和平均值计算。
 
 `eval_metrics` 默认使用 IoU 进行 TP 和 mAP 匹配，也支持 `overlap_metric="ios"`（交集面积除以两个框中较小的面积）；NMS 去重始终使用 IoU。CLI 对应参数为 `--overlap-metric iou|ios`，默认 `iou`，结果 JSON 和表格会记录实际使用的匹配方式。
+
+`eval_metrics` 支持评估专用 `class_map`/`--class-map`，格式与标注类别操作映射一致，可执行 `rename`、`merge`、`drop`；操作只作用于 GT 和预测的内存副本，不会修改任何原始文件。
 
 `example/dataset_template.py` 的 `METRIC_SUMMARY` 可选择 `eval_metrics` 输出中的聚合指标（如 `map50`、`map75`、`map`、`precision`、`recall`、`f1`、`fitness`），并将聚合值和各类别值写入 `ydm_evaluation/metric_summary.csv`。`data`、`model`、`weight`、`method`、`conf` 均为可选列，设置为 `None` 或空字符串时不会生成对应列。
 

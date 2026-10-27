@@ -2923,6 +2923,7 @@ class YoloManager:
         | str
         | Path
         | None = None,
+        class_map: Mapping[str, Any] | str | Path | None = None,
         conf_thres: float = 0.0,
         nms_iou: float | None = 0.5,
         overlap_metric: str = "iou",
@@ -2977,6 +2978,7 @@ class YoloManager:
                 class_=class_,
                 exclude_class_=exclude_class_,
                 merge_class_map=merge_class_map,
+                class_map=class_map,
                 conf_thres=conf_thres,
                 nms_iou=nms_iou,
                 overlap_metric=overlap_metric,

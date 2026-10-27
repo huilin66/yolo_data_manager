@@ -256,6 +256,7 @@ def test_build_python_task_argv():
         class_=["car", "bus"],
         exclude_class_=["person"],
         merge_class_map={"vehicle": ["car", "truck"]},
+        class_map={"drop": ["background"]},
         conf_thres=0.25,
         overlap_metric="ios",
         min_pixels=8,
@@ -270,6 +271,8 @@ def test_build_python_task_argv():
     assert "person" in metrics_argv
     assert "--merge-class-map" in metrics_argv
     assert '{"vehicle":["car","truck"]}' in metrics_argv
+    assert "--class-map" in metrics_argv
+    assert '{"drop":["background"]}' in metrics_argv
     assert "--min-pixels" in metrics_argv
     assert "--overlap-metric" in metrics_argv
     assert "ios" in metrics_argv

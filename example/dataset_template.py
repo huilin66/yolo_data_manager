@@ -90,6 +90,7 @@ UPDATE_CLASS_MAP = {
     #     "Temperature High Risk",
     # ],
 }
+EVAL_RROR_CLASS_MAP = {}
 UPDATE_ATT_MAP = None
 QUERY_CLASS = "Leakage"
 SELECTION_FILE = None
@@ -333,6 +334,7 @@ def main() -> None:
                 out=output_dir,
                 # attribute_file=ydm.root / "attribute.yaml",
                 # only_val=True,
+                class_map=EVAL_RROR_CLASS_MAP,
             )
 
     # data update

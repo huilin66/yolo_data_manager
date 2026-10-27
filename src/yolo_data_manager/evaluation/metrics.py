@@ -10,6 +10,7 @@ from typing import Any, Iterable, Sequence
 import numpy as np
 
 from yolo_data_manager.annotation.edit import merge_classes
+from yolo_data_manager.annotation.remap import apply_class_map_data
 from yolo_data_manager.core.errors import ClassNotFoundError
 from yolo_data_manager.core.models import YoloAnnotation, YoloDataset
 from yolo_data_manager.dataset.size_rules import (
@@ -77,6 +78,7 @@ class DetectionMetrics:
     selected_class_ids: list[int] | None
     excluded_class_ids: list[int] | None
     merge_class_map: dict[str, list[str]] | None
+    class_map: dict[str, Any] | None
     iou_thresholds: list[float]
     nms_iou: float | None
     overlap_metric: str
@@ -111,6 +113,7 @@ def compute_detection_metrics(
     class_ids: Iterable[int | str] | int | str | None = None,
     exclude_class_ids: Iterable[int | str] | int | str | None = None,
     merge_class_map: Mapping[int | str, int | str | Iterable[int | str]] | None = None,
+    class_map: Mapping[str, Any] | None = None,
     conf_thres: float = 0.0,
     nms_iou: float | None = 0.5,
     min_width: float | None = None,
@@ -131,6 +134,9 @@ def compute_detection_metrics(
     Matching uses IoU by default.  Set ``overlap_metric="ios"`` to use
     intersection-over-smaller-area for TP and mAP matching.  NMS always uses
     IoU so prediction deduplication remains unchanged.
+    ``class_map`` is an evaluation-only operation map supporting ``rename``,
+    ``merge``, and ``drop``; it is applied to in-memory copies of both GT and
+    predictions before matching and never writes back to either dataset.
     In addition to the aggregate metrics, ``size_metrics`` reports metrics for
     COCO-style target areas: small < 32² pixels, medium 32²–96² pixels, and
     large >= 96² pixels.  Images must have known dimensions for this breakdown.
@@ -153,6 +159,7 @@ def compute_detection_metrics(
         raise ValueError("min_size_logic must be 'or' or 'and'")
     validate_nms_iou(nms_iou)
     overlap_metric = normalize_overlap_metric(overlap_metric)
+    gt, pred, normalized_class_map = _prepare_eval_class_map(gt, pred, class_map)
     gt, pred, normalized_merge_map = _prepare_eval_datasets(gt, pred, merge_class_map)
     resolved_class_rules, normalized_class_rules = _resolve_eval_class_rules(
         gt, pred, class_rules
@@ -341,6 +348,7 @@ def compute_detection_metrics(
         selected_class_ids=sorted(selected) if selected is not None else None,
         excluded_class_ids=sorted(excluded) if excluded is not None else None,
         merge_class_map=normalized_merge_map,
+        class_map=normalized_class_map,
         iou_thresholds=[float(v) for v in iouv],
         nms_iou=None if nms_iou is None else float(nms_iou),
         overlap_metric=overlap_metric,
@@ -423,6 +431,33 @@ def _prepare_eval_datasets(
         str(target): [str(source) for source in sources]
         for target, sources in normalized.items()
     }
+
+
+def _prepare_eval_class_map(
+    gt: YoloDataset,
+    pred: YoloDataset,
+    class_map: Mapping[str, Any] | None,
+) -> tuple[YoloDataset, YoloDataset, dict[str, Any] | None]:
+    """Apply an annotation-style class map only to evaluation copies."""
+
+    if class_map is None:
+        return gt, pred, None
+    if not isinstance(class_map, Mapping):
+        raise TypeError("class_map must be a mapping")
+    normalized = deepcopy(dict(class_map))
+    if not normalized:
+        return gt, pred, {}
+
+    gt_result = deepcopy(gt)
+    pred_result = deepcopy(pred)
+    if not gt_result.classes.names and pred_result.classes.names:
+        gt_result.classes = deepcopy(pred_result.classes)
+    elif not pred_result.classes.names and gt_result.classes.names:
+        pred_result.classes = deepcopy(gt_result.classes)
+
+    gt_result, _ = apply_class_map_data(gt_result, normalized, compact=True)
+    pred_result, _ = apply_class_map_data(pred_result, normalized, compact=True)
+    return gt_result, pred_result, normalized
 
 
 def _normalize_merge_class_map(

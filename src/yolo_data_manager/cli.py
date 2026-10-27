@@ -1215,7 +1215,7 @@ def build_parser() -> argparse.ArgumentParser:
     metrics.add_argument(
         "--show-original",
         action="store_true",
-        help="when class/exclude/min-pixels/class-rules/merge filters are set, show original metrics before final metrics",
+        help="when class/exclude/class-map/min-pixels/class-rules/merge filters are set, show original metrics before final metrics",
     )
     metrics.add_argument("--class", dest="class_values", default=None, help="class ids/names to evaluate, comma-separated")
     metrics.add_argument("--exclude-class", dest="exclude_class_values", default=None, help="class ids/names to exclude, comma-separated")
@@ -1224,6 +1224,12 @@ def build_parser() -> argparse.ArgumentParser:
         dest="merge_class_map",
         default=None,
         help="target-to-source class mapping as inline JSON/YAML or a JSON/YAML file",
+    )
+    metrics.add_argument(
+        "--class-map",
+        dest="class_map",
+        default=None,
+        help="evaluation-only rename/merge/drop class map as inline JSON/YAML or a JSON/YAML file",
     )
     metrics.add_argument("--conf-thres", type=float, default=0.0, help="confidence threshold for predictions")
     metrics.add_argument("--nms-iou", type=float, default=0.5, help="same-class NMS IoU threshold; default 0.5")
@@ -3078,6 +3084,7 @@ def handle_eval_metrics(args: argparse.Namespace) -> int:
         progress_leave=args.progress_leave,
     )
     merge_class_map = _load_merge_class_map(args.merge_class_map)
+    class_map = _load_class_map(args.class_map)
     class_rules = _read_class_rules(args.class_rules)
     class_values = _split_values(args.class_values) if args.class_values else None
     exclude_class_values = _split_values(args.exclude_class_values) if args.exclude_class_values else None
@@ -3086,6 +3093,7 @@ def handle_eval_metrics(args: argparse.Namespace) -> int:
         or bool(exclude_class_values)
         or args.min_pixels is not None
         or bool(merge_class_map)
+        or bool(class_map)
         or bool(class_rules)
     )
     original_metrics = None
@@ -3108,6 +3116,7 @@ def handle_eval_metrics(args: argparse.Namespace) -> int:
         class_ids=class_values,
         exclude_class_ids=exclude_class_values,
         merge_class_map=merge_class_map,
+        class_map=class_map,
         conf_thres=args.conf_thres,
         nms_iou=args.nms_iou,
         overlap_metric=args.overlap_metric,
@@ -3313,6 +3322,26 @@ def _load_merge_class_map(value: str | None) -> dict[object, object] | None:
         return {}
     if not isinstance(data, dict):
         raise ValueError("merge-class-map must be a mapping of target class to source classes")
+    return data
+
+
+def _load_class_map(value: str | None) -> dict[str, object] | None:
+    if value is None:
+        return None
+
+    try:
+        candidate = Path(value)
+        if candidate.is_file():
+            data = yaml.safe_load(candidate.read_text(encoding="utf-8"))
+        else:
+            data = yaml.safe_load(value)
+    except OSError:
+        data = yaml.safe_load(value)
+
+    if data is None:
+        return {}
+    if not isinstance(data, dict):
+        raise ValueError("class-map must be a mapping with optional rename, merge, or drop operations")
     return data
 
 

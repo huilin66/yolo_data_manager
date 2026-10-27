@@ -162,6 +162,52 @@ def test_metrics_supports_ios_overlap_metric():
     assert "Overlap metric: IOS" in format_metrics_table(ios_metrics)
 
 
+def test_metrics_class_map_only_changes_evaluation_copies():
+    gt = YoloDataset(
+        root=Path("gt"),
+        images=[
+            YoloImage(
+                Path("sample.jpg"),
+                annotations=[YoloAnnotation(1, Box(0.5, 0.5, 0.4, 0.4))],
+            )
+        ],
+        classes=ClassSchema(["background", "car", "truck"]),
+    )
+    pred = YoloDataset(
+        root=Path("pred"),
+        images=[
+            YoloImage(
+                Path("sample.jpg"),
+                annotations=[
+                    YoloAnnotation(2, Box(0.5, 0.5, 0.4, 0.4), confidence=0.9)
+                ],
+            )
+        ],
+        classes=ClassSchema(["background", "car", "truck"]),
+    )
+
+    metrics = compute_detection_metrics(
+        gt,
+        pred,
+        class_map={
+            "merge": {"vehicle": ["car", "truck"]},
+            "drop": ["background"],
+        },
+        iou_thresholds=(0.5,),
+    )
+
+    assert metrics.class_map == {
+        "merge": {"vehicle": ["car", "truck"]},
+        "drop": ["background"],
+    }
+    assert [row.class_name for row in metrics.classes] == ["vehicle"]
+    assert metrics.recall == 1.0
+    assert gt.classes.names == ["background", "car", "truck"]
+    assert pred.classes.names == ["background", "car", "truck"]
+    assert gt.images[0].annotations[0].class_id == 1
+    assert pred.images[0].annotations[0].class_id == 2
+
+
 def test_attribute_error_analysis_compares_only_matched_pairs(tmp_path):
     gt_root = tmp_path / "gt"
     (gt_root / "images").mkdir(parents=True)
