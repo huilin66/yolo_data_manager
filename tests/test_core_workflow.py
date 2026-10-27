@@ -257,6 +257,7 @@ def test_build_python_task_argv():
         exclude_class_=["person"],
         merge_class_map={"vehicle": ["car", "truck"]},
         conf_thres=0.25,
+        overlap_metric="ios",
         min_pixels=8,
         min_size_logic="and",
         out=Path("metrics.json"),
@@ -270,6 +271,8 @@ def test_build_python_task_argv():
     assert "--merge-class-map" in metrics_argv
     assert '{"vehicle":["car","truck"]}' in metrics_argv
     assert "--min-pixels" in metrics_argv
+    assert "--overlap-metric" in metrics_argv
+    assert "ios" in metrics_argv
     assert "--min-size-logic" in metrics_argv
     metrics_include_empty_argv = build_task_argv(
         "eval.metrics",

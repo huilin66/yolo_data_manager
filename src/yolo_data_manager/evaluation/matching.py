@@ -9,11 +9,30 @@ import numpy as np
 from yolo_data_manager.core.models import YoloAnnotation
 
 
+SUPPORTED_OVERLAP_METRICS = ("iou", "ios")
+
+
 def validate_nms_iou(nms_iou: float | None) -> None:
     """Validate an NMS IoU threshold; ``None`` disables NMS."""
 
     if nms_iou is not None and not 0.0 < float(nms_iou) <= 1.0:
         raise ValueError("nms_iou must be greater than 0 and at most 1, or None to disable NMS")
+
+
+def normalize_overlap_metric(metric: str) -> str:
+    """Validate and normalize the overlap metric used for matching."""
+
+    normalized = str(metric).strip().lower()
+    if normalized not in SUPPORTED_OVERLAP_METRICS:
+        choices = ", ".join(SUPPORTED_OVERLAP_METRICS)
+        raise ValueError(f"overlap_metric must be one of: {choices}")
+    return normalized
+
+
+def validate_overlap_metric(metric: str) -> None:
+    """Validate an overlap metric name."""
+
+    normalize_overlap_metric(metric)
 
 
 def annotation_box_xyxy(annotation: YoloAnnotation) -> list[float]:
@@ -33,6 +52,24 @@ def annotation_box_xyxy(annotation: YoloAnnotation) -> list[float]:
 def box_iou_matrix(boxes_a: np.ndarray, boxes_b: np.ndarray) -> np.ndarray:
     """Return the pairwise IoU matrix for normalised ``xyxy`` boxes."""
 
+    return box_overlap_matrix(boxes_a, boxes_b, metric="iou")
+
+
+def box_overlap_matrix(
+    boxes_a: np.ndarray,
+    boxes_b: np.ndarray,
+    *,
+    metric: str = "iou",
+) -> np.ndarray:
+    """Return pairwise IoU or IoS for normalised ``xyxy`` boxes.
+
+    IoU divides the intersection by the union area.  IoS (intersection over
+    smaller) divides it by the smaller of the two box areas, which is useful
+    when a prediction is intentionally tighter than its ground-truth box.
+    """
+
+    metric = normalize_overlap_metric(metric)
+
     if boxes_a.size == 0 or boxes_b.size == 0:
         return np.zeros((boxes_a.shape[0], boxes_b.shape[0]), dtype=np.float64)
     tl = np.maximum(boxes_a[:, None, :2], boxes_b[None, :, :2])
@@ -45,8 +82,11 @@ def box_iou_matrix(boxes_a: np.ndarray, boxes_b: np.ndarray) -> np.ndarray:
     area_b = np.clip(boxes_b[:, 2] - boxes_b[:, 0], 0, None) * np.clip(
         boxes_b[:, 3] - boxes_b[:, 1], 0, None
     )
-    union = area_a[:, None] + area_b[None, :] - inter
-    return inter / np.clip(union, 1e-16, None)
+    if metric == "iou":
+        denominator = area_a[:, None] + area_b[None, :] - inter
+    else:
+        denominator = np.minimum(area_a[:, None], area_b[None, :])
+    return inter / np.clip(denominator, 1e-16, None)
 
 
 def non_max_suppress_annotations(
@@ -95,33 +135,37 @@ def greedy_match_indices(
     gt_annotations: Sequence[YoloAnnotation],
     pred_annotations: Sequence[YoloAnnotation],
     iou_threshold: float,
+    *,
+    overlap_metric: str = "iou",
 ) -> list[tuple[float, int, int]]:
     """Match detections using the same one-to-one rule as metrics.
 
-    Returns ``(iou, gt_index, pred_index)`` tuples.  Candidate pairs are
-    sorted by IoU, then each prediction is claimed once, followed by each GT
-    being claimed once.  Keeping this operation shared ensures that the
-    detailed error report and aggregate metrics cannot disagree about TP
-    assignment.
+    Returns ``(overlap, gt_index, pred_index)`` tuples.  Candidate pairs are
+    sorted by the selected overlap, then each prediction is claimed once,
+    followed by each GT being claimed once.  Keeping this operation shared
+    ensures that the detailed error report and aggregate metrics cannot
+    disagree about TP assignment.
     """
 
+    overlap_metric = normalize_overlap_metric(overlap_metric)
     if not gt_annotations or not pred_annotations:
         return []
 
-    iou = box_iou_matrix(
+    overlap = box_overlap_matrix(
         np.array([annotation_box_xyxy(ann) for ann in gt_annotations], dtype=np.float64),
         np.array([annotation_box_xyxy(ann) for ann in pred_annotations], dtype=np.float64),
+        metric=overlap_metric,
     )
     true_classes = np.array([ann.class_id for ann in gt_annotations])
     pred_classes = np.array([ann.class_id for ann in pred_annotations])
-    iou *= true_classes[:, None] == pred_classes[None, :]
+    overlap *= true_classes[:, None] == pred_classes[None, :]
 
-    matches = np.array(np.nonzero(iou >= iou_threshold)).T
+    matches = np.array(np.nonzero(overlap >= iou_threshold)).T
     if matches.shape[0] > 1:
-        matches = matches[iou[matches[:, 0], matches[:, 1]].argsort()[::-1]]
+        matches = matches[overlap[matches[:, 0], matches[:, 1]].argsort()[::-1]]
         matches = matches[np.unique(matches[:, 1], return_index=True)[1]]
         matches = matches[np.unique(matches[:, 0], return_index=True)[1]]
     return [
-        (float(iou[gt_idx, pred_idx]), int(gt_idx), int(pred_idx))
+        (float(overlap[gt_idx, pred_idx]), int(gt_idx), int(pred_idx))
         for gt_idx, pred_idx in matches
     ]

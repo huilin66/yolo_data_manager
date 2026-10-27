@@ -115,6 +115,53 @@ def test_metrics_reports_small_medium_large_target_metrics():
     assert "F1" in format_metrics_table(metrics)
 
 
+def test_metrics_supports_ios_overlap_metric():
+    gt = YoloDataset(
+        root=Path("gt"),
+        images=[
+            YoloImage(
+                Path("sample.jpg"),
+                annotations=[YoloAnnotation(0, Box(0.5, 0.5, 0.4, 0.4))],
+            )
+        ],
+        classes=ClassSchema(["object"]),
+    )
+    pred = YoloDataset(
+        root=Path("pred"),
+        images=[
+            YoloImage(
+                Path("sample.jpg"),
+                annotations=[
+                    YoloAnnotation(0, Box(0.5, 0.5, 0.2, 0.2), confidence=0.9)
+                ],
+            )
+        ],
+        classes=ClassSchema(["object"]),
+    )
+
+    iou_metrics = compute_detection_metrics(
+        gt,
+        pred,
+        nms_iou=None,
+        iou_thresholds=(0.5,),
+        overlap_metric="iou",
+    )
+    ios_metrics = compute_detection_metrics(
+        gt,
+        pred,
+        nms_iou=None,
+        iou_thresholds=(0.5,),
+        overlap_metric="ios",
+    )
+
+    assert iou_metrics.overlap_metric == "iou"
+    assert ios_metrics.overlap_metric == "ios"
+    assert iou_metrics.recall == 0.0
+    assert ios_metrics.recall == 1.0
+    assert ios_metrics.map50 > iou_metrics.map50
+    assert "Overlap metric: IOS" in format_metrics_table(ios_metrics)
+
+
 def test_attribute_error_analysis_compares_only_matched_pairs(tmp_path):
     gt_root = tmp_path / "gt"
     (gt_root / "images").mkdir(parents=True)

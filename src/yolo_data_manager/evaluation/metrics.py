@@ -19,6 +19,7 @@ from yolo_data_manager.dataset.size_rules import (
 from yolo_data_manager.evaluation.matching import (
     greedy_match_indices,
     non_max_suppress_annotations,
+    normalize_overlap_metric,
     validate_nms_iou,
 )
 
@@ -78,6 +79,7 @@ class DetectionMetrics:
     merge_class_map: dict[str, list[str]] | None
     iou_thresholds: list[float]
     nms_iou: float | None
+    overlap_metric: str
     size_metrics: dict[str, SizeMetric]
     target_size_thresholds: dict[str, int]
     size_filter: dict[str, float | str | None]
@@ -119,12 +121,16 @@ def compute_detection_metrics(
     class_rules: Mapping[int | str, Mapping[str, Any]] | None = None,
     ignore_empty_classes: bool = True,
     iou_thresholds: Sequence[float] = DEFAULT_IOU_THRESHOLDS,
+    overlap_metric: str = "iou",
 ) -> DetectionMetrics:
     """Compute Ultralytics-style detection metrics from YOLO GT/prediction txt.
 
     Predictions without an explicit confidence are treated as confidence 1.0.
     Same-class predictions are deduplicated with confidence-prioritized NMS
     before matching; pass ``nms_iou=None`` to disable it.
+    Matching uses IoU by default.  Set ``overlap_metric="ios"`` to use
+    intersection-over-smaller-area for TP and mAP matching.  NMS always uses
+    IoU so prediction deduplication remains unchanged.
     In addition to the aggregate metrics, ``size_metrics`` reports metrics for
     COCO-style target areas: small < 32² pixels, medium 32²–96² pixels, and
     large >= 96² pixels.  Images must have known dimensions for this breakdown.
@@ -146,6 +152,7 @@ def compute_detection_metrics(
     if min_size_logic not in {"or", "and"}:
         raise ValueError("min_size_logic must be 'or' or 'and'")
     validate_nms_iou(nms_iou)
+    overlap_metric = normalize_overlap_metric(overlap_metric)
     gt, pred, normalized_merge_map = _prepare_eval_datasets(gt, pred, merge_class_map)
     resolved_class_rules, normalized_class_rules = _resolve_eval_class_rules(
         gt, pred, class_rules
@@ -219,6 +226,7 @@ def compute_detection_metrics(
             pred_anns,
             iouv,
             gt_sizes,
+            overlap_metric=overlap_metric,
         )
         size_assignment_parts.extend(
             _assign_prediction_sizes(pred_sizes, matched_gt_sizes)
@@ -335,6 +343,7 @@ def compute_detection_metrics(
         merge_class_map=normalized_merge_map,
         iou_thresholds=[float(v) for v in iouv],
         nms_iou=None if nms_iou is None else float(nms_iou),
+        overlap_metric=overlap_metric,
         size_metrics=size_metrics,
         target_size_thresholds=dict(TARGET_SIZE_THRESHOLDS),
         size_filter={
@@ -541,7 +550,9 @@ def format_metrics_table(metrics: DetectionMetrics, *, precision: int = 3) -> st
         max(len(headers[col_idx]), *(len(row[col_idx]) for row in rows))
         for col_idx in range(len(headers))
     ]
+    nms_text = "disabled" if metrics.nms_iou is None else _format_metric(metrics.nms_iou, precision)
     lines = [
+        f"Overlap metric: {metrics.overlap_metric.upper()} (NMS IoU: {nms_text})",
         " ".join(header.rjust(widths[idx]) if idx else header.ljust(widths[idx]) for idx, header in enumerate(headers))
     ]
     for row in rows:
@@ -717,12 +728,15 @@ def _match_predictions(
     gt_anns: Sequence[YoloAnnotation],
     pred_anns: Sequence[YoloAnnotation],
     iouv: np.ndarray,
+    *,
+    overlap_metric: str = "iou",
 ) -> np.ndarray:
     correct, _matched_gt_sizes = _match_predictions_with_target_sizes(
         gt_anns,
         pred_anns,
         iouv,
         [None] * len(gt_anns),
+        overlap_metric=overlap_metric,
     )
     return correct
 
@@ -732,6 +746,8 @@ def _match_predictions_with_target_sizes(
     pred_anns: Sequence[YoloAnnotation],
     iouv: np.ndarray,
     gt_sizes: Sequence[str | None],
+    *,
+    overlap_metric: str = "iou",
 ) -> tuple[np.ndarray, np.ndarray]:
     correct = np.zeros((len(pred_anns), len(iouv)), dtype=bool)
     matched_gt_sizes = np.full(
@@ -746,7 +762,10 @@ def _match_predictions_with_target_sizes(
 
     for idx, threshold in enumerate(iouv):
         for _iou, gt_idx, pred_idx in greedy_match_indices(
-            gt_anns, pred_anns, float(threshold)
+            gt_anns,
+            pred_anns,
+            float(threshold),
+            overlap_metric=overlap_metric,
         ):
             correct[pred_idx, idx] = True
             matched_gt_sizes[pred_idx, idx] = gt_sizes[gt_idx]
