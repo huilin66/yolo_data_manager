@@ -171,7 +171,7 @@ def main() -> None:
                 pred_root=pred_dir,
                 out=output_dir,
                 # class_rules=METRIC_CLASS_RULES,
-                # merge_class_map=MERGE_CLASS_MAP,
+                # class_map={"merge": MERGE_CLASS_MAP},
                 # min_pixels=50,
                 # only_val=True,
             )

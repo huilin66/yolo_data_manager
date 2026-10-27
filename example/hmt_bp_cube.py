@@ -55,8 +55,7 @@ def main() -> None:
         ydm.eval_metrics(
             pred_root=PRED_RUNS_DIR / pred_name / "labels",
             out=ydm.output_evaluation / pred_name / "metrics",
-        # merge_class_map=merge_class_map,
-        # # exclude_class_=exclude_class_,
+        # class_map={"merge": merge_class_map},
         min_pixels=20,
         # conf_thres=0.20,
         )

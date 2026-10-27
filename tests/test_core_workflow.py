@@ -197,7 +197,8 @@ def test_build_python_task_argv():
         review_progress_leave=False,
         copy_pred_txt=True,
         class_=["car", "bus"],
-        exclude_class_=["ignore"],
+        class_map={"drop": ["ignore"]},
+        keep_id=True,
         min_width=0.01,
         min_height=0.02,
         min_area=0.0005,
@@ -213,7 +214,9 @@ def test_build_python_task_argv():
     assert "--copy-pred-txt" in error_argv
     assert "--class" in error_argv
     assert "car,bus" in error_argv
-    assert "--exclude-class" in error_argv
+    assert "--class-map" in error_argv
+    assert '{"drop":["ignore"]}' in error_argv
+    assert "--keep-id" in error_argv
     assert "--min-width" in error_argv
     assert "--min-height" in error_argv
     assert "--min-area" in error_argv
@@ -751,7 +754,8 @@ def test_cli_query_class_can_query_prediction_labels(tmp_path, capsys):
             "--no-progress",
         ]
     )
-    payload = json.loads(capsys.readouterr().out)
+    output = capsys.readouterr().out
+    payload = json.loads(output[output.rfind("\n{") + 1 :])
 
     assert code == 0
     assert payload["source"] == "pred"
@@ -2484,6 +2488,37 @@ def test_cli_eval_metrics_supports_class_map(tmp_path, capsys):
     assert payload["predictions"] == 0
 
 
+def test_cli_error_analysis_supports_class_map(tmp_path, capsys):
+    root = make_dataset(tmp_path / "error_class_map")
+    out = tmp_path / "error_report"
+
+    code = cli_main(
+        [
+            "eval",
+            "error-analysis",
+            "--gt-root",
+            str(root),
+            "--pred-root",
+            str(root),
+            "--names",
+            str(root / "class.txt"),
+            "--class-map",
+            '{"drop":["person"]}',
+            "--keep-id",
+            "--out",
+            str(out),
+            "--no-progress",
+        ]
+    )
+    output = capsys.readouterr().out
+    payload = json.loads(output[output.rfind("\n{") + 1 :])
+
+    assert code == 0
+    assert payload["class_map"] == {"drop": ["person"]}
+    assert payload["class_map_keep_id"] is True
+    assert payload["summary"] == {"tp": 2}
+
+
 def test_detection_metrics_ignores_empty_instance_classes_by_default(tmp_path):
     gt_root = tmp_path / "gt_empty_class_metrics"
     pred_root = tmp_path / "pred_empty_class_metrics"
@@ -3128,7 +3163,6 @@ def test_error_analysis_class_and_size_filters_preserve_source_indices(tmp_path)
         gt,
         pred,
         class_ids=["car"],
-        exclude_class_ids=["person"],
         min_width=0.21,
         min_height=0.15,
         min_area=0.03,
@@ -3145,7 +3179,6 @@ def test_error_analysis_class_and_size_filters_preserve_source_indices(tmp_path)
         gt,
         pred,
         class_ids=["car"],
-        exclude_class_ids=["person"],
         min_width=0.21,
         min_height=0.15,
         min_area=0.03,
@@ -3265,7 +3298,8 @@ def test_yolo_manager_error_analysis_defaults_to_manager_root(tmp_path, monkeypa
         pred_root="pred_labels",
         out="error_report",
         class_=["car"],
-        exclude_class_=["person"],
+        class_map={"drop": ["person"]},
+        keep_id=True,
         min_width=0.01,
         min_height=0.02,
         min_area=0.0005,
@@ -3278,7 +3312,8 @@ def test_yolo_manager_error_analysis_defaults_to_manager_root(tmp_path, monkeypa
         nms_iou=None,
     )
     assert captured["class_"] == ["car"]
-    assert captured["exclude_class_"] == ["person"]
+    assert captured["class_map"] == {"drop": ["person"]}
+    assert captured["keep_id"] is True
     assert captured["min_width"] == 0.01
     assert captured["min_height"] == 0.02
     assert captured["min_area"] == 0.0005

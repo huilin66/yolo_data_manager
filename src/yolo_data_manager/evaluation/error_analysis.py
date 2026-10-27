@@ -17,7 +17,7 @@ import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
-from copy import copy as shallow_copy
+from copy import copy as shallow_copy, deepcopy
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -35,6 +35,7 @@ from yolo_data_manager.core.models import (
 )
 from yolo_data_manager.core.errors import ClassNotFoundError
 from yolo_data_manager.core.schema import read_attribute_schema, read_class_schema
+from yolo_data_manager.annotation.remap import apply_class_map_data
 from yolo_data_manager.dataset.size_rules import (
     keep_by_min_pixel_rules,
     min_pixel_rules_from_rule,
@@ -470,7 +471,6 @@ def filter_error_analysis_dataset(
     dataset: YoloDataset,
     *,
     class_ids: int | str | Iterable[int | str] | None = None,
-    exclude_class_ids: int | str | Iterable[int | str] | None = None,
     min_width: float | None = None,
     min_height: float | None = None,
     min_area: float | None = None,
@@ -493,15 +493,10 @@ def filter_error_analysis_dataset(
         raise ValueError("min_size_logic must be 'or' or 'and'")
 
     included = _resolve_filter_class_ids(dataset, class_ids)
-    excluded = _resolve_filter_class_ids(dataset, exclude_class_ids) or set()
     resolved_rules = _resolve_filter_class_rules(dataset, class_rules)
-    if included is not None:
-        included -= excluded
 
     def keep(annotation: YoloAnnotation, image: YoloImage) -> bool:
         if included is not None and annotation.class_id not in included:
-            return False
-        if annotation.class_id in excluded:
             return False
 
         box = annotation.geometry_box()
@@ -593,7 +588,6 @@ def filter_error_analysis_datasets(
     pred: YoloDataset,
     *,
     class_ids: int | str | Iterable[int | str] | None = None,
-    exclude_class_ids: int | str | Iterable[int | str] | None = None,
     min_width: float | None = None,
     min_height: float | None = None,
     min_area: float | None = None,
@@ -603,10 +597,8 @@ def filter_error_analysis_datasets(
 ) -> tuple[YoloDataset, YoloDataset]:
     """Apply the same logical filters to GT and prediction datasets."""
     class_ids = _materialize_filter_values(class_ids)
-    exclude_class_ids = _materialize_filter_values(exclude_class_ids)
     shared_class_rules = _resolve_shared_filter_class_rules(gt, pred, class_rules)
     shared_class_ids = _resolve_shared_filter_class_ids(gt, pred, class_ids)
-    shared_excluded_class_ids = _resolve_shared_filter_class_ids(gt, pred, exclude_class_ids)
     image_sizes: dict[str, tuple[int | None, int | None]] = {}
     for dataset in (gt, pred):
         for image in dataset.images:
@@ -615,7 +607,6 @@ def filter_error_analysis_datasets(
 
     filter_kwargs = {
         "class_ids": shared_class_ids,
-        "exclude_class_ids": shared_excluded_class_ids,
         "min_width": min_width,
         "min_height": min_height,
         "min_area": min_area,
@@ -628,6 +619,45 @@ def filter_error_analysis_datasets(
         filter_error_analysis_dataset(gt, **filter_kwargs),
         filter_error_analysis_dataset(pred, **filter_kwargs),
     )
+
+
+def prepare_error_analysis_class_map(
+    gt: YoloDataset,
+    pred: YoloDataset,
+    class_map: Mapping[str, Any] | None,
+    *,
+    keep_id: bool = False,
+) -> tuple[YoloDataset, YoloDataset, dict[str, Any] | None]:
+    """Apply an evaluation-only class map to GT and prediction copies."""
+
+    if class_map is None:
+        return gt, pred, None
+    if not isinstance(class_map, Mapping):
+        raise TypeError("class_map must be a mapping")
+    normalized = deepcopy(dict(class_map))
+    if not normalized:
+        return gt, pred, {}
+
+    gt_result = deepcopy(gt)
+    pred_result = deepcopy(pred)
+    if not gt_result.classes.names and pred_result.classes.names:
+        gt_result.classes = deepcopy(pred_result.classes)
+    elif not pred_result.classes.names and gt_result.classes.names:
+        pred_result.classes = deepcopy(gt_result.classes)
+
+    gt_result, _ = apply_class_map_data(
+        gt_result,
+        normalized,
+        compact=True,
+        keep_id=keep_id,
+    )
+    pred_result, _ = apply_class_map_data(
+        pred_result,
+        normalized,
+        compact=True,
+        keep_id=keep_id,
+    )
+    return gt_result, pred_result, normalized
 
 
 def _annotation_index(annotation: YoloAnnotation, fallback: int) -> int:
@@ -649,7 +679,8 @@ def analyze_errors(
     nms_iou: float | None = 0.5,
     *,
     class_ids: int | str | Iterable[int | str] | None = None,
-    exclude_class_ids: int | str | Iterable[int | str] | None = None,
+    class_map: Mapping[str, Any] | None = None,
+    keep_id: bool = False,
     min_width: float | None = None,
     min_height: float | None = None,
     min_area: float | None = None,
@@ -676,8 +707,13 @@ def analyze_errors(
     nms_iou:
         Same-class NMS IoU threshold applied before matching.  The highest
         confidence overlapping prediction is kept.  Pass ``None`` to disable.
-    class_ids / exclude_class_ids:
-        Optional class ids or names to include or exclude.
+    class_ids:
+        Optional class ids or names to include.
+    class_map:
+        Optional evaluation-only ``rename``/``merge``/``drop`` map applied to
+        in-memory GT and prediction copies.
+    keep_id:
+        Preserve class IDs and the class schema while applying ``class_map``.
     min_width / min_height / min_area / min_pixels:
         Optional size filters.  Width, height and area are normalised YOLO
         values; ``min_pixels`` is evaluated from image dimensions.
@@ -699,7 +735,6 @@ def analyze_errors(
         value is not None
         for value in (
             class_ids,
-            exclude_class_ids,
             min_width,
             min_height,
             min_area,
@@ -707,13 +742,19 @@ def analyze_errors(
             class_rules,
         )
     )
+    if class_map is not None:
+        gt, pred, _ = prepare_error_analysis_class_map(
+            gt,
+            pred,
+            class_map,
+            keep_id=keep_id,
+        )
     validate_nms_iou(nms_iou)
     if has_filters:
         gt, pred = filter_error_analysis_datasets(
             gt,
             pred,
             class_ids=class_ids,
-            exclude_class_ids=exclude_class_ids,
             min_width=min_width,
             min_height=min_height,
             min_area=min_area,
@@ -968,7 +1009,8 @@ def analyze_attribute_errors(
     nms_iou: float | None = 0.5,
     *,
     class_ids: int | str | Iterable[int | str] | None = None,
-    exclude_class_ids: int | str | Iterable[int | str] | None = None,
+    class_map: Mapping[str, Any] | None = None,
+    keep_id: bool = False,
     min_width: float | None = None,
     min_height: float | None = None,
     min_area: float | None = None,
@@ -993,7 +1035,6 @@ def analyze_attribute_errors(
         value is not None
         for value in (
             class_ids,
-            exclude_class_ids,
             min_width,
             min_height,
             min_area,
@@ -1001,13 +1042,19 @@ def analyze_attribute_errors(
             class_rules,
         )
     )
+    if class_map is not None:
+        gt, pred, _ = prepare_error_analysis_class_map(
+            gt,
+            pred,
+            class_map,
+            keep_id=keep_id,
+        )
     validate_nms_iou(nms_iou)
     if has_filters:
         gt, pred = filter_error_analysis_datasets(
             gt,
             pred,
             class_ids=class_ids,
-            exclude_class_ids=exclude_class_ids,
             min_width=min_width,
             min_height=min_height,
             min_area=min_area,

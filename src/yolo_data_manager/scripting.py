@@ -71,7 +71,6 @@ TASK_COMMANDS: Mapping[str, tuple[str, ...]] = {
 
 _PARAMETER_ALIASES = {
     "class_": "class",
-    "exclude_class_": "exclude-class",
     "from_": "from",
     "map_file": "map",
     "json_path": "json",
@@ -2789,7 +2788,8 @@ class YoloManager:
         attribute_file: str | None = None,
         class_rules: str | Path | Mapping[int | str, Mapping[str, Any]] | None = None,
         class_: str | list[str] | None = None,
-        exclude_class_: str | list[str] | None = None,
+        class_map: Mapping[str, Any] | str | Path | None = None,
+        keep_id: bool = False,
         min_width: float | None = None,
         min_height: float | None = None,
         min_area: float | None = None,
@@ -2849,7 +2849,8 @@ class YoloManager:
                 attribute_file=attribute_file or self.attribute_file,
                 class_rules=class_rules_path,
                 class_=class_,
-                exclude_class_=exclude_class_,
+                class_map=class_map,
+                keep_id=keep_id,
                 min_width=min_width,
                 min_height=min_height,
                 min_area=min_area,

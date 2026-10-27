@@ -624,7 +624,7 @@ mgr.eval_error_analysis(
     pred_root="datasets/pred_labels",
     out="error_report",
     class_=["car", "bus"],
-    exclude_class_=["ignore"],
+    class_map={"drop": ["ignore"]},
     min_width=0.01,
     min_height=0.01,
     min_area=0.0005,
@@ -647,7 +647,7 @@ Statistics, visualization, and evaluation process all data by default; set `only
 
 When `gt_root` or `class_file` is omitted, `YoloManager` falls back to the manager root and `class.txt` when available. Evaluation uses all data by default; set `only_val=True` or provide `val_source` to limit it to validation data.
 
-`eval_error_analysis` supports the same class and size filters: `class_` selects classes, `exclude_class_` excludes classes, and `min_width`, `min_height`, `min_area`, `min_size_logic`, and `min_pixels` filter both GT and predictions. Width and height/area use normalized YOLO coordinates; `min_pixels` checks pixel width or height.
+`eval_error_analysis` supports the same class and size filters: `class_` selects classes, while evaluation-only `class_map` performs `rename`, `merge`, and `drop` operations on in-memory GT/prediction copies. Pass `keep_id=True` to preserve class IDs and the class schema. `min_width`, `min_height`, `min_area`, `min_size_logic`, and `min_pixels` filter both GT and predictions. Width and height/area use normalized YOLO coordinates; `min_pixels` checks pixel width or height.
 `class_rules` overrides the global size rule per class using `width`, `height`, and `logic`; it can also use `min_pixel_rules`, `pixel_logic`, and `pixel_comparison` for multiple pixel width/height conditions. Classes without a rule continue to use the global parameters.
 `eval_error_analysis` and `eval_metrics` apply confidence-prioritized, class-aware NMS first by default (`nms_iou=0.5`), then use the same one-to-one IoU matching rule by default. `eval_metrics` can use IoS matching with `overlap_metric="ios"`. Pass `nms_iou=None` to disable NMS; disabled-NMS duplicates are marked as `duplicate_prediction` in error analysis and counted as FPs in metrics.
 `eval_error_analysis(conf_curve=True)` reruns the analysis at confidence thresholds `0.1`, `0.2`, `0.3`, `0.4`, and `0.5`, then writes `conf_curve.csv`, `conf_curve_summary.csv`, and `conf_curve.png`, with one series per review error group.

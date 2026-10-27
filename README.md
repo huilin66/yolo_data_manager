@@ -166,7 +166,7 @@ ydm vis manual-box --root path/to/yolo --image images/0001.jpg --class-id 5
 ydm dataset filter --root path/to/yolo --min-width 0.01 --min-height 0.01 --min-size-logic and
 ydm eval metrics --gt-root gt_yolo --pred-root pred_labels --names class.txt --class car,bus --min-pixels 8 --show-original --print-table
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --review --workers 8 --copy-pred-txt
-ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --names class.txt --class car,bus --exclude-class ignore --min-width 0.01 --min-height 0.01 --min-size-logic and --min-pixels 8 --out error_report
+ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --names class.txt --class car,bus --class-map '{"drop":["ignore"]}' --min-width 0.01 --min-height 0.01 --min-size-logic and --min-pixels 8 --out error_report
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --names class.txt --class-rules error_rules.yaml --out error_report
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --review --conf-curve
 ydm eval error-analysis-common --error-dir error_report_model_a --error-dir error_report_model_b --out common_error_report --iou 0.5 --workers 8

@@ -377,7 +377,7 @@ ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --out error_repo
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --out error_report --match-iou 0.5 --low-iou 0.1 --duplicate-iou 0.9
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --out error_report --review --workers 8 --copy-pred-txt
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --val-source val.txt --class-file class.txt --out error_report
-ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --names class.txt --class car,bus --exclude-class ignore --min-width 0.01 --min-height 0.01 --min-size-logic and --min-pixels 8 --out error_report
+ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --names class.txt --class car,bus --class-map '{"drop":["ignore"]}' --min-width 0.01 --min-height 0.01 --min-size-logic and --min-pixels 8 --out error_report
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --names class.txt --class-rules error_rules.yaml --out error_report
 ydm eval error-analysis --gt-root gt_labels --pred-root pred_labels --names class.txt --out error_report
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_labels --attribute-file gt_yolo/attribute.yaml --out error_report --review
@@ -403,7 +403,7 @@ Leakage:
 
 metrics 还会按 COCO 风格的像素面积输出 small、medium、large 目标指标：面积 `< 32²` 为 small、`32² <= 面积 < 96²` 为 medium、面积 `>= 96²` 为 large。JSON 中位于 `size_metrics`，并额外写出 `metrics_size.csv`；图片需要有有效宽高才能进行尺寸分类。
 
-`eval error-analysis` 支持 `--class` 只保留指定类别，`--exclude-class` 独立排除类别；`--min-width`、`--min-height`、`--min-area`、`--min-size-logic` 和 `--min-pixels` 会同时过滤 GT 与预测。宽高/面积使用归一化 YOLO 尺寸，`--min-pixels` 按像素宽度或高度判断。仍兼容旧参数 `--review-workers`、`--review-progress`、`--review-progress-leave`；新脚本建议直接使用统一运行参数。
+`eval error-analysis` 支持 `--class` 只保留指定类别；类别合并和排除统一使用 `--class-map` 的 `rename`、`merge`、`drop` 操作，映射只作用于 GT/预测内存副本，不修改原始文件；配合 `--keep-id` 可保留评估副本的类别 ID 和类别表。`--min-width`、`--min-height`、`--min-area`、`--min-size-logic` 和 `--min-pixels` 会同时过滤 GT 与预测。宽高/面积使用归一化 YOLO 尺寸，`--min-pixels` 按像素宽度或高度判断。仍兼容旧参数 `--review-workers`、`--review-progress`、`--review-progress-leave`；新脚本建议直接使用统一运行参数。
 `--class-rules` 接收 YAML/JSON 文件，按类别覆盖全局尺寸规则；规则字段可使用归一化尺寸字段 `width`、`height`、`logic`，也可使用像素规则字段 `min_pixel_rules`、`pixel_logic`、`pixel_comparison`，未配置的类别使用全局参数。
 两个评估命令默认按类别执行置信度优先的 NMS，阈值为 `--nms-iou 0.5`；使用 `--no-nms` 可关闭。
 如果存在 `attribute.yaml`/`attributes.yaml`，或显式指定 `--attribute-file`，错误分析会在一对一匹配成功的同类框上逐属性比较，并写出 `attribute_error.csv`。使用 `--review` 时，属性错误位于 `review/attribute_error/attribute_<属性名>/gt_<GT值>_pred_<预测值>/images` 和 `crops`，每个 `attribute_<属性名>` 目录下还会生成 `confusion_matrix.png`（行是预测属性值，列是真实属性值，包含正确和错误匹配）；外部预测 label 目录会共享 GT 的属性 schema。未匹配框不会重复计入属性错误。

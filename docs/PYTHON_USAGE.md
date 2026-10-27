@@ -385,7 +385,7 @@ mgr.eval_error_analysis(
 mgr.eval_error_analysis(
     gt_root=r"E:\datasets\gt", pred_root=r"E:\datasets\pred",
     out="error_report", class_=["car", "bus"],
-    exclude_class_=["ignore"], min_width=0.01, min_height=0.01,
+    class_map={"drop": ["ignore"]}, min_width=0.01, min_height=0.01,
     min_area=0.0005, min_size_logic="and", min_pixels=8,
     class_rules={
         "Efflorescene Low Risk": {"width": 0.03, "height": 0.03, "logic": "or"},
@@ -573,7 +573,7 @@ ydm.anno_update_by_size(
 
 属性错误 crop 文件名中的 `predX_gtY` 使用预测和 GT label 的 1-based 行号，例如 `sample_pred1_gt3_defect.jpg` 表示修改 `sample.txt` 的第 3 条 GT 标注。使用 `ann_att_correct_from_error_crops` 时传入目标属性 `name` 和目标值 `value`，它会递归处理选中的 crop，按 `gtY` 找到 GT 框并只修改该框的属性；类别和 geometry 不变。`crops_dir` 也支持“目录: 属性规则”的字典，可在一次任务中修改多个属性并共用一次备份。建议先使用 `dry_run=True`/`backup_dir` 检查并备份。
 
-`eval_error_analysis` 的 `class_` 只保留指定类别，`exclude_class_` 独立排除类别；两者可以同时使用。`min_width`、`min_height`、`min_area` 和 `min_pixels` 会同时过滤 GT 与预测，宽高/面积使用归一化 YOLO 尺寸，`min_pixels` 按像素宽度或高度判断；`min_size_logic` 支持 `"or"` 或 `"and"`，语义与 `anno_update_by_size` 一致。
+`eval_error_analysis` 的 `class_` 只保留指定类别；类别合并和排除统一通过评估专用 `class_map` 的 `rename`、`merge`、`drop` 操作完成。`class_map` 只作用于 GT/预测内存副本，不修改原始文件；传入 `keep_id=True` 可保留评估副本中的类别 ID 和类别表。`min_width`、`min_height`、`min_area` 和 `min_pixels` 会同时过滤 GT 与预测，宽高/面积使用归一化 YOLO 尺寸，`min_pixels` 按像素宽度或高度判断；`min_size_logic` 支持 `"or"` 或 `"and"`，语义与 `anno_update_by_size` 一致。
 `class_rules` 可以按类别覆盖全局尺寸规则，格式为 `{类别: {"width": ..., "height": ..., "logic": "or" 或 "and"}}`；也可以使用 `min_pixel_rules`、`pixel_logic` 和 `pixel_comparison` 配置多组像素尺寸条件。命中类别使用自己的规则，未命中类别继续使用全局参数。
 `eval_error_analysis` 与 `eval_metrics` 默认先按类别执行置信度优先的 NMS（`nms_iou=0.5`），再使用相同的一对一 IoU 匹配规则；`eval_metrics` 可通过 `overlap_metric="ios"` 改用 IoS 匹配。传入 `nms_iou=None` 可关闭 NMS。关闭 NMS 时，重复预测会在错误分析中标记为 `duplicate_prediction`，并在 metrics 中作为 FP 统计。
 

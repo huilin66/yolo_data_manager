@@ -92,6 +92,7 @@ from yolo_data_manager.evaluation.error_analysis import (
     find_duplicate_gt,
     filter_error_analysis_datasets,
     load_error_analysis_dataset,
+    prepare_error_analysis_class_map,
     print_attribute_error_summary,
     print_error_summary,
     write_duplicate_gt_csv,
@@ -1132,7 +1133,17 @@ def build_parser() -> argparse.ArgumentParser:
     error_analysis.add_argument("--no-nms", dest="nms_iou", action="store_const", const=None, help="disable prediction NMS")
     error_analysis.add_argument("--duplicate-iou", type=float, default=0.9, help="IoU threshold for duplicate GT detection")
     error_analysis.add_argument("--class", dest="class_values", default=None, help="class ids/names to evaluate, comma-separated")
-    error_analysis.add_argument("--exclude-class", dest="exclude_class_values", default=None, help="class ids/names to exclude, comma-separated")
+    error_analysis.add_argument(
+        "--class-map",
+        dest="class_map",
+        default=None,
+        help="evaluation-only rename/merge/drop class map as inline JSON/YAML or a JSON/YAML file",
+    )
+    error_analysis.add_argument(
+        "--keep-id",
+        action="store_true",
+        help="preserve class IDs/schema while applying the evaluation-only --class-map",
+    )
     error_analysis.add_argument("--min-width", type=float, default=None, help="ignore boxes narrower than this normalized width")
     error_analysis.add_argument("--min-height", type=float, default=None, help="ignore boxes shorter than this normalized height")
     error_analysis.add_argument("--min-area", type=float, default=None, help="ignore boxes smaller than this normalized area")
@@ -2904,12 +2915,14 @@ def handle_eval_error_analysis(args: argparse.Namespace) -> int:
         progress=args.progress,
         progress_leave=args.progress_leave,
     )
-    class_values = _split_values(args.class_values) if getattr(args, "class_values", None) else None
-    exclude_class_values = (
-        _split_values(args.exclude_class_values)
-        if getattr(args, "exclude_class_values", None)
-        else None
+    class_map = _load_class_map(getattr(args, "class_map", None))
+    gt, pred, normalized_class_map = prepare_error_analysis_class_map(
+        gt,
+        pred,
+        class_map,
+        keep_id=getattr(args, "keep_id", False),
     )
+    class_values = _split_values(args.class_values) if getattr(args, "class_values", None) else None
     min_width = getattr(args, "min_width", None)
     min_height = getattr(args, "min_height", None)
     min_area = getattr(args, "min_area", None)
@@ -2920,7 +2933,6 @@ def handle_eval_error_analysis(args: argparse.Namespace) -> int:
         value is not None
         for value in (
             class_values,
-            exclude_class_values,
             min_width,
             min_height,
             min_area,
@@ -2932,7 +2944,6 @@ def handle_eval_error_analysis(args: argparse.Namespace) -> int:
             gt,
             pred,
             class_ids=class_values,
-            exclude_class_ids=exclude_class_values,
             min_width=min_width,
             min_height=min_height,
             min_area=min_area,
@@ -3013,6 +3024,8 @@ def handle_eval_error_analysis(args: argparse.Namespace) -> int:
                 "summary": summary,
                 "attribute_summary": attribute_summary,
                 "attribute_error_count": len(attribute_error_rows),
+                "class_map": normalized_class_map,
+                "class_map_keep_id": bool(getattr(args, "keep_id", False) and class_map),
                 "nms_iou": args.nms_iou,
                 "duplicate_gt_pairs": len(dup_rows),
                 "review": review_counts,
