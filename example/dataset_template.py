@@ -171,6 +171,7 @@ def _write_metric_summary_csv(
     """Write aggregate and per-class values for a selected metric."""
 
     if not metric_outputs:
+        print("empty results")
         return
 
     aggregate_key, class_key = _metric_keys(metric)
