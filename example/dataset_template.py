@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import csv
 import json
+import statistics
 from pathlib import Path
 
 from yolo_data_manager import YoloManager, merge_modalities
@@ -32,6 +33,8 @@ PRED_NAMES = [
 METRIC_SUMMARY = {
     "metric": "map50",
     "csv": None,  # defaults to <dataset>/ydm_evaluation/metric_summary.csv
+    "summary_mode": "per_result",  # per_result or total
+    "total_aggregation": "mean",  # mean, median, min, max, or sum; used by total
     # Optional CSV columns. Use None or "" to omit a column entirely.
     "data": None,
     "model": None,
@@ -168,12 +171,47 @@ def _write_metric_summary_csv(
     method: str | None = None,
     conf: object = None,
     metric: str = None,
+    summary_mode: str = "per_result",
+    total_aggregation: str = "mean",
 ) -> None:
-    """Write aggregate and per-class values for a selected metric."""
+    """Write selected metric values to a CSV.
+
+    ``per_result`` preserves the original behavior: one row is written for
+    each metrics output and contains the aggregate value plus per-class
+    values.  ``total`` writes one row containing an aggregation of the
+    selected aggregate value across all metrics outputs; per-class columns
+    are intentionally omitted in this mode.
+    """
 
     if not metric_outputs:
         print("empty results")
         return
+
+    normalized_mode = str(summary_mode).strip().lower().replace("-", "_")
+    if normalized_mode not in {"per_result", "total"}:
+        raise ValueError(
+            "summary_mode must be 'per_result' or 'total', "
+            f"got {summary_mode!r}"
+        )
+    normalized_aggregation = (
+        str(total_aggregation).strip().lower().replace("-", "_")
+    )
+    aggregation_aliases = {"avg": "mean", "average": "mean"}
+    normalized_aggregation = aggregation_aliases.get(
+        normalized_aggregation, normalized_aggregation
+    )
+    aggregators = {
+        "mean": statistics.mean,
+        "median": statistics.median,
+        "min": min,
+        "max": max,
+        "sum": sum,
+    }
+    if normalized_aggregation not in aggregators:
+        raise ValueError(
+            "total_aggregation must be one of 'mean', 'median', 'min', 'max', or 'sum', "
+            f"got {total_aggregation!r}"
+        )
 
     aggregate_key, class_key = _metric_keys(metric)
     payloads: list[dict[str, object]] = []
@@ -214,20 +252,49 @@ def _write_metric_summary_csv(
         if value is not None and str(value).strip()
     ]
     headers = [name for name, _value in optional_fields]
-    headers.extend([aggregate_key, *class_names])
+    headers.append(aggregate_key)
+    if normalized_mode == "per_result":
+        headers.extend(class_names)
+
+    if normalized_mode == "total":
+        total_values = []
+        for payload in payloads:
+            value = payload.get(aggregate_key)
+            if value is None:
+                continue
+            try:
+                total_values.append(float(value))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"metric {aggregate_key!r} in metrics output is not numeric: "
+                    f"{value!r}"
+                ) from exc
+        aggregate_value = (
+            aggregators[normalized_aggregation](total_values)
+            if total_values
+            else None
+        )
+        rows = [
+            [
+                *[value for _name, value in optional_fields],
+                _format_metric_value(aggregate_value),
+            ]
+        ]
+    else:
+        rows = [
+            [
+                *[value for _name, value in optional_fields],
+                _format_metric_value(payload[aggregate_key]),
+                *[_format_metric_value(values.get(name)) for name in class_names],
+            ]
+            for payload, values in zip(payloads, class_values)
+        ]
     output_path = Path(output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", newline="", encoding="utf-8-sig") as handle:
         writer = csv.writer(handle)
         writer.writerow(headers)
-        for payload, values in zip(payloads, class_values):
-            writer.writerow(
-                [
-                    *[value for _name, value in optional_fields],
-                    _format_metric_value(payload[aggregate_key]),
-                    *[_format_metric_value(values.get(name)) for name in class_names],
-                ]
-            )
+        writer.writerows(rows)
     print(f"Metric summary CSV: {output_path}")
 
 
@@ -324,6 +391,10 @@ def main() -> None:
             method=METRIC_SUMMARY["method"],
             conf=METRIC_SUMMARY["conf"],
             metric=str(METRIC_SUMMARY["metric"]),
+            summary_mode=str(METRIC_SUMMARY.get("summary_mode", "per_result")),
+            total_aggregation=str(
+                METRIC_SUMMARY.get("total_aggregation", "mean")
+            ),
         )
     if "error_ana" in RUN_LIST:
         for pred_name in PRED_NAMES:
