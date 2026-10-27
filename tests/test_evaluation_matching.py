@@ -108,7 +108,11 @@ def test_metrics_reports_small_medium_large_target_metrics():
     assert [metrics.size_metrics[size].labels for size in ("small", "medium", "large")] == [1, 1, 1]
     assert [metrics.size_metrics[size].predictions for size in ("small", "medium", "large")] == [1, 1, 1]
     assert all(metrics.size_metrics[size].precision == 1.0 for size in ("small", "medium", "large"))
+    assert metrics.f1 == 1.0
+    assert all(metrics.size_metrics[size].f1 == 1.0 for size in ("small", "medium", "large"))
+    assert all(row.f1 == 1.0 for row in metrics.classes)
     assert "Target size metrics" in format_metrics_table(metrics)
+    assert "F1" in format_metrics_table(metrics)
 
 
 def test_attribute_error_analysis_compares_only_matched_pairs(tmp_path):

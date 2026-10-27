@@ -2560,6 +2560,7 @@ def test_cli_eval_metrics_writes_json_and_csv(tmp_path, capsys):
     assert round(payload["map50"], 6) == 0.995
     assert round(payload["precision"], 6) == 1.0
     assert round(payload["recall"], 6) == 1.0
+    assert round(payload["f1"], 6) == 1.0
     assert "car" in csv_path.read_text(encoding="utf-8")
     assert set(payload["size_metrics"]) == {"small", "medium", "large"}
     assert size_csv_path.exists()
@@ -2657,6 +2658,7 @@ def test_cli_eval_metrics_can_print_table(tmp_path, capsys):
     assert "Class" in captured.out
     assert "Images" in captured.out
     assert "Instances" in captured.out
+    assert "F1" in captured.out
     assert "mAP50-95" in captured.out
     assert "car" in captured.out
     assert "detection_metrics" not in captured.out

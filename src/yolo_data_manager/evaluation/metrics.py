@@ -84,8 +84,20 @@ class DetectionMetrics:
     class_rules: dict[str, dict[str, Any]] | None
     ignore_empty_classes: bool
 
+    @property
+    def f1(self) -> float:
+        """Aggregate F1 computed from the aggregate precision and recall."""
+
+        denominator = self.precision + self.recall
+        return (
+            2.0 * self.precision * self.recall / denominator
+            if denominator > 0.0
+            else 0.0
+        )
+
     def to_dict(self) -> dict[str, object]:
         data = asdict(self)
+        data["f1"] = self.f1
         data["report_type"] = "detection_metrics"
         return data
 
@@ -487,7 +499,16 @@ def write_size_metrics_csv(metrics: DetectionMetrics, path: str | Path) -> None:
 
 def format_metrics_table(metrics: DetectionMetrics, *, precision: int = 3) -> str:
     """Return an Ultralytics-style metrics table for terminal comparison."""
-    headers = ["Class", "Images", "Instances", "Precision", "Recall", "mAP50", "mAP50-95"]
+    headers = [
+        "Class",
+        "Images",
+        "Instances",
+        "Precision",
+        "Recall",
+        "F1",
+        "mAP50",
+        "mAP50-95",
+    ]
     rows: list[list[str]] = [
         [
             "all",
@@ -495,6 +516,7 @@ def format_metrics_table(metrics: DetectionMetrics, *, precision: int = 3) -> st
             str(metrics.labels),
             _format_metric(metrics.precision, precision),
             _format_metric(metrics.recall, precision),
+            _format_metric(metrics.f1, precision),
             _format_metric(metrics.map50, precision),
             _format_metric(metrics.map, precision),
         ]
@@ -509,6 +531,7 @@ def format_metrics_table(metrics: DetectionMetrics, *, precision: int = 3) -> st
                 str(row.labels),
                 _format_metric(row.precision, precision),
                 _format_metric(row.recall, precision),
+                _format_metric(row.f1, precision),
                 _format_metric(row.ap50, precision),
                 _format_metric(row.map, precision),
             ]
@@ -531,6 +554,7 @@ def format_metrics_table(metrics: DetectionMetrics, *, precision: int = 3) -> st
             str(metric.labels),
             _format_metric(metric.precision, precision),
             _format_metric(metric.recall, precision),
+            _format_metric(metric.f1, precision),
             _format_metric(metric.ap50, precision),
             _format_metric(metric.map, precision),
         ]

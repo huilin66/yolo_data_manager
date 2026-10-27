@@ -6,11 +6,13 @@
 
 每次更新代码后，交付前必须同步更新项目版本号。版本号唯一维护在根目录 `pyproject.toml` 的 `[project].version`，遵循 SemVer：修复问题递增 patch（例如 `1.0.1`），新增向后兼容功能递增 minor（例如 `1.1.0`），不兼容的 API 或行为变更递增 major（例如 `2.0.0`）。提交代码、测试或文档变更时，应确认版本号与本次变更保持一致。
 
-当前版本为 `2.7.0`。`YoloManager` 提供惰性 `dataset`、`classes` 和 `attributes` 属性；首次访问时加载并缓存数据集，`load(reload=True)` 可显式刷新，数据修改操作会自动清理缓存。校验拆分为 `image_check`、`label_check`，`check` 默认合并调用两者，并支持 `check_list` 选择检查组。`dataset_split` 支持 `val_source` 固定复用已有验证集，也支持 `out_data` 复制生成独立的新数据集。尺寸过滤支持按类别配置多组像素宽高条件，`anno_update_by_size`、`eval_metrics` 和 `eval_error_analysis` 共用该规则。
+当前版本为 `2.8.0`。`YoloManager` 提供惰性 `dataset`、`classes` 和 `attributes` 属性；首次访问时加载并缓存数据集，`load(reload=True)` 可显式刷新，数据修改操作会自动清理缓存。校验拆分为 `image_check`、`label_check`，`check` 默认合并调用两者，并支持 `check_list` 选择检查组。`dataset_split` 支持 `val_source` 固定复用已有验证集，也支持 `out_data` 复制生成独立的新数据集。尺寸过滤支持按类别配置多组像素宽高条件，`anno_update_by_size`、`eval_metrics` 和 `eval_error_analysis` 共用该规则。
 
 单模态和多模态 `stats` 默认只在控制台输出 image/box/attribute 三张基础统计表；详细 JSON、输出路径和多模态明细仍保存到文件，需显式传入 `print_details=True` 或 CLI 的 `--print-details` 才打印。
 
 单模态和多模态 `eval_metrics` 默认在控制台输出总体、各类别以及 small/medium/large 尺寸指标表格；Python 传入 `print_table=False` 或 CLI 使用 `--no-print-table` 时输出 JSON 明细。
+
+`eval_metrics` 的总体、类别和目标尺寸指标均包含 F1；总体 F1 根据总体 Precision 和 Recall 的调和平均值计算。
 
 单模态和多模态 `dataset_split` 会额外输出 train/val/test 的图像数、label 文件数和标注框数表格，并在返回/控制台 JSON 中保存 `split_distribution`。
 
