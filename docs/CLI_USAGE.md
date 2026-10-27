@@ -370,8 +370,7 @@ ydm eval metrics --gt-root gt_yolo --pred-root pred_labels --names class.txt --c
 ydm eval metrics --gt-root gt_yolo --pred-root pred_labels --names class.txt --class car,bus --min-pixels 8 --out vehicle_no_small.json
 ydm eval metrics --gt-root gt_yolo --pred-root pred_labels --names class.txt --class car,bus --print-table
 ydm eval metrics --gt-root gt_yolo --pred-root pred_labels --names class.txt --no-print-table
-ydm eval metrics --gt-root gt_yolo --pred-root pred_labels --names class.txt --exclude-class ignore,background
-ydm eval metrics --gt-root gt_yolo --pred-root pred_labels --names class.txt --merge-class-map '{"vehicle":["car","truck"]}'
+ydm eval metrics --gt-root gt_yolo --pred-root pred_labels --names class.txt --class-map '{"merge":{"vehicle":["car","truck"]},"drop":["background"]}'
 ydm eval metrics --gt-root gt_yolo --pred-root pred_labels --names class.txt --min-width 0.01 --class-rules metrics_rules.yaml
 ydm eval metrics --gt-root gt_yolo --pred-root pred_labels --names class.txt --class car --min-pixels 15 --show-original
 ydm eval error-analysis --gt-root gt_yolo --pred-root pred_yolo --out error_report
@@ -390,8 +389,8 @@ ydm eval error-analysis-common --error-dir error_report_model_a --error-dir erro
 
 `eval error-analysis --conf-curve` 会按 `0.1、0.2、0.3、0.4、0.5` 五个置信度阈值重新分析，并按 `review` 下的错误分组统计文件数量，生成 `conf_curve.csv`、`conf_curve_summary.csv` 和 `conf_curve.png`。
 
-`eval metrics` 计算 Precision、Recall、F1、mAP@0.5、mAP@0.5:0.95。默认在控制台输出按总体、类别和目标尺寸整理的对齐表格；使用 `--no-print-table` 可改为输出详细 JSON，`--print-table` 仍可显式声明表格模式。单模态和多模态评估使用相同表格格式。`--overlap-metric iou`（默认）使用交并比进行 TP/mAP 匹配，`--overlap-metric ios` 使用交集面积除以较小框面积；NMS 去重仍使用 IoU。`--class` 只评估指定类别，`--exclude-class` 单独排除类别；两者可同时使用，未选/被排除类别的 GT 和预测都会被忽略。`--class-map` 接受评估专用的 `rename`、`merge`、`drop` JSON/YAML 映射，例如 `{"merge":{"vehicle":["car","truck"]},"drop":["background"]}`，不会修改原始文件；配合 `--keep-id` 可保留评估副本的类别 ID 和类别表。`--merge-class-map` 接受目标类别到原始类别列表的 JSON/YAML 映射，也可以传入映射文件，例如 `{"vehicle":["car","truck"]}`；映射会同时作用于 GT 和预测，并在类别选择、匹配和统计前生效。设置 `--show-original` 时，如果使用了类别、合并、`--class-map`、`--class-rules` 或 `--min-pixels` 参数，会在最终结果前输出原始结果；原始结果不应用这些筛选/合并参数，但保留其他过滤参数。JSON 输出为 `detection_metrics_comparison`，包含 `original` 和 `final`；`--out` 文件仍写入最终结果。默认不输出、不计入 `Instances=0` 的类别；如需保留这些空 GT 类用于排查误检，可加 `--include-empty-classes`。小目标过滤可使用 `--min-width`、`--min-height`、`--min-area`、`--min-size-logic`，或按像素使用 `--min-pixels`。
-`eval metrics` 的 `--class-rules` 接收 YAML/JSON 文件，按类别覆盖全局尺寸规则。支持 `width`/`min_width`、`height`/`min_height`、`min_area`、`min_pixels`、`logic`/`min_size_logic`，以及 `min_pixel_rules`、`pixel_logic`、`pixel_comparison`；未配置的类别使用全局参数。若同时使用 `--merge-class-map`，规则按合并后的目标类别名匹配。
+`eval metrics` 计算 Precision、Recall、F1、mAP@0.5、mAP@0.5:0.95。默认在控制台输出按总体、类别和目标尺寸整理的对齐表格；使用 `--no-print-table` 可改为输出详细 JSON，`--print-table` 仍可显式声明表格模式。单模态和多模态评估使用相同表格格式。`--overlap-metric iou`（默认）使用交并比进行 TP/mAP 匹配，`--overlap-metric ios` 使用交集面积除以较小框面积；NMS 去重仍使用 IoU。`--class` 只评估指定类别；类别合并和排除统一通过 `--class-map` 的 `merge`、`drop` 操作完成，例如 `{"merge":{"vehicle":["car","truck"]},"drop":["background"]}`，不会修改原始文件；配合 `--keep-id` 可保留评估副本的类别 ID 和类别表。设置 `--show-original` 时，如果使用了类别、`--class-map`、`--class-rules` 或 `--min-pixels` 参数，会在最终结果前输出原始结果；原始结果不应用这些筛选/映射参数，但保留其他过滤参数。JSON 输出为 `detection_metrics_comparison`，包含 `original` 和 `final`；`--out` 文件仍写入最终结果。默认不输出、不计入 `Instances=0` 的类别；如需保留这些空 GT 类用于排查误检，可加 `--include-empty-classes`。小目标过滤可使用 `--min-width`、`--min-height`、`--min-area`、`--min-size-logic`，或按像素使用 `--min-pixels`。
+`eval metrics` 的 `--class-rules` 接收 YAML/JSON 文件，按类别覆盖全局尺寸规则。支持 `width`/`min_width`、`height`/`min_height`、`min_area`、`min_pixels`、`logic`/`min_size_logic`，以及 `min_pixel_rules`、`pixel_logic`、`pixel_comparison`；未配置的类别使用全局参数。若 `--class-map` 包含 `merge`，规则按合并后的目标类别名匹配。
 
 ```yaml
 Hollow:

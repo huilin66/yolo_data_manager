@@ -1215,16 +1215,9 @@ def build_parser() -> argparse.ArgumentParser:
     metrics.add_argument(
         "--show-original",
         action="store_true",
-        help="when class/exclude/class-map/min-pixels/class-rules/merge filters are set, show original metrics before final metrics",
+        help="when class/class-map/min-pixels/class-rules filters are set, show original metrics before final metrics",
     )
     metrics.add_argument("--class", dest="class_values", default=None, help="class ids/names to evaluate, comma-separated")
-    metrics.add_argument("--exclude-class", dest="exclude_class_values", default=None, help="class ids/names to exclude, comma-separated")
-    metrics.add_argument(
-        "--merge-class-map",
-        dest="merge_class_map",
-        default=None,
-        help="target-to-source class mapping as inline JSON/YAML or a JSON/YAML file",
-    )
     metrics.add_argument(
         "--class-map",
         dest="class_map",
@@ -3088,16 +3081,12 @@ def handle_eval_metrics(args: argparse.Namespace) -> int:
         progress=args.progress,
         progress_leave=args.progress_leave,
     )
-    merge_class_map = _load_merge_class_map(args.merge_class_map)
     class_map = _load_class_map(args.class_map)
     class_rules = _read_class_rules(args.class_rules)
     class_values = _split_values(args.class_values) if args.class_values else None
-    exclude_class_values = _split_values(args.exclude_class_values) if args.exclude_class_values else None
     show_original = args.show_original and (
         bool(class_values)
-        or bool(exclude_class_values)
         or args.min_pixels is not None
-        or bool(merge_class_map)
         or bool(class_map)
         or bool(class_rules)
     )
@@ -3119,8 +3108,6 @@ def handle_eval_metrics(args: argparse.Namespace) -> int:
         gt,
         pred,
         class_ids=class_values,
-        exclude_class_ids=exclude_class_values,
-        merge_class_map=merge_class_map,
         class_map=class_map,
         keep_id=args.keep_id,
         conf_thres=args.conf_thres,
@@ -3309,26 +3296,6 @@ def _resolve_eval_val_source(root: str | Path, val_source: str | None, only_val:
     raise FileNotFoundError(
         f"only_val=True requires a validation source (val.txt or a val directory) under {root_path}"
     )
-
-
-def _load_merge_class_map(value: str | None) -> dict[object, object] | None:
-    if value is None:
-        return None
-
-    try:
-        candidate = Path(value)
-        if candidate.is_file():
-            data = yaml.safe_load(candidate.read_text(encoding="utf-8"))
-        else:
-            data = yaml.safe_load(value)
-    except OSError:
-        data = yaml.safe_load(value)
-
-    if data is None:
-        return {}
-    if not isinstance(data, dict):
-        raise ValueError("merge-class-map must be a mapping of target class to source classes")
-    return data
 
 
 def _load_class_map(value: str | None) -> dict[str, object] | None:

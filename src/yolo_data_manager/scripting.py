@@ -2918,11 +2918,6 @@ class YoloManager:
         print_table: bool = True,
         show_original: bool = False,
         class_: str | list[str] | None = None,
-        exclude_class_: str | list[str] | None = None,
-        merge_class_map: Mapping[str | int, str | int | Sequence[str | int]]
-        | str
-        | Path
-        | None = None,
         class_map: Mapping[str, Any] | str | Path | None = None,
         keep_id: bool = False,
         conf_thres: float = 0.0,
@@ -2977,8 +2972,6 @@ class YoloManager:
                 print_table=print_table,
                 show_original=show_original,
                 class_=class_,
-                exclude_class_=exclude_class_,
-                merge_class_map=merge_class_map,
                 class_map=class_map,
                 keep_id=keep_id,
                 conf_thres=conf_thres,

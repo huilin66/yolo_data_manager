@@ -6,7 +6,7 @@ This document summarizes the project design, current scope, module boundaries, a
 
 After every code update, the project version must be updated before handoff. The single source of truth is `[project].version` in the root `pyproject.toml`: increment the patch version for backward-compatible fixes or features, and use a minor/major increment when a new public API or behavior change is incompatible. Before delivering code, tests, or documentation changes, verify that the version matches the change.
 
-The current version is `2.14.0`. `YoloManager` exposes lazy `dataset`, `classes`,
+The current version is `3.0.0`. `YoloManager` exposes lazy `dataset`, `classes`,
 
 Package-level `merge_modalities` (no manager required; logs in out_data/ydm_log, including dry runs; the old manager method delegates for compatibility) for aligned single-modality sources: named image folders, shared labels, keep/drop/zero_fill policies, optional annotation deduplication, opt-in split inheritance (inherit_splits=False by default) and source/schema validation. See [MERGE_MODALITIES_EN.md](MERGE_MODALITIES_EN.md).
 and `attributes` properties; the first access loads and caches the dataset,
@@ -252,8 +252,8 @@ Supported:
 - review crop names: `image_pred<pred_txt_order>_gt<gt_txt_order>`
 - optional prediction txt copy to `review/pred_txt`
 - review visualization multi-threading and progress bars
-- `eval metrics` supports `--class` inclusion, `--exclude-class` exclusion, and a shared `--merge-class-map` for GT and predictions
-- `eval metrics --show-original` prints the original metrics before class/merge/`min_pixels` filtering for comparison
+- `eval metrics` uses `--class` for selection and `--class-map` `merge`/`drop` operations for class merging and exclusion
+- `eval metrics --show-original` prints the original metrics before class-map/`min_pixels` filtering for comparison
 - Dataset loading processes all data by default; use `--only-val` or Python `only_val=True` to limit processing to validation data. YAML `val` no longer implicitly limits ordinary statistics or visualization.
 - Added `ann correct-from-crops` / `ann_correct_from_crops`: locate source annotation rows from `vis_crop` filenames (`<image_stem>_<1-based index>`) and correct their classes in place; `to=None` (CLI `--to none`) deletes the annotation.
 - Added `ann correct-from-error-crops` / `ann_correct_from_error_crops`: use the y index in `xxx_predx_gty` filenames to locate and correct or delete GT rows; `predx` is review context only.

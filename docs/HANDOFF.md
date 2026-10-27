@@ -6,7 +6,7 @@
 
 每次更新代码后，交付前必须同步更新项目版本号。版本号唯一维护在根目录 `pyproject.toml` 的 `[project].version`，遵循 SemVer：修复问题递增 patch（例如 `1.0.1`），新增向后兼容功能递增 minor（例如 `1.1.0`），不兼容的 API 或行为变更递增 major（例如 `2.0.0`）。提交代码、测试或文档变更时，应确认版本号与本次变更保持一致。
 
-当前版本为 `2.14.0`。`YoloManager` 提供惰性 `dataset`、`classes` 和 `attributes` 属性；首次访问时加载并缓存数据集，`load(reload=True)` 可显式刷新，数据修改操作会自动清理缓存。校验拆分为 `image_check`、`label_check`，`check` 默认合并调用两者，并支持 `check_list` 选择检查组。`dataset_split` 支持 `val_source` 固定复用已有验证集，也支持 `out_data` 复制生成独立的新数据集。尺寸过滤支持按类别配置多组像素宽高条件，`anno_update_by_size`、`eval_metrics` 和 `eval_error_analysis` 共用该规则。
+当前版本为 `3.0.0`。`YoloManager` 提供惰性 `dataset`、`classes` 和 `attributes` 属性；首次访问时加载并缓存数据集，`load(reload=True)` 可显式刷新，数据修改操作会自动清理缓存。校验拆分为 `image_check`、`label_check`，`check` 默认合并调用两者，并支持 `check_list` 选择检查组。`dataset_split` 支持 `val_source` 固定复用已有验证集，也支持 `out_data` 复制生成独立的新数据集。尺寸过滤支持按类别配置多组像素宽高条件，`anno_update_by_size`、`eval_metrics` 和 `eval_error_analysis` 共用该规则。
 
 单模态和多模态 `stats` 默认只在控制台输出 image/box/attribute 三张基础统计表；详细 JSON、输出路径和多模态明细仍保存到文件，需显式传入 `print_details=True` 或 CLI 的 `--print-details` 才打印。
 
@@ -279,8 +279,7 @@ ydm vis crop --root yolo --out crops --by-attr
 - review crop 文件名使用 `原图名_pred预测txt顺序id_gtGTtxt顺序id`
 - 可复制预测 txt 到 `review/pred_txt`
 - review 图和 crop 支持多线程与进度条
-- `eval metrics` 支持 `--class` 选择类别、`--exclude-class` 排除类别，以及对 GT/预测同时生效的 `--merge-class-map`
-- `eval metrics --show-original` 可在类别/合并/`min_pixels` 过滤结果前输出原始结果用于对比
+- `eval metrics` 使用 `--class` 选择类别，使用 `--class-map` 的 `merge`/`drop` 操作完成类别合并和排除；`--show-original` 可在这些映射或 `min_pixels` 过滤结果前输出原始结果用于对比
 - 数据集加载默认处理全部数据；使用 `--only-val` 或 Python 的 `only_val=True` 才限制到验证集，YAML 的 `val` 不再隐式限制普通统计和可视化
 - 新增 `ann correct-from-crops` / `ann_correct_from_crops`：按 `vis_crop` 的 `<image_stem>_<1-based index>` 文件名定位原始标注行并直接校正类别；`to=None`（CLI 使用 `--to none`）时删除该标注
 - `ann_correct_from_crops` 还支持 `{crop_dir: target_class}` 映射，一次合并多个 crop 目录并只创建一个 label 备份快照；单目录 `(crops_dir, to)` 调用保持兼容

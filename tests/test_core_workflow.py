@@ -254,9 +254,10 @@ def test_build_python_task_argv():
         pred_root=Path("pred"),
         show_original=True,
         class_=["car", "bus"],
-        exclude_class_=["person"],
-        merge_class_map={"vehicle": ["car", "truck"]},
-        class_map={"drop": ["background"]},
+        class_map={
+            "merge": {"vehicle": ["car", "truck"]},
+            "drop": ["background"],
+        },
         keep_id=True,
         conf_thres=0.25,
         overlap_metric="ios",
@@ -268,13 +269,11 @@ def test_build_python_task_argv():
     assert "--show-original" in metrics_argv
     assert "--class" in metrics_argv
     assert "car,bus" in metrics_argv
-    assert "--exclude-class" in metrics_argv
-    assert "person" in metrics_argv
-    assert "--merge-class-map" in metrics_argv
-    assert '{"vehicle":["car","truck"]}' in metrics_argv
     assert "--class-map" in metrics_argv
-    assert '{"drop":["background"]}' in metrics_argv
+    assert '{"merge":{"vehicle":["car","truck"]},"drop":["background"]}' in metrics_argv
     assert "--keep-id" in metrics_argv
+    assert "--exclude-class" not in metrics_argv
+    assert "--merge-class-map" not in metrics_argv
     assert "--min-pixels" in metrics_argv
     assert "--overlap-metric" in metrics_argv
     assert "ios" in metrics_argv
@@ -336,16 +335,17 @@ def test_yolo_manager_methods(tmp_path):
     metrics_out = tmp_path / "manager_metrics.json"
     code = mgr.eval_metrics(
         pred_root=str(root),
-        exclude_class_=["person"],
-        merge_class_map={"vehicle": ["car"]},
+        class_map={"merge": {"vehicle": ["car"]}, "drop": ["person"]},
         class_rules={"vehicle": {"width": 0.0}},
         out=str(metrics_out),
         progress=False,
     )
     metrics_payload = json.loads(metrics_out.read_text(encoding="utf-8"))
     assert code == 0
-    assert metrics_payload["excluded_class_ids"] == [0]
-    assert metrics_payload["merge_class_map"] == {"vehicle": ["car"]}
+    assert metrics_payload["class_map"] == {
+        "merge": {"vehicle": ["car"]},
+        "drop": ["person"],
+    }
     assert metrics_payload["class_rules"] == {"vehicle": {"width": 0.0}}
     assert [row["class_name"] for row in metrics_payload["classes"]] == ["vehicle"]
 
@@ -2427,15 +2427,15 @@ def test_detection_metrics_supports_selected_classes(tmp_path):
     assert "car" in table
 
 
-def test_detection_metrics_supports_excluded_classes_and_merge_map(tmp_path):
+def test_detection_metrics_supports_class_map_drop_and_merge(tmp_path):
     gt_root = make_dataset(tmp_path / "gt_metrics_options")
     pred_root = make_dataset(tmp_path / "pred_metrics_options")
     gt = load_yolo_dataset(gt_root, task="detect")
     pred = load_yolo_dataset(pred_root, task="detect")
 
-    excluded = compute_detection_metrics(gt, pred, exclude_class_ids=["person"])
+    excluded = compute_detection_metrics(gt, pred, class_map={"drop": ["person"]})
     assert excluded.selected_class_ids is None
-    assert excluded.excluded_class_ids == [0]
+    assert excluded.class_map == {"drop": ["person"]}
     assert [row.class_name for row in excluded.classes] == ["car"]
     assert excluded.labels == 2
 
@@ -2443,17 +2443,17 @@ def test_detection_metrics_supports_excluded_classes_and_merge_map(tmp_path):
         gt,
         pred,
         class_ids=["vehicle"],
-        merge_class_map={"vehicle": ["person", "car"]},
+        class_map={"merge": {"vehicle": ["person", "car"]}},
     )
     assert merged.selected_class_ids == [0]
-    assert merged.merge_class_map == {"vehicle": ["person", "car"]}
+    assert merged.class_map == {"merge": {"vehicle": ["person", "car"]}}
     assert [row.class_name for row in merged.classes] == ["vehicle"]
     assert merged.labels == 3
     assert merged.predictions == 3
     assert gt.classes.names == ["person", "car"]
 
 
-def test_cli_eval_metrics_supports_merge_class_map(tmp_path, capsys):
+def test_cli_eval_metrics_supports_class_map(tmp_path, capsys):
     gt_root = make_dataset(tmp_path / "gt_metrics_merge_cli")
     pred_root = make_dataset(tmp_path / "pred_metrics_merge_cli")
 
@@ -2467,10 +2467,8 @@ def test_cli_eval_metrics_supports_merge_class_map(tmp_path, capsys):
             str(pred_root),
             "--names",
             str(gt_root / "class.txt"),
-            "--merge-class-map",
-            '{"vehicle":["person","car"]}',
-            "--exclude-class",
-            "vehicle",
+            "--class-map",
+            '{"merge":{"vehicle":["person","car"]},"drop":["vehicle"]}',
             "--no-progress",
             "--no-print-table",
         ]
@@ -2478,8 +2476,10 @@ def test_cli_eval_metrics_supports_merge_class_map(tmp_path, capsys):
     payload = json.loads(capsys.readouterr().out)
 
     assert code == 0
-    assert payload["merge_class_map"] == {"vehicle": ["person", "car"]}
-    assert payload["excluded_class_ids"] == [0]
+    assert payload["class_map"] == {
+        "merge": {"vehicle": ["person", "car"]},
+        "drop": ["vehicle"],
+    }
     assert payload["labels"] == 0
     assert payload["predictions"] == 0
 

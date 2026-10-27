@@ -568,8 +568,10 @@ mgr.eval_metrics(pred_root="datasets/pred_labels", class_=["car", "bus"], print_
 mgr.eval_metrics(pred_root="datasets/pred_labels", print_table=False)
 mgr.eval_metrics(
     pred_root="datasets/pred_labels",
-    exclude_class_=["ignore", "background"],
-    merge_class_map={"vehicle": ["car", "truck"]},
+    class_map={
+        "merge": {"vehicle": ["car", "truck"]},
+        "drop": ["ignore", "background"],
+    },
     class_rules={
         "Hollow": {"width": 0.03, "height": 0.03, "logic": "or"},
         "Leakage": {"min_pixels": 20},
@@ -635,10 +637,10 @@ mgr.eval_error_analysis(
 )
 ```
 
-`eval_metrics` uses `class_` to select classes and the independent `exclude_class_` parameter to exclude classes; both can be supplied together. `class_map` supports evaluation-only `rename`, `merge`, and `drop` operations, for example `{"merge": {"vehicle": ["car", "truck"]}, "drop": ["background"]}`; it applies to in-memory GT/prediction copies and does not modify source files. Pass `keep_id=True` to preserve class IDs and the class schema in those copies. `merge_class_map` accepts a target-to-source mapping such as `{"vehicle": ["car", "truck"]}` and applies it to GT and predictions before class selection, matching, and aggregation. Class selection and exclusion use the merged target class names. With `show_original=True`, when class, merge, `class_map`, `class_rules`, or `min_pixels` filters are supplied, the original metrics are output before the final metrics; JSON output contains `original` and `final`, while the `out` file still stores the final metrics.
+`eval_metrics` uses `class_` to select classes; class merging and exclusion are handled by the evaluation-only `class_map`. `class_map` supports `rename`, `merge`, and `drop` operations, for example `{"merge": {"vehicle": ["car", "truck"]}, "drop": ["background"]}`; it applies to in-memory GT/prediction copies and does not modify source files. Pass `keep_id=True` to preserve class IDs and the class schema in those copies. With `show_original=True`, when class, `class_map`, `class_rules`, or `min_pixels` filters are supplied, the original metrics are output before the final metrics; JSON output contains `original` and `final`, while the `out` file still stores the final metrics.
 `eval_metrics` prints an aligned table by default, including overall/per-class metrics and small, medium, and large target metrics. The table and JSON include F1. Use `print_table=False` (or CLI `--no-print-table`) for detailed JSON output. Single-modality and `MultiModalYoloManager` evaluations use the same table format.
 `eval_metrics` uses IoU for TP and mAP matching by default. Pass `overlap_metric="ios"` to divide intersection area by the smaller box area instead. Prediction NMS still always uses IoU, and JSON/table output records `overlap_metric`.
-`eval_metrics` also accepts `class_rules` to override the global size filter per class. Rules may use class names or ids and support `width`/`min_width`, `height`/`min_height`, `min_area`, `min_pixels`, and `logic`/`min_size_logic`. A configured class uses its complete rule, unmatched classes keep the global parameters, and rules match merged target class names when `merge_class_map` is used.
+`eval_metrics` also accepts `class_rules` to override the global size filter per class. Rules may use class names or ids and support `width`/`min_width`, `height`/`min_height`, `min_area`, `min_pixels`, and `logic`/`min_size_logic`. A configured class uses its complete rule, unmatched classes keep the global parameters, and rules match merged target class names when `class_map` contains a `merge` operation.
 `eval_metrics` also reports COCO-style small, medium, and large target metrics by pixel area: area `< 32²` is small, `32² <= area < 96²` is medium, and area `>= 96²` is large. They are stored under `size_metrics` in JSON and written separately to `metrics_size.csv`; valid image dimensions are required for size classification.
 
 Statistics, visualization, and evaluation process all data by default; set `only_val=True` or provide `val_source` explicitly to limit processing to validation data.
