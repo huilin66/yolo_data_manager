@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import csv
 import json
-import statistics
 from pathlib import Path
 
 from yolo_data_manager import YoloManager, merge_modalities
@@ -33,8 +32,7 @@ PRED_NAMES = [
 METRIC_SUMMARY = {
     "metric": "map50",
     "csv": None,  # defaults to <dataset>/ydm_evaluation/metric_summary.csv
-    "summary_mode": "per_result",  # per_result or total
-    "total_aggregation": "mean",  # mean, median, min, max, or sum; used by total
+    "summary_mode": "per_result",  # per_result or overall
     # Optional CSV columns. Use None or "" to omit a column entirely.
     "data": None,
     "model": None,
@@ -161,6 +159,10 @@ def _format_metric_value(value: object) -> str:
     return "" if value is None else f"{float(value):.3f}"
 
 
+def _format_count_value(value: object) -> str:
+    return "" if value is None else str(int(value))
+
+
 def _write_metric_summary_csv(
     metric_outputs: list[Path],
     *,
@@ -172,15 +174,14 @@ def _write_metric_summary_csv(
     conf: object = None,
     metric: str = None,
     summary_mode: str = "per_result",
-    total_aggregation: str = "mean",
 ) -> None:
     """Write selected metric values to a CSV.
 
     ``per_result`` preserves the original behavior: one row is written for
-    each metrics output and contains the aggregate value plus per-class
-    values.  ``total`` writes one row containing an aggregation of the
-    selected aggregate value across all metrics outputs; per-class columns
-    are intentionally omitted in this mode.
+    each metrics output and contains the selected aggregate value plus
+    per-class values. ``overall`` writes one row per metrics output using the
+    aggregate ``all`` row: images, instances, precision, recall, F1, mAP50,
+    and mAP50-95. ``total`` is accepted as an alias for ``overall``.
     """
 
     if not metric_outputs:
@@ -188,29 +189,11 @@ def _write_metric_summary_csv(
         return
 
     normalized_mode = str(summary_mode).strip().lower().replace("-", "_")
-    if normalized_mode not in {"per_result", "total"}:
+    normalized_mode = {"total": "overall"}.get(normalized_mode, normalized_mode)
+    if normalized_mode not in {"per_result", "overall"}:
         raise ValueError(
-            "summary_mode must be 'per_result' or 'total', "
+            "summary_mode must be 'per_result' or 'overall', "
             f"got {summary_mode!r}"
-        )
-    normalized_aggregation = (
-        str(total_aggregation).strip().lower().replace("-", "_")
-    )
-    aggregation_aliases = {"avg": "mean", "average": "mean"}
-    normalized_aggregation = aggregation_aliases.get(
-        normalized_aggregation, normalized_aggregation
-    )
-    aggregators = {
-        "mean": statistics.mean,
-        "median": statistics.median,
-        "min": min,
-        "max": max,
-        "sum": sum,
-    }
-    if normalized_aggregation not in aggregators:
-        raise ValueError(
-            "total_aggregation must be one of 'mean', 'median', 'min', 'max', or 'sum', "
-            f"got {total_aggregation!r}"
         )
 
     aggregate_key, class_key = _metric_keys(metric)
@@ -222,7 +205,7 @@ def _write_metric_summary_csv(
         payload = json.loads(metrics_path.read_text(encoding="utf-8"))
         if not isinstance(payload, dict):
             raise ValueError(f"metrics output must be a JSON object: {metrics_path}")
-        if aggregate_key not in payload:
+        if normalized_mode == "per_result" and aggregate_key not in payload:
             available = ", ".join(sorted(str(key) for key in payload))
             raise KeyError(
                 f"metric {metric!r} is not available in {metrics_path}; "
@@ -252,35 +235,36 @@ def _write_metric_summary_csv(
         if value is not None and str(value).strip()
     ]
     headers = [name for name, _value in optional_fields]
-    headers.append(aggregate_key)
-    if normalized_mode == "per_result":
-        headers.extend(class_names)
-
-    if normalized_mode == "total":
-        total_values = []
-        for payload in payloads:
-            value = payload.get(aggregate_key)
-            if value is None:
-                continue
-            try:
-                total_values.append(float(value))
-            except (TypeError, ValueError) as exc:
-                raise ValueError(
-                    f"metric {aggregate_key!r} in metrics output is not numeric: "
-                    f"{value!r}"
-                ) from exc
-        aggregate_value = (
-            aggregators[normalized_aggregation](total_values)
-            if total_values
-            else None
+    if normalized_mode == "overall":
+        headers.extend(
+            [
+                "Class",
+                "Images",
+                "Instances",
+                "Precision",
+                "Recall",
+                "F1",
+                "mAP50",
+                "mAP50-95",
+            ]
         )
         rows = [
             [
                 *[value for _name, value in optional_fields],
-                _format_metric_value(aggregate_value),
+                "all",
+                _format_count_value(payload.get("images")),
+                _format_count_value(payload.get("labels")),
+                _format_metric_value(payload.get("precision")),
+                _format_metric_value(payload.get("recall")),
+                _format_metric_value(payload.get("f1")),
+                _format_metric_value(payload.get("map50")),
+                _format_metric_value(payload.get("map")),
             ]
+            for payload in payloads
         ]
     else:
+        headers.append(aggregate_key)
+        headers.extend(class_names)
         rows = [
             [
                 *[value for _name, value in optional_fields],
@@ -392,9 +376,6 @@ def main() -> None:
             conf=METRIC_SUMMARY["conf"],
             metric=str(METRIC_SUMMARY["metric"]),
             summary_mode=str(METRIC_SUMMARY.get("summary_mode", "per_result")),
-            total_aggregation=str(
-                METRIC_SUMMARY.get("total_aggregation", "mean")
-            ),
         )
     if "error_ana" in RUN_LIST:
         for pred_name in PRED_NAMES:

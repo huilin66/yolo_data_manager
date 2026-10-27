@@ -18,7 +18,13 @@ def _write_metrics(path: Path, *, map50: float, fence: float) -> None:
     (path / "metrics.json").write_text(
         json.dumps(
             {
+                "images": 44,
+                "labels": 171,
+                "precision": 0.733,
+                "recall": 0.657,
+                "f1": 0.693,
                 "map50": map50,
+                "map": 0.671,
                 "classes": [
                     {"class_name": "fence", "ap50": fence},
                 ],
@@ -28,7 +34,7 @@ def _write_metrics(path: Path, *, map50: float, fence: float) -> None:
     )
 
 
-def test_metric_summary_total_mode_aggregates_only_overall_metric(tmp_path):
+def test_metric_summary_overall_mode_writes_all_metrics_per_result(tmp_path):
     template = _load_dataset_template()
     first = tmp_path / "first"
     second = tmp_path / "second"
@@ -40,12 +46,16 @@ def test_metric_summary_total_mode_aggregates_only_overall_metric(tmp_path):
         [first, second],
         output=output,
         metric="map50",
-        summary_mode="total",
+        summary_mode="overall",
     )
 
     with output.open(newline="", encoding="utf-8-sig") as handle:
         rows = list(csv.reader(handle))
-    assert rows == [["map50"], ["0.600"]]
+    assert rows == [
+        ["Class", "Images", "Instances", "Precision", "Recall", "F1", "mAP50", "mAP50-95"],
+        ["all", "44", "171", "0.733", "0.657", "0.693", "0.400", "0.671"],
+        ["all", "44", "171", "0.733", "0.657", "0.693", "0.800", "0.671"],
+    ]
 
 
 def test_metric_summary_per_result_mode_remains_unchanged(tmp_path):
