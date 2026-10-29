@@ -1244,6 +1244,11 @@ def build_parser() -> argparse.ArgumentParser:
     metrics.add_argument("--nms-iou", type=float, default=0.5, help="same-class NMS IoU threshold; default 0.5")
     metrics.add_argument("--no-nms", dest="nms_iou", action="store_const", const=None, help="disable prediction NMS")
     metrics.add_argument(
+        "--allow-duplicate-matches",
+        action="store_true",
+        help="allow multiple predictions to match the same GT; non-standard and optimistic",
+    )
+    metrics.add_argument(
         "--overlap-metric",
         type=str.lower,
         choices=["iou", "ios"],
@@ -3110,6 +3115,7 @@ def handle_eval_metrics(args: argparse.Namespace) -> int:
             pred,
             conf_thres=args.conf_thres,
             nms_iou=args.nms_iou,
+            allow_duplicate_matches=args.allow_duplicate_matches,
             overlap_metric=args.overlap_metric,
             min_width=args.min_width,
             min_height=args.min_height,
@@ -3125,6 +3131,7 @@ def handle_eval_metrics(args: argparse.Namespace) -> int:
         keep_id=args.keep_id,
         conf_thres=args.conf_thres,
         nms_iou=args.nms_iou,
+        allow_duplicate_matches=args.allow_duplicate_matches,
         overlap_metric=args.overlap_metric,
         min_width=args.min_width,
         min_height=args.min_height,

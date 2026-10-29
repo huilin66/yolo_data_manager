@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import numpy as np
 from PIL import Image
 
 from yolo_data_manager.core.models import Box, ClassSchema, YoloAnnotation, YoloDataset, YoloImage
@@ -12,7 +13,11 @@ from yolo_data_manager.evaluation.error_analysis import (
     write_attribute_error_csv,
     write_attribute_error_review_pack,
 )
-from yolo_data_manager.evaluation.metrics import compute_detection_metrics, format_metrics_table
+from yolo_data_manager.evaluation.metrics import (
+    _match_predictions,
+    compute_detection_metrics,
+    format_metrics_table,
+)
 
 
 def test_error_analysis_uses_metrics_one_to_one_matching():
@@ -75,6 +80,46 @@ def test_nms_is_class_aware_and_can_be_disabled():
 
     assert default_metrics.predictions == 2
     assert no_nms_metrics.predictions == 3
+
+
+def test_metrics_can_allow_duplicate_predictions_to_match_one_gt():
+    gt_annotations = [YoloAnnotation(0, Box(0.5, 0.5, 0.4, 0.4))]
+    pred_annotations = [
+        YoloAnnotation(0, Box(0.5, 0.5, 0.4, 0.4), confidence=0.9),
+        YoloAnnotation(0, Box(0.5, 0.5, 0.4, 0.4), confidence=0.8),
+    ]
+
+    standard_correct = _match_predictions(
+        gt_annotations,
+        pred_annotations,
+        np.array([0.5]),
+    )
+    duplicate_correct = _match_predictions(
+        gt_annotations,
+        pred_annotations,
+        np.array([0.5]),
+        allow_duplicate_matches=True,
+    )
+    metrics = compute_detection_metrics(
+        YoloDataset(
+            root=Path("gt"),
+            images=[YoloImage(Path("sample.jpg"), annotations=gt_annotations)],
+            classes=ClassSchema(["object"]),
+        ),
+        YoloDataset(
+            root=Path("pred"),
+            images=[YoloImage(Path("sample.jpg"), annotations=pred_annotations)],
+            classes=ClassSchema(["object"]),
+        ),
+        nms_iou=None,
+        iou_thresholds=(0.5,),
+        allow_duplicate_matches=True,
+    )
+
+    assert int(standard_correct[:, 0].sum()) == 1
+    assert int(duplicate_correct[:, 0].sum()) == 2
+    assert metrics.allow_duplicate_matches is True
+    assert metrics.predictions == 2
 
 
 def test_metrics_reports_small_medium_large_target_metrics():

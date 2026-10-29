@@ -137,14 +137,17 @@ def greedy_match_indices(
     iou_threshold: float,
     *,
     overlap_metric: str = "iou",
+    allow_duplicate_gt: bool = False,
 ) -> list[tuple[float, int, int]]:
-    """Match detections using the same one-to-one rule as metrics.
+    """Match detections using the metrics matching rule.
 
     Returns ``(overlap, gt_index, pred_index)`` tuples.  Candidate pairs are
-    sorted by the selected overlap, then each prediction is claimed once,
-    followed by each GT being claimed once.  Keeping this operation shared
-    ensures that the detailed error report and aggregate metrics cannot
-    disagree about TP assignment.
+    sorted by the selected overlap, then each prediction is claimed once.
+    By default each GT is also claimed once.  When ``allow_duplicate_gt`` is
+    true, multiple predictions may claim the same GT; this is intended only
+    for non-standard duplicate-tolerant metrics.  Keeping this operation
+    shared ensures that the detailed error report and aggregate metrics use
+    the same default TP assignment.
     """
 
     overlap_metric = normalize_overlap_metric(overlap_metric)
@@ -164,7 +167,8 @@ def greedy_match_indices(
     if matches.shape[0] > 1:
         matches = matches[overlap[matches[:, 0], matches[:, 1]].argsort()[::-1]]
         matches = matches[np.unique(matches[:, 1], return_index=True)[1]]
-        matches = matches[np.unique(matches[:, 0], return_index=True)[1]]
+        if not allow_duplicate_gt:
+            matches = matches[np.unique(matches[:, 0], return_index=True)[1]]
     return [
         (float(overlap[gt_idx, pred_idx]), int(gt_idx), int(pred_idx))
         for gt_idx, pred_idx in matches

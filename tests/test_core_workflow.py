@@ -264,6 +264,7 @@ def test_build_python_task_argv():
         keep_id=True,
         conf_thres=0.25,
         overlap_metric="ios",
+        allow_duplicate_matches=True,
         min_pixels=8,
         min_size_logic="and",
         out=Path("metrics.json"),
@@ -280,6 +281,7 @@ def test_build_python_task_argv():
     assert "--min-pixels" in metrics_argv
     assert "--overlap-metric" in metrics_argv
     assert "ios" in metrics_argv
+    assert "--allow-duplicate-matches" in metrics_argv
     assert "--min-size-logic" in metrics_argv
     metrics_include_empty_argv = build_task_argv(
         "eval.metrics",
@@ -340,6 +342,7 @@ def test_yolo_manager_methods(tmp_path):
         pred_root=str(root),
         class_map={"merge": {"vehicle": ["car"]}, "drop": ["person"]},
         class_rules={"vehicle": {"width": 0.0}},
+        allow_duplicate_matches=True,
         out=str(metrics_out),
         progress=False,
     )
@@ -350,6 +353,7 @@ def test_yolo_manager_methods(tmp_path):
         "drop": ["person"],
     }
     assert metrics_payload["class_rules"] == {"vehicle": {"width": 0.0}}
+    assert metrics_payload["allow_duplicate_matches"] is True
     assert [row["class_name"] for row in metrics_payload["classes"]] == ["vehicle"]
 
 

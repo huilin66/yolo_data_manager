@@ -79,6 +79,7 @@ class DetectionMetrics:
     class_map_keep_id: bool
     iou_thresholds: list[float]
     nms_iou: float | None
+    allow_duplicate_matches: bool
     overlap_metric: str
     size_metrics: dict[str, SizeMetric]
     target_size_thresholds: dict[str, int]
@@ -113,6 +114,7 @@ def compute_detection_metrics(
     keep_id: bool = False,
     conf_thres: float = 0.0,
     nms_iou: float | None = 0.5,
+    allow_duplicate_matches: bool = False,
     min_width: float | None = None,
     min_height: float | None = None,
     min_area: float | None = None,
@@ -128,6 +130,10 @@ def compute_detection_metrics(
     Predictions without an explicit confidence are treated as confidence 1.0.
     Same-class predictions are deduplicated with confidence-prioritized NMS
     before matching; pass ``nms_iou=None`` to disable it.
+    By default, matching is one-to-one: one GT can produce at most one TP.
+    Set ``allow_duplicate_matches=True`` to allow multiple predictions to
+    match the same GT after NMS.  This is non-standard and can make metrics
+    optimistic; it does not disable NMS.
     Matching uses IoU by default.  Set ``overlap_metric="ios"`` to use
     intersection-over-smaller-area for TP and mAP matching.  NMS always uses
     IoU so prediction deduplication remains unchanged.
@@ -230,6 +236,7 @@ def compute_detection_metrics(
             iouv,
             gt_sizes,
             overlap_metric=overlap_metric,
+            allow_duplicate_matches=allow_duplicate_matches,
         )
         size_assignment_parts.extend(
             _assign_prediction_sizes(pred_sizes, matched_gt_sizes)
@@ -344,6 +351,7 @@ def compute_detection_metrics(
         class_map_keep_id=bool(keep_id and class_map),
         iou_thresholds=[float(v) for v in iouv],
         nms_iou=None if nms_iou is None else float(nms_iou),
+        allow_duplicate_matches=bool(allow_duplicate_matches),
         overlap_metric=overlap_metric,
         size_metrics=size_metrics,
         target_size_thresholds=dict(TARGET_SIZE_THRESHOLDS),
@@ -714,6 +722,7 @@ def _match_predictions(
     iouv: np.ndarray,
     *,
     overlap_metric: str = "iou",
+    allow_duplicate_matches: bool = False,
 ) -> np.ndarray:
     correct, _matched_gt_sizes = _match_predictions_with_target_sizes(
         gt_anns,
@@ -721,6 +730,7 @@ def _match_predictions(
         iouv,
         [None] * len(gt_anns),
         overlap_metric=overlap_metric,
+        allow_duplicate_matches=allow_duplicate_matches,
     )
     return correct
 
@@ -732,6 +742,7 @@ def _match_predictions_with_target_sizes(
     gt_sizes: Sequence[str | None],
     *,
     overlap_metric: str = "iou",
+    allow_duplicate_matches: bool = False,
 ) -> tuple[np.ndarray, np.ndarray]:
     correct = np.zeros((len(pred_anns), len(iouv)), dtype=bool)
     matched_gt_sizes = np.full(
@@ -750,6 +761,7 @@ def _match_predictions_with_target_sizes(
             pred_anns,
             float(threshold),
             overlap_metric=overlap_metric,
+            allow_duplicate_gt=allow_duplicate_matches,
         ):
             correct[pred_idx, idx] = True
             matched_gt_sizes[pred_idx, idx] = gt_sizes[gt_idx]
@@ -945,7 +957,10 @@ def _ap_per_class(
 
         fpc = (1 - tp[pred_mask]).cumsum(0)
         tpc = tp[pred_mask].cumsum(0)
-        recall = tpc / (n_l + eps)
+        # Standard one-to-one matching never exceeds one.  Duplicate-tolerant
+        # matching may produce several TPs for one GT, but recall remains a
+        # bounded metric even in that non-standard mode.
+        recall = np.minimum(tpc / (n_l + eps), 1.0)
         r_curve[class_idx] = np.interp(-x, -conf[pred_mask], recall[:, 0], left=0)
         precision = tpc / (tpc + fpc)
         p_curve[class_idx] = np.interp(-x, -conf[pred_mask], precision[:, 0], left=1)
