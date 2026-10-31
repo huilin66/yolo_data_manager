@@ -13,7 +13,7 @@ from yolo_data_manager import YoloManager
 
 # DATA_DIR = Path(r"/data/huilin/data/bdd_hmt/sua_rgb_update_v1")
 # DATA_DIR = Path(r"/data/huilin/data/bdd_hmt/hmt_rgb_update_v2")
-DATA_DIR = Path(r"/srv/nas/home/dataset/hmt_rgb_update_v6")
+DATA_DIR = Path(r"/srv/nas/home/dataset/hmt_rgb_update_v6.1")
 
 UPDATE_CLASS_MAP = {
     # "drop": [
@@ -162,6 +162,7 @@ def main() -> None:
                 only_val=True,
                 class_map=METRIC_CLASS_MAP,
                 overlap_metric="ios",
+                allow_duplicate_matches=True,
                 conf=0.1,
             )
             metric_outputs.append(output_dir)

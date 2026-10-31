@@ -11,7 +11,7 @@ from pathlib import Path
 
 from yolo_data_manager import YoloManager
 
-DATA_DIR = Path(r"/srv/nas/home/dataset/hmt_t_update_v6")
+DATA_DIR = Path(r"/srv/nas/home/dataset/hmt_t_update_v6.1")
 LEAKAGE_ONLY_LIST = os.path.join(DATA_DIR, "train_leakage_loss_mask.txt")
 
 UPDATE_CLASS_MAP = {
@@ -146,6 +146,7 @@ def main() -> None:
                 # min_pixels=50,
                 overlap_metric="ios",
                 only_val=True,
+                allow_duplicate_matches=True,
                 conf=0.1,
             )
             metric_outputs.append(output_dir)
