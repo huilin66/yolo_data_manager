@@ -40,14 +40,11 @@ import random
 import re
 import shutil
 from collections import defaultdict
+from collections.abc import Iterable
 from pathlib import Path, PurePosixPath
-from typing import Iterable
-
 
 SPLITS = ("train", "val", "test")
-IMAGE_SUFFIXES = frozenset(
-    {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
-)
+IMAGE_SUFFIXES = frozenset({".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"})
 CROP_NAME_RE = re.compile(r"^(?P<source>.+)_(?P<annotation_index>[0-9]+)$")
 SPLIT_PRIORITY = {"train": 2, "test": 1, "val": 0}
 
@@ -55,7 +52,13 @@ SPLIT_PRIORITY = {"train": 2, "test": 1, "val": 0}
 class CropRecord:
     """One crop file and the source information encoded in its filename."""
 
-    __slots__ = ("path", "relative_path", "source_stem", "source_key", "annotation_index")
+    __slots__ = (
+        "annotation_index",
+        "path",
+        "relative_path",
+        "source_key",
+        "source_stem",
+    )
 
     def __init__(
         self,
@@ -99,9 +102,13 @@ def _is_relative_to(path: Path, parent: Path) -> bool:
     return True
 
 
-def _iter_crop_files(crops_dir: Path, *, excluded_dir: Path | None = None) -> list[CropRecord]:
+def _iter_crop_files(
+    crops_dir: Path, *, excluded_dir: Path | None = None
+) -> list[CropRecord]:
     records: list[CropRecord] = []
-    for path in sorted(crops_dir.rglob("*"), key=lambda item: item.as_posix().casefold()):
+    for path in sorted(
+        crops_dir.rglob("*"), key=lambda item: item.as_posix().casefold()
+    ):
         if not path.is_file() or path.suffix.lower() not in IMAGE_SUFFIXES:
             continue
         resolved = path.resolve()
@@ -219,7 +226,7 @@ def split_vis_crops(
     val: float = 0.2,
     test: float = 0.0,
     seed: int = 233,
-    absolute_paths: bool = False,
+    absolute_paths: bool = True,
     copy_files: bool = False,
     unmatched: str = "skip",
 ) -> dict[str, object]:
@@ -231,7 +238,11 @@ def split_vis_crops(
     """
 
     mode = str(mode).strip().lower().replace("-", "_")
-    mode_aliases = {"source": "source_split", "random_stem": "stem_random", "random_crop": "crop_random"}
+    mode_aliases = {
+        "source": "source_split",
+        "random_stem": "stem_random",
+        "random_crop": "crop_random",
+    }
     mode = mode_aliases.get(mode, mode)
     if mode not in {"source_split", "stem_random", "crop_random"}:
         raise ValueError("mode must be source_split, stem_random, or crop_random")
@@ -243,9 +254,7 @@ def split_vis_crops(
     if not crop_root.is_dir():
         raise FileNotFoundError(f"crop directory does not exist: {crop_root}")
     out_root = (
-        Path(out).expanduser().resolve()
-        if out is not None
-        else crop_root / "split"
+        Path(out).expanduser().resolve() if out is not None else crop_root / "split"
     )
     if out_root == crop_root:
         raise ValueError("out must be different from crops_dir")
