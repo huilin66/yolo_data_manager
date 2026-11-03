@@ -114,6 +114,12 @@ def test_build_python_task_argv():
     )
     assert "--no-ensure-class-presence" in split_no_balance_argv
 
+    pre_merge_metrics_argv = build_task_argv(
+        "eval.metrics",
+        report_pre_merge_metrics=True,
+    )
+    assert "--report-pre-merge-metrics" in pre_merge_metrics_argv
+
     split_require_labels_argv = build_task_argv(
         "dataset.split",
         root=Path("dataset"),
@@ -2459,6 +2465,91 @@ def test_detection_metrics_supports_class_map_drop_and_merge(tmp_path):
     assert merged.labels == 3
     assert merged.predictions == 3
     assert gt.classes.names == ["person", "car"]
+
+
+def test_detection_metrics_reports_pre_merge_top1_and_confusion_matrix(tmp_path):
+    gt_root = make_dataset(tmp_path / "gt_pre_merge_metrics")
+    pred_root = make_dataset(tmp_path / "pred_pre_merge_metrics")
+    (gt_root / "labels" / "a.txt").write_text(
+        "0 0.3 0.5 0.2 0.2\n1 0.7 0.5 0.2 0.2\n",
+        encoding="utf-8",
+    )
+    (gt_root / "labels" / "b.txt").write_text("", encoding="utf-8")
+    (pred_root / "labels" / "a.txt").write_text(
+        "1 0.3 0.5 0.2 0.2 0.95\n0 0.7 0.5 0.2 0.2 0.90\n",
+        encoding="utf-8",
+    )
+    (pred_root / "labels" / "b.txt").write_text("", encoding="utf-8")
+    gt = load_yolo_dataset(gt_root, task="detect")
+    pred = load_yolo_dataset(pred_root, task="detect")
+
+    metrics = compute_detection_metrics(
+        gt,
+        pred,
+        class_map={"merge": {"vehicle": ["person", "car"]}},
+        class_rules={"vehicle": {"min_pixels": 1}},
+        report_pre_merge_metrics=True,
+    )
+
+    assert metrics.precision == 1.0
+    assert metrics.recall == 1.0
+    group = metrics.to_dict()["pre_merge_metrics"][0]
+    assert group["merged_class"] == "vehicle"
+    assert group["accuracy_type"] == "top1"
+    assert group["accuracy"] == 0.0
+    assert [row["class_name"] for row in group["classes"]] == ["person", "car"]
+    assert all(row["precision"] == 0.0 for row in group["classes"])
+    assert group["confusion_matrix"]["labels"] == ["person", "car", "background"]
+    assert group["confusion_matrix"]["counts"] == [
+        [0, 1, 0],
+        [1, 0, 0],
+        [0, 0, 0],
+    ]
+
+
+def test_cli_eval_metrics_writes_optional_pre_merge_reports(tmp_path, capsys):
+    gt_root = make_dataset(tmp_path / "gt_pre_merge_cli")
+    pred_root = make_dataset(tmp_path / "pred_pre_merge_cli")
+    (gt_root / "labels" / "a.txt").write_text(
+        "0 0.3 0.5 0.2 0.2\n1 0.7 0.5 0.2 0.2\n",
+        encoding="utf-8",
+    )
+    (gt_root / "labels" / "b.txt").write_text("", encoding="utf-8")
+    (pred_root / "labels" / "a.txt").write_text(
+        "1 0.3 0.5 0.2 0.2 0.95\n0 0.7 0.5 0.2 0.2 0.90\n",
+        encoding="utf-8",
+    )
+    (pred_root / "labels" / "b.txt").write_text("", encoding="utf-8")
+    out = tmp_path / "metrics.json"
+    csv_out = tmp_path / "metrics.csv"
+
+    code = cli_main(
+        [
+            "eval",
+            "metrics",
+            "--gt-root",
+            str(gt_root),
+            "--pred-root",
+            str(pred_root),
+            "--names",
+            str(gt_root / "class.txt"),
+            "--class-map",
+            '{"merge":{"vehicle":["person","car"]}}',
+            "--report-pre-merge-metrics",
+            "--out",
+            str(out),
+            "--csv",
+            str(csv_out),
+            "--no-progress",
+            "--no-print-table",
+        ]
+    )
+    payload = json.loads(capsys.readouterr().out)
+
+    assert code == 0
+    assert payload["pre_merge_metrics"][0]["accuracy"] == 0.0
+    assert (tmp_path / "metrics_pre_merge.csv").is_file()
+    assert (tmp_path / "metrics_pre_merge_confusion.csv").is_file()
 
 
 def test_cli_eval_metrics_supports_class_map(tmp_path, capsys):

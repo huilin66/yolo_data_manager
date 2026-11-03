@@ -17,6 +17,7 @@ from yolo_data_manager.dataset.size_rules import (
     min_pixel_rules_from_rule,
 )
 from yolo_data_manager.evaluation.matching import (
+    box_overlap_matrix,
     greedy_match_indices,
     non_max_suppress_annotations,
     normalize_overlap_metric,
@@ -86,6 +87,7 @@ class DetectionMetrics:
     size_filter: dict[str, float | str | None]
     class_rules: dict[str, dict[str, Any]] | None
     ignore_empty_classes: bool
+    pre_merge_metrics: list[dict[str, Any]] | None = None
 
     @property
     def f1(self) -> float:
@@ -124,6 +126,7 @@ def compute_detection_metrics(
     ignore_empty_classes: bool = True,
     iou_thresholds: Sequence[float] = DEFAULT_IOU_THRESHOLDS,
     overlap_metric: str = "iou",
+    report_pre_merge_metrics: bool = False,
 ) -> DetectionMetrics:
     """Compute Ultralytics-style detection metrics from YOLO GT/prediction txt.
 
@@ -141,6 +144,9 @@ def compute_detection_metrics(
     ``merge``, and ``drop``; it is applied to in-memory copies of both GT and
     predictions before matching and never writes back to either dataset. Set
     ``keep_id=True`` to preserve class IDs/schema while applying that map.
+    Set ``report_pre_merge_metrics=True`` with a merge map to additionally
+    report each source class's precision/recall/F1, a class-agnostic confusion
+    matrix, and Top-1 accuracy before merging.
     In addition to the aggregate metrics, ``size_metrics`` reports metrics for
     COCO-style target areas: small < 32² pixels, medium 32²–96² pixels, and
     large >= 96² pixels.  Images must have known dimensions for this breakdown.
@@ -162,6 +168,7 @@ def compute_detection_metrics(
         raise ValueError("min_size_logic must be 'or' or 'and'")
     validate_nms_iou(nms_iou)
     overlap_metric = normalize_overlap_metric(overlap_metric)
+    original_gt, original_pred = gt, pred
     gt, pred, normalized_class_map = _prepare_eval_class_map(
         gt,
         pred,
@@ -335,7 +342,7 @@ def compute_detection_metrics(
         ignore_empty_classes=ignore_empty_classes,
     )
 
-    return DetectionMetrics(
+    metrics = DetectionMetrics(
         precision=precision,
         recall=recall,
         map50=map50,
@@ -365,6 +372,351 @@ def compute_detection_metrics(
         class_rules=normalized_class_rules or None,
         ignore_empty_classes=ignore_empty_classes,
     )
+    if report_pre_merge_metrics and normalized_class_map:
+        metrics.pre_merge_metrics = _compute_pre_merge_metrics(
+            original_gt,
+            original_pred,
+            final_gt=gt,
+            final_pred=pred,
+            class_map=normalized_class_map,
+            keep_id=keep_id,
+            selected=selected,
+            conf_thres=conf_thres,
+            nms_iou=nms_iou,
+            min_width=min_width,
+            min_height=min_height,
+            min_area=min_area,
+            min_size_logic=min_size_logic,
+            min_pixels=min_pixels,
+            class_rules=class_rules,
+            final_class_rules=resolved_class_rules,
+            iou_thresholds=iouv,
+            overlap_metric=overlap_metric,
+        )
+    return metrics
+
+
+def _compute_pre_merge_metrics(
+    original_gt: YoloDataset,
+    original_pred: YoloDataset,
+    *,
+    final_gt: YoloDataset,
+    final_pred: YoloDataset,
+    class_map: Mapping[str, Any],
+    keep_id: bool,
+    selected: set[int] | None,
+    conf_thres: float,
+    nms_iou: float | None,
+    min_width: float | None,
+    min_height: float | None,
+    min_area: float | None,
+    min_size_logic: str,
+    min_pixels: float | None,
+    class_rules: Mapping[int | str, Mapping[str, Any]] | None,
+    final_class_rules: Mapping[int, Mapping[str, Any]],
+    iou_thresholds: np.ndarray,
+    overlap_metric: str,
+) -> list[dict[str, Any]]:
+    """Evaluate each source class group before class-map merges."""
+
+    merge_map = class_map.get("merge") or {}
+    if not isinstance(merge_map, Mapping) or not merge_map:
+        return []
+
+    rename_map = class_map.get("rename") or {}
+    rename_only = {"rename": rename_map} if rename_map else None
+    base_gt, base_pred, _ = _prepare_eval_class_map(
+        original_gt,
+        original_pred,
+        rename_only,
+        keep_id=keep_id,
+    )
+    base_rules: dict[int, dict[str, Any]] = {}
+    for class_value, rule in (class_rules or {}).items():
+        try:
+            class_id = _resolve_class_id_across_datasets(
+                base_gt, base_pred, class_value
+            )
+        except ClassNotFoundError:
+            # A rule may be defined only for a newly-created merged target;
+            # it is propagated to that target's source classes below.
+            continue
+        base_rules[class_id] = dict(rule)
+    iou_threshold = float(iou_thresholds[0])
+    reports: list[dict[str, Any]] = []
+
+    for target_value, source_values in merge_map.items():
+        if isinstance(source_values, (str, int)):
+            source_values = [source_values]
+        source_ids: list[int] = []
+        for value in source_values:
+            class_id = _resolve_class_id_across_datasets(base_gt, base_pred, value)
+            if class_id not in source_ids:
+                source_ids.append(class_id)
+
+        # A merge target can already have instances of its own. Those are also
+        # part of the merged category's pre-merge class group.
+        try:
+            target_source_id = _resolve_class_id_across_datasets(
+                base_gt, base_pred, target_value
+            )
+        except ClassNotFoundError:
+            target_source_id = None
+        if target_source_id is not None and target_source_id not in source_ids:
+            source_ids.append(target_source_id)
+
+        target_id = _resolve_class_id_across_datasets(
+            final_gt, final_pred, target_value
+        )
+        if selected is not None and target_id not in selected:
+            continue
+        if not source_ids:
+            continue
+
+        names = [base_gt.class_name(class_id) for class_id in source_ids]
+        per_source_rules: dict[int, Mapping[str, Any]] = {
+            class_id: base_rules[class_id]
+            for class_id in source_ids
+            if class_id in base_rules
+        }
+        target_rule = final_class_rules.get(target_id)
+        if target_rule is not None:
+            for class_id in source_ids:
+                per_source_rules.setdefault(class_id, target_rule)
+
+        source_metrics = compute_detection_metrics(
+            base_gt,
+            base_pred,
+            class_ids=source_ids,
+            conf_thres=conf_thres,
+            nms_iou=nms_iou,
+            min_width=min_width,
+            min_height=min_height,
+            min_area=min_area,
+            min_size_logic=min_size_logic,
+            min_pixels=min_pixels,
+            class_rules=per_source_rules,
+            ignore_empty_classes=False,
+            iou_thresholds=iou_thresholds,
+            overlap_metric=overlap_metric,
+        )
+        class_rows = {row.class_id: row for row in source_metrics.classes}
+        matrix, gt_count = _build_class_agnostic_confusion_matrix(
+            base_gt,
+            base_pred,
+            class_ids=source_ids,
+            class_names=names,
+            conf_thres=conf_thres,
+            nms_iou=nms_iou,
+            min_width=min_width,
+            min_height=min_height,
+            min_area=min_area,
+            min_size_logic=min_size_logic,
+            min_pixels=min_pixels,
+            class_rules=per_source_rules,
+            iou_threshold=iou_threshold,
+            overlap_metric=overlap_metric,
+        )
+        correct = sum(matrix[index][index] for index in range(len(source_ids)))
+        accuracy = float(correct / gt_count) if gt_count else 0.0
+        class_details = []
+        for class_id, class_name in zip(source_ids, names):
+            row = class_rows.get(class_id)
+            class_details.append(
+                {
+                    "class_id": class_id,
+                    "class_name": class_name,
+                    "images": row.images if row is not None else 0,
+                    "labels": row.labels if row is not None else 0,
+                    "predictions": row.predictions if row is not None else 0,
+                    "precision": row.precision if row is not None else 0.0,
+                    "recall": row.recall if row is not None else 0.0,
+                    "f1": row.f1 if row is not None else 0.0,
+                }
+            )
+        reports.append(
+            {
+                "merged_class": final_gt.class_name(target_id),
+                "accuracy": accuracy,
+                "accuracy_type": "top1",
+                "accuracy_definition": (
+                    "correctly classified IoU-matched GT objects divided by all "
+                    "GT objects in this merge group; unmatched GT objects count "
+                    "as incorrect and unmatched predictions are excluded"
+                ),
+                "iou_threshold": iou_threshold,
+                "overlap_metric": overlap_metric,
+                "classes": class_details,
+                "confusion_matrix": {
+                    "labels": [*names, "background"],
+                    "counts": matrix,
+                },
+            }
+        )
+    return reports
+
+
+def _resolve_class_id_across_datasets(
+    gt: YoloDataset,
+    pred: YoloDataset,
+    value: int | str,
+) -> int:
+    try:
+        return gt.class_id(value)
+    except ClassNotFoundError:
+        return pred.class_id(value)
+
+
+def _build_class_agnostic_confusion_matrix(
+    gt: YoloDataset,
+    pred: YoloDataset,
+    *,
+    class_ids: Sequence[int],
+    class_names: Sequence[str],
+    conf_thres: float,
+    nms_iou: float | None,
+    min_width: float | None,
+    min_height: float | None,
+    min_area: float | None,
+    min_size_logic: str,
+    min_pixels: float | None,
+    class_rules: Mapping[int, Mapping[str, Any]],
+    iou_threshold: float,
+    overlap_metric: str,
+) -> tuple[list[list[int]], int]:
+    """Build a one-to-one, class-agnostic localization confusion matrix."""
+
+    background_id = len(class_ids)
+    matrix = [[0 for _ in range(background_id + 1)] for _ in range(background_id + 1)]
+    class_index = {class_id: index for index, class_id in enumerate(class_ids)}
+    selected = set(class_ids)
+    pred_by_stem = pred.image_by_stem()
+    seen_gt_stems: set[str] = set()
+    gt_count = 0
+
+    for gt_image in gt.images:
+        seen_gt_stems.add(gt_image.stem)
+        pred_image = pred_by_stem.get(gt_image.stem)
+        width = gt_image.width if gt_image.width is not None else (
+            pred_image.width if pred_image is not None else None
+        )
+        height = gt_image.height if gt_image.height is not None else (
+            pred_image.height if pred_image is not None else None
+        )
+        gt_anns = _filter_annotations(
+            gt_image.annotations,
+            selected,
+            is_prediction=False,
+            conf_thres=conf_thres,
+            image_width=width,
+            image_height=height,
+            min_width=min_width,
+            min_height=min_height,
+            min_area=min_area,
+            min_size_logic=min_size_logic,
+            min_pixels=min_pixels,
+            class_rules=class_rules,
+        )
+        pred_anns = _filter_annotations(
+            pred_image.annotations if pred_image is not None else [],
+            selected,
+            is_prediction=True,
+            conf_thres=conf_thres,
+            image_width=width,
+            image_height=height,
+            min_width=min_width,
+            min_height=min_height,
+            min_area=min_area,
+            min_size_logic=min_size_logic,
+            min_pixels=min_pixels,
+            class_rules=class_rules,
+        )
+        pred_anns = non_max_suppress_annotations(pred_anns, nms_iou)
+        gt_count += len(gt_anns)
+        matches = _greedy_class_agnostic_matches(
+            gt_anns,
+            pred_anns,
+            iou_threshold=iou_threshold,
+            overlap_metric=overlap_metric,
+        )
+        matched_gt = {gt_idx for gt_idx, _ in matches}
+        matched_pred = {pred_idx for _, pred_idx in matches}
+        for gt_idx, pred_idx in matches:
+            matrix[
+                class_index[gt_anns[gt_idx].class_id]
+            ][class_index[pred_anns[pred_idx].class_id]] += 1
+        for gt_idx, annotation in enumerate(gt_anns):
+            if gt_idx not in matched_gt:
+                matrix[class_index[annotation.class_id]][background_id] += 1
+        for pred_idx, annotation in enumerate(pred_anns):
+            if pred_idx not in matched_pred:
+                matrix[background_id][class_index[annotation.class_id]] += 1
+
+    for pred_image in pred.images:
+        if pred_image.stem in seen_gt_stems:
+            continue
+        pred_anns = _filter_annotations(
+            pred_image.annotations,
+            selected,
+            is_prediction=True,
+            conf_thres=conf_thres,
+            image_width=pred_image.width,
+            image_height=pred_image.height,
+            min_width=min_width,
+            min_height=min_height,
+            min_area=min_area,
+            min_size_logic=min_size_logic,
+            min_pixels=min_pixels,
+            class_rules=class_rules,
+        )
+        pred_anns = non_max_suppress_annotations(pred_anns, nms_iou)
+        for annotation in pred_anns:
+            matrix[background_id][class_index[annotation.class_id]] += 1
+
+    return matrix, gt_count
+
+
+def _greedy_class_agnostic_matches(
+    gt_anns: Sequence[YoloAnnotation],
+    pred_anns: Sequence[YoloAnnotation],
+    *,
+    iou_threshold: float,
+    overlap_metric: str,
+) -> list[tuple[int, int]]:
+    if not gt_anns or not pred_anns:
+        return []
+    overlap = box_overlap_matrix(
+        np.array([_annotation_box_xyxy(ann) for ann in gt_anns], dtype=np.float64),
+        np.array([_annotation_box_xyxy(ann) for ann in pred_anns], dtype=np.float64),
+        metric=overlap_metric,
+    )
+    candidates = [
+        (float(overlap[gt_idx, pred_idx]), gt_idx, pred_idx)
+        for gt_idx, pred_idx in np.argwhere(overlap >= iou_threshold)
+    ]
+    candidates.sort(key=lambda item: (-item[0], item[1], item[2]))
+    used_gt: set[int] = set()
+    used_pred: set[int] = set()
+    matches: list[tuple[int, int]] = []
+    for _score, gt_idx, pred_idx in candidates:
+        if gt_idx in used_gt or pred_idx in used_pred:
+            continue
+        used_gt.add(gt_idx)
+        used_pred.add(pred_idx)
+        matches.append((gt_idx, pred_idx))
+    return matches
+
+
+def _annotation_box_xyxy(annotation: YoloAnnotation) -> list[float]:
+    box = annotation.geometry_box()
+    if box is None:
+        return [0.0, 0.0, 0.0, 0.0]
+    return [
+        box.cx - box.width / 2.0,
+        box.cy - box.height / 2.0,
+        box.cx + box.width / 2.0,
+        box.cy + box.height / 2.0,
+    ]
 
 
 def resolve_eval_class_ids(
@@ -498,6 +850,143 @@ def write_size_metrics_csv(metrics: DetectionMetrics, path: str | Path) -> None:
         writer.writeheader()
         for metric in metrics.size_metrics.values():
             writer.writerow(asdict(metric))
+
+
+def write_pre_merge_metrics_csv(metrics: DetectionMetrics, path: str | Path) -> None:
+    """Write per-source-class metrics for each class-map merge group."""
+
+    if not metrics.pre_merge_metrics:
+        return
+    out_path = Path(path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fields = [
+        "merged_class",
+        "accuracy",
+        "accuracy_type",
+        "iou_threshold",
+        "class_id",
+        "class_name",
+        "images",
+        "labels",
+        "predictions",
+        "precision",
+        "recall",
+        "f1",
+    ]
+    with out_path.open("w", newline="", encoding="utf-8") as fp:
+        writer = csv.DictWriter(fp, fieldnames=fields)
+        writer.writeheader()
+        for group in metrics.pre_merge_metrics:
+            for row in group["classes"]:
+                writer.writerow(
+                    {
+                        "merged_class": group["merged_class"],
+                        "accuracy": group["accuracy"],
+                        "accuracy_type": group["accuracy_type"],
+                        "iou_threshold": group["iou_threshold"],
+                        **row,
+                    }
+                )
+
+
+def write_pre_merge_confusion_csv(metrics: DetectionMetrics, path: str | Path) -> None:
+    """Write pre-merge confusion matrices in a tidy long-form CSV."""
+
+    if not metrics.pre_merge_metrics:
+        return
+    out_path = Path(path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fields = [
+        "merged_class",
+        "accuracy",
+        "iou_threshold",
+        "overlap_metric",
+        "gt_class",
+        "pred_class",
+        "count",
+    ]
+    with out_path.open("w", newline="", encoding="utf-8") as fp:
+        writer = csv.DictWriter(fp, fieldnames=fields)
+        writer.writeheader()
+        for group in metrics.pre_merge_metrics:
+            matrix = group["confusion_matrix"]
+            labels = matrix["labels"]
+            for gt_idx, gt_name in enumerate(labels):
+                for pred_idx, pred_name in enumerate(labels):
+                    writer.writerow(
+                        {
+                            "merged_class": group["merged_class"],
+                            "accuracy": group["accuracy"],
+                            "iou_threshold": group["iou_threshold"],
+                            "overlap_metric": group["overlap_metric"],
+                            "gt_class": gt_name,
+                            "pred_class": pred_name,
+                            "count": matrix["counts"][gt_idx][pred_idx],
+                        }
+                    )
+
+
+def format_pre_merge_metrics(
+    metrics: DetectionMetrics,
+    *,
+    precision: int = 3,
+) -> str:
+    """Format optional pre-merge metrics and confusion matrices for the console."""
+
+    if not metrics.pre_merge_metrics:
+        return ""
+    lines = ["Pre-merge source-class metrics:"]
+    for group in metrics.pre_merge_metrics:
+        lines.append(
+            f"Merged class: {group['merged_class']} | "
+            f"Accuracy (Top-1): {_format_metric(group['accuracy'], precision)} | "
+            f"matching: {group['overlap_metric'].upper()} "
+            f"{_format_metric(group['iou_threshold'], precision)}"
+        )
+        headers = ["Class", "Images", "Instances", "Predictions", "Precision", "Recall", "F1"]
+        rows = [
+            [
+                row["class_name"],
+                str(row["images"]),
+                str(row["labels"]),
+                str(row["predictions"]),
+                _format_metric(row["precision"], precision),
+                _format_metric(row["recall"], precision),
+                _format_metric(row["f1"], precision),
+            ]
+            for row in group["classes"]
+        ]
+        widths = [
+            max(len(headers[index]), *(len(row[index]) for row in rows))
+            for index in range(len(headers))
+        ]
+        lines.append(" ".join(header.ljust(widths[index]) for index, header in enumerate(headers)))
+        lines.extend(
+            " ".join(value.ljust(widths[index]) for index, value in enumerate(row))
+            for row in rows
+        )
+        confusion = group["confusion_matrix"]
+        labels = confusion["labels"]
+        matrix_headers = ["GT \\ Pred", *labels]
+        matrix_rows = [
+            [label, *(str(value) for value in row)]
+            for label, row in zip(labels, confusion["counts"])
+        ]
+        matrix_widths = [
+            max(len(matrix_headers[index]), *(len(row[index]) for row in matrix_rows))
+            for index in range(len(matrix_headers))
+        ]
+        lines.extend(
+            [
+                "Confusion matrix (rows=GT, columns=prediction):",
+                " ".join(value.rjust(matrix_widths[index]) for index, value in enumerate(matrix_headers)),
+            ]
+        )
+        lines.extend(
+            " ".join(value.rjust(matrix_widths[index]) for index, value in enumerate(row))
+            for row in matrix_rows
+        )
+    return "\n".join(lines)
 
 
 def format_metrics_table(metrics: DetectionMetrics, *, precision: int = 3) -> str:

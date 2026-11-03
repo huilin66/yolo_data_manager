@@ -580,6 +580,7 @@ ydm.anno_update_by_size(
 `eval_error_analysis(conf_curve=True)` 会使用 `0.1、0.2、0.3、0.4、0.5` 五个置信度阈值重新分析，并按 review 输出分组统计文件数量。结果为 `conf_curve.csv`（各分组明细）、`conf_curve_summary.csv`（FP/FN/error 和属性错误汇总）以及 `conf_curve.png`；每条曲线对应一个 review 分组。
 
 `eval_metrics` 使用 `class_` 指定只评估的类别；类别合并和排除统一通过评估专用的 `class_map` 完成。`class_map` 支持 `rename`、`merge`、`drop` 操作，例如 `{"merge": {"vehicle": ["car", "truck"]}, "drop": ["background"]}`，只作用于 GT/预测内存副本，不修改原始文件；传入 `keep_id=True` 可保留评估副本中的类别 ID 和类别表。设置 `show_original=True` 后，如果使用了类别、`class_map`、`class_rules` 或 `min_pixels` 参数，会在最终结果前输出原始结果；JSON 输出包含 `original` 和 `final`，而 `out` 文件仍保存最终结果。
+传入 `report_pre_merge_metrics=True` 可额外输出每个 merge 目标在合并前的源类别 Precision、Recall、F1、Top-1 accuracy 和混淆矩阵。Accuracy 的定义为：按配置的匹配方式/阈值做类别无关的一对一定位匹配，正确分类的 GT 数除以该 merge 组的 GT 总数；未匹配 GT 计为错误，额外预测不进入 accuracy 分母，但会记录在混淆矩阵的 background 行。结果写入 JSON 的 `pre_merge_metrics`，并在 `csv` 同目录生成 `*_pre_merge.csv` 和 `*_pre_merge_confusion.csv`。
 `eval_metrics` 默认在控制台输出对齐表格，包含总体/各类别指标以及 small、medium、large 目标尺寸指标；表格和 JSON 均包含 F1；`print_table=False`（CLI 使用 `--no-print-table`）时恢复输出详细 JSON。单模态和 `MultiModalYoloManager` 使用相同的表格格式。
 `eval_metrics` 默认使用 IoU 进行 TP 和 mAP 匹配；需要按交集面积除以较小框面积匹配时，传入 `overlap_metric="ios"`。NMS 去重仍始终使用 IoU，结果 JSON 和控制台表格会记录 `overlap_metric`。
 `eval_metrics` 的 `class_rules` 可以按类别覆盖全局尺寸过滤规则；支持类别名或类别 id，字段为 `width`/`min_width`、`height`/`min_height`、`min_area`、`min_pixels` 和 `logic`/`min_size_logic`。配置了规则的类别使用自己的完整规则，未配置的类别继续使用全局参数；如果 `class_map` 包含 `merge`，规则按合并后的目标类别名匹配。

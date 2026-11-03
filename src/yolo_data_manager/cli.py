@@ -105,8 +105,11 @@ from yolo_data_manager.evaluation.error_analysis import (
 from yolo_data_manager.evaluation.metrics import (
     compute_detection_metrics,
     format_metrics_table,
+    format_pre_merge_metrics,
     write_metrics_csv,
     write_metrics_json,
+    write_pre_merge_confusion_csv,
+    write_pre_merge_metrics_csv,
     write_size_metrics_csv,
 )
 from yolo_data_manager.evaluation.review_pack import write_review_pack
@@ -1239,6 +1242,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--keep-id",
         action="store_true",
         help="preserve class IDs/schema while applying the evaluation-only --class-map",
+    )
+    metrics.add_argument(
+        "--report-pre-merge-metrics",
+        action="store_true",
+        help="also report Top-1 accuracy, source-class metrics, and confusion matrices for class-map merge groups",
     )
     metrics.add_argument("--conf-thres", type=float, default=0.0, help="confidence threshold for predictions")
     metrics.add_argument("--nms-iou", type=float, default=0.5, help="same-class NMS IoU threshold; default 0.5")
@@ -3073,6 +3081,12 @@ def handle_eval_metrics(args: argparse.Namespace) -> int:
     size_csv_out = csv_path.with_name(
         f"{csv_path.stem}_size{csv_path.suffix or '.csv'}"
     )
+    pre_merge_csv_out = csv_path.with_name(
+        f"{csv_path.stem}_pre_merge{csv_path.suffix or '.csv'}"
+    )
+    pre_merge_confusion_csv_out = csv_path.with_name(
+        f"{csv_path.stem}_pre_merge_confusion{csv_path.suffix or '.csv'}"
+    )
     val_source = _resolve_eval_val_source(args.gt_root, args.val_source, getattr(args, "only_val", False))
     stems = collect_stems_from_source(val_source)
     gt = load_error_analysis_dataset(
@@ -3129,6 +3143,7 @@ def handle_eval_metrics(args: argparse.Namespace) -> int:
         class_ids=class_values,
         class_map=class_map,
         keep_id=args.keep_id,
+        report_pre_merge_metrics=args.report_pre_merge_metrics,
         conf_thres=args.conf_thres,
         nms_iou=args.nms_iou,
         allow_duplicate_matches=args.allow_duplicate_matches,
@@ -3144,12 +3159,19 @@ def handle_eval_metrics(args: argparse.Namespace) -> int:
     write_metrics_json(metrics, out)
     write_metrics_csv(metrics, csv_out)
     write_size_metrics_csv(metrics, size_csv_out)
+    if metrics.pre_merge_metrics:
+        write_pre_merge_metrics_csv(metrics, pre_merge_csv_out)
+        write_pre_merge_confusion_csv(metrics, pre_merge_confusion_csv_out)
     if original_metrics is not None and args.print_table:
         print("Original metrics:")
         print(format_metrics_table(original_metrics))
         print()
         print("Final metrics:")
         print(format_metrics_table(metrics))
+        pre_merge_table = format_pre_merge_metrics(metrics)
+        if pre_merge_table:
+            print()
+            print(pre_merge_table)
     elif original_metrics is not None:
         print(
             json.dumps(
@@ -3164,6 +3186,10 @@ def handle_eval_metrics(args: argparse.Namespace) -> int:
         )
     elif args.print_table:
         print(format_metrics_table(metrics))
+        pre_merge_table = format_pre_merge_metrics(metrics)
+        if pre_merge_table:
+            print()
+            print(pre_merge_table)
     else:
         print(json.dumps(metrics.to_dict(), indent=2, ensure_ascii=False))
     return 0
