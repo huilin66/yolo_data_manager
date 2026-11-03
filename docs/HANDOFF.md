@@ -6,7 +6,7 @@
 
 每次更新代码后，交付前必须同步更新项目版本号。版本号唯一维护在根目录 `pyproject.toml` 的 `[project].version`，遵循 SemVer：修复问题递增 patch（例如 `1.0.1`），新增向后兼容功能递增 minor（例如 `1.1.0`），不兼容的 API 或行为变更递增 major（例如 `2.0.0`）。提交代码、测试或文档变更时，应确认版本号与本次变更保持一致。
 
-当前版本为 `4.2.0`。`YoloManager` 提供惰性 `dataset`、`classes` 和 `attributes` 属性；首次访问时加载并缓存数据集，`load(reload=True)` 可显式刷新，数据修改操作会自动清理缓存。校验拆分为 `image_check`、`label_check`，`check` 默认合并调用两者，并支持 `check_list` 选择检查组。`dataset_split` 支持 `val_source` 固定复用已有验证集，也支持 `out_data` 复制生成独立的新数据集。尺寸过滤支持按类别配置多组像素宽高条件，`anno_update_by_size`、`eval_metrics` 和 `eval_error_analysis` 共用该规则。
+当前版本为 `4.3.0`。`YoloManager` 提供惰性 `dataset`、`classes` 和 `attributes` 属性；首次访问时加载并缓存数据集，`load(reload=True)` 可显式刷新，数据修改操作会自动清理缓存。校验拆分为 `image_check`、`label_check`，`check` 默认合并调用两者，并支持 `check_list` 选择检查组。`dataset_split` 支持 `val_source` 固定复用已有验证集，也支持 `out_data` 复制生成独立的新数据集。尺寸过滤支持按类别配置多组像素宽高条件，`anno_update_by_size`、`eval_metrics` 和 `eval_error_analysis` 共用该规则。
 
 单模态和多模态 `stats` 默认只在控制台输出 image/box/attribute 三张基础统计表；详细 JSON、输出路径和多模态明细仍保存到文件，需显式传入 `print_details=True` 或 CLI 的 `--print-details` 才打印。
 
@@ -19,6 +19,8 @@
 `eval_metrics` 和 `eval_error_analysis` 都支持评估专用 `class_map`/`--class-map`，格式与标注类别操作映射一致，可执行 `rename`、`merge`、`drop`；操作只作用于 GT 和预测的内存副本，不会修改任何原始文件。`keep_id=True`/`--keep-id` 可在评估副本中保留类别 ID 和类别表。两个评估 API 均不再提供 `exclude_class_` 或 `merge_class_map`，类别排除和合并统一写入 `class_map`。
 
 `example/dataset_template.py` 的 `METRIC_SUMMARY` 默认使用 `summary_mode="per_result"`，选择一个指标并输出总体值和各类别值。设置 `summary_mode="overall"`（`"total"` 也可作为兼容别名）时，每个 `eval_metrics` 结果输出一行总体 `Class=all`，字段包括 `Images`、`Instances`、`Precision`、`Recall`、`F1`、`mAP50` 和 `mAP50-95`。`data`、`model`、`weight`、`method`、`conf` 均为可选列，设置为 `None` 或空字符串时不会生成对应列。
+
+`tools/split_vis_crops.py` 可以将 `vis_crop` 结果生成 train/val/test txt：`source_split` 复用原数据集划分，`stem_random` 按原图 stem 随机且保持同一原图不跨 split，`crop_random` 对每个 crop 文件完全随机。默认只生成 txt 和报告，也支持复制 crop 文件。
 
 单模态和多模态 `dataset_split` 会额外输出 train/val/test 的图像数、label 文件数和标注框数表格，并在返回/控制台 JSON 中保存 `split_distribution`。
 

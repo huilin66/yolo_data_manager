@@ -10,6 +10,7 @@ YOLO Data Manager is a Python package and CLI for managing YOLO datasets. A data
 - [Merge single-modality datasets into multimodal YOLO](docs/MERGE_MODALITIES_EN.md)
 - [CLI Usage](docs/CLI_USAGE_EN.md)
 - [Project Handoff](docs/HANDOFF_EN.md)
+- [Standalone Tools](docs/TOOLS_EN.md)
 - [中文 Python 使用](docs/PYTHON_USAGE.md)
 - [中文 CLI 使用](docs/CLI_USAGE.md)
 - [中文交接说明](docs/HANDOFF.md)
