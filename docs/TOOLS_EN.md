@@ -12,7 +12,6 @@ Reuse an existing dataset split:
 python -m yolo_data_manager.tools.split_vis_crops \
   --crops-dir dataset/ydm_vis/crop \
   --split-dir dataset \
-  --out dataset/ydm_vis/crop_split \
   --mode source_split
 ```
 
@@ -22,7 +21,6 @@ the same split:
 ```bash
 python -m yolo_data_manager.tools.split_vis_crops \
   --crops-dir dataset/ydm_vis/crop \
-  --out dataset/ydm_vis/crop_split \
   --mode stem_random --train 0.8 --val 0.2 --test 0 --seed 233
 ```
 
@@ -31,14 +29,15 @@ Randomize every crop file independently:
 ```bash
 python -m yolo_data_manager.tools.split_vis_crops \
   --crops-dir dataset/ydm_vis/crop \
-  --out dataset/ydm_vis/crop_split \
   --mode crop_random --train 0.8 --val 0.2 --test 0 --seed 233
 ```
 
 The modes are `source_split`, `stem_random`, and `crop_random`. By default,
 txt entries are relative to `--crops-dir`; use `--absolute-paths` for absolute
 entries and `--copy-files` to copy files into `<out>/train`, `<out>/val`, and
-`<out>/test`. A `split_report.json` is written with counts, settings, and
+`<out>/test`. If `--out` is omitted, output defaults to `<crops-dir>/split`.
+Thus `source_split` can generate only the three TXT files without copying crop
+images. A `split_report.json` is also written with counts, settings, and
 unassigned-file information.
 
 ## Multimodal helpers

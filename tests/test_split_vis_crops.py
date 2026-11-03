@@ -90,3 +90,23 @@ def test_crop_random_is_deterministic_and_assigns_each_file_independently(tmp_pa
         for value in (first / f"{split}.txt").read_text(encoding="utf-8").splitlines()
     }
     assert len(all_entries) == 6
+
+
+def test_default_output_is_inside_crops_dir_and_only_writes_txt_without_copy(tmp_path):
+    tool = _load_tool()
+    crops = tmp_path / "crop"
+    _touch(crops / "class_a" / "frame_001_1.jpg")
+    split_dir = tmp_path / "dataset"
+    split_dir.mkdir()
+    (split_dir / "train.txt").write_text("frame_001.jpg\n", encoding="utf-8")
+
+    report = tool.split_vis_crops(crops, mode="source_split", split_dir=split_dir)
+
+    out = crops / "split"
+    assert report["out"] == str(out.resolve())
+    assert (out / "train.txt").read_text(encoding="utf-8").splitlines() == [
+        "class_a/frame_001_1.jpg",
+    ]
+    assert (out / "val.txt").read_text(encoding="utf-8") == ""
+    assert (out / "test.txt").read_text(encoding="utf-8") == ""
+    assert not (out / "train" / "class_a" / "frame_001_1.jpg").exists()

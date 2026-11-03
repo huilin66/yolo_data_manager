@@ -11,7 +11,6 @@
 python -m yolo_data_manager.tools.split_vis_crops \
   --crops-dir dataset/ydm_vis/crop \
   --split-dir dataset \
-  --out dataset/ydm_vis/crop_split \
   --mode source_split
 ```
 
@@ -23,7 +22,6 @@ python -m yolo_data_manager.tools.split_vis_crops \
 ```bash
 python -m yolo_data_manager.tools.split_vis_crops \
   --crops-dir dataset/ydm_vis/crop \
-  --out dataset/ydm_vis/crop_split \
   --mode stem_random \
   --train 0.8 --val 0.2 --test 0 --seed 233
 ```
@@ -33,7 +31,6 @@ python -m yolo_data_manager.tools.split_vis_crops \
 ```bash
 python -m yolo_data_manager.tools.split_vis_crops \
   --crops-dir dataset/ydm_vis/crop \
-  --out dataset/ydm_vis/crop_split \
   --mode crop_random \
   --train 0.8 --val 0.2 --test 0 --seed 233
 ```
@@ -45,8 +42,9 @@ python -m yolo_data_manager.tools.split_vis_crops \
 - `crop_random`：每个 crop 独立随机，允许同一原图的 crop 分到不同 split。
 
 默认 txt 中使用相对于 `--crops-dir` 的路径。使用 `--absolute-paths` 写绝对路径，
-使用 `--copy-files` 同时复制到 `<out>/train`、`<out>/val`、`<out>/test`。每次运行还会生成
-`split_report.json`，记录数量、模式、比例和未分配文件。
+使用 `--copy-files` 同时复制到 `<out>/train`、`<out>/val`、`<out>/test`。省略 `--out`
+时，输出目录默认为 `<crops-dir>/split`。因此 `source_split` 也可以只生成三个 txt
+文件，不复制图像。每次运行还会生成 `split_report.json`，记录数量、模式、比例和未分配文件。
 
 ## 多模态辅助函数
 

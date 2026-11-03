@@ -12,22 +12,23 @@ Reuse an existing dataset split::
     python -m yolo_data_manager.tools.split_vis_crops \
         --crops-dir dataset/ydm_vis/crop \
         --split-dir dataset \
-        --out dataset/ydm_vis/crop_split \
         --mode source_split
 
 Keep every crop from one source image in one random split::
 
     python -m yolo_data_manager.tools.split_vis_crops \
         --crops-dir dataset/ydm_vis/crop \
-        --out dataset/ydm_vis/crop_split \
         --mode stem_random --train 0.8 --val 0.2 --test 0 --seed 233
 
 Randomly assign every crop file independently::
 
     python -m yolo_data_manager.tools.split_vis_crops \
         --crops-dir dataset/ydm_vis/crop \
-        --out dataset/ydm_vis/crop_split \
         --mode crop_random --train 0.8 --val 0.2 --test 0 --seed 233
+
+When ``--out`` is omitted, the TXT files are written to
+``<crops-dir>/split``. Files are not copied unless ``--copy-files`` is
+explicitly provided.
 """
 
 from __future__ import annotations
@@ -244,7 +245,7 @@ def split_vis_crops(
     out_root = (
         Path(out).expanduser().resolve()
         if out is not None
-        else crop_root.parent / f"{crop_root.name}_split"
+        else crop_root / "split"
     )
     if out_root == crop_root:
         raise ValueError("out must be different from crops_dir")
@@ -389,7 +390,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--out",
         default=None,
-        help="output directory; defaults to <crops-dir>_split beside the crop directory",
+        help="output directory; defaults to <crops-dir>/split",
     )
     parser.add_argument(
         "--mode",
