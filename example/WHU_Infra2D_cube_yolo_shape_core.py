@@ -9,8 +9,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from yolo_data_manager.tools.split_vis_crops import split_vis_crops
 from yolo_data_manager import YoloManager
+from yolo_data_manager.tools.split_vis_crops import split_vis_crops
 
 # DATA_DIR = Path(r"/data/huilin/data/bdd_hmt/sua_rgb_update_v1")
 # DATA_DIR = Path(r"/data/huilin/data/bdd_hmt/hmt_rgb_update_v2")
@@ -71,11 +71,11 @@ CROP_MAP_PRED = {
 # Select operations by uncommenting names in RUN_LIST.
 RUN_LIST = [
     # "rename",
-    "split",
+    # "split",
     # "resize",
-    "sta",
+    # "sta",
     # "vis_draw",
-    "vis_crop",
+    # "vis_crop",
     "vis_crop_split",
     # "query",
     # "copy_select",
@@ -132,7 +132,7 @@ def main() -> None:
         )
     if "vis_crop_split" in RUN_LIST:
         split_vis_crops(
-            crops_dir=ydm.output_vis / "crops",
+            crops_dir=ydm.output_vis / "crop",
             mode="source_split",
             split_dir=ydm.root,
         )
