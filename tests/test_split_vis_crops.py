@@ -29,6 +29,7 @@ def test_source_split_reuses_source_txt_and_skips_unmatched(tmp_path):
         tmp_path / "crop_split",
         mode="source_split",
         split_dir=split_dir,
+        absolute_paths=False,
     )
 
     assert (tmp_path / "crop_split" / "train.txt").read_text(encoding="utf-8").splitlines() == [
@@ -102,10 +103,10 @@ def test_default_output_is_inside_crops_dir_and_only_writes_txt_without_copy(tmp
 
     report = tool.split_vis_crops(crops, mode="source_split", split_dir=split_dir)
 
-    out = crops / "split"
+    out = crops
     assert report["out"] == str(out.resolve())
     assert (out / "train.txt").read_text(encoding="utf-8").splitlines() == [
-        "class_a/frame_001_1.jpg",
+        str((crops / "class_a" / "frame_001_1.jpg").resolve()),
     ]
     assert (out / "val.txt").read_text(encoding="utf-8") == ""
     assert (out / "test.txt").read_text(encoding="utf-8") == ""

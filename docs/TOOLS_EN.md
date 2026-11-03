@@ -32,10 +32,11 @@ python -m yolo_data_manager.tools.split_vis_crops \
   --mode crop_random --train 0.8 --val 0.2 --test 0 --seed 233
 ```
 
-The modes are `source_split`, `stem_random`, and `crop_random`. By default,
-txt entries are relative to `--crops-dir`; use `--absolute-paths` for absolute
-entries and `--copy-files` to copy files into `<out>/train`, `<out>/val`, and
-`<out>/test`. If `--out` is omitted, output defaults to `<crops-dir>/split`.
+The modes are `source_split`, `stem_random`, and `crop_random`. The CLI uses
+paths relative to `--crops-dir` by default; the Python function defaults to
+absolute paths and accepts `absolute_paths=False` for relative paths. Use
+`--absolute-paths` in the CLI for absolute entries, and `--copy-files` to copy files into `<out>/train`, `<out>/val`, and
+`<out>/test`. If `--out` is omitted, output defaults directly to `<crops-dir>`.
 Thus `source_split` can generate only the three TXT files without copying crop
 images. A `split_report.json` is also written with counts, settings, and
 unassigned-file information.

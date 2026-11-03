@@ -26,8 +26,8 @@ Randomly assign every crop file independently::
         --crops-dir dataset/ydm_vis/crop \
         --mode crop_random --train 0.8 --val 0.2 --test 0 --seed 233
 
-When ``--out`` is omitted, the TXT files are written to
-``<crops-dir>/split``. Files are not copied unless ``--copy-files`` is
+When ``--out`` is omitted, the TXT files are written directly to
+``<crops-dir>``. Files are not copied unless ``--copy-files`` is
 explicitly provided.
 """
 
@@ -103,8 +103,11 @@ def _is_relative_to(path: Path, parent: Path) -> bool:
 
 
 def _iter_crop_files(
-    crops_dir: Path, *, excluded_dir: Path | None = None
+    crops_dir: Path,
+    *,
+    excluded_dirs: Iterable[Path] = (),
 ) -> list[CropRecord]:
+    excluded = tuple(path.resolve() for path in excluded_dirs)
     records: list[CropRecord] = []
     for path in sorted(
         crops_dir.rglob("*"), key=lambda item: item.as_posix().casefold()
@@ -112,7 +115,7 @@ def _iter_crop_files(
         if not path.is_file() or path.suffix.lower() not in IMAGE_SUFFIXES:
             continue
         resolved = path.resolve()
-        if excluded_dir is not None and _is_relative_to(resolved, excluded_dir):
+        if any(_is_relative_to(resolved, directory) for directory in excluded):
             continue
         source_stem, annotation_index = _parse_crop_name(path)
         records.append(
@@ -254,13 +257,20 @@ def split_vis_crops(
     if not crop_root.is_dir():
         raise FileNotFoundError(f"crop directory does not exist: {crop_root}")
     out_root = (
-        Path(out).expanduser().resolve() if out is not None else crop_root / "split"
+        Path(out).expanduser().resolve()
+        if out is not None
+        else crop_root
     )
-    if out_root == crop_root:
-        raise ValueError("out must be different from crops_dir")
     out_root.mkdir(parents=True, exist_ok=True)
 
-    records = _iter_crop_files(crop_root, excluded_dir=out_root)
+    if out_root == crop_root:
+        # The default output is the crop root itself. Exclude folders that may
+        # contain copied results from an earlier --copy-files run, but keep all
+        # regular crop directories available as input.
+        excluded_dirs = tuple(crop_root / split for split in SPLITS)
+    else:
+        excluded_dirs = (out_root,)
+    records = _iter_crop_files(crop_root, excluded_dirs=excluded_dirs)
     if not records:
         raise ValueError(f"no crop image files found in {crop_root}")
 
@@ -399,7 +409,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--out",
         default=None,
-        help="output directory; defaults to <crops-dir>/split",
+        help="output directory; defaults to <crops-dir>",
     )
     parser.add_argument(
         "--mode",

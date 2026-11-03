@@ -41,9 +41,10 @@ python -m yolo_data_manager.tools.split_vis_crops \
 - `stem_random`：按原图 stem 随机，同一原图不会跨 split；
 - `crop_random`：每个 crop 独立随机，允许同一原图的 crop 分到不同 split。
 
-默认 txt 中使用相对于 `--crops-dir` 的路径。使用 `--absolute-paths` 写绝对路径，
+命令行默认 txt 中使用相对于 `--crops-dir` 的路径；Python 函数默认写绝对路径，
+可传入 `absolute_paths=False` 改为相对路径。命令行使用 `--absolute-paths` 写绝对路径，
 使用 `--copy-files` 同时复制到 `<out>/train`、`<out>/val`、`<out>/test`。省略 `--out`
-时，输出目录默认为 `<crops-dir>/split`。因此 `source_split` 也可以只生成三个 txt
+时，输出目录默认为 `<crops-dir>`。因此 `source_split` 也可以只生成三个 txt
 文件，不复制图像。每次运行还会生成 `split_report.json`，记录数量、模式、比例和未分配文件。
 
 ## 多模态辅助函数
