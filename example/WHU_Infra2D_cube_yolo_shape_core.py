@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from tools.split_vis_crops import split_vis_crops
+from yolo_data_manager.tools.split_vis_crops import split_vis_crops
 from yolo_data_manager import YoloManager
 
 # DATA_DIR = Path(r"/data/huilin/data/bdd_hmt/sua_rgb_update_v1")

@@ -1,14 +1,14 @@
-# 工具脚本
+# YDM 通用工具
 
 ## 划分 `vis_crop` 结果
 
-`tools/split_vis_crops.py` 为 `vis_crop` 生成 `train.txt`、`val.txt`、`test.txt`。
+`yolo_data_manager.tools.split_vis_crops` 为 `vis_crop` 生成 `train.txt`、`val.txt`、`test.txt`。
 它只处理 crop 图像列表，不生成 YOLO 标注；因此输出适合人工 review 或样本列表管理。
 
 ### 复用原数据集划分
 
 ```bash
-python tools/split_vis_crops.py \
+python -m yolo_data_manager.tools.split_vis_crops \
   --crops-dir dataset/ydm_vis/crop \
   --split-dir dataset \
   --out dataset/ydm_vis/crop_split \
@@ -21,7 +21,7 @@ python tools/split_vis_crops.py \
 ### 按原图随机划分
 
 ```bash
-python tools/split_vis_crops.py \
+python -m yolo_data_manager.tools.split_vis_crops \
   --crops-dir dataset/ydm_vis/crop \
   --out dataset/ydm_vis/crop_split \
   --mode stem_random \
@@ -31,7 +31,7 @@ python tools/split_vis_crops.py \
 ### 对 crop 文件完全随机划分
 
 ```bash
-python tools/split_vis_crops.py \
+python -m yolo_data_manager.tools.split_vis_crops \
   --crops-dir dataset/ydm_vis/crop \
   --out dataset/ydm_vis/crop_split \
   --mode crop_random \
@@ -47,3 +47,18 @@ python tools/split_vis_crops.py \
 默认 txt 中使用相对于 `--crops-dir` 的路径。使用 `--absolute-paths` 写绝对路径，
 使用 `--copy-files` 同时复制到 `<out>/train`、`<out>/val`、`<out>/test`。每次运行还会生成
 `split_report.json`，记录数量、模式、比例和未分配文件。
+
+## 多模态辅助函数
+
+```python
+from yolo_data_manager.tools.mdet_tools import (
+    convert_depth_to_uint8,
+    load_mdet_manager,
+    yolo_check,
+    yolo_sta,
+    yolo_vis,
+)
+```
+
+这些函数复用 `MultiModalYoloManager`，用于多模态数据集的加载、检查、统计、
+深度图显示转换和可视化。

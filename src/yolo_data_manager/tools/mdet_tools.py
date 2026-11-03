@@ -8,8 +8,10 @@ single-modal dataset.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from yolo_data_manager import MultiModalYoloManager
+if TYPE_CHECKING:
+    from yolo_data_manager.multimodal_manager import MultiModalYoloManager
 
 
 IMAGE_DIR_NAMES = ["visible", "infrared", "depth"]
@@ -29,6 +31,8 @@ def load_mdet_manager(
     class_file: str = "class.txt",
 ) -> MultiModalYoloManager:
     """Create one cached multimodal manager for the selected image folders."""
+
+    from yolo_data_manager.multimodal_manager import MultiModalYoloManager
 
     return MultiModalYoloManager(
         dataset_input,

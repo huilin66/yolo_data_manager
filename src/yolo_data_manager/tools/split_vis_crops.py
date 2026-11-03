@@ -9,7 +9,7 @@ Examples
 --------
 Reuse an existing dataset split::
 
-    python tools/split_vis_crops.py \
+    python -m yolo_data_manager.tools.split_vis_crops \
         --crops-dir dataset/ydm_vis/crop \
         --split-dir dataset \
         --out dataset/ydm_vis/crop_split \
@@ -17,14 +17,14 @@ Reuse an existing dataset split::
 
 Keep every crop from one source image in one random split::
 
-    python tools/split_vis_crops.py \
+    python -m yolo_data_manager.tools.split_vis_crops \
         --crops-dir dataset/ydm_vis/crop \
         --out dataset/ydm_vis/crop_split \
         --mode stem_random --train 0.8 --val 0.2 --test 0 --seed 233
 
 Randomly assign every crop file independently::
 
-    python tools/split_vis_crops.py \
+    python -m yolo_data_manager.tools.split_vis_crops \
         --crops-dir dataset/ydm_vis/crop \
         --out dataset/ydm_vis/crop_split \
         --mode crop_random --train 0.8 --val 0.2 --test 0 --seed 233

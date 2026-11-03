@@ -11,7 +11,7 @@ import csv
 import json
 from pathlib import Path
 
-from tools.split_vis_crops import split_vis_crops
+from yolo_data_manager.tools.split_vis_crops import split_vis_crops
 from yolo_data_manager import YoloManager, merge_modalities
 
 DATA_DIR = Path(

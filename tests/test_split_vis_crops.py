@@ -1,14 +1,9 @@
-import importlib.util
+from importlib import import_module
 from pathlib import Path
 
 
 def _load_tool():
-    path = Path(__file__).parents[1] / "tools" / "split_vis_crops.py"
-    spec = importlib.util.spec_from_file_location("split_vis_crops", path)
-    module = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    spec.loader.exec_module(module)
-    return module
+    return import_module("yolo_data_manager.tools.split_vis_crops")
 
 
 def _touch(path: Path) -> None:
