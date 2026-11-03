@@ -76,6 +76,7 @@ RUN_LIST = [
     "sta",
     # "vis_draw",
     "vis_crop",
+    "vis_crop_split",
     # "query",
     # "copy_select",
     # "metric",
