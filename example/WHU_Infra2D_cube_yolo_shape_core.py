@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from tools.split_vis_crops import split_vis_crops
 from yolo_data_manager import YoloManager
 
 # DATA_DIR = Path(r"/data/huilin/data/bdd_hmt/sua_rgb_update_v1")
@@ -127,6 +128,12 @@ def main() -> None:
     if "vis_crop" in RUN_LIST:
         ydm.vis_crop(
             # only_val=True,
+        )
+    if "vis_crop_split" in RUN_LIST:
+        split_vis_crops(
+            crops_dir=ydm.output_vis / "crops",
+            mode="source_split",
+            split_dir=ydm.root,
         )
     if "query" in RUN_LIST:
         ydm.query_class(

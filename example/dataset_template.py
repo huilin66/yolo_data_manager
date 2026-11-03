@@ -11,6 +11,7 @@ import csv
 import json
 from pathlib import Path
 
+from tools.split_vis_crops import split_vis_crops
 from yolo_data_manager import YoloManager, merge_modalities
 
 DATA_DIR = Path(
@@ -104,6 +105,7 @@ RUN_LIST = [
     "sta",
     "vis_draw",
     "vis_crop",
+    "vis_crop_split",
     "query",
     "copy_select",
     "metric",
@@ -192,8 +194,7 @@ def _write_metric_summary_csv(
     normalized_mode = {"total": "overall"}.get(normalized_mode, normalized_mode)
     if normalized_mode not in {"per_result", "overall"}:
         raise ValueError(
-            "summary_mode must be 'per_result' or 'overall', "
-            f"got {summary_mode!r}"
+            f"summary_mode must be 'per_result' or 'overall', got {summary_mode!r}"
         )
 
     aggregate_key, class_key = _metric_keys(metric)
@@ -329,6 +330,12 @@ def main() -> None:
     if "vis_crop" in RUN_LIST:
         ydm.vis_crop(
             only_val=True,
+        )
+    if "vis_crop_split" in RUN_LIST:
+        split_vis_crops(
+            crops_dir=ydm.output_vis / "crops",
+            mode="source_split",
+            split_dir=ydm.root,
         )
     if "query" in RUN_LIST:
         ydm.query_class(
