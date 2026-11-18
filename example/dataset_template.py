@@ -11,8 +11,8 @@ import csv
 import json
 from pathlib import Path
 
-from yolo_data_manager.tools.split_vis_crops import split_vis_crops
 from yolo_data_manager import YoloManager, merge_modalities
+from yolo_data_manager.tools.split_vis_crops import split_vis_crops
 
 DATA_DIR = Path(
     r"/localnvme/project/ultralytics/ultralytics/cfg/datasets_hmt/hmt_t_update_v6.yaml"
@@ -92,6 +92,8 @@ UPDATE_CLASS_MAP = {
     #     "Temperature High Risk",
     # ],
 }
+PRED_IMG_DIR = None
+PRED_TXT_DIR = None
 EVAL_RROR_CLASS_MAP = {}
 UPDATE_ATT_MAP = None
 QUERY_CLASS = "Leakage"
@@ -105,6 +107,7 @@ RUN_LIST = [
     "sta",
     "vis_draw",
     "vis_crop",
+    "pred_vis",
     "vis_crop_split",
     "query",
     "copy_select",
@@ -336,6 +339,16 @@ def main() -> None:
             crops_dir=ydm.output_vis / "crops",
             mode="source_split",
             split_dir=ydm.root,
+        )
+    if "pred_vis" in RUN_LIST:
+        ydm.vis_draw(
+            images_dir=PRED_IMG_DIR,
+            labels_dir=PRED_TXT_DIR,
+            out=PRED_TXT_DIR.with_name("pred_vis"),
+            show_conf=True,
+            conf=0.5,
+            show_attrs=True,
+            show_id=False,
         )
     if "query" in RUN_LIST:
         ydm.query_class(
