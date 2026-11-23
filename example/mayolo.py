@@ -7,18 +7,19 @@ one dataset here and call the public manager API directly.
 from __future__ import annotations
 
 from pathlib import Path
+
 from yolo_data_manager import YoloManager
 
 DATA_DIR = Path(r"E:\data\0417_signboard\mayolo_v3")
 
-# PRED_VIS_DIR = Path(
-#     r"E:\data\0417_signboard\select\predictions_seed0_rerun\YOLOv10x_native\labels"
+
+# PRED_IMG_DIR = Path(r"E:\data\0417_signboard\select\predictions_seed0_robustness\IMAGE")
+# PRED_TXT_DIR = Path(
+#     r"E:\data\0417_signboard\select\predictions_seed0_robustness\YOLOv10x\labels"
 # )
-PRED_IMG_DIR = Path(r"E:\data\0417_signboard\select\predictions_seed0_robustness\IMAGE")
-PRED_TXT_DIR = Path(
-    r"E:\data\0417_signboard\select\predictions_seed0_robustness\MAYOLOx\labels"
-)
-# PRED_RUNS_DIR = Path(r"//localnvme/project/ultralytics/runs/mdetect")
+PRED_IMG_DIR = Path(r"E:\data\0417_signboard\select\pred_comp\IMAGE")
+PRED_TXT_DIR = Path(r"E:\data\0417_signboard\select\pred_comp\MAYOLOx\labels")
+
 PRED_RUNS_DIR = Path(r"/localnvme/project/isds_project/runs/mdetect")
 PRED_NAMES = [
     "predict2",
@@ -40,7 +41,8 @@ ATT_CROP_PRED_DICT = {
 # Select operations by uncommenting names in RUN_LIST.
 RUN_LIST = [
     # "sta",
-    # "vis",
+    # "vis_draw",
+    # "vis_crop",
     "pred_vis",
     # "metric",
     # "error_ana",
@@ -55,12 +57,14 @@ def main() -> None:
     if "sta" in RUN_LIST:
         ydm.stats(stats_list=["all"])
 
-    if "vis" in RUN_LIST:
+    if "vis_draw" in RUN_LIST:
         ydm.vis_draw(
             show_attrs=True,
             show_id=False,
+            # filter_level=None,
             filter_level=[1],
         )
+    if "vis_crop" in RUN_LIST:
         ydm.vis_crop(filter_level=[1])
     if "pred_vis" in RUN_LIST:
         ydm.vis_draw(
