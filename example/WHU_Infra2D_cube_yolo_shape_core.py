@@ -133,6 +133,8 @@ def main() -> None:
     if "vis_crop_split" in RUN_LIST:
         split_vis_crops(
             crops_dir=ydm.output_vis / "crop",
+            out=ydm.output_vis / "crop_split",
+            copy_files=True,
             mode="source_split",
             split_dir=ydm.root,
         )
